@@ -13,24 +13,23 @@ function toE164(phone: string): string {
 }
 
 export async function sendSms(phone: string, body: string): Promise<void> {
-  const accountSid = process.env.TWILIO_ACCOUNT_SID;
-  const authToken = process.env.TWILIO_AUTH_TOKEN;
-  const fromPhone = process.env.TWILIO_PHONE_NUMBER;
+  const instanceId = process.env.GREEN_API_INSTANCE_ID;
+  const apiToken = process.env.GREEN_API_TOKEN;
 
-  if (accountSid && authToken && fromPhone) {
-    const url = `https://api.twilio.com/2010-04-01/Accounts/${accountSid}/Messages.json`;
-    const creds = Buffer.from(`${accountSid}:${authToken}`).toString("base64");
+  if (instanceId && apiToken) {
+    const to = toE164(phone).replace("+", "") + "@c.us";
+    const url = `https://api.green-api.com/waInstance${instanceId}/sendMessage/${apiToken}`;
     const res = await fetch(url, {
       method: "POST",
-      headers: { Authorization: `Basic ${creds}`, "Content-Type": "application/x-www-form-urlencoded" },
-      body: new URLSearchParams({ From: fromPhone, To: toE164(phone), Body: body }).toString(),
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ chatId: to, message: body }),
     });
     if (!res.ok) {
       const err = await res.json();
-      throw new Error((err as any).message ?? "SMS sending failed");
+      throw new Error((err as any).message ?? "WhatsApp sending failed");
     }
   } else {
-    console.log(`[SMS] To: ${phone}\n${body}`);
+    console.log(`[WhatsApp] To: ${phone}\n${body}`);
   }
 }
 
