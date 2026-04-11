@@ -58,6 +58,19 @@ const HEBREW_FONTS = [
   { value: "Rubik", label: "Rubik" },
   { value: "Secular One", label: "Secular One" },
   { value: "Noto Sans Hebrew", label: "Noto Sans Hebrew" },
+  { value: "Frank Ruhl Libre", label: "Frank Ruhl Libre" },
+  { value: "Varela Round", label: "Varela Round" },
+  { value: "Alef", label: "Alef" },
+  { value: "Arimo", label: "Arimo" },
+  { value: "Open Sans", label: "Open Sans" },
+  { value: "Lato", label: "Lato" },
+  { value: "Poppins", label: "Poppins" },
+  { value: "Montserrat", label: "Montserrat" },
+  { value: "Inter", label: "Inter" },
+  { value: "Raleway", label: "Raleway" },
+  { value: "Nunito", label: "Nunito" },
+  { value: "Playfair Display", label: "Playfair Display" },
+  { value: "DM Sans", label: "DM Sans" },
 ];
 
 const PRESET_COLORS = [
@@ -1019,6 +1032,69 @@ function WaitlistTab() {
   );
 }
 
+function FontPicker({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  const [search, setSearch] = useState("");
+  const [open, setOpen] = useState(false);
+  const filtered = HEBREW_FONTS.filter(f => f.label.toLowerCase().includes(search.toLowerCase()));
+  const current = HEBREW_FONTS.find(f => f.value === value) ?? HEBREW_FONTS[0];
+
+  // Load all fonts once
+  useEffect(() => {
+    const families = HEBREW_FONTS.map(f => encodeURIComponent(f.value) + ":wght@400;700").join("&family=");
+    const id = "gfonts-all";
+    if (!document.getElementById(id)) {
+      const link = document.createElement("link");
+      link.id = id;
+      link.rel = "stylesheet";
+      link.href = `https://fonts.googleapis.com/css2?family=${families}&display=swap`;
+      document.head.appendChild(link);
+    }
+  }, []);
+
+  return (
+    <div className="space-y-3">
+      <h3 className="font-semibold text-base border-b pb-2">פונט</h3>
+      <div className="relative">
+        <button
+          type="button"
+          onClick={() => setOpen(o => !o)}
+          className="w-full flex items-center justify-between p-3 border-2 rounded-xl hover:border-primary/40 transition-all bg-card"
+        >
+          <span style={{ fontFamily: current.value }} className="text-lg">{current.label} — שלום עולם</span>
+          <span className="text-xs text-muted-foreground ml-2">▼</span>
+        </button>
+        {open && (
+          <div className="absolute z-20 top-full mt-1 w-full bg-card border rounded-xl shadow-xl overflow-hidden">
+            <div className="p-2 border-b">
+              <input
+                autoFocus
+                value={search}
+                onChange={e => setSearch(e.target.value)}
+                placeholder="חפש פונט..."
+                className="w-full px-3 py-2 text-sm rounded-lg border bg-background outline-none"
+              />
+            </div>
+            <div className="max-h-64 overflow-y-auto">
+              {filtered.map(f => (
+                <button
+                  key={f.value}
+                  type="button"
+                  onClick={() => { onChange(f.value); setOpen(false); setSearch(""); }}
+                  className={`w-full flex items-center justify-between px-4 py-3 hover:bg-muted/50 transition-colors text-right ${value === f.value ? "bg-primary/5 text-primary font-semibold" : ""}`}
+                >
+                  <span style={{ fontFamily: f.value }} className="text-base">{f.label} — שלום עולם</span>
+                  {value === f.value && <span className="text-primary text-sm">✓</span>}
+                </button>
+              ))}
+              {!filtered.length && <p className="text-center text-muted-foreground text-sm py-4">לא נמצאו פונטים</p>}
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function BrandingTab() {
   const { data: profile } = useGetBusinessProfile();
   const updateBranding = useUpdateBusinessBranding();
@@ -1088,19 +1164,7 @@ function BrandingTab() {
 
           <Separator />
 
-          <div className="space-y-4">
-            <h3 className="font-semibold text-base border-b pb-2">פונט</h3>
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-              {HEBREW_FONTS.map(f => (
-                <button key={f.value} onClick={() => setForm(p => ({ ...p, fontFamily: f.value }))}
-                  className={`p-3 border-2 rounded-xl text-center transition-all ${form.fontFamily === f.value ? "border-primary bg-primary/5" : "border-border hover:border-primary/40"}`}
-                  style={{ fontFamily: f.value }}>
-                  <div className="text-lg mb-1">שלום</div>
-                  <div className="text-xs text-muted-foreground">{f.label}</div>
-                </button>
-              ))}
-            </div>
-          </div>
+          <FontPicker value={form.fontFamily} onChange={v => setForm(p => ({ ...p, fontFamily: v }))} />
 
           <Separator />
 

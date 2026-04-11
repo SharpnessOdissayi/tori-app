@@ -17,7 +17,7 @@ export default function Home() {
         <div className="flex items-center gap-3">
           <Link href="/dashboard">
             <Button variant="ghost" size="sm" className="text-sm">
-              כניסה לעסק
+              כניסה לבעלי עסקים
             </Button>
           </Link>
           <Link href="/super-admin">
@@ -49,7 +49,7 @@ export default function Home() {
           </div>
 
           <div className="flex flex-col sm:flex-row gap-4 justify-center pt-4">
-            <Link href="/book/demo-salon">
+            <Link href="/book/lilash">
               <Button size="lg" className="w-full sm:w-auto h-14 px-8 text-base rounded-2xl shadow-lg hover:shadow-xl transition-all gap-2">
                 <CalendarCheck className="w-5 h-5" />
                 נסה הזמנה לדוגמה
@@ -58,7 +58,7 @@ export default function Home() {
             <Link href="/dashboard">
               <Button size="lg" variant="outline" className="w-full sm:w-auto h-14 px-8 text-base rounded-2xl gap-2">
                 <Building2 className="w-5 h-5" />
-                כניסה לעסק
+                כניסה לבעלי עסקים
               </Button>
             </Link>
           </div>
@@ -90,8 +90,8 @@ export default function Home() {
           transition={{ duration: 0.6, delay: 0.6 }}
           className="mt-16 p-6 bg-muted/50 rounded-2xl border border-dashed w-full max-w-md"
         >
-          <p className="text-muted-foreground text-sm mb-3">דוגמה לעסק: <strong className="text-foreground">סטודיו רות - מספרה</strong></p>
-          <Link href="/book/demo-salon">
+          <p className="text-muted-foreground text-sm mb-3">דוגמה לעסק: <strong className="text-foreground">Lilash — סטודיו לעיצוב שיער</strong></p>
+          <Link href="/book/lilash">
             <Button variant="link" className="text-primary font-semibold gap-1 p-0 h-auto">
               כנס לדף ההזמנה
               <ArrowLeft className="w-4 h-4" />

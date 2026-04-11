@@ -61,7 +61,18 @@ export default function Book() {
       root.style.setProperty("--primary-g", String(g));
       root.style.setProperty("--primary-b", String(b));
     }
-  }, [business]);
+    // Load Google Font dynamically
+    if (fontFamily && fontFamily !== "inherit") {
+      const id = `gfont-${fontFamily.replace(/\s+/g, "-")}`;
+      if (!document.getElementById(id)) {
+        const link = document.createElement("link");
+        link.id = id;
+        link.rel = "stylesheet";
+        link.href = `https://fonts.googleapis.com/css2?family=${encodeURIComponent(fontFamily)}:wght@400;500;600;700&display=swap`;
+        document.head.appendChild(link);
+      }
+    }
+  }, [business, fontFamily]);
 
   if (businessLoading) return (
     <div className="min-h-screen flex items-center justify-center">
