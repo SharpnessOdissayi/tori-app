@@ -1472,6 +1472,45 @@ function IntegrationsTab() {
         </CardContent>
       </Card>
 
+      <Card className="border-green-200 bg-green-50/30">
+        <CardHeader>
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 bg-green-600 rounded-xl flex items-center justify-center text-white text-lg font-bold">?</div>
+            <div>
+              <CardTitle>מדריך מהיר — WhatsApp לעסק שלך</CardTitle>
+              <CardDescription>כך לקוחות שלך מקבלים הודעות אישיות מהמספר שלך</CardDescription>
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-center">
+            <div className="bg-white rounded-xl border p-4 space-y-2">
+              <div className="w-10 h-10 rounded-full bg-green-100 text-green-700 font-bold text-lg flex items-center justify-center mx-auto">1</div>
+              <div className="font-semibold text-sm">פתח Green API</div>
+              <p className="text-xs text-muted-foreground">הירשם בחינם ב-<a href="https://green-api.com" target="_blank" rel="noopener noreferrer" className="text-green-700 underline font-medium">green-api.com</a> וצור Instance חדש</p>
+            </div>
+            <div className="bg-white rounded-xl border p-4 space-y-2">
+              <div className="w-10 h-10 rounded-full bg-green-100 text-green-700 font-bold text-lg flex items-center justify-center mx-auto">2</div>
+              <div className="font-semibold text-sm">סרוק QR עם WhatsApp</div>
+              <p className="text-xs text-muted-foreground">בדף ה-Instance לחץ <strong>Settings → QR Code</strong> וסרוק עם הטלפון שלך</p>
+            </div>
+            <div className="bg-white rounded-xl border p-4 space-y-2">
+              <div className="w-10 h-10 rounded-full bg-green-100 text-green-700 font-bold text-lg flex items-center justify-center mx-auto">3</div>
+              <div className="font-semibold text-sm">הכנס את הפרטים למעלה</div>
+              <p className="text-xs text-muted-foreground">העתק <strong>idInstance</strong> ו-<strong>apiTokenInstance</strong> ושמור</p>
+            </div>
+          </div>
+          <div className="bg-white border rounded-xl p-4 space-y-2 text-sm">
+            <div className="font-semibold">מה הלקוחות שלך יקבלו:</div>
+            <div className="space-y-1.5 text-muted-foreground">
+              <div className="flex items-center gap-2"><CheckCircle className="w-4 h-4 text-green-500 shrink-0" /> קוד אימות WhatsApp לפני קביעת תור</div>
+              <div className="flex items-center gap-2"><CheckCircle className="w-4 h-4 text-green-500 shrink-0" /> אתה מקבל הודעה מיידית על כל תור שנקבע</div>
+            </div>
+            <div className="text-xs text-muted-foreground pt-1">מנוי חינמי ב-Green API: עד 100 הודעות ביום — מספיק לרוב העסקים הקטנים</div>
+          </div>
+        </CardContent>
+      </Card>
+
       <Card>
         <CardHeader>
           <div className="flex items-center gap-3">
