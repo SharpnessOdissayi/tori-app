@@ -17,6 +17,7 @@ import { Switch } from "@/components/ui/switch";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 import { Plus, Trash2, Edit, ExternalLink, Shield, Eye, EyeOff, RefreshCw } from "lucide-react";
+import Navbar from "@/components/Navbar";
 
 const PLANS = [
   { value: "free", label: "חינמי", color: "bg-slate-100 text-slate-700" },
@@ -197,7 +198,9 @@ export default function SuperAdmin() {
   const totalCount = bizList.length;
 
   return (
-    <div className="min-h-screen bg-muted/20 p-6" dir="rtl">
+    <div className="min-h-screen bg-muted/20 flex flex-col" dir="rtl">
+      <Navbar />
+      <div className="flex-1 p-6">
       <div className="max-w-6xl mx-auto space-y-6">
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
           <div>
@@ -326,6 +329,7 @@ export default function SuperAdmin() {
           </form>
         </DialogContent>
       </Dialog>
+      </div>
     </div>
   );
 }

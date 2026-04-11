@@ -360,15 +360,17 @@ export default function Dashboard() {
 
       <header className="bg-card border-b border-border sticky top-0 z-10">
         <div className="max-w-6xl mx-auto px-4 h-16 flex items-center justify-between">
-          <div className="font-bold text-xl text-primary flex items-center gap-2">
-            <div className="w-8 h-8 rounded-lg bg-primary text-primary-foreground flex items-center justify-center text-sm font-bold">ת</div>
-            <div>
-              <div className="text-sm font-bold leading-tight">תורי</div>
-              {headerProfile?.name && (
-                <div className="text-xs font-normal text-muted-foreground leading-tight">{headerProfile.name}</div>
-              )}
+          <Link href="/">
+            <div className="font-bold text-xl text-primary flex items-center gap-2 cursor-pointer">
+              <div className="w-8 h-8 rounded-lg bg-primary text-primary-foreground flex items-center justify-center text-sm font-bold">ת</div>
+              <div>
+                <div className="text-sm font-bold leading-tight">תורי</div>
+                {headerProfile?.name && (
+                  <div className="text-xs font-normal text-muted-foreground leading-tight">{headerProfile.name}</div>
+                )}
+              </div>
             </div>
-          </div>
+          </Link>
           <div className="flex items-center gap-2">
             {!showTour && localStorage.getItem("onboarding_completed") && (
               <Button

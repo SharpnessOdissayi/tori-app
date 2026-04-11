@@ -387,7 +387,8 @@ export default function Book() {
       </div>
 
       <footer className="text-center py-4 text-xs text-muted-foreground border-t">
-        מופעל על ידי <strong>תורי</strong>
+        מופעל על ידי{" "}
+        <a href="/" className="font-bold text-foreground hover:text-primary transition-colors">תורי</a>
       </footer>
     </div>
   );

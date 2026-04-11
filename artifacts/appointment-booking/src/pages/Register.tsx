@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useLocation } from "wouter";
+import Navbar from "@/components/Navbar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -414,7 +415,9 @@ export default function Register() {
   };
 
   return (
-    <div className="min-h-screen bg-muted/30 flex items-start justify-center py-12 px-4" dir="rtl">
+    <div className="min-h-screen bg-muted/30 flex flex-col" dir="rtl">
+      <Navbar />
+      <div className="flex-1 flex items-start justify-center py-12 px-4">
       <div className="w-full max-w-lg">
         {/* Progress indicator */}
         {step !== "success" && (
@@ -457,6 +460,7 @@ export default function Register() {
             </a>
           </p>
         )}
+      </div>
       </div>
     </div>
   );

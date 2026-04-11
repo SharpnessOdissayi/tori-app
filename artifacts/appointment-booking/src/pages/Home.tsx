@@ -3,30 +3,19 @@ import { Link } from "wouter";
 import { CalendarCheck, Building2, ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import Navbar from "@/components/Navbar";
 
 export default function Home() {
   return (
     <div className="min-h-[100dvh] flex flex-col bg-background" dir="rtl">
-      <header className="px-6 py-4 flex items-center justify-between bg-card border-b sticky top-0 z-10">
-        <div className="flex items-center gap-2 text-primary font-bold text-2xl">
-          <div className="w-9 h-9 rounded-xl bg-primary text-primary-foreground flex items-center justify-center text-base">
-            ת
-          </div>
-          תורי
-        </div>
-        <div className="flex items-center gap-3">
-          <Link href="/dashboard">
-            <Button variant="ghost" size="sm" className="text-sm">
-              כניסה לבעלי עסקים
-            </Button>
-          </Link>
-          <Link href="/super-admin">
-            <Button variant="outline" size="sm" className="text-sm">
-              ניהול
-            </Button>
-          </Link>
-        </div>
-      </header>
+      <Navbar>
+        <Link href="/dashboard">
+          <Button variant="ghost" size="sm" className="text-sm">כניסה לבעלי עסקים</Button>
+        </Link>
+        <Link href="/super-admin">
+          <Button variant="outline" size="sm" className="text-sm">ניהול</Button>
+        </Link>
+      </Navbar>
 
       <main className="flex-1 flex flex-col items-center justify-center px-6 py-16 max-w-3xl mx-auto w-full text-center">
         <motion.div
