@@ -62,12 +62,12 @@ router.post("/super-admin/businesses", async (req, res): Promise<void> => {
     return;
   }
 
-  const { name, slug, ownerName, email, password } = bodyParsed.data;
+  const { name, slug, ownerName, email, password, phone } = bodyParsed.data;
   const passwordHash = await bcrypt.hash(password, 10);
 
   const [business] = await db
     .insert(businessesTable)
-    .values({ slug, name, ownerName, email, passwordHash })
+    .values({ slug, name, ownerName, email, passwordHash, phone: phone ?? null })
     .returning();
 
   await db.insert(workingHoursTable).values(
@@ -122,6 +122,7 @@ router.patch("/super-admin/businesses/:id", async (req, res): Promise<void> => {
   if (bodyParsed.data.password !== undefined) {
     updates.passwordHash = await bcrypt.hash(bodyParsed.data.password, 10);
   }
+  if (bodyParsed.data.phone !== undefined) updates.phone = bodyParsed.data.phone || null;
 
   const [updated] = await db
     .update(businessesTable)

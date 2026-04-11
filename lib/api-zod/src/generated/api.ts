@@ -43,6 +43,7 @@ export const SuperAdminCreateBusinessBody = zod.object({
   ownerName: zod.string(),
   email: zod.string(),
   password: zod.string(),
+  phone: zod.string().optional(),
 });
 
 export const SuperAdminUpdateBusinessParams = zod.object({
@@ -62,6 +63,7 @@ export const SuperAdminUpdateBusinessBody = zod.object({
   ownerName: zod.string().optional(),
   email: zod.string().email().optional(),
   password: zod.string().optional(),
+  phone: zod.string().optional(),
 });
 
 export const SuperAdminUpdateBusinessResponse = zod.object({

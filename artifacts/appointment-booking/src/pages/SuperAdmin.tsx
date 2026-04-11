@@ -31,6 +31,7 @@ interface EditFormData {
   ownerName: string;
   email: string;
   password: string;
+  phone: string;
 }
 
 export default function SuperAdmin() {
@@ -40,10 +41,10 @@ export default function SuperAdmin() {
   const queryClient = useQueryClient();
 
   const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const [newBusiness, setNewBusiness] = useState({ name: "", slug: "", ownerName: "", email: "", password: "" });
+  const [newBusiness, setNewBusiness] = useState({ name: "", slug: "", ownerName: "", email: "", password: "", phone: "" });
   const [editingId, setEditingId] = useState<number | null>(null);
   const [editDialogBusiness, setEditDialogBusiness] = useState<AdminBusinessSummary | null>(null);
-  const [editForm, setEditForm] = useState<EditFormData>({ name: "", slug: "", ownerName: "", email: "", password: "" });
+  const [editForm, setEditForm] = useState<EditFormData>({ name: "", slug: "", ownerName: "", email: "", password: "", phone: "" });
   const [showEditPassword, setShowEditPassword] = useState(false);
 
   const [loginAttempted, setLoginAttempted] = useState(false);
@@ -77,11 +78,11 @@ export default function SuperAdmin() {
 
   const handleCreate = (e: React.FormEvent) => {
     e.preventDefault();
-    createMutation.mutate({ params: { adminPassword: password }, data: newBusiness }, {
+    createMutation.mutate({ params: { adminPassword: password }, data: { ...newBusiness, phone: newBusiness.phone || undefined } }, {
       onSuccess: () => {
         toast({ title: "עסק נוצר בהצלחה" });
         setIsDialogOpen(false);
-        setNewBusiness({ name: "", slug: "", ownerName: "", email: "", password: "" });
+        setNewBusiness({ name: "", slug: "", ownerName: "", email: "", password: "", phone: "" });
         invalidate();
       },
       onError: () => toast({ title: "שגיאה ביצירת עסק", variant: "destructive" }),
@@ -137,6 +138,7 @@ export default function SuperAdmin() {
       ownerName: business.ownerName,
       email: business.email,
       password: "",
+      phone: (business as any).phone ?? "",
     });
     setShowEditPassword(false);
   };
@@ -151,6 +153,7 @@ export default function SuperAdmin() {
     if (editForm.ownerName !== editDialogBusiness.ownerName) data.ownerName = editForm.ownerName;
     if (editForm.email !== editDialogBusiness.email) data.email = editForm.email;
     if (editForm.password) data.password = editForm.password;
+    if (editForm.phone !== ((editDialogBusiness as any).phone ?? "")) data.phone = editForm.phone || "";
 
     if (Object.keys(data).length === 0) {
       toast({ title: "לא בוצעו שינויים" });
@@ -236,6 +239,10 @@ export default function SuperAdmin() {
                   <Input required type="email" value={newBusiness.email} onChange={e => setNewBusiness(p => ({ ...p, email: e.target.value }))} dir="ltr" placeholder="yosi@example.com" />
                 </div>
                 <div className="space-y-2">
+                  <Label>מספר טלפון</Label>
+                  <Input type="tel" value={newBusiness.phone} onChange={e => setNewBusiness(p => ({ ...p, phone: e.target.value }))} dir="ltr" placeholder="050-0000000" />
+                </div>
+                <div className="space-y-2">
                   <Label>סיסמה *</Label>
                   <div className="flex gap-2">
                     <Input required value={newBusiness.password} onChange={e => setNewBusiness(p => ({ ...p, password: e.target.value }))} dir="ltr" placeholder="סיסמה חזקה" className="flex-1" />
@@ -296,6 +303,10 @@ export default function SuperAdmin() {
             <div className="space-y-2">
               <Label>אימייל</Label>
               <Input required type="email" value={editForm.email} onChange={e => setEditForm(p => ({ ...p, email: e.target.value }))} dir="ltr" placeholder="yosi@example.com" />
+            </div>
+            <div className="space-y-2">
+              <Label>מספר טלפון</Label>
+              <Input type="tel" value={editForm.phone} onChange={e => setEditForm(p => ({ ...p, phone: e.target.value }))} dir="ltr" placeholder="050-0000000" />
             </div>
             <div className="space-y-2">
               <Label>איפוס סיסמה</Label>
