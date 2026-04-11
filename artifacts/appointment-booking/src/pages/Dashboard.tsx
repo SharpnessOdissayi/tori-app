@@ -419,8 +419,9 @@ export default function Dashboard() {
                 <Palette className="w-4 h-4" /> עיצוב
               </TabsTrigger>
               <TabsTrigger value="integrations" className="gap-1.5 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground whitespace-nowrap">
-                <Puzzle className="w-4 h-4" /> אינטגרציות
+                <Phone className="w-4 h-4" /> הודעות
               </TabsTrigger>
+
               <TabsTrigger value="settings" className="gap-1.5 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground whitespace-nowrap">
                 <Settings className="w-4 h-4" /> הגדרות
               </TabsTrigger>
@@ -1388,20 +1389,13 @@ function IntegrationsTab() {
   const queryClient = useQueryClient();
   const { toast } = useToast();
 
-  const [form, setForm] = useState({
-    greenApiInstanceId: "",
-    greenApiToken: "",
-    stripeEnabled: false,
-    stripePublicKey: "",
-  });
+  const [form, setForm] = useState({ greenApiInstanceId: "", greenApiToken: "" });
 
   useEffect(() => {
     if (profile) {
       setForm({
         greenApiInstanceId: (profile as any).greenApiInstanceId ?? "",
         greenApiToken: (profile as any).greenApiToken ?? "",
-        stripeEnabled: profile.stripeEnabled,
-        stripePublicKey: profile.stripePublicKey ?? "",
       });
     }
   }, [profile]);
@@ -1411,144 +1405,101 @@ function IntegrationsTab() {
       data: {
         greenApiInstanceId: form.greenApiInstanceId || null,
         greenApiToken: form.greenApiToken || null,
-        stripeEnabled: form.stripeEnabled,
-        stripePublicKey: form.stripePublicKey || null,
       }
     }, {
-      onSuccess: () => { toast({ title: "אינטגרציות נשמרו" }); queryClient.invalidateQueries({ queryKey: getGetBusinessProfileQueryKey() }); },
+      onSuccess: () => { toast({ title: "הגדרות הודעות נשמרו" }); queryClient.invalidateQueries({ queryKey: getGetBusinessProfileQueryKey() }); },
     });
   };
 
-  const isWhatsappConnected = !!(form.greenApiInstanceId && form.greenApiToken);
+  const isConnected = !!(form.greenApiInstanceId && form.greenApiToken);
 
   return (
-    <div className="space-y-6">
-      <Card>
-        <CardHeader>
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-green-500 rounded-xl flex items-center justify-center">
-              <Phone className="w-5 h-5 text-white" />
-            </div>
-            <div>
-              <CardTitle>WhatsApp — הודעות מהמספר שלך</CardTitle>
-              <CardDescription>קבל הודעה על כל תור + שלח קודי אימות ללקוחות מהמספר האישי שלך</CardDescription>
-            </div>
+    <div className="space-y-6 max-w-2xl">
+
+      {/* Status */}
+      <div className={`flex items-center gap-3 p-4 rounded-xl border ${isConnected ? "bg-green-50 border-green-200" : "bg-muted/30 border-border"}`}>
+        <div className={`w-3 h-3 rounded-full shrink-0 ${isConnected ? "bg-green-500" : "bg-muted-foreground/40"}`} />
+        <div>
+          <div className={`font-semibold text-sm ${isConnected ? "text-green-800" : "text-muted-foreground"}`}>
+            {isConnected ? "WhatsApp מחובר — הודעות יוצאות מהמספר שלך" : "WhatsApp לא מחובר — הודעות לא יישלחו"}
           </div>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="bg-green-50 border border-green-200 rounded-xl p-4 space-y-3">
-            <div className="font-semibold text-green-800 flex items-center gap-2"><Info className="w-4 h-4" /> איך מחברים WhatsApp דרך Green API?</div>
-            <ol className="text-sm text-green-700 space-y-2 list-decimal list-inside">
-              <li>
-                כנס ל-<a href="https://green-api.com" target="_blank" rel="noopener noreferrer" className="underline font-medium">green-api.com</a> והירשם (חינמי עד 100 הודעות ביום)
-              </li>
-              <li>לחץ <strong>Create Instance</strong> וסרוק את קוד ה-QR עם WhatsApp שלך</li>
-              <li>העתק את <strong>idInstance</strong> ו-<strong>apiTokenInstance</strong> מדף ה-Instance</li>
-              <li>הכנס את הפרטים בשדות למטה ולחץ שמור</li>
-            </ol>
-            <div className="text-xs text-green-600 bg-green-100 rounded-lg p-2">
-              כשמחובר — הודעות תור ישלחו <strong>מהמספר שלך</strong> ללקוחות ולבעל העסק
-            </div>
-          </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label>idInstance</Label>
-              <Input placeholder="7107584668" value={form.greenApiInstanceId} onChange={e => setForm(p => ({ ...p, greenApiInstanceId: e.target.value }))} dir="ltr" />
-            </div>
-            <div className="space-y-2">
-              <Label>apiTokenInstance</Label>
-              <Input type="password" placeholder="553b2c25..." value={form.greenApiToken} onChange={e => setForm(p => ({ ...p, greenApiToken: e.target.value }))} dir="ltr" />
-            </div>
-          </div>
-          {isWhatsappConnected ? (
-            <div className="flex items-center gap-2 text-green-600 text-sm font-medium">
-              <CheckCircle className="w-4 h-4" /> WhatsApp מחובר — הודעות ישלחו מהמספר שלך
-            </div>
-          ) : (
-            <div className="flex items-center gap-2 text-muted-foreground text-sm">
-              <Info className="w-4 h-4" /> לא מחובר — הודעות יישלחו מהמספר הכללי של תורי
-            </div>
+          {isConnected && (
+            <div className="text-xs text-green-600 mt-0.5">לקוחות מקבלים קוד אימות ואתה מקבל התראה על כל תור</div>
           )}
-        </CardContent>
-      </Card>
-
-      <Card className="border-green-200 bg-green-50/30">
-        <CardHeader>
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-green-600 rounded-xl flex items-center justify-center text-white text-lg font-bold">?</div>
-            <div>
-              <CardTitle>מדריך מהיר — WhatsApp לעסק שלך</CardTitle>
-              <CardDescription>כך לקוחות שלך מקבלים הודעות אישיות מהמספר שלך</CardDescription>
-            </div>
-          </div>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-center">
-            <div className="bg-white rounded-xl border p-4 space-y-2">
-              <div className="w-10 h-10 rounded-full bg-green-100 text-green-700 font-bold text-lg flex items-center justify-center mx-auto">1</div>
-              <div className="font-semibold text-sm">פתח Green API</div>
-              <p className="text-xs text-muted-foreground">הירשם בחינם ב-<a href="https://green-api.com" target="_blank" rel="noopener noreferrer" className="text-green-700 underline font-medium">green-api.com</a> וצור Instance חדש</p>
-            </div>
-            <div className="bg-white rounded-xl border p-4 space-y-2">
-              <div className="w-10 h-10 rounded-full bg-green-100 text-green-700 font-bold text-lg flex items-center justify-center mx-auto">2</div>
-              <div className="font-semibold text-sm">סרוק QR עם WhatsApp</div>
-              <p className="text-xs text-muted-foreground">בדף ה-Instance לחץ <strong>Settings → QR Code</strong> וסרוק עם הטלפון שלך</p>
-            </div>
-            <div className="bg-white rounded-xl border p-4 space-y-2">
-              <div className="w-10 h-10 rounded-full bg-green-100 text-green-700 font-bold text-lg flex items-center justify-center mx-auto">3</div>
-              <div className="font-semibold text-sm">הכנס את הפרטים למעלה</div>
-              <p className="text-xs text-muted-foreground">העתק <strong>idInstance</strong> ו-<strong>apiTokenInstance</strong> ושמור</p>
-            </div>
-          </div>
-          <div className="bg-white border rounded-xl p-4 space-y-2 text-sm">
-            <div className="font-semibold">מה הלקוחות שלך יקבלו:</div>
-            <div className="space-y-1.5 text-muted-foreground">
-              <div className="flex items-center gap-2"><CheckCircle className="w-4 h-4 text-green-500 shrink-0" /> קוד אימות WhatsApp לפני קביעת תור</div>
-              <div className="flex items-center gap-2"><CheckCircle className="w-4 h-4 text-green-500 shrink-0" /> אתה מקבל הודעה מיידית על כל תור שנקבע</div>
-            </div>
-            <div className="text-xs text-muted-foreground pt-1">מנוי חינמי ב-Green API: עד 100 הודעות ביום — מספיק לרוב העסקים הקטנים</div>
-          </div>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-violet-600 rounded-xl flex items-center justify-center">
-              <TrendingUp className="w-5 h-5 text-white" />
-            </div>
-            <div>
-              <CardTitle>תשלומים / פיקדון</CardTitle>
-              <CardDescription>גבה פיקדון מראש בעת קביעת תור</CardDescription>
-            </div>
-          </div>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="bg-violet-50 border border-violet-200 rounded-xl p-4 space-y-2">
-            <div className="font-semibold text-violet-800 flex items-center gap-2"><Info className="w-4 h-4" /> איך להגדיר Stripe?</div>
-            <ol className="text-sm text-violet-700 space-y-1 list-decimal list-inside">
-              <li>הירשם ל-<a href="https://stripe.com" target="_blank" rel="noopener noreferrer" className="underline">Stripe</a></li>
-              <li>קבל את ה-Publishable Key מלוח הבקרה</li>
-              <li>הכנס את המפתח למטה</li>
-              <li>לקוחות יוכלו לשלם פיקדון בעת ההזמנה</li>
-            </ol>
-          </div>
-          <div className="flex items-center gap-3">
-            <Switch checked={form.stripeEnabled} onCheckedChange={v => setForm(p => ({ ...p, stripeEnabled: v }))} />
-            <Label>אפשר תשלום פיקדון</Label>
-          </div>
-          {form.stripeEnabled && (
-            <div className="space-y-2">
-              <Label>Stripe Publishable Key</Label>
-              <Input placeholder="pk_live_..." value={form.stripePublicKey} onChange={e => setForm(p => ({ ...p, stripePublicKey: e.target.value }))} dir="ltr" />
-            </div>
-          )}
-        </CardContent>
-      </Card>
-
-      <div className="flex justify-end">
-        <Button onClick={handleSave} disabled={updateIntegrations.isPending} size="lg">שמור אינטגרציות</Button>
+        </div>
       </div>
+
+      {/* Guide */}
+      <Card>
+        <CardHeader>
+          <CardTitle>מדריך חיבור WhatsApp</CardTitle>
+          <CardDescription>תהליך חד-פעמי של כ-3 דקות</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div className="rounded-xl border bg-muted/20 p-4 space-y-2 text-center">
+              <div className="w-9 h-9 rounded-full bg-green-100 text-green-700 font-bold flex items-center justify-center mx-auto text-base">1</div>
+              <div className="font-semibold text-sm">הירשם לשירות</div>
+              <p className="text-xs text-muted-foreground">
+                כנס לאתר{" "}
+                <a href="https://green-api.com" target="_blank" rel="noopener noreferrer" className="text-green-700 underline font-medium" dir="ltr">green-api.com</a>
+                {" "}והירשם בחינם
+              </p>
+            </div>
+            <div className="rounded-xl border bg-muted/20 p-4 space-y-2 text-center">
+              <div className="w-9 h-9 rounded-full bg-green-100 text-green-700 font-bold flex items-center justify-center mx-auto text-base">2</div>
+              <div className="font-semibold text-sm">צור מכשיר וסרוק</div>
+              <p className="text-xs text-muted-foreground">
+                לחץ "צור מכשיר חדש", ואז עבור להגדרות וסרוק את קוד ה-QR עם WhatsApp בטלפון שלך
+              </p>
+            </div>
+            <div className="rounded-xl border bg-muted/20 p-4 space-y-2 text-center">
+              <div className="w-9 h-9 rounded-full bg-green-100 text-green-700 font-bold flex items-center justify-center mx-auto text-base">3</div>
+              <div className="font-semibold text-sm">העתק את הפרטים</div>
+              <p className="text-xs text-muted-foreground">
+                העתק את מספר המכשיר ואת מפתח ה-API מדף המכשיר שלך
+              </p>
+            </div>
+          </div>
+          <div className="text-xs text-muted-foreground bg-muted/30 rounded-lg p-3">
+            מנוי חינמי: עד 100 הודעות ביום — מספיק לרוב העסקים הקטנים
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Credentials */}
+      <Card>
+        <CardHeader>
+          <CardTitle>פרטי החיבור</CardTitle>
+          <CardDescription>מוצגים בדף המכשיר שלך באתר green-api.com</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="space-y-2">
+            <Label>מספר מכשיר</Label>
+            <Input
+              placeholder="7107584668"
+              value={form.greenApiInstanceId}
+              onChange={e => setForm(p => ({ ...p, greenApiInstanceId: e.target.value }))}
+              dir="ltr"
+              className="font-mono"
+            />
+          </div>
+          <div className="space-y-2">
+            <Label>מפתח API</Label>
+            <Input
+              type="password"
+              placeholder="553b2c2530af4dec..."
+              value={form.greenApiToken}
+              onChange={e => setForm(p => ({ ...p, greenApiToken: e.target.value }))}
+              dir="ltr"
+              className="font-mono"
+            />
+          </div>
+          <Button onClick={handleSave} disabled={updateIntegrations.isPending} className="w-full" size="lg">
+            {updateIntegrations.isPending ? "שומר..." : "שמור"}
+          </Button>
+        </CardContent>
+      </Card>
     </div>
   );
 }
