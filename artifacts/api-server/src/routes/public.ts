@@ -240,9 +240,9 @@ router.post("/public/:businessSlug/appointments", async (req, res): Promise<void
   if (business.phone) {
     const [year, month, day] = appointmentDate.split("-");
     const formattedDate = `${day}/${month}`;
-    const pendingNote = appointmentStatus === "pending" ? " (ממתין לאישורך)" : "";
+    const pendingNote = appointmentStatus === "pending" ? "\n⏳ ממתין לאישורך" : "";
     const notesLine = notes ? `\nהערה: ${notes}` : "";
-    const message = `תור חדש${pendingNote} | ${clientName} | ${service.name} | ${formattedDate} בשעה ${appointmentTime}${notesLine}`;
+    const message = `${clientName} קבע תור בשעה ${appointmentTime} ב-${formattedDate} — ${service.name}${notesLine}${pendingNote}`;
     sendSms(business.phone, message).catch(() => {});
   }
 
