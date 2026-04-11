@@ -24,6 +24,7 @@ export const SuperAdminListBusinessesResponseItem = zod.object({
   name: zod.string(),
   ownerName: zod.string(),
   email: zod.string(),
+  phone: zod.string().nullable(),
   isActive: zod.boolean(),
   subscriptionPlan: zod.string(),
   maxServicesAllowed: zod.number(),

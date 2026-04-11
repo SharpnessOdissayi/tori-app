@@ -24,6 +24,7 @@ export interface AdminBusinessSummary {
   name: string;
   ownerName: string;
   email: string;
+  phone: string | null;
   isActive: boolean;
   subscriptionPlan: string;
   maxServicesAllowed: number;
@@ -35,7 +36,6 @@ export type AdminUpdateBusinessBodySubscriptionPlan =
 
 export const AdminUpdateBusinessBodySubscriptionPlan = {
   free: "free",
-  basic: "basic",
   pro: "pro",
 } as const;
 

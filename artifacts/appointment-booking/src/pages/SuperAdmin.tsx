@@ -132,7 +132,7 @@ export default function SuperAdmin() {
       ownerName: business.ownerName,
       email: business.email,
       password: "",
-      phone: (business as any).phone ?? "",
+      phone: business.phone ?? "",
     });
     setShowEditPassword(false);
   };
@@ -147,7 +147,7 @@ export default function SuperAdmin() {
     if (editForm.ownerName !== editDialogBusiness.ownerName) data.ownerName = editForm.ownerName;
     if (editForm.email !== editDialogBusiness.email) data.email = editForm.email;
     if (editForm.password) data.password = editForm.password;
-    if (editForm.phone !== ((editDialogBusiness as any).phone ?? "")) data.phone = editForm.phone || "";
+    if (editForm.phone !== (editDialogBusiness.phone ?? "")) data.phone = editForm.phone || "";
 
     if (Object.keys(data).length === 0) {
       toast({ title: "לא בוצעו שינויים" });
@@ -364,6 +364,7 @@ function BusinessCard({ business, onToggleActive, onChangePlan, onDelete, onEdit
             <div className="font-bold text-lg truncate">{business.name}</div>
             <div className="text-sm text-muted-foreground">{business.ownerName}</div>
             <div className="text-xs text-muted-foreground" dir="ltr">{business.email}</div>
+            {business.phone && <div className="text-xs text-muted-foreground" dir="ltr">{business.phone}</div>}
           </div>
           <div className="flex items-center gap-1 shrink-0">
             <Switch checked={business.isActive} onCheckedChange={onToggleActive} disabled={isPending} />

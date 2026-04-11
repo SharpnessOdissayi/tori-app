@@ -27,6 +27,7 @@ function mapAdminBusiness(b: typeof businessesTable.$inferSelect) {
     name: b.name,
     ownerName: b.ownerName,
     email: b.email,
+    phone: b.phone ?? null,
     isActive: b.isActive,
     subscriptionPlan: b.subscriptionPlan,
     maxServicesAllowed: b.maxServicesAllowed,
