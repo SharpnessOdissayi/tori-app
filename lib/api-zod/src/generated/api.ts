@@ -156,6 +156,9 @@ export const GetBusinessProfileResponse = zod.object({
   themeMode: zod
     .union([zod.literal("light"), zod.literal("dark"), zod.literal(null)])
     .nullable(),
+  borderRadius: zod.string().nullable(),
+  welcomeText: zod.string().nullable(),
+  backgroundColor: zod.string().nullable(),
   whatsappApiKey: zod.string().nullable(),
   whatsappPhoneId: zod.string().nullable(),
   googleCalendarEnabled: zod.boolean(),
@@ -164,6 +167,7 @@ export const GetBusinessProfileResponse = zod.object({
   subscriptionPlan: zod.string(),
   maxServicesAllowed: zod.number(),
   maxAppointmentsPerMonth: zod.number(),
+  requireAppointmentApproval: zod.boolean(),
   isActive: zod.boolean(),
   createdAt: zod.string(),
 });
@@ -175,6 +179,7 @@ export const UpdateBusinessProfileBody = zod.object({
   bufferMinutes: zod.number().optional(),
   notificationEnabled: zod.boolean().optional(),
   notificationMessage: zod.string().nullish(),
+  requireAppointmentApproval: zod.boolean().optional(),
 });
 
 export const UpdateBusinessProfileResponse = zod.object({
@@ -194,6 +199,9 @@ export const UpdateBusinessProfileResponse = zod.object({
   themeMode: zod
     .union([zod.literal("light"), zod.literal("dark"), zod.literal(null)])
     .nullable(),
+  borderRadius: zod.string().nullable(),
+  welcomeText: zod.string().nullable(),
+  backgroundColor: zod.string().nullable(),
   whatsappApiKey: zod.string().nullable(),
   whatsappPhoneId: zod.string().nullable(),
   googleCalendarEnabled: zod.boolean(),
@@ -202,6 +210,7 @@ export const UpdateBusinessProfileResponse = zod.object({
   subscriptionPlan: zod.string(),
   maxServicesAllowed: zod.number(),
   maxAppointmentsPerMonth: zod.number(),
+  requireAppointmentApproval: zod.boolean(),
   isActive: zod.boolean(),
   createdAt: zod.string(),
 });
@@ -212,6 +221,9 @@ export const UpdateBusinessBrandingBody = zod.object({
   logoUrl: zod.string().nullish(),
   bannerUrl: zod.string().nullish(),
   themeMode: zod.string().nullish(),
+  borderRadius: zod.string().nullish(),
+  welcomeText: zod.string().nullish(),
+  backgroundColor: zod.string().nullish(),
 });
 
 export const UpdateBusinessBrandingResponse = zod.object({
@@ -231,6 +243,9 @@ export const UpdateBusinessBrandingResponse = zod.object({
   themeMode: zod
     .union([zod.literal("light"), zod.literal("dark"), zod.literal(null)])
     .nullable(),
+  borderRadius: zod.string().nullable(),
+  welcomeText: zod.string().nullable(),
+  backgroundColor: zod.string().nullable(),
   whatsappApiKey: zod.string().nullable(),
   whatsappPhoneId: zod.string().nullable(),
   googleCalendarEnabled: zod.boolean(),
@@ -239,6 +254,7 @@ export const UpdateBusinessBrandingResponse = zod.object({
   subscriptionPlan: zod.string(),
   maxServicesAllowed: zod.number(),
   maxAppointmentsPerMonth: zod.number(),
+  requireAppointmentApproval: zod.boolean(),
   isActive: zod.boolean(),
   createdAt: zod.string(),
 });
@@ -268,6 +284,9 @@ export const UpdateBusinessIntegrationsResponse = zod.object({
   themeMode: zod
     .union([zod.literal("light"), zod.literal("dark"), zod.literal(null)])
     .nullable(),
+  borderRadius: zod.string().nullable(),
+  welcomeText: zod.string().nullable(),
+  backgroundColor: zod.string().nullable(),
   whatsappApiKey: zod.string().nullable(),
   whatsappPhoneId: zod.string().nullable(),
   googleCalendarEnabled: zod.boolean(),
@@ -276,6 +295,7 @@ export const UpdateBusinessIntegrationsResponse = zod.object({
   subscriptionPlan: zod.string(),
   maxServicesAllowed: zod.number(),
   maxAppointmentsPerMonth: zod.number(),
+  requireAppointmentApproval: zod.boolean(),
   isActive: zod.boolean(),
   createdAt: zod.string(),
 });

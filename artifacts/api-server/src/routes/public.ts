@@ -179,6 +179,8 @@ router.post("/public/:businessSlug/appointments", async (req, res): Promise<void
     return;
   }
 
+  const appointmentStatus = business.requireAppointmentApproval ? "pending" : "confirmed";
+
   const [appointment] = await db
     .insert(appointmentsTable)
     .values({
@@ -190,6 +192,7 @@ router.post("/public/:businessSlug/appointments", async (req, res): Promise<void
       appointmentDate,
       appointmentTime,
       durationMinutes: service.durationMinutes,
+      status: appointmentStatus,
       notes: notes ?? undefined,
     })
     .returning();

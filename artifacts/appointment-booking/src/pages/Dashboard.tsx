@@ -525,9 +525,31 @@ function Login({ onLogin }: { onLogin: (t: string) => void }) {
 function AppointmentsTab() {
   const { data: stats } = useGetBusinessStats();
   const { data: appointments } = useListBusinessAppointments();
+  const { data: profile } = useGetBusinessProfile();
   const cancelMutation = useCancelBusinessAppointment();
   const queryClient = useQueryClient();
   const { toast } = useToast();
+  const [approvingId, setApprovingId] = useState<number | null>(null);
+
+  const requireApproval = (profile as any)?.requireAppointmentApproval ?? false;
+
+  const handleApprove = async (id: number) => {
+    setApprovingId(id);
+    try {
+      const token = localStorage.getItem("biz_token");
+      const res = await fetch(`/api/business/appointments/${id}/approve`, {
+        method: "PATCH",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) throw new Error();
+      toast({ title: "✅ התור אושר" });
+      queryClient.invalidateQueries({ queryKey: getListBusinessAppointmentsQueryKey() });
+    } catch {
+      toast({ title: "שגיאה", description: "לא ניתן לאשר", variant: "destructive" });
+    } finally {
+      setApprovingId(null);
+    }
+  };
 
   const handleCancel = (id: number) => {
     if (confirm("האם אתה בטוח שברצונך לבטל פגישה זו?")) {
@@ -544,7 +566,8 @@ function AppointmentsTab() {
 
   const now = new Date().toISOString().split("T")[0];
   const aptList = Array.isArray(appointments) ? appointments : [];
-  const upcoming = aptList.filter(a => a.appointmentDate >= now);
+  const pending = aptList.filter(a => a.status === "pending");
+  const upcoming = aptList.filter(a => a.appointmentDate >= now && a.status !== "pending");
   const past = aptList.filter(a => a.appointmentDate < now);
 
   return (
@@ -565,6 +588,43 @@ function AppointmentsTab() {
         ))}
       </div>
 
+      {pending.length > 0 && (
+        <Card className="border-yellow-300 bg-yellow-50/50">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-yellow-800">
+              <span>⏳</span> ממתינים לאישור ({pending.length})
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-3">
+              {pending.map(apt => (
+                <div key={apt.id} className="flex flex-col sm:flex-row justify-between items-start sm:items-center p-4 border border-yellow-200 rounded-xl bg-white gap-3">
+                  <div className="flex-1">
+                    <div className="font-semibold">{apt.clientName}
+                      <span className="text-muted-foreground text-sm font-normal mr-2" dir="ltr">{apt.phoneNumber}</span>
+                    </div>
+                    <div className="text-sm text-muted-foreground mt-0.5">{apt.serviceName} • {apt.durationMinutes} דקות</div>
+                    <div className="text-yellow-700 font-medium text-sm mt-1">
+                      {format(parseISO(apt.appointmentDate + "T" + apt.appointmentTime), "EEEE, d בMMMM yyyy", { locale: he })} • {apt.appointmentTime}
+                    </div>
+                  </div>
+                  <div className="flex gap-2">
+                    <Button size="sm" className="bg-green-600 hover:bg-green-700 text-white"
+                      onClick={() => handleApprove(apt.id)} disabled={approvingId === apt.id}>
+                      {approvingId === apt.id ? "מאשר..." : "אשר תור"}
+                    </Button>
+                    <Button variant="outline" size="sm" className="text-destructive border-destructive/40 hover:bg-destructive/10"
+                      onClick={() => handleCancel(apt.id)} disabled={cancelMutation.isPending}>
+                      דחה
+                    </Button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       <Card>
         <CardHeader><CardTitle>פגישות קרובות</CardTitle></CardHeader>
         <CardContent>
@@ -573,8 +633,9 @@ function AppointmentsTab() {
               {upcoming.map(apt => (
                 <div key={apt.id} className="flex flex-col sm:flex-row justify-between items-start sm:items-center p-4 border rounded-xl bg-card gap-3 hover:border-primary/40 transition-colors">
                   <div className="flex-1">
-                    <div className="font-semibold">{apt.clientName}
-                      <span className="text-muted-foreground text-sm font-normal mr-2" dir="ltr">{apt.phoneNumber}</span>
+                    <div className="font-semibold flex items-center gap-2">
+                      {apt.clientName}
+                      <span className="text-muted-foreground text-sm font-normal" dir="ltr">{apt.phoneNumber}</span>
                     </div>
                     <div className="text-sm text-muted-foreground mt-0.5">{apt.serviceName} • {apt.durationMinutes} דקות</div>
                     <div className="text-primary font-medium text-sm mt-1">
@@ -1106,20 +1167,26 @@ function BrandingTab() {
 
   const [form, setForm] = useState({
     primaryColor: "#2563eb",
+    backgroundColor: "#f8fafc",
     fontFamily: "Heebo",
     logoUrl: "",
     bannerUrl: "",
     themeMode: "light" as "light" | "dark",
+    borderRadius: "medium" as "sharp" | "medium" | "rounded",
+    welcomeText: "",
   });
 
   useEffect(() => {
     if (profile) {
       setForm({
         primaryColor: profile.primaryColor ?? "#2563eb",
+        backgroundColor: (profile as any).backgroundColor ?? "#f8fafc",
         fontFamily: profile.fontFamily ?? "Heebo",
         logoUrl: profile.logoUrl ?? "",
         bannerUrl: profile.bannerUrl ?? "",
         themeMode: (profile.themeMode ?? "light") as "light" | "dark",
+        borderRadius: ((profile as any).borderRadius ?? "medium") as "sharp" | "medium" | "rounded",
+        welcomeText: (profile as any).welcomeText ?? "",
       });
     }
   }, [profile]);
@@ -1178,6 +1245,55 @@ function BrandingTab() {
                 </button>
               ))}
             </div>
+          </div>
+
+          <Separator />
+
+          <div className="space-y-4">
+            <h3 className="font-semibold text-base border-b pb-2">צבע רקע</h3>
+            <div className="flex items-center gap-3">
+              {["#ffffff", "#f8fafc", "#f0f4ff", "#fdf4ff", "#fff7ed", "#f0fdf4", "#1e1e2e", "#0f172a"].map(c => (
+                <button key={c} onClick={() => setForm(p => ({ ...p, backgroundColor: c }))}
+                  className={`w-8 h-8 rounded-full border-2 transition-all ${form.backgroundColor === c ? "border-foreground scale-110" : "border-border"}`}
+                  style={{ backgroundColor: c }} />
+              ))}
+              <div className="flex items-center gap-2 border rounded-lg p-2">
+                <input type="color" value={form.backgroundColor} onChange={e => setForm(p => ({ ...p, backgroundColor: e.target.value }))} className="w-8 h-8 rounded cursor-pointer border-none bg-transparent" />
+              </div>
+            </div>
+          </div>
+
+          <Separator />
+
+          <div className="space-y-4">
+            <h3 className="font-semibold text-base border-b pb-2">סגנון פינות</h3>
+            <div className="flex gap-3">
+              {([
+                { value: "sharp", label: "ישר", preview: "rounded-none" },
+                { value: "medium", label: "מעוגל", preview: "rounded-xl" },
+                { value: "rounded", label: "עגול", preview: "rounded-full" },
+              ] as const).map(s => (
+                <button key={s.value} onClick={() => setForm(p => ({ ...p, borderRadius: s.value }))}
+                  className={`flex-1 py-3 border-2 text-sm font-medium transition-all ${form.borderRadius === s.value ? "border-primary bg-primary/5 text-primary" : "border-border"}`}
+                  style={{ borderRadius: s.value === "sharp" ? "4px" : s.value === "medium" ? "12px" : "999px" }}>
+                  {s.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <Separator />
+
+          <div className="space-y-3">
+            <h3 className="font-semibold text-base border-b pb-2">הודעת פתיחה (אופציונלי)</h3>
+            <p className="text-sm text-muted-foreground">תוצג ללקוח בראש עמוד ההזמנות</p>
+            <textarea
+              value={form.welcomeText}
+              onChange={e => setForm(p => ({ ...p, welcomeText: e.target.value }))}
+              placeholder="ברוכים הבאים! אנחנו שמחים לראות אתכם. ניתן לבטל עד 24 שעות לפני התור."
+              rows={3}
+              className="w-full border rounded-xl p-3 text-sm bg-background resize-none outline-none focus:ring-2 focus:ring-primary/30"
+            />
           </div>
 
           <Separator />
@@ -1396,7 +1512,7 @@ function SettingsTab() {
 
   const [form, setForm] = useState({
     name: "", ownerName: "", phone: "",
-    bufferMinutes: "0", notificationEnabled: false, notificationMessage: "",
+    bufferMinutes: "0", notificationEnabled: false, notificationMessage: "", requireAppointmentApproval: false,
   });
 
   // Password change state
@@ -1412,6 +1528,7 @@ function SettingsTab() {
       bufferMinutes: (profile.bufferMinutes ?? 0).toString(),
       notificationEnabled: profile.notificationEnabled ?? false,
       notificationMessage: profile.notificationMessage ?? "",
+      requireAppointmentApproval: (profile as any).requireAppointmentApproval ?? false,
     });
   }, [profile]);
 
@@ -1425,6 +1542,7 @@ function SettingsTab() {
         bufferMinutes: parseInt(form.bufferMinutes),
         notificationEnabled: form.notificationEnabled,
         notificationMessage: form.notificationMessage || null,
+        requireAppointmentApproval: form.requireAppointmentApproval,
       }
     }, {
       onSuccess: () => {
@@ -1534,6 +1652,17 @@ function SettingsTab() {
                   />
                 </div>
               )}
+            </div>
+
+            <div className="space-y-4">
+              <h3 className="font-medium text-base border-b pb-2">אישור תורים</h3>
+              <div className="flex items-center justify-between p-4 border rounded-xl bg-muted/30">
+                <div>
+                  <div className="font-medium text-sm">דרוש אישור ידני לתורים</div>
+                  <div className="text-xs text-muted-foreground mt-0.5">כבוי = תורים מאושרים אוטומטית | דלוק = אתה מאשר כל תור ידנית</div>
+                </div>
+                <Switch checked={form.requireAppointmentApproval} onCheckedChange={v => setForm(p => ({ ...p, requireAppointmentApproval: v }))} />
+              </div>
             </div>
 
             <div className="flex justify-end">

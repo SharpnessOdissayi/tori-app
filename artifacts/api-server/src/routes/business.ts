@@ -33,6 +33,9 @@ function mapBusiness(b: typeof businessesTable.$inferSelect) {
     logoUrl: b.logoUrl ?? null,
     bannerUrl: b.bannerUrl ?? null,
     themeMode: b.themeMode ?? null,
+    borderRadius: b.borderRadius ?? null,
+    welcomeText: b.welcomeText ?? null,
+    backgroundColor: b.backgroundColor ?? null,
     whatsappApiKey: b.whatsappApiKey ?? null,
     whatsappPhoneId: b.whatsappPhoneId ?? null,
     googleCalendarEnabled: b.googleCalendarEnabled,
@@ -42,6 +45,7 @@ function mapBusiness(b: typeof businessesTable.$inferSelect) {
     subscriptionPlan: b.subscriptionPlan,
     maxServicesAllowed: b.maxServicesAllowed,
     maxAppointmentsPerMonth: b.maxAppointmentsPerMonth,
+    requireAppointmentApproval: b.requireAppointmentApproval,
     isActive: b.isActive,
     createdAt: b.createdAt.toISOString(),
   };
@@ -75,6 +79,7 @@ router.patch("/business/profile", requireBusinessAuth, async (req, res): Promise
   if (parsed.data.bufferMinutes !== undefined) updates.bufferMinutes = parsed.data.bufferMinutes;
   if (parsed.data.notificationEnabled !== undefined) updates.notificationEnabled = parsed.data.notificationEnabled;
   if (parsed.data.notificationMessage !== undefined) updates.notificationMessage = parsed.data.notificationMessage ?? undefined;
+  if (parsed.data.requireAppointmentApproval !== undefined) updates.requireAppointmentApproval = parsed.data.requireAppointmentApproval;
 
   const [updated] = await db
     .update(businessesTable)
@@ -98,6 +103,9 @@ router.patch("/business/branding", requireBusinessAuth, async (req, res): Promis
   if (parsed.data.logoUrl !== undefined) updates.logoUrl = parsed.data.logoUrl ?? undefined;
   if (parsed.data.bannerUrl !== undefined) updates.bannerUrl = parsed.data.bannerUrl ?? undefined;
   if (parsed.data.themeMode !== undefined) updates.themeMode = parsed.data.themeMode ?? undefined;
+  if (parsed.data.borderRadius !== undefined) updates.borderRadius = parsed.data.borderRadius ?? undefined;
+  if (parsed.data.welcomeText !== undefined) updates.welcomeText = parsed.data.welcomeText ?? undefined;
+  if (parsed.data.backgroundColor !== undefined) updates.backgroundColor = parsed.data.backgroundColor ?? undefined;
 
   const [updated] = await db
     .update(businessesTable)
@@ -296,6 +304,28 @@ router.get("/business/appointments", requireBusinessAuth, async (req, res): Prom
     .orderBy(appointmentsTable.appointmentDate, appointmentsTable.appointmentTime);
 
   res.json(appointments.map((a) => ({ ...a, createdAt: a.createdAt.toISOString() })));
+});
+
+router.patch("/business/appointments/:id/approve", requireBusinessAuth, async (req, res): Promise<void> => {
+  const rawId = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+  const id = Number(rawId);
+  if (!id || isNaN(id)) {
+    res.status(400).json({ error: "Invalid id" });
+    return;
+  }
+
+  const [updated] = await db
+    .update(appointmentsTable)
+    .set({ status: "confirmed" })
+    .where(and(eq(appointmentsTable.id, id), eq(appointmentsTable.businessId, req.business!.businessId)))
+    .returning({ id: appointmentsTable.id });
+
+  if (!updated) {
+    res.status(404).json({ error: "Appointment not found" });
+    return;
+  }
+
+  res.json({ success: true, message: "Appointment approved" });
 });
 
 router.delete("/business/appointments/:id", requireBusinessAuth, async (req, res): Promise<void> => {

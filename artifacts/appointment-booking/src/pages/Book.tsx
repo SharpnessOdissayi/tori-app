@@ -48,6 +48,12 @@ export default function Book() {
 
   const primaryColor = business?.primaryColor ?? "#2563eb";
   const fontFamily = business?.fontFamily ?? "Heebo";
+  const backgroundColor = (business as any)?.backgroundColor ?? "#f8fafc";
+  const borderRadius = (business as any)?.borderRadius ?? "medium";
+  const welcomeText = (business as any)?.welcomeText ?? "";
+  const requireApproval = (business as any)?.requireAppointmentApproval ?? false;
+
+  const cardRadius = borderRadius === "sharp" ? "8px" : borderRadius === "rounded" ? "24px" : "16px";
 
   useEffect(() => {
     if (!business) return;
@@ -118,7 +124,7 @@ export default function Book() {
   const isFullyBooked = availability?.isFullyBooked ?? false;
 
   return (
-    <div className="min-h-[100dvh] bg-muted/20 flex flex-col relative" dir="rtl" style={{ fontFamily: `'${fontFamily}', sans-serif` }}>
+    <div className="min-h-[100dvh] flex flex-col relative" dir="rtl" style={{ fontFamily: `'${fontFamily}', sans-serif`, backgroundColor }}>
       <div className="absolute top-0 w-full h-52 -z-10 rounded-b-[40px]" style={{ backgroundColor: primaryColor + "18" }} />
 
       <Dialog open={business.notificationEnabled && showNotification} onOpenChange={setShowNotification}>
@@ -173,10 +179,14 @@ export default function Book() {
             <img src={business.bannerUrl} alt={business.name} className="w-full h-32 rounded-2xl object-cover mb-4 shadow-md" />
           )}
           <h1 className="text-3xl font-extrabold mb-2" style={{ color: primaryColor }}>{business.name}</h1>
-          <p className="text-muted-foreground">קביעת תור אונליין</p>
+          {welcomeText ? (
+            <p className="text-muted-foreground whitespace-pre-wrap max-w-md mx-auto">{welcomeText}</p>
+          ) : (
+            <p className="text-muted-foreground">קביעת תור אונליין</p>
+          )}
         </header>
 
-        <Card className="shadow-lg overflow-hidden">
+        <Card className="shadow-lg overflow-hidden" style={{ borderRadius: cardRadius }}>
           <div className="px-6 py-4 flex gap-2 border-b" style={{ backgroundColor: primaryColor + "10" }}>
             {[1, 2, 3, 4].map(num => (
               <div key={num} className="flex items-center gap-2">
@@ -310,10 +320,24 @@ export default function Book() {
                   <div className="w-24 h-24 rounded-full mx-auto flex items-center justify-center" style={{ backgroundColor: primaryColor + "20" }}>
                     <CheckCircle2 className="w-12 h-12" style={{ color: primaryColor }} />
                   </div>
-                  <h2 className="text-3xl font-extrabold">התור נקבע!</h2>
-                  <p className="text-muted-foreground max-w-xs mx-auto">
-                    התור שלך ל<strong className="text-foreground">{selectedService?.name}</strong> אצל <strong className="text-foreground">{business.name}</strong> נקבע בהצלחה!
-                  </p>
+                  {requireApproval ? (
+                    <>
+                      <h2 className="text-3xl font-extrabold">הבקשה נשלחה!</h2>
+                      <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium" style={{ backgroundColor: "#fef9c3", color: "#92400e" }}>
+                        ⏳ ממתין לאישור בעל העסק
+                      </div>
+                      <p className="text-muted-foreground max-w-xs mx-auto">
+                        בקשת התור שלך ל<strong className="text-foreground">{selectedService?.name}</strong> אצל <strong className="text-foreground">{business.name}</strong> התקבלה ותאושר בקרוב.
+                      </p>
+                    </>
+                  ) : (
+                    <>
+                      <h2 className="text-3xl font-extrabold">התור נקבע!</h2>
+                      <p className="text-muted-foreground max-w-xs mx-auto">
+                        התור שלך ל<strong className="text-foreground">{selectedService?.name}</strong> אצל <strong className="text-foreground">{business.name}</strong> נקבע בהצלחה!
+                      </p>
+                    </>
+                  )}
                   <div className="bg-muted/20 border p-6 rounded-2xl max-w-sm mx-auto text-right space-y-3">
                     <div className="flex items-center gap-3">
                       <CalendarIcon className="w-5 h-5" style={{ color: primaryColor }} />
