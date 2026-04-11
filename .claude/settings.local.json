@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(du -sh artifacts/* lib/*)",
+      "Bash(xargs grep:*)"
+    ]
+  }
+}

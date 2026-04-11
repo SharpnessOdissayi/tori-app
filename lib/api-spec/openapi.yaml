@@ -1,0 +1,1438 @@
+openapi: 3.1.0
+info:
+  title: Api
+  version: 0.3.0
+  description: Multitenant SaaS Appointment Booking API
+servers:
+  - url: /api
+    description: Base API path
+tags:
+  - name: health
+  - name: super-admin
+  - name: auth
+  - name: business
+  - name: public
+  - name: storage
+
+paths:
+  /healthz:
+    get:
+      operationId: healthCheck
+      tags: [health]
+      summary: Health check
+      responses:
+        "200":
+          description: Healthy
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthStatus"
+
+  # ── Super Admin ───────────────────────────────────────────────────────────────
+  /super-admin/businesses:
+    get:
+      operationId: superAdminListBusinesses
+      tags: [super-admin]
+      parameters:
+        - name: adminPassword
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: List of businesses
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/AdminBusinessSummary"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    post:
+      operationId: superAdminCreateBusiness
+      tags: [super-admin]
+      parameters:
+        - name: adminPassword
+          in: query
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateBusinessBody"
+      responses:
+        "201":
+          description: Business created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BusinessCreatedResponse"
+        "400":
+          description: Invalid input
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /super-admin/businesses/{id}:
+    patch:
+      operationId: superAdminUpdateBusiness
+      tags: [super-admin]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: adminPassword
+          in: query
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AdminUpdateBusinessBody"
+      responses:
+        "200":
+          description: Business updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminBusinessSummary"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    delete:
+      operationId: superAdminDeleteBusiness
+      tags: [super-admin]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: adminPassword
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Business deleted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  # ── Business Auth ─────────────────────────────────────────────────────────────
+  /auth/business/login:
+    post:
+      operationId: businessLogin
+      tags: [auth]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BusinessLoginBody"
+      responses:
+        "200":
+          description: Login successful
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BusinessLoginResponse"
+        "401":
+          description: Invalid credentials
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  # ── Business Dashboard ────────────────────────────────────────────────────────
+  /business/profile:
+    get:
+      operationId: getBusinessProfile
+      tags: [business]
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Business profile
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BusinessProfile"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    patch:
+      operationId: updateBusinessProfile
+      tags: [business]
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateBusinessProfileBody"
+      responses:
+        "200":
+          description: Profile updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BusinessProfile"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /business/branding:
+    patch:
+      operationId: updateBusinessBranding
+      tags: [business]
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateBrandingBody"
+      responses:
+        "200":
+          description: Branding updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BusinessProfile"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /business/integrations:
+    patch:
+      operationId: updateBusinessIntegrations
+      tags: [business]
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateIntegrationsBody"
+      responses:
+        "200":
+          description: Integrations updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BusinessProfile"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /business/services:
+    get:
+      operationId: listBusinessServices
+      tags: [business]
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: List of services
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Service"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    post:
+      operationId: createBusinessService
+      tags: [business]
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateServiceBody"
+      responses:
+        "201":
+          description: Service created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Service"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /business/services/{id}:
+    patch:
+      operationId: updateBusinessService
+      tags: [business]
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateServiceBody"
+      responses:
+        "200":
+          description: Service updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Service"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    delete:
+      operationId: deleteBusinessService
+      tags: [business]
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Service deleted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /business/working-hours:
+    get:
+      operationId: getWorkingHours
+      tags: [business]
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Working hours
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/WorkingHour"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    put:
+      operationId: setWorkingHours
+      tags: [business]
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SetWorkingHoursBody"
+      responses:
+        "200":
+          description: Working hours updated
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/WorkingHour"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /business/break-times:
+    get:
+      operationId: getBreakTimes
+      tags: [business]
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Break times
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/BreakTime"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    put:
+      operationId: setBreakTimes
+      tags: [business]
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SetBreakTimesBody"
+      responses:
+        "200":
+          description: Break times updated
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/BreakTime"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /business/appointments:
+    get:
+      operationId: listBusinessAppointments
+      tags: [business]
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Appointments list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/AppointmentDetail"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /business/appointments/{id}:
+    delete:
+      operationId: cancelBusinessAppointment
+      tags: [business]
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Appointment cancelled
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /business/stats:
+    get:
+      operationId: getBusinessStats
+      tags: [business]
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Stats
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BusinessStats"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /business/customers:
+    get:
+      operationId: listBusinessCustomers
+      tags: [business]
+      summary: CRM - list unique clients with history and revenue
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Customer list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/CustomerRecord"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /business/waitlist:
+    get:
+      operationId: listBusinessWaitlist
+      tags: [business]
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Waitlist entries
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/WaitlistEntry"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /business/waitlist/{id}:
+    delete:
+      operationId: removeFromWaitlist
+      tags: [business]
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Removed from waitlist
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  # ── Public Client Booking ─────────────────────────────────────────────────────
+  /public/{businessSlug}:
+    get:
+      operationId: getPublicBusiness
+      tags: [public]
+      parameters:
+        - name: businessSlug
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Public business info
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PublicBusinessInfo"
+        "404":
+          description: Business not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /public/{businessSlug}/services:
+    get:
+      operationId: getPublicServices
+      tags: [public]
+      parameters:
+        - name: businessSlug
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: List of active services
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Service"
+        "404":
+          description: Business not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /public/{businessSlug}/availability:
+    get:
+      operationId: getPublicAvailability
+      tags: [public]
+      parameters:
+        - name: businessSlug
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: date
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: serviceId
+          in: query
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Available time slots
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AvailabilityResponse"
+        "404":
+          description: Business not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /public/{businessSlug}/appointments:
+    post:
+      operationId: createPublicAppointment
+      tags: [public]
+      parameters:
+        - name: businessSlug
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreatePublicAppointmentBody"
+      responses:
+        "201":
+          description: Appointment booked
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AppointmentDetail"
+        "409":
+          description: Slot already taken
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "400":
+          description: Invalid input
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /public/{businessSlug}/waitlist:
+    post:
+      operationId: joinWaitlist
+      tags: [public]
+      parameters:
+        - name: businessSlug
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/JoinWaitlistBody"
+      responses:
+        "201":
+          description: Added to waitlist
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+        "400":
+          description: Invalid input
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  # ── Object Storage ────────────────────────────────────────────────────────────
+  /storage/uploads/request-url:
+    post:
+      operationId: requestUploadUrl
+      tags: [storage]
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RequestUploadUrlBody"
+      responses:
+        "200":
+          description: Presigned upload URL
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RequestUploadUrlResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /storage/objects/{objectPath}:
+    get:
+      operationId: getStorageObject
+      tags: [storage]
+      parameters:
+        - name: objectPath
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Object content
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /storage/public-objects/{objectPath}:
+    get:
+      operationId: getPublicStorageObject
+      tags: [storage]
+      parameters:
+        - name: objectPath
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Public object content
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    HealthStatus:
+      type: object
+      properties:
+        status:
+          type: string
+      required: [status]
+
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+      required: [error]
+
+    SuccessResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: string
+      required: [success, message]
+
+    AdminBusinessSummary:
+      type: object
+      properties:
+        id:
+          type: integer
+        slug:
+          type: string
+        name:
+          type: string
+        ownerName:
+          type: string
+        email:
+          type: string
+        isActive:
+          type: boolean
+        subscriptionPlan:
+          type: string
+        maxServicesAllowed:
+          type: integer
+        createdAt:
+          type: string
+      required: [id, slug, name, ownerName, email, isActive, subscriptionPlan, maxServicesAllowed, createdAt]
+
+    AdminUpdateBusinessBody:
+      type: object
+      properties:
+        isActive:
+          type: boolean
+        subscriptionPlan:
+          type: string
+          enum: [free, basic, pro]
+        maxServicesAllowed:
+          type: integer
+        name:
+          type: string
+        slug:
+          type: string
+        ownerName:
+          type: string
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+
+    CreateBusinessBody:
+      type: object
+      properties:
+        name:
+          type: string
+        slug:
+          type: string
+        ownerName:
+          type: string
+        email:
+          type: string
+        password:
+          type: string
+      required: [name, slug, ownerName, email, password]
+
+    BusinessCreatedResponse:
+      type: object
+      properties:
+        id:
+          type: integer
+        slug:
+          type: string
+        name:
+          type: string
+        ownerName:
+          type: string
+        email:
+          type: string
+        password:
+          type: string
+        createdAt:
+          type: string
+      required: [id, slug, name, ownerName, email, password, createdAt]
+
+    BusinessLoginBody:
+      type: object
+      properties:
+        email:
+          type: string
+        password:
+          type: string
+      required: [email, password]
+
+    BusinessLoginResponse:
+      type: object
+      properties:
+        token:
+          type: string
+        business:
+          $ref: "#/components/schemas/BusinessProfile"
+      required: [token, business]
+
+    BusinessProfile:
+      type: object
+      properties:
+        id:
+          type: integer
+        slug:
+          type: string
+        name:
+          type: string
+        ownerName:
+          type: string
+        email:
+          type: string
+        bufferMinutes:
+          type: integer
+        notificationEnabled:
+          type: boolean
+        notificationMessage:
+          type: ["string", "null"]
+        primaryColor:
+          type: ["string", "null"]
+        fontFamily:
+          type: ["string", "null"]
+        logoUrl:
+          type: ["string", "null"]
+        bannerUrl:
+          type: ["string", "null"]
+        themeMode:
+          type: ["string", "null"]
+          enum: ["light", "dark", null]
+        whatsappApiKey:
+          type: ["string", "null"]
+        whatsappPhoneId:
+          type: ["string", "null"]
+        googleCalendarEnabled:
+          type: boolean
+        stripeEnabled:
+          type: boolean
+        stripePublicKey:
+          type: ["string", "null"]
+        subscriptionPlan:
+          type: string
+        maxServicesAllowed:
+          type: integer
+        isActive:
+          type: boolean
+        createdAt:
+          type: string
+      required:
+        - id
+        - slug
+        - name
+        - ownerName
+        - email
+        - bufferMinutes
+        - notificationEnabled
+        - notificationMessage
+        - primaryColor
+        - fontFamily
+        - logoUrl
+        - bannerUrl
+        - themeMode
+        - whatsappApiKey
+        - whatsappPhoneId
+        - googleCalendarEnabled
+        - stripeEnabled
+        - stripePublicKey
+        - subscriptionPlan
+        - maxServicesAllowed
+        - isActive
+        - createdAt
+
+    UpdateBusinessProfileBody:
+      type: object
+      properties:
+        name:
+          type: string
+        ownerName:
+          type: string
+        bufferMinutes:
+          type: integer
+        notificationEnabled:
+          type: boolean
+        notificationMessage:
+          type: ["string", "null"]
+
+    UpdateBrandingBody:
+      type: object
+      properties:
+        primaryColor:
+          type: ["string", "null"]
+        fontFamily:
+          type: ["string", "null"]
+        logoUrl:
+          type: ["string", "null"]
+        bannerUrl:
+          type: ["string", "null"]
+        themeMode:
+          type: ["string", "null"]
+
+    UpdateIntegrationsBody:
+      type: object
+      properties:
+        whatsappApiKey:
+          type: ["string", "null"]
+        whatsappPhoneId:
+          type: ["string", "null"]
+        googleCalendarEnabled:
+          type: boolean
+        stripeEnabled:
+          type: boolean
+        stripePublicKey:
+          type: ["string", "null"]
+
+    PublicBusinessInfo:
+      type: object
+      properties:
+        id:
+          type: integer
+        slug:
+          type: string
+        name:
+          type: string
+        notificationEnabled:
+          type: boolean
+        notificationMessage:
+          type: ["string", "null"]
+        primaryColor:
+          type: ["string", "null"]
+        fontFamily:
+          type: ["string", "null"]
+        logoUrl:
+          type: ["string", "null"]
+        bannerUrl:
+          type: ["string", "null"]
+        themeMode:
+          type: ["string", "null"]
+        stripeEnabled:
+          type: boolean
+        depositAmountAgorot:
+          type: ["integer", "null"]
+      required:
+        - id
+        - slug
+        - name
+        - notificationEnabled
+        - notificationMessage
+        - primaryColor
+        - fontFamily
+        - logoUrl
+        - bannerUrl
+        - themeMode
+        - stripeEnabled
+        - depositAmountAgorot
+
+    Service:
+      type: object
+      properties:
+        id:
+          type: integer
+        businessId:
+          type: integer
+        name:
+          type: string
+        price:
+          type: integer
+        durationMinutes:
+          type: integer
+        bufferMinutes:
+          type: integer
+          description: Buffer time after this service
+        imageUrl:
+          type: ["string", "null"]
+        isActive:
+          type: boolean
+        createdAt:
+          type: string
+      required: [id, businessId, name, price, durationMinutes, bufferMinutes, imageUrl, isActive, createdAt]
+
+    CreateServiceBody:
+      type: object
+      properties:
+        name:
+          type: string
+        price:
+          type: integer
+        durationMinutes:
+          type: integer
+        bufferMinutes:
+          type: integer
+          description: Buffer time after this service in minutes
+        imageUrl:
+          type: ["string", "null"]
+      required: [name, price, durationMinutes]
+
+    UpdateServiceBody:
+      type: object
+      properties:
+        name:
+          type: string
+        price:
+          type: integer
+        durationMinutes:
+          type: integer
+        bufferMinutes:
+          type: integer
+        imageUrl:
+          type: ["string", "null"]
+        isActive:
+          type: boolean
+
+    WorkingHour:
+      type: object
+      properties:
+        id:
+          type: integer
+        businessId:
+          type: integer
+        dayOfWeek:
+          type: integer
+        startTime:
+          type: string
+        endTime:
+          type: string
+        isEnabled:
+          type: boolean
+      required: [id, businessId, dayOfWeek, startTime, endTime, isEnabled]
+
+    SetWorkingHoursBody:
+      type: object
+      properties:
+        hours:
+          type: array
+          items:
+            $ref: "#/components/schemas/WorkingHourInput"
+      required: [hours]
+
+    WorkingHourInput:
+      type: object
+      properties:
+        dayOfWeek:
+          type: integer
+        startTime:
+          type: string
+        endTime:
+          type: string
+        isEnabled:
+          type: boolean
+      required: [dayOfWeek, startTime, endTime, isEnabled]
+
+    BreakTime:
+      type: object
+      properties:
+        id:
+          type: integer
+        businessId:
+          type: integer
+        dayOfWeek:
+          type: integer
+        startTime:
+          type: string
+        endTime:
+          type: string
+        label:
+          type: ["string", "null"]
+      required: [id, businessId, dayOfWeek, startTime, endTime, label]
+
+    SetBreakTimesBody:
+      type: object
+      properties:
+        breaks:
+          type: array
+          items:
+            $ref: "#/components/schemas/BreakTimeInput"
+      required: [breaks]
+
+    BreakTimeInput:
+      type: object
+      properties:
+        dayOfWeek:
+          type: integer
+        startTime:
+          type: string
+        endTime:
+          type: string
+        label:
+          type: ["string", "null"]
+      required: [dayOfWeek, startTime, endTime]
+
+    AppointmentDetail:
+      type: object
+      properties:
+        id:
+          type: integer
+        businessId:
+          type: integer
+        serviceId:
+          type: integer
+        serviceName:
+          type: string
+        durationMinutes:
+          type: integer
+        clientName:
+          type: string
+        phoneNumber:
+          type: string
+        appointmentDate:
+          type: string
+        appointmentTime:
+          type: string
+        notes:
+          type: ["string", "null"]
+        status:
+          type: string
+        createdAt:
+          type: string
+      required:
+        - id
+        - businessId
+        - serviceId
+        - serviceName
+        - durationMinutes
+        - clientName
+        - phoneNumber
+        - appointmentDate
+        - appointmentTime
+        - notes
+        - status
+        - createdAt
+
+    CreatePublicAppointmentBody:
+      type: object
+      properties:
+        serviceId:
+          type: integer
+        clientName:
+          type: string
+        phoneNumber:
+          type: string
+        appointmentDate:
+          type: string
+          description: YYYY-MM-DD
+        appointmentTime:
+          type: string
+          description: HH:MM
+        notes:
+          type: string
+      required: [serviceId, clientName, phoneNumber, appointmentDate, appointmentTime]
+
+    AvailabilityResponse:
+      type: object
+      properties:
+        date:
+          type: string
+        slots:
+          type: array
+          items:
+            type: string
+        isFullyBooked:
+          type: boolean
+      required: [date, slots, isFullyBooked]
+
+    BusinessStats:
+      type: object
+      properties:
+        totalAppointments:
+          type: integer
+        todayCount:
+          type: integer
+        thisWeekCount:
+          type: integer
+        upcomingCount:
+          type: integer
+      required: [totalAppointments, todayCount, thisWeekCount, upcomingCount]
+
+    CustomerRecord:
+      type: object
+      properties:
+        clientName:
+          type: string
+        phoneNumber:
+          type: string
+        totalVisits:
+          type: integer
+        totalRevenue:
+          type: integer
+          description: Total revenue in agorot
+        lastVisitDate:
+          type: string
+        firstVisitDate:
+          type: string
+      required: [clientName, phoneNumber, totalVisits, totalRevenue, lastVisitDate, firstVisitDate]
+
+    WaitlistEntry:
+      type: object
+      properties:
+        id:
+          type: integer
+        businessId:
+          type: integer
+        serviceId:
+          type: ["integer", "null"]
+        serviceName:
+          type: ["string", "null"]
+        clientName:
+          type: string
+        phoneNumber:
+          type: string
+        preferredDate:
+          type: ["string", "null"]
+        notes:
+          type: ["string", "null"]
+        createdAt:
+          type: string
+      required: [id, businessId, serviceId, serviceName, clientName, phoneNumber, preferredDate, notes, createdAt]
+
+    JoinWaitlistBody:
+      type: object
+      properties:
+        serviceId:
+          type: integer
+        clientName:
+          type: string
+        phoneNumber:
+          type: string
+        preferredDate:
+          type: string
+        notes:
+          type: string
+      required: [clientName, phoneNumber]
+
+    RequestUploadUrlBody:
+      type: object
+      properties:
+        filename:
+          type: string
+        contentType:
+          type: string
+        size:
+          type: integer
+      required: [filename, contentType, size]
+
+    RequestUploadUrlResponse:
+      type: object
+      properties:
+        uploadUrl:
+          type: string
+        objectPath:
+          type: string
+      required: [uploadUrl, objectPath]

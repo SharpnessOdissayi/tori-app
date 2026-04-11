@@ -1,0 +1,35 @@
+Build a high-end, Multitenant SaaS Appointment Booking Platform for the Israeli market. 
+The system must be fully RTL (Right-to-Left) and localized in Hebrew.
+
+### 1. Branding & UI Customization (For Business Owners):
+- Inside the Business Admin Panel, add a "Storefront Design" page.
+- Business owners should be able to:
+  - Choose a Primary Color (Color Picker).
+  - Select Fonts (Choose from 5 modern Hebrew Google Fonts like Heebo, Assistant, etc.).
+  - Upload a Logo and a Banner image.
+  - Toggle between Light/Dark mode for their booking page.
+
+### 2. Advanced Service & Logic Management:
+- Service Creation: Add/Edit services with Name, Price, Duration, and a "Buffer Time" (break) after each session.
+- Flexible Schedule: Set daily working hours and specific break times (e.g., lunch break).
+- Push Alert: Toggle a customized "Entry Message" popup for clients when they open the link.
+
+### 3. Premium Features (Added as settings for the owner):
+- WhatsApp Integration: Add a field for WhatsApp API keys to send automatic confirmations/reminders.
+- Google Calendar Sync: A button to connect their Google account and block busy slots from their personal calendar.
+- CRM & Waitlist: 
+  - A "Customer Database" page showing history and total revenue per client.
+  - A "Waitlist" feature: If a day is full, clients can leave their details to be notified if a slot opens.
+- Deposits/Payments: Integration placeholder for credit card payments (Stripe/Israeli gateway) to collect deposit fees.
+
+### 4. User Roles & Security:
+- Super Admin (ME): A master dashboard to create/disable business accounts and set their subscription limits.
+- Business Owner: Access only to their own data, settings, and customers.
+- Client: A unique, branded URL (e.g., /book/business-name) with a sleek, 5-step booking wizard.
+
+### 5. Technical Stack & UX:
+- React/Next.js with Tailwind CSS (RTL).
+- Mobile-First design: Must look like a native app on iPhones/Androids.
+- Real-time slot validation to prevent double-booking.
+
+Please generate the full database schema, the backend logic for multitenancy, and the customized frontend for both the admin and the end-user.

@@ -1,0 +1,31 @@
+kind = "web"
+previewPath = "/"
+title = "Appointment Booking"
+version = "1.0.0"
+id = "artifacts/appointment-booking"
+router = "path"
+
+[[integratedSkills]]
+name = "react-vite"
+version = "1.0.0"
+
+[[services]]
+name = "web"
+paths = [ "/" ]
+localPort = 20215
+
+[services.development]
+run = "pnpm --filter @workspace/appointment-booking run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/appointment-booking", "run", "build" ]
+publicDir = "artifacts/appointment-booking/dist/public"
+serve = "static"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "20215"
+BASE_PATH = "/"
