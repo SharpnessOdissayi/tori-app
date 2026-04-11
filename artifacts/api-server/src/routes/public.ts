@@ -238,9 +238,11 @@ router.post("/public/:businessSlug/appointments", async (req, res): Promise<void
 
   // Notify business owner via SMS (non-blocking)
   if (business.phone) {
-    const statusLine = appointmentStatus === "pending" ? "⏳ תור חדש ממתין לאישורך" : "✅ תור חדש נקבע";
+    const [year, month, day] = appointmentDate.split("-");
+    const formattedDate = `${day}/${month}`;
+    const pendingNote = appointmentStatus === "pending" ? " (ממתין לאישורך)" : "";
     const notesLine = notes ? `\nהערה: ${notes}` : "";
-    const message = `${statusLine}\nלקוח: ${clientName} (${phoneNumber})\nשירות: ${service.name}\nתאריך: ${appointmentDate} בשעה ${appointmentTime}${notesLine}`;
+    const message = `תור חדש${pendingNote} | ${clientName} | ${service.name} | ${formattedDate} בשעה ${appointmentTime}${notesLine}`;
     sendSms(business.phone, message).catch(() => {});
   }
 
