@@ -14,10 +14,10 @@ import {
 } from "@workspace/api-zod";
 
 const router = Router();
-const SUPER_ADMIN_PASSWORD = process.env.SUPER_ADMIN_PASSWORD ?? "superadmin123";
+const SUPER_ADMIN_PASSWORD = (process.env.SUPER_ADMIN_PASSWORD ?? "superadmin123").trim();
 
 function isAdmin(password: string): boolean {
-  return password === SUPER_ADMIN_PASSWORD;
+  return password.trim() === SUPER_ADMIN_PASSWORD;
 }
 
 function mapAdminBusiness(b: typeof businessesTable.$inferSelect) {
