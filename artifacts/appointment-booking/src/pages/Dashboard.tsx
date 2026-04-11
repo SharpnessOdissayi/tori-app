@@ -125,7 +125,7 @@ function SubscriptionBanner() {
     return (
       <div className="flex items-center gap-2 px-4 py-2.5 bg-gradient-to-l from-violet-50 to-indigo-50 border border-violet-200 rounded-xl mb-4 text-sm">
         <Crown className="w-4 h-4 text-violet-600 shrink-0" />
-        <span className="text-violet-800 font-medium">מנוי {profile.subscriptionPlan === "pro" ? "פרו" : "בסיסי"} פעיל</span>
+        <span className="text-violet-800 font-medium">מנוי {profile.subscriptionPlan === "pro" ? "פרו" : "חינמי"} פעיל</span>
         <span className="text-violet-500 text-xs mr-auto">גישה מלאה לכל התכונות</span>
       </div>
     );
@@ -1163,7 +1163,8 @@ function BrandingTab() {
   const updateBranding = useUpdateBusinessBranding();
   const queryClient = useQueryClient();
   const { toast } = useToast();
-  const { upload, uploading } = useImageUpload();
+  const logoUpload = useImageUpload();
+  const bannerUpload = useImageUpload();
   const logoRef = useRef<HTMLInputElement>(null);
   const bannerRef = useRef<HTMLInputElement>(null);
 
@@ -1193,6 +1194,12 @@ function BrandingTab() {
     }
   }, [profile]);
 
+  // Update form when uploads complete
+  useEffect(() => { if (logoUpload.url) setForm(p => ({ ...p, logoUrl: logoUpload.url! })); }, [logoUpload.url]);
+  useEffect(() => { if (bannerUpload.url) setForm(p => ({ ...p, bannerUrl: bannerUpload.url! })); }, [bannerUpload.url]);
+
+  const uploading = logoUpload.isUploading || bannerUpload.isUploading;
+
   const handleSave = () => {
     updateBranding.mutate({ data: { ...form, themeMode: form.themeMode } }, {
       onSuccess: () => { toast({ title: "עיצוב נשמר" }); queryClient.invalidateQueries({ queryKey: getGetBusinessProfileQueryKey() }); },
@@ -1200,9 +1207,33 @@ function BrandingTab() {
   };
 
   const handleImageUpload = async (file: File, field: "logoUrl" | "bannerUrl") => {
-    const result = await upload(file);
-    if (result) setForm(p => ({ ...p, [field]: result.previewUrl }));
+    if (field === "logoUrl") await logoUpload.upload(file);
+    else await bannerUpload.upload(file);
   };
+
+  const isPro = profile?.subscriptionPlan === "pro";
+  if (profile && !isPro) {
+    return (
+      <div className="flex flex-col items-center justify-center py-20 gap-6 text-center">
+        <div className="w-20 h-20 rounded-full bg-violet-100 flex items-center justify-center">
+          <Crown className="w-10 h-10 text-violet-600" />
+        </div>
+        <div>
+          <h2 className="text-xl font-bold mb-2">עיצוב אישי — מנוי PRO בלבד</h2>
+          <p className="text-muted-foreground max-w-sm">שדרג למנוי PRO כדי להתאים את צבעים, פונטים, לוגו ומראה עמוד ההזמנות שלך</p>
+        </div>
+        <div className="flex gap-3 flex-wrap justify-center">
+          <div className="px-4 py-2 rounded-xl bg-muted text-sm text-muted-foreground">✓ צבע ראשי</div>
+          <div className="px-4 py-2 rounded-xl bg-muted text-sm text-muted-foreground">✓ פונט מותאם</div>
+          <div className="px-4 py-2 rounded-xl bg-muted text-sm text-muted-foreground">✓ לוגו ובאנר</div>
+          <div className="px-4 py-2 rounded-xl bg-muted text-sm text-muted-foreground">✓ צבע רקע</div>
+        </div>
+        <Button size="lg" className="gap-2 bg-violet-600 hover:bg-violet-700 text-white" onClick={() => toast({ title: "צור קשר לשדרוג", description: "פנה אלינו כדי לשדרג למנוי PRO" })}>
+          <Crown className="w-4 h-4" /> שדרג ל-PRO
+        </Button>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -1358,9 +1389,8 @@ function IntegrationsTab() {
   const { toast } = useToast();
 
   const [form, setForm] = useState({
-    whatsappApiKey: "",
-    whatsappPhoneId: "",
-    googleCalendarEnabled: false,
+    greenApiInstanceId: "",
+    greenApiToken: "",
     stripeEnabled: false,
     stripePublicKey: "",
   });
@@ -1368,9 +1398,8 @@ function IntegrationsTab() {
   useEffect(() => {
     if (profile) {
       setForm({
-        whatsappApiKey: profile.whatsappApiKey ?? "",
-        whatsappPhoneId: profile.whatsappPhoneId ?? "",
-        googleCalendarEnabled: profile.googleCalendarEnabled,
+        greenApiInstanceId: (profile as any).greenApiInstanceId ?? "",
+        greenApiToken: (profile as any).greenApiToken ?? "",
         stripeEnabled: profile.stripeEnabled,
         stripePublicKey: profile.stripePublicKey ?? "",
       });
@@ -1378,10 +1407,19 @@ function IntegrationsTab() {
   }, [profile]);
 
   const handleSave = () => {
-    updateIntegrations.mutate({ data: { ...form, whatsappApiKey: form.whatsappApiKey || null, whatsappPhoneId: form.whatsappPhoneId || null, stripePublicKey: form.stripePublicKey || null } }, {
+    updateIntegrations.mutate({
+      data: {
+        greenApiInstanceId: form.greenApiInstanceId || null,
+        greenApiToken: form.greenApiToken || null,
+        stripeEnabled: form.stripeEnabled,
+        stripePublicKey: form.stripePublicKey || null,
+      }
+    }, {
       onSuccess: () => { toast({ title: "אינטגרציות נשמרו" }); queryClient.invalidateQueries({ queryKey: getGetBusinessProfileQueryKey() }); },
     });
   };
+
+  const isWhatsappConnected = !!(form.greenApiInstanceId && form.greenApiToken);
 
   return (
     <div className="space-y-6">
@@ -1392,72 +1430,44 @@ function IntegrationsTab() {
               <Phone className="w-5 h-5 text-white" />
             </div>
             <div>
-              <CardTitle>WhatsApp Business API</CardTitle>
-              <CardDescription>שלח אישורים ותזכורות אוטומטיות ללקוחות</CardDescription>
+              <CardTitle>WhatsApp — הודעות מהמספר שלך</CardTitle>
+              <CardDescription>קבל הודעה על כל תור + שלח קודי אימות ללקוחות מהמספר האישי שלך</CardDescription>
             </div>
           </div>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="bg-green-50 border border-green-200 rounded-xl p-4 space-y-2">
-            <div className="font-semibold text-green-800 flex items-center gap-2"><Info className="w-4 h-4" /> איך להגדיר WhatsApp API?</div>
-            <ol className="text-sm text-green-700 space-y-1 list-decimal list-inside">
-              <li>כנס ל-<a href="https://business.facebook.com" target="_blank" rel="noopener noreferrer" className="underline">Facebook Business Manager</a></li>
-              <li>צור חשבון WhatsApp Business API</li>
-              <li>קבל Token גישה ו-Phone Number ID</li>
-              <li>הכנס את הפרטים בטפסים למטה</li>
+          <div className="bg-green-50 border border-green-200 rounded-xl p-4 space-y-3">
+            <div className="font-semibold text-green-800 flex items-center gap-2"><Info className="w-4 h-4" /> איך מחברים WhatsApp דרך Green API?</div>
+            <ol className="text-sm text-green-700 space-y-2 list-decimal list-inside">
+              <li>
+                כנס ל-<a href="https://green-api.com" target="_blank" rel="noopener noreferrer" className="underline font-medium">green-api.com</a> והירשם (חינמי עד 100 הודעות ביום)
+              </li>
+              <li>לחץ <strong>Create Instance</strong> וסרוק את קוד ה-QR עם WhatsApp שלך</li>
+              <li>העתק את <strong>idInstance</strong> ו-<strong>apiTokenInstance</strong> מדף ה-Instance</li>
+              <li>הכנס את הפרטים בשדות למטה ולחץ שמור</li>
             </ol>
+            <div className="text-xs text-green-600 bg-green-100 rounded-lg p-2">
+              כשמחובר — הודעות תור ישלחו <strong>מהמספר שלך</strong> ללקוחות ולבעל העסק
+            </div>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label>Access Token</Label>
-              <Input type="password" placeholder="EAAxxxx..." value={form.whatsappApiKey} onChange={e => setForm(p => ({ ...p, whatsappApiKey: e.target.value }))} dir="ltr" />
+              <Label>idInstance</Label>
+              <Input placeholder="7107584668" value={form.greenApiInstanceId} onChange={e => setForm(p => ({ ...p, greenApiInstanceId: e.target.value }))} dir="ltr" />
             </div>
             <div className="space-y-2">
-              <Label>Phone Number ID</Label>
-              <Input placeholder="12345678..." value={form.whatsappPhoneId} onChange={e => setForm(p => ({ ...p, whatsappPhoneId: e.target.value }))} dir="ltr" />
+              <Label>apiTokenInstance</Label>
+              <Input type="password" placeholder="553b2c25..." value={form.greenApiToken} onChange={e => setForm(p => ({ ...p, greenApiToken: e.target.value }))} dir="ltr" />
             </div>
           </div>
-          {form.whatsappApiKey && form.whatsappPhoneId && (
-            <div className="flex items-center gap-2 text-green-600 text-sm">
-              <CheckCircle className="w-4 h-4" /> WhatsApp מוגדר — לקוחות יקבלו אישור אוטומטי
+          {isWhatsappConnected ? (
+            <div className="flex items-center gap-2 text-green-600 text-sm font-medium">
+              <CheckCircle className="w-4 h-4" /> WhatsApp מחובר — הודעות ישלחו מהמספר שלך
             </div>
-          )}
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-blue-500 rounded-xl flex items-center justify-center">
-              <Calendar className="w-5 h-5 text-white" />
+          ) : (
+            <div className="flex items-center gap-2 text-muted-foreground text-sm">
+              <Info className="w-4 h-4" /> לא מחובר — הודעות יישלחו מהמספר הכללי של תורי
             </div>
-            <div>
-              <CardTitle>Google Calendar</CardTitle>
-              <CardDescription>חסום תורים אוטומטית לפי האירועים ביומן האישי שלך</CardDescription>
-            </div>
-          </div>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 space-y-2">
-            <div className="font-semibold text-blue-800 flex items-center gap-2"><Info className="w-4 h-4" /> איך לחבר Google Calendar?</div>
-            <ol className="text-sm text-blue-700 space-y-1 list-decimal list-inside">
-              <li>פתח <a href="https://console.cloud.google.com" target="_blank" rel="noopener noreferrer" className="underline">Google Cloud Console</a></li>
-              <li>צור פרויקט חדש ואפשר את Calendar API</li>
-              <li>צור OAuth 2.0 credentials</li>
-              <li>הוסף את הדומיין שלך ל-Authorized redirect URIs</li>
-            </ol>
-          </div>
-          <div className="flex items-center gap-3">
-            <Switch checked={form.googleCalendarEnabled} onCheckedChange={v => setForm(p => ({ ...p, googleCalendarEnabled: v }))} />
-            <Label>חבר Google Calendar</Label>
-            <Badge variant={form.googleCalendarEnabled ? "default" : "secondary"}>
-              {form.googleCalendarEnabled ? "מחובר" : "מנותק"}
-            </Badge>
-          </div>
-          {form.googleCalendarEnabled && (
-            <Button variant="outline" className="gap-2 w-full sm:w-auto" onClick={() => toast({ title: "בקרוב!", description: "חיבור OAuth יהיה זמין בגרסה הבאה" })}>
-              <ExternalLink className="w-4 h-4" /> חבר חשבון Google
-            </Button>
           )}
         </CardContent>
       </Card>
@@ -1514,7 +1524,7 @@ function SettingsTab() {
 
   const [form, setForm] = useState({
     name: "", ownerName: "", phone: "",
-    bufferMinutes: "0", notificationEnabled: false, notificationMessage: "", requireAppointmentApproval: false,
+    bufferMinutes: "0", notificationEnabled: false, notificationMessage: "", requireAppointmentApproval: false, requirePhoneVerification: true,
   });
 
   // Password change state
@@ -1531,6 +1541,7 @@ function SettingsTab() {
       notificationEnabled: profile.notificationEnabled ?? false,
       notificationMessage: profile.notificationMessage ?? "",
       requireAppointmentApproval: (profile as any).requireAppointmentApproval ?? false,
+      requirePhoneVerification: (profile as any).requirePhoneVerification ?? true,
     });
   }, [profile]);
 
@@ -1545,6 +1556,7 @@ function SettingsTab() {
         notificationEnabled: form.notificationEnabled,
         notificationMessage: form.notificationMessage || null,
         requireAppointmentApproval: form.requireAppointmentApproval,
+        requirePhoneVerification: form.requirePhoneVerification,
       }
     }, {
       onSuccess: () => {
@@ -1657,13 +1669,20 @@ function SettingsTab() {
             </div>
 
             <div className="space-y-4">
-              <h3 className="font-medium text-base border-b pb-2">אישור תורים</h3>
+              <h3 className="font-medium text-base border-b pb-2">אישור תורים ואבטחה</h3>
               <div className="flex items-center justify-between p-4 border rounded-xl bg-muted/30">
                 <div>
                   <div className="font-medium text-sm">דרוש אישור ידני לתורים</div>
                   <div className="text-xs text-muted-foreground mt-0.5">כבוי = תורים מאושרים אוטומטית | דלוק = אתה מאשר כל תור ידנית</div>
                 </div>
                 <Switch checked={form.requireAppointmentApproval} onCheckedChange={v => setForm(p => ({ ...p, requireAppointmentApproval: v }))} />
+              </div>
+              <div className="flex items-center justify-between p-4 border rounded-xl bg-muted/30">
+                <div>
+                  <div className="font-medium text-sm">אימות טלפון בקביעת תור</div>
+                  <div className="text-xs text-muted-foreground mt-0.5">דלוק = לקוח חייב לאמת מספר טלפון בקוד WhatsApp לפני קביעת תור</div>
+                </div>
+                <Switch checked={form.requirePhoneVerification} onCheckedChange={v => setForm(p => ({ ...p, requirePhoneVerification: v }))} />
               </div>
             </div>
 

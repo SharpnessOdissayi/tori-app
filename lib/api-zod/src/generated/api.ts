@@ -166,6 +166,9 @@ export const GetBusinessProfileResponse = zod.object({
   googleCalendarEnabled: zod.boolean(),
   stripeEnabled: zod.boolean(),
   stripePublicKey: zod.string().nullable(),
+  greenApiInstanceId: zod.string().nullable(),
+  greenApiToken: zod.string().nullable(),
+  requirePhoneVerification: zod.boolean(),
   subscriptionPlan: zod.string(),
   maxServicesAllowed: zod.number(),
   maxAppointmentsPerMonth: zod.number(),
@@ -182,6 +185,7 @@ export const UpdateBusinessProfileBody = zod.object({
   notificationEnabled: zod.boolean().optional(),
   notificationMessage: zod.string().nullish(),
   requireAppointmentApproval: zod.boolean().optional(),
+  requirePhoneVerification: zod.boolean().optional(),
 });
 
 export const UpdateBusinessProfileResponse = zod.object({
@@ -209,6 +213,9 @@ export const UpdateBusinessProfileResponse = zod.object({
   googleCalendarEnabled: zod.boolean(),
   stripeEnabled: zod.boolean(),
   stripePublicKey: zod.string().nullable(),
+  greenApiInstanceId: zod.string().nullable(),
+  greenApiToken: zod.string().nullable(),
+  requirePhoneVerification: zod.boolean(),
   subscriptionPlan: zod.string(),
   maxServicesAllowed: zod.number(),
   maxAppointmentsPerMonth: zod.number(),
@@ -253,6 +260,9 @@ export const UpdateBusinessBrandingResponse = zod.object({
   googleCalendarEnabled: zod.boolean(),
   stripeEnabled: zod.boolean(),
   stripePublicKey: zod.string().nullable(),
+  greenApiInstanceId: zod.string().nullable(),
+  greenApiToken: zod.string().nullable(),
+  requirePhoneVerification: zod.boolean(),
   subscriptionPlan: zod.string(),
   maxServicesAllowed: zod.number(),
   maxAppointmentsPerMonth: zod.number(),
@@ -267,6 +277,8 @@ export const UpdateBusinessIntegrationsBody = zod.object({
   googleCalendarEnabled: zod.boolean().optional(),
   stripeEnabled: zod.boolean().optional(),
   stripePublicKey: zod.string().nullish(),
+  greenApiInstanceId: zod.string().nullish(),
+  greenApiToken: zod.string().nullish(),
 });
 
 export const UpdateBusinessIntegrationsResponse = zod.object({
@@ -294,6 +306,9 @@ export const UpdateBusinessIntegrationsResponse = zod.object({
   googleCalendarEnabled: zod.boolean(),
   stripeEnabled: zod.boolean(),
   stripePublicKey: zod.string().nullable(),
+  greenApiInstanceId: zod.string().nullable(),
+  greenApiToken: zod.string().nullable(),
+  requirePhoneVerification: zod.boolean(),
   subscriptionPlan: zod.string(),
   maxServicesAllowed: zod.number(),
   maxAppointmentsPerMonth: zod.number(),

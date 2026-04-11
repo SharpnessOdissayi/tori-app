@@ -457,6 +457,53 @@ export default function Book() {
                       <span className="font-medium" dir="ltr">{clientData.phone}</span>
                     </div>
                   </div>
+                  {!requireApproval && selectedDate && selectedTime && selectedService && (
+                    <div className="flex flex-col sm:flex-row gap-3 justify-center">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="gap-2"
+                        onClick={() => {
+                          const [h, m] = selectedTime.split(":").map(Number);
+                          const start = new Date(selectedDate);
+                          start.setHours(h, m, 0, 0);
+                          const end = new Date(start.getTime() + selectedService.durationMinutes * 60000);
+                          const fmt = (d: Date) => d.toISOString().replace(/[-:]/g, "").split(".")[0] + "Z";
+                          const url = `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${encodeURIComponent(`תור — ${selectedService.name} אצל ${business.name}`)}&dates=${fmt(start)}/${fmt(end)}`;
+                          window.open(url, "_blank");
+                        }}
+                      >
+                        <CalendarIcon className="w-4 h-4" /> הוסף ל-Google Calendar
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="gap-2"
+                        onClick={() => {
+                          const [h, m] = selectedTime.split(":").map(Number);
+                          const start = new Date(selectedDate);
+                          start.setHours(h, m, 0, 0);
+                          const end = new Date(start.getTime() + selectedService.durationMinutes * 60000);
+                          const fmt = (d: Date) => d.toISOString().replace(/[-:.]/g, "").slice(0, 15) + "Z";
+                          const ics = [
+                            "BEGIN:VCALENDAR", "VERSION:2.0",
+                            "BEGIN:VEVENT",
+                            `DTSTART:${fmt(start)}`,
+                            `DTEND:${fmt(end)}`,
+                            `SUMMARY:תור — ${selectedService.name} אצל ${business.name}`,
+                            "END:VEVENT", "END:VCALENDAR",
+                          ].join("\r\n");
+                          const blob = new Blob([ics], { type: "text/calendar" });
+                          const a = document.createElement("a");
+                          a.href = URL.createObjectURL(blob);
+                          a.download = "appointment.ics";
+                          a.click();
+                        }}
+                      >
+                        <CalendarIcon className="w-4 h-4" /> הוסף ל-Apple / Outlook
+                      </Button>
+                    </div>
+                  )}
                   <Button variant="outline" onClick={() => window.location.reload()}>קבע תור נוסף</Button>
                 </motion.div>
               )}

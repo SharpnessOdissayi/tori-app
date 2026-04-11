@@ -122,8 +122,20 @@ router.post("/public/:businessSlug/otp/send", async (req, res): Promise<void> =>
     res.status(400).json({ error: "Missing phone" });
     return;
   }
+
+  // Look up per-business Green API credentials
+  const { businessSlug } = req.params;
+  const [business] = await db
+    .select({ greenApiInstanceId: businessesTable.greenApiInstanceId, greenApiToken: businessesTable.greenApiToken })
+    .from(businessesTable)
+    .where(eq(businessesTable.slug, businessSlug));
+
+  const creds = business?.greenApiInstanceId && business?.greenApiToken
+    ? { instanceId: business.greenApiInstanceId, token: business.greenApiToken }
+    : undefined;
+
   try {
-    await sendOtp(phone);
+    await sendOtp(phone, creds);
     res.json({ success: true });
   } catch (e: any) {
     res.status(500).json({ error: e.message ?? "Failed to send OTP" });
@@ -157,12 +169,6 @@ router.post("/public/:businessSlug/appointments", async (req, res): Promise<void
   const { businessSlug } = paramsParsed.data;
   const { serviceId, clientName, phoneNumber, appointmentDate, appointmentTime, notes } = bodyParsed.data;
 
-  // Enforce phone OTP verification
-  if (!isPhoneVerified(phoneNumber)) {
-    res.status(403).json({ error: "phone_not_verified", message: "יש לאמת את מספר הטלפון תחילה" });
-    return;
-  }
-
   const [business] = await db
     .select()
     .from(businessesTable)
@@ -170,6 +176,12 @@ router.post("/public/:businessSlug/appointments", async (req, res): Promise<void
 
   if (!business) {
     res.status(404).json({ error: "Business not found" });
+    return;
+  }
+
+  // Enforce phone OTP verification only if the business requires it
+  if (business.requirePhoneVerification && !isPhoneVerified(phoneNumber)) {
+    res.status(403).json({ error: "phone_not_verified", message: "יש לאמת את מספר הטלפון תחילה" });
     return;
   }
 
@@ -234,16 +246,19 @@ router.post("/public/:businessSlug/appointments", async (req, res): Promise<void
     })
     .returning();
 
-  consumeVerification(phoneNumber);
+  if (business.requirePhoneVerification) consumeVerification(phoneNumber);
 
-  // Notify business owner via SMS (non-blocking)
+  // Notify business owner via WhatsApp (non-blocking)
   if (business.phone) {
     const [year, month, day] = appointmentDate.split("-");
     const formattedDate = `${day}/${month}`;
     const pendingNote = appointmentStatus === "pending" ? "\n⏳ ממתין לאישורך" : "";
     const notesLine = notes ? `\nהערה: ${notes}` : "";
     const message = `${clientName} קבע תור בשעה ${appointmentTime} ב-${formattedDate} — ${service.name}${notesLine}${pendingNote}`;
-    sendSms(business.phone, message).catch(() => {});
+    const ownerCreds = business.greenApiInstanceId && business.greenApiToken
+      ? { instanceId: business.greenApiInstanceId, token: business.greenApiToken }
+      : undefined;
+    sendSms(business.phone, message, ownerCreds).catch(() => {});
   }
 
   res.status(201).json({ ...appointment, createdAt: appointment.createdAt.toISOString() });

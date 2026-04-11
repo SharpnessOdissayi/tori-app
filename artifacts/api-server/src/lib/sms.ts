@@ -12,9 +12,9 @@ function toE164(phone: string): string {
   return p;
 }
 
-export async function sendSms(phone: string, body: string): Promise<void> {
-  const instanceId = process.env.GREEN_API_INSTANCE_ID;
-  const apiToken = process.env.GREEN_API_TOKEN;
+export async function sendSms(phone: string, body: string, creds?: { instanceId: string; token: string }): Promise<void> {
+  const instanceId = creds?.instanceId ?? process.env.GREEN_API_INSTANCE_ID;
+  const apiToken = creds?.token ?? process.env.GREEN_API_TOKEN;
 
   if (instanceId && apiToken) {
     const to = toE164(phone).replace("+", "") + "@c.us";
@@ -33,11 +33,11 @@ export async function sendSms(phone: string, body: string): Promise<void> {
   }
 }
 
-export async function sendOtp(phone: string): Promise<void> {
+export async function sendOtp(phone: string, creds?: { instanceId: string; token: string }): Promise<void> {
   const code = String(Math.floor(100000 + Math.random() * 900000));
   const key = normalizePhone(phone);
   otpStore.set(key, { code, expiresAt: Date.now() + 10 * 60 * 1000, verified: false });
-  await sendSms(phone, `קוד האימות שלך לתורי: ${code}\nהקוד תקף ל-10 דקות.`);
+  await sendSms(phone, `קוד האימות שלך לתורי: ${code}\nהקוד תקף ל-10 דקות.`, creds);
 }
 
 export function verifyOtp(phone: string, code: string): boolean {
