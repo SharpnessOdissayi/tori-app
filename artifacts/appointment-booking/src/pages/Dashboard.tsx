@@ -105,7 +105,7 @@ function SubscriptionBanner() {
   if (!profile) return null;
 
   const isPro = profile.subscriptionPlan !== "free";
-  const serviceCount = services?.filter(s => s.isActive).length ?? 0;
+  const serviceCount = services?.filter(s => s.isActive)?.length ?? 0;
 
   if (isPro) {
     return (
