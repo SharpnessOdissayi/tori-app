@@ -13,8 +13,8 @@ function toE164(phone: string): string {
 }
 
 export async function sendSms(phone: string, body: string, creds?: { instanceId: string; token: string }): Promise<void> {
-  const instanceId = creds?.instanceId;
-  const apiToken = creds?.token;
+  const instanceId = creds?.instanceId ?? process.env.GREEN_API_INSTANCE_ID;
+  const apiToken = creds?.token ?? process.env.GREEN_API_TOKEN;
 
   if (instanceId && apiToken) {
     const to = toE164(phone).replace("+", "") + "@c.us";
@@ -28,8 +28,9 @@ export async function sendSms(phone: string, body: string, creds?: { instanceId:
       const err = await res.json();
       throw new Error((err as any).message ?? "WhatsApp sending failed");
     }
+  } else {
+    console.log(`[WhatsApp] To: ${phone}\n${body}`);
   }
-  // No creds provided — do nothing
 }
 
 export async function sendOtp(phone: string, creds?: { instanceId: string; token: string }): Promise<void> {
