@@ -32,6 +32,12 @@ export default function Book() {
   const [clientData, setClientData] = useState({ name: "", phone: "", notes: "" });
   const [waitlistData, setWaitlistData] = useState({ name: "", phone: "", notes: "" });
 
+  // Phone OTP verification state
+  const [otpSent, setOtpSent] = useState(false);
+  const [otpCode, setOtpCode] = useState("");
+  const [phoneVerified, setPhoneVerified] = useState(false);
+  const [otpLoading, setOtpLoading] = useState(false);
+
   const { toast } = useToast();
   const { data: business, isLoading: businessLoading, error: businessError } = useGetPublicBusiness(businessSlug || "");
   const { data: services, isLoading: servicesLoading } = useGetPublicServices(businessSlug || "");
@@ -102,6 +108,47 @@ export default function Book() {
   const handleBack = () => setStep(s => s - 1);
   const servicesList = Array.isArray(services) ? services : [];
   const selectedService = servicesList.find(s => s.id === selectedServiceId);
+
+  const handleSendOtp = async () => {
+    if (!clientData.phone) return;
+    setOtpLoading(true);
+    try {
+      const res = await fetch(`/api/public/${businessSlug}/otp/send`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ phone: clientData.phone }),
+      });
+      if (!res.ok) throw new Error();
+      setOtpSent(true);
+      toast({ title: "קוד נשלח לנייד שלך" });
+    } catch {
+      toast({ title: "שגיאה בשליחת הקוד", variant: "destructive" });
+    } finally {
+      setOtpLoading(false);
+    }
+  };
+
+  const handleVerifyOtp = async () => {
+    if (!otpCode) return;
+    setOtpLoading(true);
+    try {
+      const res = await fetch(`/api/public/${businessSlug}/otp/verify`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ phone: clientData.phone, code: otpCode }),
+      });
+      if (!res.ok) {
+        toast({ title: "קוד שגוי, נסה שוב", variant: "destructive" });
+        return;
+      }
+      setPhoneVerified(true);
+      toast({ title: "הטלפון אומת בהצלחה" });
+    } catch {
+      toast({ title: "שגיאה באימות", variant: "destructive" });
+    } finally {
+      setOtpLoading(false);
+    }
+  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -305,8 +352,62 @@ export default function Book() {
                     </div>
                     <div className="space-y-2">
                       <Label>מספר טלפון *</Label>
-                      <Input required type="tel" value={clientData.phone} onChange={e => setClientData(p => ({ ...p, phone: e.target.value }))} className="h-12 text-base" dir="ltr" placeholder="050-0000000" />
+                      <div className="flex gap-2">
+                        <Input
+                          required
+                          type="tel"
+                          value={clientData.phone}
+                          onChange={e => { setClientData(p => ({ ...p, phone: e.target.value })); setOtpSent(false); setPhoneVerified(false); setOtpCode(""); }}
+                          className="h-12 text-base flex-1"
+                          dir="ltr"
+                          placeholder="050-0000000"
+                          disabled={phoneVerified}
+                        />
+                        {!phoneVerified && (
+                          <button
+                            type="button"
+                            onClick={handleSendOtp}
+                            disabled={otpLoading || !clientData.phone}
+                            className="h-12 px-4 rounded-lg text-sm font-medium text-white transition-all disabled:opacity-50"
+                            style={{ backgroundColor: primaryColor }}
+                          >
+                            {otpLoading && !otpSent ? "שולח..." : otpSent ? "שלח שוב" : "שלח קוד"}
+                          </button>
+                        )}
+                        {phoneVerified && (
+                          <div className="h-12 px-4 flex items-center gap-1 text-green-600 font-medium text-sm">
+                            ✓ מאומת
+                          </div>
+                        )}
+                      </div>
                     </div>
+
+                    {otpSent && !phoneVerified && (
+                      <div className="space-y-2">
+                        <Label>קוד אימות SMS *</Label>
+                        <div className="flex gap-2">
+                          <Input
+                            value={otpCode}
+                            onChange={e => setOtpCode(e.target.value)}
+                            className="h-12 text-base text-center tracking-widest font-bold flex-1"
+                            dir="ltr"
+                            placeholder="123456"
+                            maxLength={6}
+                          />
+                          <button
+                            type="button"
+                            onClick={handleVerifyOtp}
+                            disabled={otpLoading || otpCode.length < 6}
+                            className="h-12 px-4 rounded-lg text-sm font-medium text-white transition-all disabled:opacity-50"
+                            style={{ backgroundColor: primaryColor }}
+                          >
+                            {otpLoading ? "מאמת..." : "אמת"}
+                          </button>
+                        </div>
+                        <p className="text-xs text-muted-foreground">שלחנו קוד בן 6 ספרות למספר שהזנת</p>
+                      </div>
+                    )}
+
                     <div className="space-y-2">
                       <Label>הערה (אופציונלי)</Label>
                       <Input value={clientData.notes} onChange={e => setClientData(p => ({ ...p, notes: e.target.value }))} placeholder="בקשות מיוחדות..." />

@@ -12,6 +12,7 @@ import {
   JoinWaitlistBody,
 } from "@workspace/api-zod";
 import { computeAvailableSlots } from "../lib/availability";
+import { sendOtp, verifyOtp, isPhoneVerified, consumeVerification } from "../lib/sms";
 
 const router = Router();
 
@@ -114,6 +115,36 @@ router.get("/public/:businessSlug/availability", async (req, res): Promise<void>
   res.json({ date, slots: availableSlots, isFullyBooked });
 });
 
+// POST /public/:businessSlug/otp/send
+router.post("/public/:businessSlug/otp/send", async (req, res): Promise<void> => {
+  const { phone } = req.body ?? {};
+  if (!phone || typeof phone !== "string") {
+    res.status(400).json({ error: "Missing phone" });
+    return;
+  }
+  try {
+    await sendOtp(phone);
+    res.json({ success: true });
+  } catch (e: any) {
+    res.status(500).json({ error: e.message ?? "Failed to send OTP" });
+  }
+});
+
+// POST /public/:businessSlug/otp/verify
+router.post("/public/:businessSlug/otp/verify", async (req, res): Promise<void> => {
+  const { phone, code } = req.body ?? {};
+  if (!phone || !code) {
+    res.status(400).json({ error: "Missing phone or code" });
+    return;
+  }
+  const ok = verifyOtp(phone, String(code));
+  if (!ok) {
+    res.status(400).json({ error: "invalid_code", message: "הקוד שגוי או פג תוקף" });
+    return;
+  }
+  res.json({ success: true });
+});
+
 router.post("/public/:businessSlug/appointments", async (req, res): Promise<void> => {
   const paramsParsed = CreatePublicAppointmentParams.safeParse(req.params);
   const bodyParsed = CreatePublicAppointmentBody.safeParse(req.body);
@@ -125,6 +156,12 @@ router.post("/public/:businessSlug/appointments", async (req, res): Promise<void
 
   const { businessSlug } = paramsParsed.data;
   const { serviceId, clientName, phoneNumber, appointmentDate, appointmentTime, notes } = bodyParsed.data;
+
+  // Enforce phone OTP verification
+  if (!isPhoneVerified(phoneNumber)) {
+    res.status(403).json({ error: "phone_not_verified", message: "יש לאמת את מספר הטלפון תחילה" });
+    return;
+  }
 
   const [business] = await db
     .select()
@@ -197,6 +234,7 @@ router.post("/public/:businessSlug/appointments", async (req, res): Promise<void
     })
     .returning();
 
+  consumeVerification(phoneNumber);
   res.status(201).json({ ...appointment, createdAt: appointment.createdAt.toISOString() });
 });
 
