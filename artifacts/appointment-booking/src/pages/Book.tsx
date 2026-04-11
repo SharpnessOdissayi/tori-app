@@ -118,9 +118,17 @@ export default function Book() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ phone: clientData.phone }),
       });
-      if (!res.ok) throw new Error();
+      const data = await res.json();
+      if (!res.ok) {
+        if (data.error === "whatsapp_not_configured") {
+          setPhoneVerified(true); // skip OTP if business hasn't configured WhatsApp
+        } else {
+          throw new Error();
+        }
+        return;
+      }
       setOtpSent(true);
-      toast({ title: "קוד נשלח לנייד שלך" });
+      toast({ title: "קוד נשלח לנייד שלך בWhatsApp" });
     } catch {
       toast({ title: "שגיאה בשליחת הקוד", variant: "destructive" });
     } finally {

@@ -130,9 +130,12 @@ router.post("/public/:businessSlug/otp/send", async (req, res): Promise<void> =>
     .from(businessesTable)
     .where(eq(businessesTable.slug, businessSlug));
 
-  const creds = business?.greenApiInstanceId && business?.greenApiToken
-    ? { instanceId: business.greenApiInstanceId, token: business.greenApiToken }
-    : undefined;
+  if (!business?.greenApiInstanceId || !business?.greenApiToken) {
+    res.status(503).json({ error: "whatsapp_not_configured", message: "העסק לא חיבר WhatsApp עדיין" });
+    return;
+  }
+
+  const creds = { instanceId: business.greenApiInstanceId, token: business.greenApiToken };
 
   try {
     await sendOtp(phone, creds);
