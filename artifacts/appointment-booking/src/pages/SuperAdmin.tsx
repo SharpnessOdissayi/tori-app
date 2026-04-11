@@ -192,8 +192,9 @@ export default function SuperAdmin() {
     );
   }
 
-  const activeCount = businesses?.filter(b => b.isActive).length ?? 0;
-  const totalCount = businesses?.length ?? 0;
+  const bizList = Array.isArray(businesses) ? businesses : [];
+  const activeCount = bizList.filter(b => b.isActive).length;
+  const totalCount = bizList.length;
 
   return (
     <div className="min-h-screen bg-muted/20 p-6" dir="rtl">
@@ -249,7 +250,7 @@ export default function SuperAdmin() {
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
           {isLoading ? (
             <div className="col-span-full p-12 text-center text-muted-foreground">טוען...</div>
-          ) : businesses?.length ? businesses.map(b => (
+          ) : bizList.length ? bizList.map(b => (
             <BusinessCard
               key={b.id}
               business={b}

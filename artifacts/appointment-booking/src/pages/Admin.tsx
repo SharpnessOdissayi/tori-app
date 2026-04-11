@@ -120,10 +120,10 @@ function AdminDashboard({ password, onLogout }: { password: string, onLogout: ()
     }
   });
 
-  const filteredAppointments = appointments?.filter(app => 
-    app.clientName.toLowerCase().includes(searchQuery.toLowerCase()) || 
+  const filteredAppointments = (Array.isArray(appointments) ? appointments : []).filter(app =>
+    app.clientName.toLowerCase().includes(searchQuery.toLowerCase()) ||
     app.serviceType.toLowerCase().includes(searchQuery.toLowerCase())
-  ) || [];
+  );
 
   return (
     <div className="min-h-[100dvh] flex flex-col bg-muted/20">

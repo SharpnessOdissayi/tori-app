@@ -310,6 +310,7 @@ function OnboardingTour({ onComplete, onTabChange }: { onComplete: () => void; o
 export default function Dashboard() {
   const [token, setToken] = useState(localStorage.getItem("biz_token"));
   const [activeTab, setActiveTab] = useState("appointments");
+  const { data: headerProfile } = useGetBusinessProfile();
   const [showTour, setShowTour] = useState(() => {
     return localStorage.getItem("onboarding_pending") === "true" &&
            !localStorage.getItem("onboarding_completed");
@@ -348,7 +349,12 @@ export default function Dashboard() {
         <div className="max-w-6xl mx-auto px-4 h-16 flex items-center justify-between">
           <div className="font-bold text-xl text-primary flex items-center gap-2">
             <div className="w-8 h-8 rounded-lg bg-primary text-primary-foreground flex items-center justify-center text-sm font-bold">ת</div>
-            לוח בקרה
+            <div>
+              <div className="text-sm font-bold leading-tight">תורי</div>
+              {headerProfile?.name && (
+                <div className="text-xs font-normal text-muted-foreground leading-tight">{headerProfile.name}</div>
+              )}
+            </div>
           </div>
           <div className="flex items-center gap-2">
             {!showTour && localStorage.getItem("onboarding_completed") && (
@@ -896,8 +902,9 @@ function CustomersTab() {
 
   if (isLoading) return <div className="p-8 text-center text-muted-foreground">טוען...</div>;
 
-  const totalRevenue = customers?.reduce((s, c) => s + c.totalRevenue, 0) ?? 0;
-  const totalVisits = customers?.reduce((s, c) => s + c.totalVisits, 0) ?? 0;
+  const customerList = Array.isArray(customers) ? customers : [];
+  const totalRevenue = customerList.reduce((s, c) => s + c.totalRevenue, 0);
+  const totalVisits = customerList.reduce((s, c) => s + c.totalVisits, 0);
 
   return (
     <div className="space-y-6">
@@ -905,7 +912,7 @@ function CustomersTab() {
         <Card className="bg-primary/5 border-primary/10">
           <CardContent className="p-5">
             <div className="text-sm text-muted-foreground mb-1">לקוחות ייחודיים</div>
-            <div className="text-3xl font-bold">{customers?.length ?? 0}</div>
+            <div className="text-3xl font-bold">{customerList.length}</div>
           </CardContent>
         </Card>
         <Card className="bg-primary/5 border-primary/10">
@@ -928,9 +935,9 @@ function CustomersTab() {
           <CardDescription>כל הלקוחות שהזמינו תורים עם היסטוריית ביקורים והכנסות</CardDescription>
         </CardHeader>
         <CardContent>
-          {customers?.length ? (
+          {customerList.length ? (
             <div className="space-y-3">
-              {customers.map((c, i) => (
+              {customerList.map((c, i) => (
                 <div key={i} className="flex flex-col sm:flex-row justify-between items-start sm:items-center p-4 border rounded-xl hover:border-primary/40 transition-colors">
                   <div>
                     <div className="font-semibold flex items-center gap-2">
@@ -968,6 +975,8 @@ function WaitlistTab() {
     });
   };
 
+  const waitlistItems = Array.isArray(waitlist) ? waitlist : [];
+
   if (isLoading) return <div className="p-8 text-center text-muted-foreground">טוען...</div>;
 
   return (
@@ -977,9 +986,9 @@ function WaitlistTab() {
         <CardDescription>לקוחות שהצטרפו לרשימת ההמתנה כאשר הלוח היה מלא</CardDescription>
       </CardHeader>
       <CardContent>
-        {waitlist?.length ? (
+        {waitlistItems.length ? (
           <div className="space-y-3">
-            {waitlist.map(w => (
+            {waitlistItems.map(w => (
               <div key={w.id} className="flex flex-col sm:flex-row justify-between items-start sm:items-center p-4 border rounded-xl hover:border-primary/40 transition-colors gap-3">
                 <div>
                   <div className="font-semibold">{w.clientName}</div>
@@ -1336,9 +1345,9 @@ function SettingsTab() {
       name: profile.name,
       ownerName: profile.ownerName,
       phone: (profile as any).phone ?? "",
-      bufferMinutes: profile.bufferMinutes.toString(),
-      notificationEnabled: profile.notificationEnabled,
-      notificationMessage: profile.notificationMessage || "",
+      bufferMinutes: (profile.bufferMinutes ?? 0).toString(),
+      notificationEnabled: profile.notificationEnabled ?? false,
+      notificationMessage: profile.notificationMessage ?? "",
     });
   }, [profile]);
 

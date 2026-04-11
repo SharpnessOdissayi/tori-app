@@ -83,7 +83,8 @@ export default function Book() {
 
   const handleNext = () => setStep(s => s + 1);
   const handleBack = () => setStep(s => s - 1);
-  const selectedService = services?.find(s => s.id === selectedServiceId);
+  const servicesList = Array.isArray(services) ? services : [];
+  const selectedService = servicesList.find(s => s.id === selectedServiceId);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -188,7 +189,7 @@ export default function Book() {
                   <h2 className="text-xl font-bold">בחר שירות</h2>
                   {servicesLoading ? <div className="text-center py-8 text-muted-foreground">טוען שירותים...</div> : (
                     <div className="grid gap-3">
-                      {services?.filter(s => s.isActive).map(service => (
+                      {servicesList.filter(s => s.isActive).map(service => (
                         <div key={service.id}
                           onClick={() => { setSelectedServiceId(service.id); setTimeout(handleNext, 150); }}
                           className={`border-2 rounded-xl cursor-pointer transition-all overflow-hidden ${selectedServiceId === service.id ? "border-primary" : "border-transparent bg-muted/40 hover:bg-muted"}`}
@@ -209,7 +210,7 @@ export default function Book() {
                           </div>
                         </div>
                       ))}
-                      {!services?.filter(s => s.isActive).length && (
+                      {!servicesList.filter(s => s.isActive).length && (
                         <div className="text-center py-8 text-muted-foreground">אין שירותים זמינים כרגע</div>
                       )}
                     </div>
