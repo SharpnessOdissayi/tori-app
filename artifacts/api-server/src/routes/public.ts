@@ -12,7 +12,7 @@ import {
   JoinWaitlistBody,
 } from "@workspace/api-zod";
 import { computeAvailableSlots } from "../lib/availability";
-import { sendOtp, verifyOtp, isPhoneVerified, consumeVerification } from "../lib/sms";
+import { sendOtp, sendSms, verifyOtp, isPhoneVerified, consumeVerification } from "../lib/sms";
 
 const router = Router();
 
@@ -235,6 +235,15 @@ router.post("/public/:businessSlug/appointments", async (req, res): Promise<void
     .returning();
 
   consumeVerification(phoneNumber);
+
+  // Notify business owner via SMS (non-blocking)
+  if (business.phone) {
+    const statusLine = appointmentStatus === "pending" ? "⏳ תור חדש ממתין לאישורך" : "✅ תור חדש נקבע";
+    const notesLine = notes ? `\nהערה: ${notes}` : "";
+    const message = `${statusLine}\nלקוח: ${clientName} (${phoneNumber})\nשירות: ${service.name}\nתאריך: ${appointmentDate} בשעה ${appointmentTime}${notesLine}`;
+    sendSms(business.phone, message).catch(() => {});
+  }
+
   res.status(201).json({ ...appointment, createdAt: appointment.createdAt.toISOString() });
 });
 

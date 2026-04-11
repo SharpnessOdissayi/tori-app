@@ -5,39 +5,40 @@ function normalizePhone(phone: string): string {
   return phone.replace(/\D/g, "");
 }
 
-export async function sendOtp(phone: string): Promise<void> {
-  const code = String(Math.floor(100000 + Math.random() * 900000));
-  const key = normalizePhone(phone);
-  otpStore.set(key, { code, expiresAt: Date.now() + 10 * 60 * 1000, verified: false });
+function toE164(phone: string): string {
+  const p = phone.trim();
+  if (p.startsWith("0")) return "+972" + p.slice(1);
+  if (!p.startsWith("+")) return "+" + p;
+  return p;
+}
 
+export async function sendSms(phone: string, body: string): Promise<void> {
   const accountSid = process.env.TWILIO_ACCOUNT_SID;
   const authToken = process.env.TWILIO_AUTH_TOKEN;
   const fromPhone = process.env.TWILIO_PHONE_NUMBER;
 
   if (accountSid && authToken && fromPhone) {
-    const body = `קוד האימות שלך לתורי: ${code}\nהקוד תקף ל-10 דקות.`;
     const url = `https://api.twilio.com/2010-04-01/Accounts/${accountSid}/Messages.json`;
     const creds = Buffer.from(`${accountSid}:${authToken}`).toString("base64");
-
-    let toPhone = phone.trim();
-    // Convert Israeli local number to E.164
-    if (toPhone.startsWith("0")) toPhone = "+972" + toPhone.slice(1);
-    else if (!toPhone.startsWith("+")) toPhone = "+" + toPhone;
-
     const res = await fetch(url, {
       method: "POST",
       headers: { Authorization: `Basic ${creds}`, "Content-Type": "application/x-www-form-urlencoded" },
-      body: new URLSearchParams({ From: fromPhone, To: toPhone, Body: body }).toString(),
+      body: new URLSearchParams({ From: fromPhone, To: toE164(phone), Body: body }).toString(),
     });
-
     if (!res.ok) {
       const err = await res.json();
       throw new Error((err as any).message ?? "SMS sending failed");
     }
   } else {
-    // Dev mode — log the code
-    console.log(`[SMS OTP] Phone: ${phone} → Code: ${code}`);
+    console.log(`[SMS] To: ${phone}\n${body}`);
   }
+}
+
+export async function sendOtp(phone: string): Promise<void> {
+  const code = String(Math.floor(100000 + Math.random() * 900000));
+  const key = normalizePhone(phone);
+  otpStore.set(key, { code, expiresAt: Date.now() + 10 * 60 * 1000, verified: false });
+  await sendSms(phone, `קוד האימות שלך לתורי: ${code}\nהקוד תקף ל-10 דקות.`);
 }
 
 export function verifyOtp(phone: string, code: string): boolean {
