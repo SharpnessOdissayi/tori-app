@@ -105,7 +105,8 @@ function SubscriptionBanner() {
   if (!profile) return null;
 
   const isPro = profile.subscriptionPlan !== "free";
-  const serviceCount = services?.filter(s => s.isActive)?.length ?? 0;
+  const servicesList = Array.isArray(services) ? services : [];
+  const serviceCount = servicesList.filter(s => s.isActive).length;
 
   if (isPro) {
     return (
@@ -523,8 +524,9 @@ function AppointmentsTab() {
   };
 
   const now = new Date().toISOString().split("T")[0];
-  const upcoming = appointments?.filter(a => a.appointmentDate >= now) ?? [];
-  const past = appointments?.filter(a => a.appointmentDate < now) ?? [];
+  const aptList = Array.isArray(appointments) ? appointments : [];
+  const upcoming = aptList.filter(a => a.appointmentDate >= now);
+  const past = aptList.filter(a => a.appointmentDate < now);
 
   return (
     <div className="space-y-6">
@@ -605,7 +607,7 @@ function ServicesTab() {
   const [editingId, setEditingId] = useState<number | null>(null);
   const [form, setForm] = useState({ name: "", price: "", durationMinutes: "30", bufferMinutes: "0", isActive: true, imageUrl: "" });
 
-  const activeServices = services?.filter(s => s.isActive) ?? [];
+  const activeServices = Array.isArray(services) ? services.filter(s => s.isActive) : [];
   const isPro = profile?.subscriptionPlan !== "free";
   const atLimit = !isPro && activeServices.length >= FREE_SERVICE_LIMIT;
 
@@ -740,7 +742,7 @@ function ServicesTab() {
           </form>
         )}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {services?.map(s => (
+          {(Array.isArray(services) ? services : []).map(s => (
             <div key={s.id} className={`border rounded-xl overflow-hidden hover:border-primary/40 transition-colors ${!s.isActive ? "opacity-50 bg-muted/20" : "bg-card"}`}>
               {s.imageUrl && (
                 <div className="h-32 overflow-hidden">
