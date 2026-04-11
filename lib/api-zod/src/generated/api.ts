@@ -56,7 +56,7 @@ export const SuperAdminUpdateBusinessQueryParams = zod.object({
 
 export const SuperAdminUpdateBusinessBody = zod.object({
   isActive: zod.boolean().optional(),
-  subscriptionPlan: zod.enum(["free", "basic", "pro"]).optional(),
+  subscriptionPlan: zod.enum(["free", "pro"]).optional(),
   maxServicesAllowed: zod.number().optional(),
   name: zod.string().optional(),
   slug: zod.string().optional(),

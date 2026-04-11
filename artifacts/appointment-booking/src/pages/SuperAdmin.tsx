@@ -21,7 +21,6 @@ import Navbar from "@/components/Navbar";
 
 const PLANS = [
   { value: "free", label: "חינמי", color: "bg-slate-100 text-slate-700" },
-  { value: "basic", label: "בסיסי", color: "bg-blue-100 text-blue-700" },
   { value: "pro", label: "פרו", color: "bg-purple-100 text-purple-700" },
 ];
 
@@ -42,7 +41,6 @@ export default function SuperAdmin() {
 
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [newBusiness, setNewBusiness] = useState({ name: "", slug: "", ownerName: "", email: "", password: "", phone: "" });
-  const [editingId, setEditingId] = useState<number | null>(null);
   const [editDialogBusiness, setEditDialogBusiness] = useState<AdminBusinessSummary | null>(null);
   const [editForm, setEditForm] = useState<EditFormData>({ name: "", slug: "", ownerName: "", email: "", password: "", phone: "" });
   const [showEditPassword, setShowEditPassword] = useState(false);
@@ -96,14 +94,10 @@ export default function SuperAdmin() {
   };
 
   const handleChangePlan = (id: number, plan: string) => {
-    updateMutation.mutate({ id, params: { adminPassword: password }, data: { subscriptionPlan: plan as any } }, {
+    const maxServices = plan === "pro" ? 999 : 3;
+    const maxAppts = plan === "pro" ? 9999 : 20;
+    updateMutation.mutate({ id, params: { adminPassword: password }, data: { subscriptionPlan: plan as any, maxServicesAllowed: maxServices, maxAppointmentsPerMonth: maxAppts } }, {
       onSuccess: () => { toast({ title: "מנוי עודכן" }); invalidate(); },
-    });
-  };
-
-  const handleChangeMaxServices = (id: number, max: number) => {
-    updateMutation.mutate({ id, params: { adminPassword: password }, data: { maxServicesAllowed: max } }, {
-      onSuccess: () => { toast({ title: "הגבלה עודכנה" }); setEditingId(null); invalidate(); },
     });
   };
 
@@ -264,11 +258,8 @@ export default function SuperAdmin() {
             <BusinessCard
               key={b.id}
               business={b}
-              editingId={editingId}
-              setEditingId={setEditingId}
               onToggleActive={() => handleToggleActive(b.id, b.isActive)}
               onChangePlan={(plan) => handleChangePlan(b.id, plan)}
-              onChangeMaxServices={(max) => handleChangeMaxServices(b.id, max)}
               onDelete={() => handleDelete(b.id)}
               onEdit={() => openEditDialog(b)}
               isPending={updateMutation.isPending || deleteMutation.isPending}
@@ -347,18 +338,14 @@ export default function SuperAdmin() {
 
 interface BusinessCardProps {
   business: AdminBusinessSummary;
-  editingId: number | null;
-  setEditingId: (id: number | null) => void;
   onToggleActive: () => void;
   onChangePlan: (plan: string) => void;
-  onChangeMaxServices: (max: number) => void;
   onDelete: () => void;
   onEdit: () => void;
   isPending: boolean;
 }
 
-function BusinessCard({ business, editingId, setEditingId, onToggleActive, onChangePlan, onChangeMaxServices, onDelete, onEdit, isPending }: BusinessCardProps) {
-  const [maxServicesInput, setMaxServicesInput] = useState(String(business.maxServicesAllowed));
+function BusinessCard({ business, onToggleActive, onChangePlan, onDelete, onEdit, isPending }: BusinessCardProps) {
   const plan = PLANS.find(p => p.value === business.subscriptionPlan) ?? PLANS[0];
 
   return (
@@ -370,6 +357,7 @@ function BusinessCard({ business, editingId, setEditingId, onToggleActive, onCha
         onEdit();
       }}
     >
+
       <CardHeader className="pb-3">
         <div className="flex items-start justify-between gap-2">
           <div className="flex-1 min-w-0">
@@ -399,24 +387,6 @@ function BusinessCard({ business, editingId, setEditingId, onToggleActive, onCha
               </button>
             ))}
           </div>
-        </div>
-
-        <div className="space-y-2">
-          <Label className="text-xs text-muted-foreground">מקסימום שירותים</Label>
-          {editingId === business.id ? (
-            <div className="flex gap-2">
-              <Input type="number" min="1" value={maxServicesInput} onChange={e => setMaxServicesInput(e.target.value)} className="h-8 text-sm" dir="ltr" />
-              <Button size="sm" className="h-8 px-3" onClick={() => onChangeMaxServices(parseInt(maxServicesInput))}>שמור</Button>
-              <Button size="sm" variant="ghost" className="h-8 px-2" onClick={() => setEditingId(null)}>✕</Button>
-            </div>
-          ) : (
-            <div className="flex items-center gap-2">
-              <span className="text-sm font-medium">{business.maxServicesAllowed} שירותים</span>
-              <button onClick={() => setEditingId(business.id)} className="text-muted-foreground hover:text-foreground">
-                <Edit className="w-3.5 h-3.5" />
-              </button>
-            </div>
-          )}
         </div>
 
         <div className="flex gap-2 pt-2">

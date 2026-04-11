@@ -12,7 +12,7 @@ import {
   Building2, User, Phone, Mail, Lock, Globe, PartyPopper
 } from "lucide-react";
 
-type Plan = "basic" | "pro";
+type Plan = "free" | "pro";
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL ?? "/api";
 
@@ -41,14 +41,14 @@ function StepPlan({ onNext }: { onNext: (plan: Plan) => void }) {
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">
-        {/* Basic Plan */}
+        {/* Free Plan */}
         <button
-          onClick={() => onNext("basic")}
+          onClick={() => onNext("free")}
           className="text-right border-2 rounded-2xl p-6 hover:border-primary hover:bg-primary/5 transition-all group focus:outline-none focus:ring-2 focus:ring-primary"
         >
           <div className="flex items-center gap-2 mb-3">
-            <Zap className="w-5 h-5 text-blue-500" />
-            <span className="font-bold text-lg">בסיסי</span>
+            <Zap className="w-5 h-5 text-slate-500" />
+            <span className="font-bold text-lg">חינמי</span>
           </div>
           <div className="text-3xl font-bold mb-1">חינם</div>
           <div className="text-sm text-muted-foreground mb-4">ללא עלות, ללא כרטיס אשראי</div>
@@ -58,8 +58,8 @@ function StepPlan({ onNext }: { onNext: (plan: Plan) => void }) {
             <li className="flex items-center gap-2"><CheckCircle className="w-4 h-4 text-green-500 shrink-0" /> עמוד הזמנות</li>
             <li className="flex items-center gap-2"><CheckCircle className="w-4 h-4 text-green-500 shrink-0" /> לוח בקרה מלא</li>
           </ul>
-          <div className="mt-5 w-full py-2 rounded-xl border-2 border-blue-500 text-blue-600 font-semibold text-sm group-hover:bg-blue-500 group-hover:text-white transition-colors">
-            בחר תוכנית בסיסית
+          <div className="mt-5 w-full py-2 rounded-xl border-2 border-slate-400 text-slate-600 font-semibold text-sm group-hover:bg-slate-500 group-hover:text-white transition-colors">
+            התחל חינם
           </div>
         </button>
 
@@ -262,7 +262,7 @@ function StepDetails({
           <p className="text-sm text-muted-foreground">
             תוכנית{" "}
             <span className={plan === "pro" ? "text-violet-600 font-semibold" : "text-blue-600 font-semibold"}>
-              {plan === "pro" ? "פרו" : "בסיסית"}
+              {plan === "pro" ? "פרו" : "חינמי"}
             </span>{" "}
             נבחרה
           </p>
@@ -393,7 +393,7 @@ type Step = "plan" | "payment" | "details" | "success";
 export default function Register() {
   const [, navigate] = useLocation();
   const [step, setStep] = useState<Step>("plan");
-  const [plan, setPlan] = useState<Plan>("basic");
+  const [plan, setPlan] = useState<Plan>("free");
 
   const handlePlanSelect = (selected: Plan) => {
     setPlan(selected);

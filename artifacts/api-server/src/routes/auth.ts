@@ -5,6 +5,10 @@ import { eq, or } from "drizzle-orm";
 import { BusinessLoginBody, BusinessRegisterBody, ChangePasswordBody } from "@workspace/api-zod";
 import { signBusinessToken } from "../lib/auth";
 import { requireBusinessAuth } from "../middlewares/business-auth";
+import { sendEmail } from "../lib/email";
+
+// In-memory store for password reset codes: email → { code, expiresAt }
+const resetCodes = new Map<string, { code: string; expiresAt: number }>();
 
 const router = Router();
 
@@ -154,6 +158,70 @@ router.post("/auth/business/change-password", requireBusinessAuth, async (req, r
 
   const passwordHash = await bcrypt.hash(newPassword, 10);
   await db.update(businessesTable).set({ passwordHash }).where(eq(businessesTable.id, business.id));
+
+  res.json({ success: true });
+});
+
+// POST /auth/business/forgot-password — send 6-digit reset code to email
+router.post("/auth/business/forgot-password", async (req, res): Promise<void> => {
+  const { email } = req.body ?? {};
+  if (!email || typeof email !== "string") {
+    res.status(400).json({ error: "Missing email" });
+    return;
+  }
+
+  const [business] = await db.select().from(businessesTable).where(eq(businessesTable.email, email.toLowerCase().trim()));
+  // Always respond OK to avoid email enumeration
+  if (!business) {
+    res.json({ success: true });
+    return;
+  }
+
+  const code = String(Math.floor(100000 + Math.random() * 900000));
+  resetCodes.set(email.toLowerCase().trim(), { code, expiresAt: Date.now() + 10 * 60 * 1000 }); // 10 min
+
+  await sendEmail(email, "קוד איפוס סיסמה — תורי", `
+    <div dir="rtl" style="font-family: sans-serif; max-width: 400px; margin: 0 auto;">
+      <h2>איפוס סיסמה</h2>
+      <p>הקוד שלך לאיפוס הסיסמה:</p>
+      <div style="font-size: 36px; font-weight: bold; letter-spacing: 8px; text-align: center; padding: 20px; background: #f1f5f9; border-radius: 12px; margin: 16px 0;">
+        ${code}
+      </div>
+      <p style="color: #888;">הקוד תקף ל-10 דקות.</p>
+    </div>
+  `);
+
+  res.json({ success: true });
+});
+
+// POST /auth/business/reset-password — verify code and set new password
+router.post("/auth/business/reset-password", async (req, res): Promise<void> => {
+  const { email, code, newPassword } = req.body ?? {};
+  if (!email || !code || !newPassword) {
+    res.status(400).json({ error: "Missing fields" });
+    return;
+  }
+
+  const entry = resetCodes.get(email.toLowerCase().trim());
+  if (!entry || entry.code !== String(code) || Date.now() > entry.expiresAt) {
+    res.status(400).json({ error: "invalid_code", message: "הקוד שגוי או פג תוקף" });
+    return;
+  }
+
+  if (newPassword.length < 6) {
+    res.status(400).json({ error: "הסיסמה חייבת להכיל לפחות 6 תווים" });
+    return;
+  }
+
+  const [business] = await db.select().from(businessesTable).where(eq(businessesTable.email, email.toLowerCase().trim()));
+  if (!business) {
+    res.status(404).json({ error: "Not found" });
+    return;
+  }
+
+  const passwordHash = await bcrypt.hash(newPassword, 10);
+  await db.update(businessesTable).set({ passwordHash }).where(eq(businessesTable.id, business.id));
+  resetCodes.delete(email.toLowerCase().trim());
 
   res.json({ success: true });
 });

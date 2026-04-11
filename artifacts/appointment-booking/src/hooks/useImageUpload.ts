@@ -1,5 +1,8 @@
 import { useState, useCallback } from "react";
 
+const CLOUD_NAME = import.meta.env.VITE_CLOUDINARY_CLOUD_NAME;
+const UPLOAD_PRESET = import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET;
+
 interface UseImageUploadReturn {
   isUploading: boolean;
   url: string | null;
@@ -18,33 +21,25 @@ export function useImageUpload(): UseImageUploadReturn {
     setError(null);
 
     try {
-      const token = localStorage.getItem("biz_token");
-      const metaRes = await fetch("/api/storage/uploads/request-url", {
+      if (!CLOUD_NAME || !UPLOAD_PRESET) {
+        throw new Error("הגדרות Cloudinary חסרות — פנה למנהל המערכת");
+      }
+
+      const formData = new FormData();
+      formData.append("file", file);
+      formData.append("upload_preset", UPLOAD_PRESET);
+
+      const res = await fetch(`https://api.cloudinary.com/v1_1/${CLOUD_NAME}/image/upload`, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
-        body: JSON.stringify({
-          filename: file.name,
-          contentType: file.type,
-          size: file.size,
-        }),
+        body: formData,
       });
 
-      if (!metaRes.ok) throw new Error("שגיאה בקבלת כתובת העלאה");
+      if (!res.ok) throw new Error("ההעלאה נכשלה");
 
-      const { uploadUrl, objectPath } = await metaRes.json();
+      const data = await res.json();
+      if (!data.secure_url) throw new Error("לא התקבלה כתובת תמונה");
 
-      const uploadRes = await fetch(uploadUrl, {
-        method: "PUT",
-        headers: { "Content-Type": file.type },
-        body: file,
-      });
-
-      if (!uploadRes.ok) throw new Error("ההעלאה נכשלה");
-
-      setUrl(`/api/storage/objects${objectPath}`);
+      setUrl(data.secure_url);
     } catch (err) {
       const msg = err instanceof Error ? err.message : "ההעלאה נכשלה";
       setError(msg);

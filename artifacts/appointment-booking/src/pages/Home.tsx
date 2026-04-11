@@ -79,7 +79,7 @@ export default function Home() {
           transition={{ duration: 0.6, delay: 0.6 }}
           className="mt-16 p-6 bg-muted/50 rounded-2xl border border-dashed w-full max-w-md"
         >
-          <p className="text-muted-foreground text-sm mb-3">דוגמה לעסק: <strong className="text-foreground">Lilash — סטודיו לעיצוב שיער</strong></p>
+          <p className="text-muted-foreground text-sm mb-3">דוגמה לעסק: <strong className="text-foreground">Lilash — הלחמת ריסים באשדוד</strong></p>
           <Link href="/book/lilash">
             <Button variant="link" className="text-primary font-semibold gap-1 p-0 h-auto">
               כנס לדף ההזמנה
