@@ -12,7 +12,7 @@ import {
   JoinWaitlistBody,
 } from "@workspace/api-zod";
 import { computeAvailableSlots } from "../lib/availability";
-import { sendOtp, verifyOtp, sendWhatsApp } from "../lib/twilio";
+import { sendOtp, verifyOtp, notifyBusinessOwner } from "../lib/whatsapp";
 import { isPhoneVerified, consumeVerification, markPhoneVerified } from "../lib/otpStore";
 
 const router = Router();
@@ -242,10 +242,7 @@ router.post("/public/:businessSlug/appointments", async (req, res): Promise<void
   if (business.phone) {
     const [, month, day] = appointmentDate.split("-");
     const formattedDate = `${day}/${month}`;
-    const pendingNote = appointmentStatus === "pending" ? "\n⏳ ממתין לאישורך" : "";
-    const notesLine = notes ? `\nהערה: ${notes}` : "";
-    const message = `${clientName} קבע תור בשעה ${appointmentTime} ב-${formattedDate} — ${service.name}${notesLine}${pendingNote}`;
-    sendWhatsApp(business.phone, message).catch(() => {});
+    notifyBusinessOwner(business.phone, clientName, appointmentTime, formattedDate, service.name).catch(() => {});
   }
 
   res.status(201).json({ ...appointment, createdAt: appointment.createdAt.toISOString() });

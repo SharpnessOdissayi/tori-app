@@ -1,6 +1,6 @@
 import { db, appointmentsTable, businessesTable } from "@workspace/db";
 import { eq, and, isNull, not } from "drizzle-orm";
-import { sendWhatsApp } from "./twilio";
+import { sendReminder24h, sendReminder1h } from "./whatsapp";
 
 function parseAppointmentDate(date: string, time: string): Date {
   const [year, month, day] = date.split("-").map(Number);
@@ -36,9 +36,10 @@ export async function sendReminders(): Promise<void> {
 
     // 24h reminder
     if (!appt.reminder24hSent && msUntil > 0 && Math.abs(msUntil - 24 * 60 * 60 * 1000) < window) {
-      const msg = `שלום ${appt.clientName}! תזכורת: יש לך תור ב${appt.businessName} מחר בשעה ${appt.appointmentTime}. לביטול צור קשר עם העסק.`;
       try {
-        await sendWhatsApp(appt.phoneNumber, msg);
+        const [, month, day] = appt.appointmentDate.split("-");
+        const formattedDate = `${day}/${month}`;
+        await sendReminder24h(appt.phoneNumber, appt.clientName, appt.businessName, formattedDate, appt.appointmentTime);
         await db.update(appointmentsTable).set({ reminder24hSent: true }).where(eq(appointmentsTable.id, appt.id));
         console.log(`[Reminders] Sent 24h reminder to ${appt.phoneNumber}`);
       } catch (e) {
@@ -48,9 +49,10 @@ export async function sendReminders(): Promise<void> {
 
     // 1h reminder
     if (!appt.reminder1hSent && msUntil > 0 && Math.abs(msUntil - 60 * 60 * 1000) < window) {
-      const msg = `שלום ${appt.clientName}! תזכורת: יש לך תור ב${appt.businessName} בעוד שעה בשעה ${appt.appointmentTime}.`;
       try {
-        await sendWhatsApp(appt.phoneNumber, msg);
+        const [, month1, day1] = appt.appointmentDate.split("-");
+        const formattedDate1 = `${day1}/${month1}`;
+        await sendReminder1h(appt.phoneNumber, appt.clientName, appt.businessName, formattedDate1, appt.appointmentTime);
         await db.update(appointmentsTable).set({ reminder1hSent: true }).where(eq(appointmentsTable.id, appt.id));
         console.log(`[Reminders] Sent 1h reminder to ${appt.phoneNumber}`);
       } catch (e) {

@@ -25,6 +25,9 @@ export default function Home() {
           className="space-y-8"
         >
           <div className="space-y-4">
+            <div className="flex justify-center mb-4">
+              <img src="/logo.png" alt="קבעתי" className="h-24 w-24 rounded-2xl object-cover shadow-lg" />
+            </div>
             <div className="inline-flex items-center gap-2 bg-primary/10 text-primary rounded-full px-4 py-2 text-sm font-medium mb-2">
               <CalendarCheck className="w-4 h-4" />
               מערכת ניהול תורים חכמה
