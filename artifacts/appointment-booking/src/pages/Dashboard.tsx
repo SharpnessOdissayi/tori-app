@@ -1208,7 +1208,18 @@ function BrandingTab() {
   const uploading = logoUpload.isUploading || bannerUpload.isUploading;
 
   const handleSave = () => {
-    updateBranding.mutate({ data: { ...form, themeMode: form.themeMode } }, {
+    updateBranding.mutate({
+      data: {
+        primaryColor: form.primaryColor || null,
+        fontFamily: form.fontFamily || null,
+        logoUrl: form.logoUrl || null,
+        bannerUrl: form.bannerUrl || null,
+        themeMode: form.themeMode || null,
+        borderRadius: form.borderRadius || null,
+        welcomeText: null,
+        backgroundColor: form.backgroundColor || null,
+      }
+    }, {
       onSuccess: () => { toast({ title: "עיצוב נשמר" }); queryClient.invalidateQueries({ queryKey: getGetBusinessProfileQueryKey() }); },
     });
   };

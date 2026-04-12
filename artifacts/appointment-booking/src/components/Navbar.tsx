@@ -5,6 +5,7 @@ import { Menu, X } from "lucide-react";
 const NAV_LINKS = [
   { label: "ראשי", href: "/" },
   { label: "פרטים", href: "/details" },
+  { label: "יצירת קשר", href: "/contact" },
   { label: "כניסה לבעלי עסקים", href: "/dashboard" },
   { label: "הצטרפות למנוי חדש", href: "/register", highlight: true },
 ];
