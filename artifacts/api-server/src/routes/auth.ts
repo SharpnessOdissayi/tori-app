@@ -1,7 +1,7 @@
 import { Router } from "express";
 import bcrypt from "bcryptjs";
 import { db, businessesTable, workingHoursTable } from "@workspace/db";
-import { eq, or } from "drizzle-orm";
+import { eq, or, sql } from "drizzle-orm";
 import { BusinessLoginBody, BusinessRegisterBody, ChangePasswordBody } from "@workspace/api-zod";
 import { signBusinessToken } from "../lib/auth";
 import { requireBusinessAuth } from "../middlewares/business-auth";
@@ -42,12 +42,16 @@ router.post("/auth/business/login", async (req, res): Promise<void> => {
   }
 
   const { email: identifier, password } = parsed.data;
+  const identifierNormalized = identifier.toLowerCase().trim();
 
-  // Try email first, then phone
+  // Try email (case-insensitive) first, then phone
   const [business] = await db
     .select()
     .from(businessesTable)
-    .where(or(eq(businessesTable.email, identifier), eq(businessesTable.phone, identifier)));
+    .where(or(
+      eq(sql`lower(${businessesTable.email})`, identifierNormalized),
+      eq(businessesTable.phone, identifier.trim())
+    ));
 
   if (!business) {
     res.status(401).json({ error: "Invalid credentials" });
