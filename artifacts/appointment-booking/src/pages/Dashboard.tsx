@@ -1334,7 +1334,6 @@ function BrandingTab() {
                 </div>
               </button>
             </div>
-            </div>
           </div>
 
           <Separator />
