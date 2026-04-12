@@ -33,9 +33,9 @@ function StepPlan({ onNext }: { onNext: (plan: Plan) => void }) {
   return (
     <div className="space-y-6">
       <div className="text-center space-y-2">
-        <div className="mx-auto w-16 h-16 rounded-2xl bg-primary/10 flex items-center justify-center">
-          <Calendar className="w-8 h-8 text-primary" />
-        </div>
+        <a href="/" className="inline-block">
+          <img src="/logo.png" alt="קבעתי" className="h-16 w-16 rounded-2xl object-cover mx-auto" />
+        </a>
         <h1 className="text-3xl font-bold">ברוכים הבאים לקבעתי</h1>
         <p className="text-muted-foreground">בחר את התוכנית המתאימה לעסק שלך</p>
       </div>

@@ -466,9 +466,9 @@ function Login({ onLogin }: { onLogin: (t: string) => void }) {
     <div className="min-h-screen flex items-center justify-center bg-muted/30 p-4" dir="rtl">
       <Card className="w-full max-w-md shadow-xl">
         <CardHeader className="text-center space-y-2 pb-6">
-          <div className="mx-auto w-16 h-16 rounded-2xl bg-primary/10 flex items-center justify-center mb-2">
-            <div className="w-10 h-10 rounded-xl bg-primary text-primary-foreground flex items-center justify-center text-lg font-bold">ת</div>
-          </div>
+          <a href="/" className="inline-block">
+            <img src="/logo.png" alt="קבעתי" className="h-16 w-16 rounded-2xl object-cover mx-auto mb-2" />
+          </a>
           <CardTitle className="text-2xl">כניסה לקבעתי</CardTitle>
           <CardDescription>הזן אימייל או מספר טלפון וסיסמה</CardDescription>
         </CardHeader>
@@ -495,12 +495,13 @@ function Login({ onLogin }: { onLogin: (t: string) => void }) {
                   onChange={e => setPassword(e.target.value)}
                   dir="ltr"
                   autoComplete="current-password"
+                  className="pr-10"
                 />
                 <button
                   type="button"
                   tabIndex={-1}
                   onClick={() => setShowPassword(v => !v)}
-                  className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
                 >
                   {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                 </button>
@@ -1664,7 +1665,7 @@ function SettingsTab() {
                   autoComplete="current-password"
                 />
                 <button type="button" tabIndex={-1} onClick={() => setShowPw(v => !v)}
-                  className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
                   {showPw ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                 </button>
               </div>

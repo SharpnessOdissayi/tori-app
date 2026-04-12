@@ -39,16 +39,13 @@ export default function Admin() {
     return (
       <div className="min-h-[100dvh] flex flex-col bg-muted/30">
         <header className="px-6 py-4 flex items-center justify-between bg-card border-b sticky top-0 z-10">
-          <Link href="/" className="flex items-center gap-2 text-primary font-bold text-xl tracking-tight">
-            <div className="w-8 h-8 rounded-lg bg-primary text-primary-foreground flex items-center justify-center">
-              A
-            </div>
-            Appoint.
+          <Link href="/">
+            <img src="/logo.png" alt="קבעתי" className="h-14 w-14 rounded-xl object-cover cursor-pointer" />
           </Link>
         </header>
 
         <div className="flex-1 flex items-center justify-center p-4">
-          <motion.div 
+          <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             className="w-full max-w-sm"
@@ -56,9 +53,9 @@ export default function Admin() {
             <Card className="border-border shadow-xl rounded-2xl overflow-hidden">
               <div className="bg-primary h-2 w-full"></div>
               <CardHeader className="text-center pb-2">
-                <div className="w-12 h-12 bg-primary/10 text-primary rounded-full flex items-center justify-center mx-auto mb-4">
-                  <LayoutDashboard className="w-6 h-6" />
-                </div>
+                <Link href="/" className="inline-block">
+                  <img src="/logo.png" alt="קבעתי" className="h-14 w-14 rounded-2xl object-cover mx-auto mb-4 cursor-pointer" />
+                </Link>
                 <CardTitle className="text-2xl font-bold">Admin Portal</CardTitle>
                 <CardDescription>Enter your password to access the dashboard</CardDescription>
               </CardHeader>
@@ -128,11 +125,8 @@ function AdminDashboard({ password, onLogout }: { password: string, onLogout: ()
   return (
     <div className="min-h-[100dvh] flex flex-col bg-muted/20">
       <header className="px-6 py-4 flex items-center justify-between bg-card border-b sticky top-0 z-20 shadow-sm">
-        <Link href="/" className="flex items-center gap-2 text-primary font-bold text-xl tracking-tight">
-          <div className="w-8 h-8 rounded-lg bg-primary text-primary-foreground flex items-center justify-center">
-            A
-          </div>
-          Appoint.
+        <Link href="/">
+          <img src="/logo.png" alt="קבעתי" className="h-14 w-14 rounded-xl object-cover cursor-pointer" />
         </Link>
         <div className="flex items-center gap-4">
           <Badge variant="outline" className="hidden sm:inline-flex rounded-full px-3 py-1 font-medium bg-muted/50">
