@@ -20,50 +20,54 @@ export default function Navbar() {
       style={{ background: "linear-gradient(135deg, #0a0a0a 0%, #1a1a1a 100%)", borderBottom: "1px solid #2a2a2a" }}
     >
       <div className="max-w-6xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between">
-        {/* Logo */}
-        <Link href="/">
-          <div className="flex items-center cursor-pointer select-none">
-            <img src="/logo.png" alt="קבעתי" className="h-12 w-12 rounded-xl object-cover" />
-          </div>
-        </Link>
+        {/* Logo + nav links grouped on the right */}
+        <div className="flex items-center gap-1">
+          <Link href="/">
+            <div className="flex items-center cursor-pointer select-none ml-4">
+              <img src="/logo.png" alt="קבעתי" className="h-12 w-12 rounded-xl object-cover" />
+            </div>
+          </Link>
 
-        {/* Desktop nav */}
-        <nav className="hidden md:flex items-center gap-1">
-          {NAV_LINKS.map((link) => {
-            const isActive = location === link.href;
-            if (link.highlight) {
+          {/* Desktop nav links — right next to logo */}
+          <nav className="hidden md:flex items-center gap-1">
+            {NAV_LINKS.filter(l => !l.highlight).map((link) => {
+              const isActive = location === link.href;
               return (
                 <Link key={link.href} href={link.href}>
                   <span
-                    className="mr-2 px-4 py-2 rounded-xl text-sm font-semibold cursor-pointer transition-all"
+                    className="px-4 py-2 rounded-lg text-sm font-medium cursor-pointer transition-all"
                     style={{
-                      background: "linear-gradient(135deg, #d4af37, #f0c040)",
-                      color: "#0a0a0a",
-                      boxShadow: "0 0 12px rgba(212,175,55,0.3)",
+                      color: isActive ? "#d4af37" : "#c0c0c0",
+                      borderBottom: isActive ? "2px solid #d4af37" : "2px solid transparent",
                     }}
+                    onMouseEnter={e => (e.currentTarget.style.color = "#d4af37")}
+                    onMouseLeave={e => (e.currentTarget.style.color = isActive ? "#d4af37" : "#c0c0c0")}
                   >
                     {link.label}
                   </span>
                 </Link>
               );
-            }
-            return (
-              <Link key={link.href} href={link.href}>
-                <span
-                  className="px-4 py-2 rounded-lg text-sm font-medium cursor-pointer transition-all"
-                  style={{
-                    color: isActive ? "#d4af37" : "#c0c0c0",
-                    borderBottom: isActive ? "2px solid #d4af37" : "2px solid transparent",
-                  }}
-                  onMouseEnter={e => (e.currentTarget.style.color = "#d4af37")}
-                  onMouseLeave={e => (e.currentTarget.style.color = isActive ? "#d4af37" : "#c0c0c0")}
-                >
-                  {link.label}
-                </span>
-              </Link>
-            );
-          })}
-        </nav>
+            })}
+          </nav>
+        </div>
+
+        {/* Gold CTA button — stays on left */}
+        <div className="hidden md:block">
+          {NAV_LINKS.filter(l => l.highlight).map((link) => (
+            <Link key={link.href} href={link.href}>
+              <span
+                className="px-4 py-2 rounded-xl text-sm font-semibold cursor-pointer transition-all"
+                style={{
+                  background: "linear-gradient(135deg, #d4af37, #f0c040)",
+                  color: "#0a0a0a",
+                  boxShadow: "0 0 12px rgba(212,175,55,0.3)",
+                }}
+              >
+                {link.label}
+              </span>
+            </Link>
+          ))}
+        </div>
 
         {/* Mobile menu button */}
         <button
