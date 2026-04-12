@@ -1596,7 +1596,7 @@ function SettingsTab() {
     sendReminders: true,
     requireArrivalConfirmation: true,
     sendWhatsAppReminders: true,
-    shabbatMode: "any" as "any" | "before" | "after",
+    shabbatMode: "any" as "any" | "shabbat",
     reminderSendTime: "20:00",
     reminderCustomText: "",
   });
@@ -1632,7 +1632,7 @@ function SettingsTab() {
       sendReminders: (profile as any).sendReminders ?? true,
       requireArrivalConfirmation: (profile as any).requireArrivalConfirmation ?? true,
       sendWhatsAppReminders: (profile as any).sendWhatsAppReminders ?? true,
-      shabbatMode: ((profile as any).shabbatMode ?? "any") as "any" | "before" | "after",
+      shabbatMode: ((profile as any).shabbatMode ?? "any") as "any" | "shabbat",
       reminderSendTime: (profile as any).reminderSendTime ?? "20:00",
       reminderCustomText: (profile as any).reminderCustomText ?? "",
     });
@@ -2024,32 +2024,23 @@ function SettingsTab() {
                 )}
               </div>
 
-              <div className="space-y-3 pt-2 border-t">
-                <Label className="text-sm font-medium">הגדרות שבת</Label>
-                <div className="grid grid-cols-1 gap-2">
-                  {([
-                    { value: "any",    label: "שלח בכל יום",          desc: "התזכורות יישלחו ללא קשר ליום בשבוע",           icon: "📅" },
-                    { value: "before", label: "לפני שבת (שישי)",       desc: "עסק שומר שבת — שלח ביום שישי לפני כניסת שבת", icon: "🕍" },
-                    { value: "after",  label: "מוצאי שבת (שבת בלילה)", desc: "עסק שומר שבת — שלח בשבת בלילה אחרי צאת שבת", icon: "✡️" },
-                  ] as const).map(opt => (
-                    <button key={opt.value} type="button"
-                      onClick={() => setForm(p => ({ ...p, shabbatMode: opt.value }))}
-                      className={`flex items-start gap-3 p-3 rounded-xl border-2 text-right transition-all ${form.shabbatMode === opt.value ? "border-primary bg-primary/5" : "border-border hover:border-muted-foreground"}`}>
-                      <span className="text-xl mt-0.5">{opt.icon}</span>
-                      <div>
-                        <div className={`text-sm font-medium ${form.shabbatMode === opt.value ? "text-primary" : ""}`}>{opt.label}</div>
-                        <div className="text-xs text-muted-foreground mt-0.5">{opt.desc}</div>
-                      </div>
-                      {form.shabbatMode === opt.value && <Check className="w-4 h-4 text-primary mr-auto mt-1 shrink-0" />}
-                    </button>
-                  ))}
-                </div>
-                <div className="flex items-center justify-between pt-1">
-                  <span className="text-sm text-muted-foreground">שעת שליחה</span>
-                  <Input type="time" value={form.reminderSendTime} dir="ltr"
-                    onChange={e => setForm(p => ({ ...p, reminderSendTime: e.target.value }))}
-                    className="w-32 text-center" />
-                </div>
+              <div className="pt-2 border-t">
+                <button
+                  type="button"
+                  onClick={() => setForm(p => ({ ...p, shabbatMode: p.shabbatMode === "shabbat" ? "any" : "shabbat" }))}
+                  className={`w-full flex items-center gap-3 p-4 rounded-xl border-2 text-right transition-all ${form.shabbatMode === "shabbat" ? "border-primary bg-primary/5" : "border-border hover:border-muted-foreground"}`}
+                >
+                  <span className="text-2xl">🕍</span>
+                  <div className="flex-1">
+                    <div className={`text-sm font-semibold ${form.shabbatMode === "shabbat" ? "text-primary" : ""}`}>עסק שומר שבת</div>
+                    <div className="text-xs text-muted-foreground mt-0.5">
+                      שישי 08:00 — תזכורת לפני כניסת שבת &nbsp;|&nbsp; שבת 21:00 — תזכורת במוצאי שבת
+                    </div>
+                  </div>
+                  <div className={`w-5 h-5 rounded-md border-2 flex items-center justify-center shrink-0 transition-all ${form.shabbatMode === "shabbat" ? "bg-primary border-primary" : "border-border"}`}>
+                    {form.shabbatMode === "shabbat" && <Check className="w-3 h-3 text-white" />}
+                  </div>
+                </button>
               </div>
             </div>
           )}
