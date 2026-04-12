@@ -3,6 +3,7 @@ import { logger } from "./lib/logger";
 import cron from "node-cron";
 import { sendReminders } from "./lib/reminders";
 import { seedAdminUser } from "./lib/seedAdmin";
+import { runMigrations } from "./lib/migrate";
 
 const rawPort = process.env["PORT"];
 
@@ -25,6 +26,9 @@ app.listen(port, (err) => {
   }
 
   logger.info({ port }, "Server listening");
+
+  // Run DB column migrations (safe, idempotent)
+  runMigrations();
 
   // Seed admin account (creates or syncs password from SUPER_ADMIN_PASSWORD)
   seedAdminUser();
