@@ -76,9 +76,6 @@ export default function Contact() {
             </div>
           </a>
 
-          <p className="text-xs text-muted-foreground pt-2">
-            תשובה מובטחת תוך שעות ספורות בשעות הפעילות
-          </p>
         </motion.div>
       </main>
 

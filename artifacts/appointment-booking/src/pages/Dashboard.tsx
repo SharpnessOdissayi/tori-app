@@ -1177,12 +1177,12 @@ function BrandingTab() {
 
   const [form, setForm] = useState({
     primaryColor: "#2563eb",
-    backgroundColor: "#f8fafc",
     fontFamily: "Heebo",
     logoUrl: "",
     bannerUrl: "",
     themeMode: "light" as "light" | "dark",
     borderRadius: "medium" as "sharp" | "medium" | "rounded",
+    buttonRadius: "medium" as "sharp" | "medium" | "rounded",
     welcomeText: "",
   });
 
@@ -1190,12 +1190,12 @@ function BrandingTab() {
     if (profile) {
       setForm({
         primaryColor: profile.primaryColor ?? "#2563eb",
-        backgroundColor: (profile as any).backgroundColor ?? "#f8fafc",
         fontFamily: profile.fontFamily ?? "Heebo",
         logoUrl: profile.logoUrl ?? "",
         bannerUrl: profile.bannerUrl ?? "",
         themeMode: (profile.themeMode ?? "light") as "light" | "dark",
         borderRadius: ((profile as any).borderRadius ?? "medium") as "sharp" | "medium" | "rounded",
+        buttonRadius: ((profile as any).buttonRadius ?? "medium") as "sharp" | "medium" | "rounded",
         welcomeText: (profile as any).welcomeText ?? "",
       });
     }
@@ -1216,8 +1216,9 @@ function BrandingTab() {
         bannerUrl: form.bannerUrl || null,
         themeMode: form.themeMode || null,
         borderRadius: form.borderRadius || null,
+        buttonRadius: (form as any).buttonRadius || null,
         welcomeText: null,
-        backgroundColor: form.backgroundColor || null,
+        backgroundColor: null,
       }
     }, {
       onSuccess: () => { toast({ title: "עיצוב נשמר" }); queryClient.invalidateQueries({ queryKey: getGetBusinessProfileQueryKey() }); },
@@ -1244,7 +1245,7 @@ function BrandingTab() {
           <div className="px-4 py-2 rounded-xl bg-muted text-sm text-muted-foreground">✓ צבע ראשי</div>
           <div className="px-4 py-2 rounded-xl bg-muted text-sm text-muted-foreground">✓ פונט מותאם</div>
           <div className="px-4 py-2 rounded-xl bg-muted text-sm text-muted-foreground">✓ לוגו ובאנר</div>
-          <div className="px-4 py-2 rounded-xl bg-muted text-sm text-muted-foreground">✓ צבע רקע</div>
+          <div className="px-4 py-2 rounded-xl bg-muted text-sm text-muted-foreground">✓ עיצוב כפתורים</div>
         </div>
         <Button size="lg" className="gap-2 bg-violet-600 hover:bg-violet-700 text-white" onClick={() => toast({ title: "צור קשר לשדרוג", description: "פנה אלינו כדי לשדרג למנוי PRO" })}>
           <Crown className="w-4 h-4" /> שדרג ל-PRO
@@ -1288,11 +1289,70 @@ function BrandingTab() {
 
           <div className="space-y-4">
             <h3 className="font-semibold text-base border-b pb-2">מצב תצוגה</h3>
+            <div className="grid grid-cols-2 gap-4">
+              {/* Light mode card */}
+              <button
+                onClick={() => setForm(p => ({ ...p, themeMode: "light" }))}
+                className={`relative rounded-2xl overflow-hidden border-2 transition-all text-right ${form.themeMode === "light" ? "border-primary shadow-lg scale-[1.02]" : "border-border hover:border-muted-foreground"}`}
+              >
+                {/* Preview */}
+                <div className="bg-white p-4 space-y-2">
+                  <div className="h-2.5 w-20 bg-gray-800 rounded-full" />
+                  <div className="h-2 w-32 bg-gray-300 rounded-full" />
+                  <div className="h-8 w-full bg-blue-500 rounded-xl mt-3" />
+                  <div className="grid grid-cols-2 gap-1.5 mt-1">
+                    <div className="h-10 bg-gray-100 rounded-xl border border-gray-200" />
+                    <div className="h-10 bg-gray-100 rounded-xl border border-gray-200" />
+                  </div>
+                </div>
+                {/* Label */}
+                <div className={`py-2.5 text-center text-sm font-bold flex items-center justify-center gap-1.5 ${form.themeMode === "light" ? "bg-primary text-white" : "bg-muted text-foreground"}`}>
+                  ☀️ בהיר
+                  {form.themeMode === "light" && <Check className="w-4 h-4" />}
+                </div>
+              </button>
+
+              {/* Dark mode card */}
+              <button
+                onClick={() => setForm(p => ({ ...p, themeMode: "dark" }))}
+                className={`relative rounded-2xl overflow-hidden border-2 transition-all text-right ${form.themeMode === "dark" ? "border-primary shadow-lg scale-[1.02]" : "border-border hover:border-muted-foreground"}`}
+              >
+                {/* Preview */}
+                <div className="p-4 space-y-2" style={{ background: "#0f172a" }}>
+                  <div className="h-2.5 w-20 rounded-full" style={{ background: "#f8fafc" }} />
+                  <div className="h-2 w-32 rounded-full" style={{ background: "#334155" }} />
+                  <div className="h-8 w-full rounded-xl mt-3" style={{ background: "#6d28d9" }} />
+                  <div className="grid grid-cols-2 gap-1.5 mt-1">
+                    <div className="h-10 rounded-xl border" style={{ background: "#1e293b", borderColor: "#334155" }} />
+                    <div className="h-10 rounded-xl border" style={{ background: "#1e293b", borderColor: "#334155" }} />
+                  </div>
+                </div>
+                {/* Label */}
+                <div className={`py-2.5 text-center text-sm font-bold flex items-center justify-center gap-1.5 ${form.themeMode === "dark" ? "bg-primary text-white" : "bg-muted text-foreground"}`}>
+                  🌙 כהה
+                  {form.themeMode === "dark" && <Check className="w-4 h-4" />}
+                </div>
+              </button>
+            </div>
+            </div>
+          </div>
+
+          <Separator />
+
+          <div className="space-y-4">
+            <h3 className="font-semibold text-base border-b pb-2">סגנון פינות כרטיסים</h3>
+            <p className="text-xs text-muted-foreground">משפיע על כרטיסים ומיכלים בעמוד ההזמנות</p>
             <div className="flex gap-3">
-              {[{ value: "light", label: "בהיר ☀️" }, { value: "dark", label: "כהה 🌙" }].map(m => (
-                <button key={m.value} onClick={() => setForm(p => ({ ...p, themeMode: m.value as "light" | "dark" }))}
-                  className={`px-5 py-3 border-2 rounded-xl text-sm font-medium transition-all ${form.themeMode === m.value ? "border-primary bg-primary/5 text-primary" : "border-border"}`}>
-                  {m.label}
+              {([
+                { value: "sharp", label: "ישר", icon: "⬜" },
+                { value: "medium", label: "מעוגל", icon: "▢" },
+                { value: "rounded", label: "עגול מאוד", icon: "◯" },
+              ] as const).map(s => (
+                <button key={s.value} onClick={() => setForm(p => ({ ...p, borderRadius: s.value }))}
+                  className={`flex-1 py-3 border-2 text-sm font-medium transition-all flex flex-col items-center gap-1 ${form.borderRadius === s.value ? "border-primary bg-primary/5 text-primary" : "border-border"}`}
+                  style={{ borderRadius: s.value === "sharp" ? "4px" : s.value === "medium" ? "12px" : "999px" }}>
+                  <span className="text-lg">{s.icon}</span>
+                  {s.label}
                 </button>
               ))}
             </div>
@@ -1301,50 +1361,43 @@ function BrandingTab() {
           <Separator />
 
           <div className="space-y-4">
-            <h3 className="font-semibold text-base border-b pb-2">צבע רקע</h3>
-            <div className="flex items-center gap-4">
-              <label className="relative cursor-pointer group" title="לחץ לבחירת צבע">
-                <div
-                  className="w-12 h-12 rounded-full border-4 border-border shadow-md group-hover:scale-110 transition-transform"
-                  style={{ backgroundColor: form.backgroundColor }}
-                />
-                <input
-                  type="color"
-                  value={form.backgroundColor}
-                  onChange={e => setForm(p => ({ ...p, backgroundColor: e.target.value }))}
-                  className="absolute inset-0 opacity-0 w-full h-full cursor-pointer"
-                />
-              </label>
-              <div className="space-y-0.5">
-                <span className="text-sm font-mono text-muted-foreground">{form.backgroundColor}</span>
-                <p className="text-xs text-muted-foreground">לחץ על העיגול לבחירת צבע חופשי</p>
-              </div>
-              <button
-                type="button"
-                onClick={() => setForm(p => ({ ...p, backgroundColor: "" }))}
-                className="text-xs text-muted-foreground hover:text-destructive transition-colors underline"
-              >
-                ללא צבע רקע
-              </button>
-            </div>
-          </div>
-
-          <Separator />
-
-          <div className="space-y-4">
-            <h3 className="font-semibold text-base border-b pb-2">סגנון פינות</h3>
-            <div className="flex gap-3">
+            <h3 className="font-semibold text-base border-b pb-2">עיצוב כפתורים</h3>
+            <p className="text-xs text-muted-foreground">משפיע על כפתורי קביעת תור ואישור</p>
+            <div className="flex gap-3 mb-3">
               {([
-                { value: "sharp", label: "ישר", preview: "rounded-none" },
-                { value: "medium", label: "מעוגל", preview: "rounded-xl" },
-                { value: "rounded", label: "עגול", preview: "rounded-full" },
+                { value: "sharp", label: "ישר" },
+                { value: "medium", label: "מעוגל" },
+                { value: "rounded", label: "עגול" },
               ] as const).map(s => (
-                <button key={s.value} onClick={() => setForm(p => ({ ...p, borderRadius: s.value }))}
-                  className={`flex-1 py-3 border-2 text-sm font-medium transition-all ${form.borderRadius === s.value ? "border-primary bg-primary/5 text-primary" : "border-border"}`}
+                <button key={s.value} onClick={() => setForm(p => ({ ...p, buttonRadius: s.value }))}
+                  className={`flex-1 py-3 border-2 text-sm font-medium transition-all ${(form as any).buttonRadius === s.value ? "border-primary bg-primary/5 text-primary" : "border-border"}`}
                   style={{ borderRadius: s.value === "sharp" ? "4px" : s.value === "medium" ? "12px" : "999px" }}>
                   {s.label}
                 </button>
               ))}
+            </div>
+            {/* Live button preview */}
+            <div className="p-4 rounded-xl border bg-muted/30 flex items-center justify-center gap-3">
+              <button
+                className="px-5 py-2.5 text-white text-sm font-semibold transition-all shadow-md"
+                style={{
+                  backgroundColor: form.primaryColor,
+                  borderRadius: (form as any).buttonRadius === "sharp" ? "4px" : (form as any).buttonRadius === "rounded" ? "999px" : "12px",
+                }}
+              >
+                קבע תור
+              </button>
+              <button
+                className="px-5 py-2.5 text-sm font-semibold border-2 transition-all"
+                style={{
+                  borderColor: form.primaryColor,
+                  color: form.primaryColor,
+                  borderRadius: (form as any).buttonRadius === "sharp" ? "4px" : (form as any).buttonRadius === "rounded" ? "999px" : "12px",
+                  background: "transparent",
+                }}
+              >
+                ביטול
+              </button>
             </div>
           </div>
 
@@ -1508,6 +1561,24 @@ function SettingsTab() {
   const [form, setForm] = useState({
     name: "", ownerName: "", phone: "",
     bufferMinutes: "0", notificationEnabled: false, notificationMessage: "", requireAppointmentApproval: false, requirePhoneVerification: true,
+    // booking restrictions
+    minLeadHours: "20",
+    cancellationHours: "24",
+    maxFutureWeeks: "15",
+    futureBookingMode: "weeks" as "weeks" | "date",
+    maxFutureDate: "",
+    maxAppointmentsPerCustomer: "",
+    requireActiveSubscription: false,
+    maxAppointmentsPerDay: "3",
+    // reminders
+    sendReminders: true,
+    requireArrivalConfirmation: true,
+    sendWhatsAppReminders: true,
+    reminderDaysBefore: "1",
+    reminderTimeFriday: "15:00",
+    reminderTimeSaturday: "20:00",
+    reminderTimeOtherDays: "20:00",
+    reminderCustomText: "",
   });
 
   // Password change state
@@ -1525,6 +1596,22 @@ function SettingsTab() {
       notificationMessage: profile.notificationMessage ?? "",
       requireAppointmentApproval: (profile as any).requireAppointmentApproval ?? false,
       requirePhoneVerification: (profile as any).requirePhoneVerification ?? true,
+      minLeadHours: ((profile as any).minLeadHours ?? 20).toString(),
+      cancellationHours: ((profile as any).cancellationHours ?? 24).toString(),
+      maxFutureWeeks: ((profile as any).maxFutureWeeks ?? 15).toString(),
+      futureBookingMode: (profile as any).futureBookingMode ?? "weeks",
+      maxFutureDate: (profile as any).maxFutureDate ?? "",
+      maxAppointmentsPerCustomer: ((profile as any).maxAppointmentsPerCustomer ?? "").toString(),
+      requireActiveSubscription: (profile as any).requireActiveSubscription ?? false,
+      maxAppointmentsPerDay: ((profile as any).maxAppointmentsPerDay ?? 3).toString(),
+      sendReminders: (profile as any).sendReminders ?? true,
+      requireArrivalConfirmation: (profile as any).requireArrivalConfirmation ?? true,
+      sendWhatsAppReminders: (profile as any).sendWhatsAppReminders ?? true,
+      reminderDaysBefore: ((profile as any).reminderDaysBefore ?? 1).toString(),
+      reminderTimeFriday: (profile as any).reminderTimeFriday ?? "15:00",
+      reminderTimeSaturday: (profile as any).reminderTimeSaturday ?? "20:00",
+      reminderTimeOtherDays: (profile as any).reminderTimeOtherDays ?? "20:00",
+      reminderCustomText: (profile as any).reminderCustomText ?? "",
     });
   }, [profile]);
 
@@ -1540,7 +1627,23 @@ function SettingsTab() {
         notificationMessage: form.notificationMessage || null,
         requireAppointmentApproval: form.requireAppointmentApproval,
         requirePhoneVerification: form.requirePhoneVerification,
-      }
+        minLeadHours: parseInt(form.minLeadHours) || 0,
+        cancellationHours: parseInt(form.cancellationHours) || 0,
+        maxFutureWeeks: parseInt(form.maxFutureWeeks) || 15,
+        futureBookingMode: form.futureBookingMode,
+        maxFutureDate: form.maxFutureDate || null,
+        maxAppointmentsPerCustomer: form.maxAppointmentsPerCustomer ? parseInt(form.maxAppointmentsPerCustomer) : null,
+        requireActiveSubscription: form.requireActiveSubscription,
+        maxAppointmentsPerDay: form.maxAppointmentsPerDay ? parseInt(form.maxAppointmentsPerDay) : null,
+        sendReminders: form.sendReminders,
+        requireArrivalConfirmation: form.requireArrivalConfirmation,
+        sendWhatsAppReminders: form.sendWhatsAppReminders,
+        reminderDaysBefore: parseInt(form.reminderDaysBefore) || 1,
+        reminderTimeFriday: form.reminderTimeFriday,
+        reminderTimeSaturday: form.reminderTimeSaturday,
+        reminderTimeOtherDays: form.reminderTimeOtherDays,
+        reminderCustomText: form.reminderCustomText || null,
+      } as any
     }, {
       onSuccess: () => {
         toast({ title: "הגדרות נשמרו" });
@@ -1673,6 +1776,217 @@ function SettingsTab() {
               <Button type="submit" disabled={updateMutation.isPending} size="lg">שמור הגדרות</Button>
             </div>
           </form>
+        </CardContent>
+      </Card>
+
+      {/* Booking Restrictions Card */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <span className="text-xl">🚫</span> הגבלות בקביעת תורים
+          </CardTitle>
+          <CardDescription>קבע מגבלות זמן וכמות עבור לקוחות</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-5">
+          {/* Lead time */}
+          <div className="p-4 border rounded-xl bg-muted/20 space-y-3">
+            <div className="font-medium text-sm">זמן לפני קביעה</div>
+            <p className="text-xs text-muted-foreground">לקוחות צריכים לקבוע תור מינימום <strong>{form.minLeadHours} שעות</strong> מראש</p>
+            <div className="flex items-center gap-3">
+              <Input type="number" min="0" max="168" step="1" value={form.minLeadHours}
+                onChange={e => setForm(p => ({ ...p, minLeadHours: e.target.value }))}
+                className="w-28 text-center" />
+              <span className="text-sm text-muted-foreground">שעות</span>
+            </div>
+          </div>
+
+          {/* Cancellation */}
+          <div className="p-4 border rounded-xl bg-muted/20 space-y-3">
+            <div className="font-medium text-sm">זמן ביטול</div>
+            <p className="text-xs text-muted-foreground">לקוחות יכולים לבטל תור עד <strong>{form.cancellationHours} שעות</strong> לפני התור</p>
+            <div className="flex items-center gap-3">
+              <Input type="number" min="0" max="168" step="1" value={form.cancellationHours}
+                onChange={e => setForm(p => ({ ...p, cancellationHours: e.target.value }))}
+                className="w-28 text-center" />
+              <span className="text-sm text-muted-foreground">שעות</span>
+            </div>
+          </div>
+
+          {/* Future booking */}
+          <div className="p-4 border rounded-xl bg-muted/20 space-y-3">
+            <div className="font-medium text-sm">קביעה עתידית</div>
+            <div className="flex gap-2">
+              <button type="button"
+                onClick={() => setForm(p => ({ ...p, futureBookingMode: "weeks" }))}
+                className={`flex-1 py-2 px-3 rounded-lg border-2 text-sm font-medium transition-all ${form.futureBookingMode === "weeks" ? "border-primary bg-primary/5 text-primary" : "border-border"}`}>
+                שבועות קדימה
+              </button>
+              <button type="button"
+                onClick={() => setForm(p => ({ ...p, futureBookingMode: "date" }))}
+                className={`flex-1 py-2 px-3 rounded-lg border-2 text-sm font-medium transition-all ${form.futureBookingMode === "date" ? "border-primary bg-primary/5 text-primary" : "border-border"}`}>
+                עד תאריך (כולל)
+              </button>
+            </div>
+            {form.futureBookingMode === "weeks" ? (
+              <div className="space-y-1">
+                <p className="text-xs text-muted-foreground">לקוחות יכולים לקבוע תורים עד <strong>{form.maxFutureWeeks} שבועות</strong> מהיום</p>
+                <div className="flex items-center gap-3">
+                  <Input type="number" min="1" max="52" value={form.maxFutureWeeks}
+                    onChange={e => setForm(p => ({ ...p, maxFutureWeeks: e.target.value }))}
+                    className="w-28 text-center" />
+                  <span className="text-sm text-muted-foreground">שבועות</span>
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-1">
+                <p className="text-xs text-muted-foreground">לקוחות יכולים לקבוע תורים עד התאריך הנבחר</p>
+                <Input type="date" value={form.maxFutureDate}
+                  onChange={e => setForm(p => ({ ...p, maxFutureDate: e.target.value }))}
+                  className="w-48" dir="ltr" />
+              </div>
+            )}
+          </div>
+
+          {/* Per customer limit */}
+          <div className="p-4 border rounded-xl bg-muted/20 space-y-3">
+            <div className="font-medium text-sm">הגבלת תור ללקוחות</div>
+            <p className="text-xs text-muted-foreground">מספר מקסימלי של תורים פעילים לכל לקוח (ריק = ללא הגבלה)</p>
+            <div className="flex items-center gap-3">
+              <Input type="number" min="1" max="99" placeholder="ללא הגבלה" value={form.maxAppointmentsPerCustomer}
+                onChange={e => setForm(p => ({ ...p, maxAppointmentsPerCustomer: e.target.value }))}
+                className="w-28 text-center" />
+              <span className="text-sm text-muted-foreground">תורים ללקוח</span>
+            </div>
+          </div>
+
+          {/* Require active subscription */}
+          <div className="flex items-center justify-between p-4 border rounded-xl bg-muted/20">
+            <div>
+              <div className="font-medium text-sm">חובת מנוי או כרטיסיה פעילה</div>
+              <div className="text-xs text-muted-foreground mt-0.5">יחייב את הלקוח להחזיק במנוי או כרטיסיה פעילה כדי לקבוע תור, אחרת יוצג לו מסך ליצירת קשר עימכם</div>
+            </div>
+            <Switch checked={form.requireActiveSubscription} onCheckedChange={v => setForm(p => ({ ...p, requireActiveSubscription: v }))} />
+          </div>
+
+          {/* Max per day */}
+          <div className="p-4 border rounded-xl bg-muted/20 space-y-3">
+            <div className="font-medium text-sm">מקסימום תורים ליום</div>
+            <p className="text-xs text-muted-foreground">הגבלת כמות תורים שניתן לקבוע ליום ל-<strong>{form.maxAppointmentsPerDay}</strong></p>
+            <div className="flex items-center gap-3">
+              <Input type="number" min="1" max="999" value={form.maxAppointmentsPerDay}
+                onChange={e => setForm(p => ({ ...p, maxAppointmentsPerDay: e.target.value }))}
+                className="w-28 text-center" />
+              <span className="text-sm text-muted-foreground">תורים ליום</span>
+            </div>
+          </div>
+
+          <div className="flex justify-end pt-2">
+            <Button onClick={handleSave} disabled={updateMutation.isPending} size="lg">שמירה</Button>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Reminders Card */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <span className="text-xl">🔔</span> התראות ותזכורות ללקוחות
+          </CardTitle>
+          <CardDescription>הגדר מתי ואיך לשלוח תזכורות ללקוחות לפני התור</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-5">
+          {/* Toggles */}
+          <div className="space-y-3">
+            <div className="flex items-center justify-between p-4 border rounded-xl bg-muted/20">
+              <div>
+                <div className="font-medium text-sm">שליחת תזכורות</div>
+                <div className="text-xs text-muted-foreground mt-0.5">במידה ודלוק, תזכורות ישלחו ללקוחות לפני מועד התור</div>
+              </div>
+              <Switch checked={form.sendReminders} onCheckedChange={v => setForm(p => ({ ...p, sendReminders: v }))} />
+            </div>
+            <div className="flex items-center justify-between p-4 border rounded-xl bg-muted/20">
+              <div>
+                <div className="font-medium text-sm">דרישת אישור הגעה בתזכורת</div>
+                <div className="text-xs text-muted-foreground mt-0.5">במידה ודלוק, ידרש אישור הגעה בהודעת התזכורת שתישלח</div>
+              </div>
+              <Switch checked={form.requireArrivalConfirmation} onCheckedChange={v => setForm(p => ({ ...p, requireArrivalConfirmation: v }))} />
+            </div>
+            <div className="flex items-center justify-between p-4 border rounded-xl bg-muted/20">
+              <div>
+                <div className="font-medium text-sm">שליחת הודעות תזכורת ב-WhatsApp</div>
+                <div className="text-xs text-muted-foreground mt-0.5">במידה ודלוק, הודעות תזכורת לפני התור ישלחו ב-WhatsApp. כשיכולת זאת כבויה, הודעות תזכורת ישלחו ב-SMS</div>
+              </div>
+              <Switch checked={form.sendWhatsAppReminders} onCheckedChange={v => setForm(p => ({ ...p, sendWhatsAppReminders: v }))} />
+            </div>
+          </div>
+
+          {/* Reminder timing */}
+          {form.sendReminders && (
+            <div className="p-4 border rounded-xl bg-muted/20 space-y-4">
+              <div className="font-medium text-sm border-b pb-2">שעות שליחת התזכורות</div>
+
+              <div className="space-y-2">
+                <Label className="text-sm">מועד שליחת התזכורות</Label>
+                <div className="flex items-center gap-3">
+                  <select
+                    value={form.reminderDaysBefore}
+                    onChange={e => setForm(p => ({ ...p, reminderDaysBefore: e.target.value }))}
+                    className="rounded-lg border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                  >
+                    <option value="1">יום לפני</option>
+                    <option value="2">יומיים לפני</option>
+                    <option value="3">3 ימים לפני</option>
+                    <option value="7">שבוע לפני</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="space-y-3">
+                <Label className="text-sm">שעות קבלת התזכורות</Label>
+                <div className="grid grid-cols-1 gap-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-muted-foreground">בימי שישי</span>
+                    <Input type="time" value={form.reminderTimeFriday} dir="ltr"
+                      onChange={e => setForm(p => ({ ...p, reminderTimeFriday: e.target.value }))}
+                      className="w-32 text-center" />
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-muted-foreground">בימי שבת</span>
+                    <Input type="time" value={form.reminderTimeSaturday} dir="ltr"
+                      onChange={e => setForm(p => ({ ...p, reminderTimeSaturday: e.target.value }))}
+                      className="w-32 text-center" />
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-muted-foreground">בשאר ימות השבוע</span>
+                    <Input type="time" value={form.reminderTimeOtherDays} dir="ltr"
+                      onChange={e => setForm(p => ({ ...p, reminderTimeOtherDays: e.target.value }))}
+                      className="w-32 text-center" />
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Custom text */}
+          <div className="space-y-2">
+            <Label className="text-sm font-medium">תוספת מותאמת אישית</Label>
+            <textarea
+              value={form.reminderCustomText}
+              onChange={e => setForm(p => ({ ...p, reminderCustomText: e.target.value.slice(0, 800) }))}
+              rows={3}
+              maxLength={800}
+              className="w-full rounded-xl border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary resize-none"
+              placeholder="לדוגמא: קוד כניסה לבניין וכו'"
+            />
+            <div className="flex justify-between items-center">
+              <p className="text-xs text-muted-foreground">תוספת זו תופיע בסוף התזכורת שנשלחת ללקוחות לפני התור</p>
+              <span className="text-xs text-muted-foreground">{form.reminderCustomText.length} / 800</span>
+            </div>
+          </div>
+
+          <div className="flex justify-end pt-2">
+            <Button onClick={handleSave} disabled={updateMutation.isPending} size="lg">שמירה</Button>
+          </div>
         </CardContent>
       </Card>
 
