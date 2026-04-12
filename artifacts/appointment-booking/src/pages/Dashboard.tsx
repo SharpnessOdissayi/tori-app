@@ -1960,52 +1960,30 @@ function SettingsTab() {
                   <div key={idx} className="flex items-center gap-2 p-3 border rounded-xl bg-background">
                     <span className="text-xs font-bold text-muted-foreground w-5 text-center">{idx + 1}</span>
 
-                    {trigger.unit === "morning" ? (
-                      <div className="flex-1 text-sm font-medium text-primary">🌅 בבוקר של יום התור</div>
-                    ) : (
-                      <>
-                        <select
-                          value={trigger.amount}
-                          onChange={e => setReminderTriggers(prev => prev.map((t, i) => i === idx ? { ...t, amount: e.target.value } : t))}
-                          className="rounded-lg border bg-background px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary w-20"
-                        >
-                          {trigger.unit === "minutes" && [5,10,15,20,30,45,60].map(n => <option key={n} value={n}>{n}</option>)}
-                          {trigger.unit === "hours"   && [1,2,3,4,6,8,12,24,48,72].map(n => <option key={n} value={n}>{n}</option>)}
-                          {trigger.unit === "days"    && [1,2,3,7,14].map(n => <option key={n} value={n}>{n}</option>)}
-                        </select>
-                        <select
-                          value={trigger.unit}
-                          onChange={e => {
-                            const unit = e.target.value;
-                            const defaultAmount = unit === "minutes" ? "30" : unit === "hours" ? "24" : "1";
-                            setReminderTriggers(prev => prev.map((t, i) => i === idx ? { ...t, unit, amount: defaultAmount } : t));
-                          }}
-                          className="rounded-lg border bg-background px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary flex-1"
-                        >
-                          <option value="minutes">דקות לפני</option>
-                          <option value="hours">שעות לפני</option>
-                          <option value="days">ימים לפני</option>
-                        </select>
-                      </>
-                    )}
+                    <input
+                      type="number"
+                      min="1"
+                      max="999"
+                      value={trigger.amount}
+                      onChange={e => setReminderTriggers(prev => prev.map((t, i) => i === idx ? { ...t, amount: e.target.value } : t))}
+                      className="rounded-lg border bg-background px-2 py-1.5 text-sm text-center focus:outline-none focus:ring-2 focus:ring-primary w-20"
+                    />
 
-                    {/* Change to morning toggle */}
-                    <button
-                      type="button"
-                      title={trigger.unit === "morning" ? "החלף לזמן מדויק" : "שלח בבוקר של היום"}
-                      onClick={() => setReminderTriggers(prev => prev.map((t, i) => i === idx
-                        ? (t.unit === "morning" ? { amount: "24", unit: "hours" } : { amount: "0", unit: "morning" })
-                        : t))}
-                      className="text-lg hover:scale-110 transition-transform"
+                    <select
+                      value={trigger.unit}
+                      onChange={e => setReminderTriggers(prev => prev.map((t, i) => i === idx ? { ...t, unit: e.target.value } : t))}
+                      className="rounded-lg border bg-background px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary flex-1"
                     >
-                      {trigger.unit === "morning" ? "🕐" : "🌅"}
-                    </button>
+                      <option value="minutes">דקות לפני</option>
+                      <option value="hours">שעות לפני</option>
+                      <option value="days">ימים לפני</option>
+                    </select>
 
                     {reminderTriggers.length > 1 && (
                       <button
                         type="button"
                         onClick={() => setReminderTriggers(prev => prev.filter((_, i) => i !== idx))}
-                        className="text-muted-foreground hover:text-destructive transition-colors text-lg"
+                        className="text-muted-foreground hover:text-destructive transition-colors text-lg leading-none"
                       >
                         ✕
                       </button>
@@ -2054,7 +2032,7 @@ function SettingsTab() {
               rows={3}
               maxLength={800}
               className="w-full rounded-xl border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary resize-none"
-              placeholder="לדוגמא: קוד כניסה לבניין וכו'"
+              placeholder="לדוגמא: לשלוח הודעה במידה ויש עיכוב בהגעה"
             />
             <div className="flex justify-between items-center">
               <p className="text-xs text-muted-foreground">תוספת זו תופיע בסוף התזכורת שנשלחת ללקוחות לפני התור</p>
