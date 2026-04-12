@@ -167,25 +167,28 @@ export default function SuperAdmin() {
 
   if (!isAuthenticated) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-muted/30 p-4" dir="rtl">
-        <Card className="w-full max-w-md shadow-xl">
-          <CardHeader className="text-center">
-            <div className="w-16 h-16 bg-primary/10 rounded-2xl flex items-center justify-center mx-auto mb-3">
-              <Shield className="w-8 h-8 text-primary" />
-            </div>
-            <CardTitle className="text-2xl">פאנל מנהל ראשי</CardTitle>
-            <CardDescription>גישה מוגבלת למנהלי המערכת בלבד</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <form onSubmit={handleLogin} className="space-y-4">
-              <div className="space-y-2">
-                <Label>סיסמת מנהל</Label>
-                <Input type="password" value={password} onChange={e => setPassword(e.target.value)} dir="ltr" placeholder="••••••••" />
+      <div className="min-h-screen flex flex-col bg-muted/30" dir="rtl">
+        <Navbar />
+        <div className="flex-1 flex items-center justify-center p-4">
+          <Card className="w-full max-w-md shadow-xl">
+            <CardHeader className="text-center">
+              <div className="w-16 h-16 bg-primary/10 rounded-2xl flex items-center justify-center mx-auto mb-3">
+                <Shield className="w-8 h-8 text-primary" />
               </div>
-              <Button type="submit" className="w-full h-11">כניסה</Button>
-            </form>
-          </CardContent>
-        </Card>
+              <CardTitle className="text-2xl">פאנל מנהל ראשי</CardTitle>
+              <CardDescription>גישה מוגבלת למנהלי המערכת בלבד</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <form onSubmit={handleLogin} className="space-y-4">
+                <div className="space-y-2">
+                  <Label>סיסמת מנהל</Label>
+                  <Input type="password" value={password} onChange={e => setPassword(e.target.value)} dir="ltr" placeholder="••••••••" />
+                </div>
+                <Button type="submit" className="w-full h-11">כניסה</Button>
+              </form>
+            </CardContent>
+          </Card>
+        </div>
       </div>
     );
   }
