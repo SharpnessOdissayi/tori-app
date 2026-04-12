@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { db, businessesTable, servicesTable, appointmentsTable, waitlistTable } from "@workspace/db";
-import { eq, and, gte, sql, countDistinct } from "drizzle-orm";
+import { eq, and, gte, sql, countDistinct, count } from "drizzle-orm";
 import {
   GetPublicBusinessParams,
   GetPublicServicesParams,
@@ -177,6 +177,82 @@ router.post("/public/:businessSlug/appointments", async (req, res): Promise<void
     res.status(403).json({ error: "phone_not_verified", message: "יש לאמת את מספר הטלפון תחילה" });
     return;
   }
+
+  // ── Booking restrictions ──────────────────────────────────────────────────
+
+  // 1. Min lead time: appointment must be at least minLeadHours from now
+  if (business.minLeadHours > 0) {
+    const apptDateTime = new Date(`${appointmentDate}T${appointmentTime}:00`);
+    const minAllowed = new Date(Date.now() + business.minLeadHours * 60 * 60 * 1000);
+    if (apptDateTime < minAllowed) {
+      res.status(400).json({
+        error: "too_soon",
+        message: `יש לקבוע תור לפחות ${business.minLeadHours} שעות מראש`,
+      });
+      return;
+    }
+  }
+
+  // 2. Max future date / weeks
+  if (business.futureBookingMode === "weeks" && business.maxFutureWeeks > 0) {
+    const maxDate = new Date();
+    maxDate.setDate(maxDate.getDate() + business.maxFutureWeeks * 7);
+    if (new Date(appointmentDate) > maxDate) {
+      res.status(400).json({
+        error: "too_far",
+        message: `ניתן לקבוע תור עד ${business.maxFutureWeeks} שבועות מראש`,
+      });
+      return;
+    }
+  } else if (business.futureBookingMode === "date" && business.maxFutureDate) {
+    if (appointmentDate > business.maxFutureDate) {
+      res.status(400).json({
+        error: "too_far",
+        message: `ניתן לקבוע תור עד תאריך ${business.maxFutureDate}`,
+      });
+      return;
+    }
+  }
+
+  // 3. Max appointments per day (total for this business)
+  if (business.maxAppointmentsPerDay) {
+    const [{ dayCount }] = await db
+      .select({ dayCount: count() })
+      .from(appointmentsTable)
+      .where(and(
+        eq(appointmentsTable.businessId, business.id),
+        eq(appointmentsTable.appointmentDate, appointmentDate),
+        sql`${appointmentsTable.status} != 'cancelled'`
+      ));
+    if (dayCount >= business.maxAppointmentsPerDay) {
+      res.status(409).json({
+        error: "day_full",
+        message: `היום הזה מלא. ניתן לקבוע עד ${business.maxAppointmentsPerDay} תורים ביום`,
+      });
+      return;
+    }
+  }
+
+  // 4. Max appointments per customer (active, non-cancelled)
+  if (business.maxAppointmentsPerCustomer) {
+    const [{ customerCount }] = await db
+      .select({ customerCount: count() })
+      .from(appointmentsTable)
+      .where(and(
+        eq(appointmentsTable.businessId, business.id),
+        eq(appointmentsTable.phoneNumber, phoneNumber),
+        sql`${appointmentsTable.status} != 'cancelled'`
+      ));
+    if (customerCount >= business.maxAppointmentsPerCustomer) {
+      res.status(409).json({
+        error: "customer_limit",
+        message: `הגעת למגבלת ${business.maxAppointmentsPerCustomer} תורים פעילים`,
+      });
+      return;
+    }
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────
 
   const FREE_MONTHLY_CUSTOMER_LIMIT = 20;
   if (business.subscriptionPlan === "free") {

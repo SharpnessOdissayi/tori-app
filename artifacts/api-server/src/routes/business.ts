@@ -51,6 +51,24 @@ function mapBusiness(b: typeof businessesTable.$inferSelect) {
     requireAppointmentApproval: b.requireAppointmentApproval,
     isActive: b.isActive,
     createdAt: b.createdAt.toISOString(),
+    // Booking restrictions
+    minLeadHours: b.minLeadHours,
+    cancellationHours: b.cancellationHours,
+    maxFutureWeeks: b.maxFutureWeeks,
+    futureBookingMode: b.futureBookingMode,
+    maxFutureDate: b.maxFutureDate ?? null,
+    maxAppointmentsPerCustomer: b.maxAppointmentsPerCustomer ?? null,
+    requireActiveSubscription: b.requireActiveSubscription,
+    maxAppointmentsPerDay: b.maxAppointmentsPerDay ?? null,
+    // Reminders
+    buttonRadius: b.buttonRadius ?? null,
+    sendReminders: b.sendReminders,
+    requireArrivalConfirmation: b.requireArrivalConfirmation,
+    sendWhatsAppReminders: b.sendWhatsAppReminders,
+    reminderTriggers: b.reminderTriggers ?? null,
+    reminderCustomText: b.reminderCustomText ?? null,
+    shabbatMode: b.shabbatMode,
+    reminderSendTime: b.reminderSendTime,
   };
 }
 
@@ -84,6 +102,25 @@ router.patch("/business/profile", requireBusinessAuth, async (req, res): Promise
   if (parsed.data.notificationMessage !== undefined) updates.notificationMessage = parsed.data.notificationMessage ?? undefined;
   if (parsed.data.requireAppointmentApproval !== undefined) updates.requireAppointmentApproval = parsed.data.requireAppointmentApproval;
   if ((parsed.data as any).requirePhoneVerification !== undefined) updates.requirePhoneVerification = (parsed.data as any).requirePhoneVerification;
+  // Booking restrictions
+  const d = parsed.data as any;
+  if (d.minLeadHours !== undefined) updates.minLeadHours = d.minLeadHours ?? 0;
+  if (d.cancellationHours !== undefined) updates.cancellationHours = d.cancellationHours ?? 0;
+  if (d.maxFutureWeeks !== undefined) updates.maxFutureWeeks = d.maxFutureWeeks ?? 15;
+  if (d.futureBookingMode !== undefined) updates.futureBookingMode = d.futureBookingMode ?? "weeks";
+  if (d.maxFutureDate !== undefined) updates.maxFutureDate = d.maxFutureDate ?? undefined;
+  if (d.maxAppointmentsPerCustomer !== undefined) updates.maxAppointmentsPerCustomer = d.maxAppointmentsPerCustomer ?? undefined;
+  if (d.requireActiveSubscription !== undefined) updates.requireActiveSubscription = d.requireActiveSubscription ?? false;
+  if (d.maxAppointmentsPerDay !== undefined) updates.maxAppointmentsPerDay = d.maxAppointmentsPerDay ?? undefined;
+  // Reminders
+  if (d.buttonRadius !== undefined) updates.buttonRadius = d.buttonRadius ?? undefined;
+  if (d.sendReminders !== undefined) updates.sendReminders = d.sendReminders ?? true;
+  if (d.requireArrivalConfirmation !== undefined) updates.requireArrivalConfirmation = d.requireArrivalConfirmation ?? false;
+  if (d.sendWhatsAppReminders !== undefined) updates.sendWhatsAppReminders = d.sendWhatsAppReminders ?? true;
+  if (d.reminderTriggers !== undefined) updates.reminderTriggers = d.reminderTriggers ?? undefined;
+  if (d.reminderCustomText !== undefined) updates.reminderCustomText = d.reminderCustomText ?? undefined;
+  if (d.shabbatMode !== undefined) updates.shabbatMode = d.shabbatMode ?? "any";
+  if (d.reminderSendTime !== undefined) updates.reminderSendTime = d.reminderSendTime ?? "20:00";
 
   const [updated] = await db
     .update(businessesTable)

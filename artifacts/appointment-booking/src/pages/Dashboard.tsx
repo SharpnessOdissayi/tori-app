@@ -1596,9 +1596,8 @@ function SettingsTab() {
     sendReminders: true,
     requireArrivalConfirmation: true,
     sendWhatsAppReminders: true,
-    reminderTimeFriday: "15:00",
-    reminderTimeSaturday: "20:00",
-    reminderTimeOtherDays: "20:00",
+    shabbatMode: "any" as "any" | "before" | "after",
+    reminderSendTime: "20:00",
     reminderCustomText: "",
   });
 
@@ -1633,9 +1632,8 @@ function SettingsTab() {
       sendReminders: (profile as any).sendReminders ?? true,
       requireArrivalConfirmation: (profile as any).requireArrivalConfirmation ?? true,
       sendWhatsAppReminders: (profile as any).sendWhatsAppReminders ?? true,
-      reminderTimeFriday: (profile as any).reminderTimeFriday ?? "15:00",
-      reminderTimeSaturday: (profile as any).reminderTimeSaturday ?? "20:00",
-      reminderTimeOtherDays: (profile as any).reminderTimeOtherDays ?? "20:00",
+      shabbatMode: ((profile as any).shabbatMode ?? "any") as "any" | "before" | "after",
+      reminderSendTime: (profile as any).reminderSendTime ?? "20:00",
       reminderCustomText: (profile as any).reminderCustomText ?? "",
     });
     // Load reminder triggers
@@ -1669,9 +1667,8 @@ function SettingsTab() {
         requireArrivalConfirmation: form.requireArrivalConfirmation,
         sendWhatsAppReminders: form.sendWhatsAppReminders,
         reminderTriggers: JSON.stringify(reminderTriggers),
-        reminderTimeFriday: form.reminderTimeFriday,
-        reminderTimeSaturday: form.reminderTimeSaturday,
-        reminderTimeOtherDays: form.reminderTimeOtherDays,
+        shabbatMode: form.shabbatMode,
+        reminderSendTime: form.reminderSendTime,
         reminderCustomText: form.reminderCustomText || null,
       } as any
     }, {
@@ -2028,26 +2025,30 @@ function SettingsTab() {
               </div>
 
               <div className="space-y-3 pt-2 border-t">
-                <Label className="text-sm">שעות שליחה מותרות</Label>
-                <div className="grid grid-cols-1 gap-3">
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm text-muted-foreground">בימי שישי</span>
-                    <Input type="time" value={form.reminderTimeFriday} dir="ltr"
-                      onChange={e => setForm(p => ({ ...p, reminderTimeFriday: e.target.value }))}
-                      className="w-32 text-center" />
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm text-muted-foreground">בימי שבת</span>
-                    <Input type="time" value={form.reminderTimeSaturday} dir="ltr"
-                      onChange={e => setForm(p => ({ ...p, reminderTimeSaturday: e.target.value }))}
-                      className="w-32 text-center" />
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm text-muted-foreground">בשאר ימות השבוע</span>
-                    <Input type="time" value={form.reminderTimeOtherDays} dir="ltr"
-                      onChange={e => setForm(p => ({ ...p, reminderTimeOtherDays: e.target.value }))}
-                      className="w-32 text-center" />
-                  </div>
+                <Label className="text-sm font-medium">הגדרות שבת</Label>
+                <div className="grid grid-cols-1 gap-2">
+                  {([
+                    { value: "any",    label: "שלח בכל יום",          desc: "התזכורות יישלחו ללא קשר ליום בשבוע",           icon: "📅" },
+                    { value: "before", label: "לפני שבת (שישי)",       desc: "עסק שומר שבת — שלח ביום שישי לפני כניסת שבת", icon: "🕍" },
+                    { value: "after",  label: "מוצאי שבת (שבת בלילה)", desc: "עסק שומר שבת — שלח בשבת בלילה אחרי צאת שבת", icon: "✡️" },
+                  ] as const).map(opt => (
+                    <button key={opt.value} type="button"
+                      onClick={() => setForm(p => ({ ...p, shabbatMode: opt.value }))}
+                      className={`flex items-start gap-3 p-3 rounded-xl border-2 text-right transition-all ${form.shabbatMode === opt.value ? "border-primary bg-primary/5" : "border-border hover:border-muted-foreground"}`}>
+                      <span className="text-xl mt-0.5">{opt.icon}</span>
+                      <div>
+                        <div className={`text-sm font-medium ${form.shabbatMode === opt.value ? "text-primary" : ""}`}>{opt.label}</div>
+                        <div className="text-xs text-muted-foreground mt-0.5">{opt.desc}</div>
+                      </div>
+                      {form.shabbatMode === opt.value && <Check className="w-4 h-4 text-primary mr-auto mt-1 shrink-0" />}
+                    </button>
+                  ))}
+                </div>
+                <div className="flex items-center justify-between pt-1">
+                  <span className="text-sm text-muted-foreground">שעת שליחה</span>
+                  <Input type="time" value={form.reminderSendTime} dir="ltr"
+                    onChange={e => setForm(p => ({ ...p, reminderSendTime: e.target.value }))}
+                    className="w-32 text-center" />
                 </div>
               </div>
             </div>

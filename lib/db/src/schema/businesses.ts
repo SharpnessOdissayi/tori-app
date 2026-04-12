@@ -36,6 +36,25 @@ export const businessesTable = pgTable("businesses", {
   subscriptionStartDate: timestamp("subscription_start_date", { withTimezone: true }),
   isActive: boolean("is_active").notNull().default(true),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  // Booking restrictions
+  minLeadHours: integer("min_lead_hours").notNull().default(0),
+  cancellationHours: integer("cancellation_hours").notNull().default(0),
+  maxFutureWeeks: integer("max_future_weeks").notNull().default(15),
+  futureBookingMode: text("future_booking_mode").notNull().default("weeks"),
+  maxFutureDate: text("max_future_date"),
+  maxAppointmentsPerCustomer: integer("max_appointments_per_customer"),
+  requireActiveSubscription: boolean("require_active_subscription").notNull().default(false),
+  maxAppointmentsPerDay: integer("max_appointments_per_day"),
+  // Reminders
+  buttonRadius: text("button_radius"),
+  sendReminders: boolean("send_reminders").notNull().default(true),
+  requireArrivalConfirmation: boolean("require_arrival_confirmation").notNull().default(false),
+  sendWhatsAppReminders: boolean("send_whatsapp_reminders").notNull().default(true),
+  reminderTriggers: text("reminder_triggers"),
+  reminderCustomText: text("reminder_custom_text"),
+  // Shabbat settings: "any" = send any day | "before" = only before Shabbat (Friday) | "after" = only after Shabbat (Sat night)
+  shabbatMode: text("shabbat_mode").notNull().default("any"),
+  reminderSendTime: text("reminder_send_time").notNull().default("20:00"),
 });
 
 export const insertBusinessSchema = createInsertSchema(businessesTable).omit({ id: true, createdAt: true });
