@@ -1291,15 +1291,30 @@ function BrandingTab() {
 
           <div className="space-y-4">
             <h3 className="font-semibold text-base border-b pb-2">צבע רקע</h3>
-            <div className="flex items-center gap-3">
-              {["#ffffff", "#f8fafc", "#f0f4ff", "#fdf4ff", "#fff7ed", "#f0fdf4", "#1e1e2e", "#0f172a"].map(c => (
-                <button key={c} onClick={() => setForm(p => ({ ...p, backgroundColor: c }))}
-                  className={`w-8 h-8 rounded-full border-2 transition-all ${form.backgroundColor === c ? "border-foreground scale-110" : "border-border"}`}
-                  style={{ backgroundColor: c }} />
-              ))}
-              <div className="flex items-center gap-2 border rounded-lg p-2">
-                <input type="color" value={form.backgroundColor} onChange={e => setForm(p => ({ ...p, backgroundColor: e.target.value }))} className="w-8 h-8 rounded cursor-pointer border-none bg-transparent" />
+            <div className="flex items-center gap-4">
+              <label className="relative cursor-pointer group" title="לחץ לבחירת צבע">
+                <div
+                  className="w-12 h-12 rounded-full border-4 border-border shadow-md group-hover:scale-110 transition-transform"
+                  style={{ backgroundColor: form.backgroundColor }}
+                />
+                <input
+                  type="color"
+                  value={form.backgroundColor}
+                  onChange={e => setForm(p => ({ ...p, backgroundColor: e.target.value }))}
+                  className="absolute inset-0 opacity-0 w-full h-full cursor-pointer"
+                />
+              </label>
+              <div className="space-y-0.5">
+                <span className="text-sm font-mono text-muted-foreground">{form.backgroundColor}</span>
+                <p className="text-xs text-muted-foreground">לחץ על העיגול לבחירת צבע חופשי</p>
               </div>
+              <button
+                type="button"
+                onClick={() => setForm(p => ({ ...p, backgroundColor: "" }))}
+                className="text-xs text-muted-foreground hover:text-destructive transition-colors underline"
+              >
+                ללא צבע רקע
+              </button>
             </div>
           </div>
 
