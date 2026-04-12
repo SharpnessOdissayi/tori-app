@@ -58,6 +58,7 @@ export default function Book() {
   const borderRadius = (business as any)?.borderRadius ?? "medium";
   const themeMode = business?.themeMode ?? "light";
   const requireApproval = (business as any)?.requireAppointmentApproval ?? false;
+  const welcomeText = (business as any)?.welcomeText ?? null;
 
   const cardRadius = borderRadius === "sharp" ? "8px" : borderRadius === "rounded" ? "24px" : "16px";
 
