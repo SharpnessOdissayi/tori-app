@@ -187,6 +187,24 @@ export const UpdateBusinessProfileBody = zod.object({
   notificationMessage: zod.string().nullish(),
   requireAppointmentApproval: zod.boolean().optional(),
   requirePhoneVerification: zod.boolean().optional(),
+  // Booking restrictions
+  minLeadHours: zod.number().optional(),
+  cancellationHours: zod.number().optional(),
+  maxFutureWeeks: zod.number().optional(),
+  futureBookingMode: zod.string().optional(),
+  maxFutureDate: zod.string().nullish(),
+  maxAppointmentsPerCustomer: zod.number().nullish(),
+  requireActiveSubscription: zod.boolean().optional(),
+  maxAppointmentsPerDay: zod.number().nullish(),
+  // Reminders
+  buttonRadius: zod.string().nullish(),
+  sendReminders: zod.boolean().optional(),
+  requireArrivalConfirmation: zod.boolean().optional(),
+  sendWhatsAppReminders: zod.boolean().optional(),
+  reminderTriggers: zod.string().nullish(),
+  reminderCustomText: zod.string().nullish(),
+  shabbatMode: zod.string().optional(),
+  reminderSendTime: zod.string().optional(),
 });
 
 export const UpdateBusinessProfileResponse = zod.object({

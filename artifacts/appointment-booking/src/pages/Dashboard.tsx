@@ -1954,6 +1954,19 @@ function SettingsTab() {
                 <span className="font-medium text-sm">מתי לשלוח התראות?</span>
                 <span className="text-xs text-muted-foreground">{reminderTriggers.length} / 3 התראות</span>
               </div>
+              {/* Current saved summary */}
+              {reminderTriggers.length > 0 && (
+                <div className="flex flex-wrap gap-2">
+                  {reminderTriggers.map((t, i) => {
+                    const unitLabel = t.unit === "minutes" ? "דקות" : t.unit === "hours" ? "שעות" : "ימים";
+                    return (
+                      <span key={i} className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-semibold bg-primary/10 text-primary border border-primary/20">
+                        🔔 {t.amount} {unitLabel} לפני
+                      </span>
+                    );
+                  })}
+                </div>
+              )}
 
               <div className="space-y-3">
                 {reminderTriggers.map((trigger, idx) => (
