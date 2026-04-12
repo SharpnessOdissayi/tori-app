@@ -29,10 +29,12 @@ export default function Home() {
           </div>
 
           <h1 className="text-4xl sm:text-5xl font-extrabold tracking-tight text-foreground leading-tight max-w-2xl mx-auto">
-            תן ללקוחות שלך את שיא הנוחות והמהירות בקביעת תורים לעסק שלך
+            פלטפורמת קביעת תורים חכמה לבעלי עסקים
           </h1>
 
-          <p className="text-lg text-muted-foreground max-w-2xl mx-auto leading-relaxed space-y-1">
+          <p className="text-lg text-muted-foreground max-w-2xl mx-auto leading-relaxed">
+            תן ללקוחות שלך את שיא הנוחות והמהירות בקביעת תורים לעסק שלך.
+            <br />
             תזכורות בווצאפ, הודעות פוש מותאמות אישית בכניסה ללינק קביעת התורים ועוד המון מחכים לך בפנים!
             <br />
             <span className="text-primary font-semibold">הנחה של 50% לחודש הראשון למנוי הפרו!</span>
