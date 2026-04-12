@@ -9,6 +9,7 @@ import SuperAdmin from "@/pages/SuperAdmin";
 import Dashboard from "@/pages/Dashboard";
 import Register from "@/pages/Register";
 import Book from "@/pages/Book";
+import Details from "@/pages/Details";
 
 class ErrorBoundary extends Component<{ children: ReactNode }, { hasError: boolean; error: Error | null }> {
   constructor(props: { children: ReactNode }) {
@@ -46,6 +47,7 @@ function Router() {
   return (
     <Switch>
       <Route path="/" component={Home} />
+      <Route path="/details" component={Details} />
       <Route path="/super-admin" component={SuperAdmin} />
       <Route path="/register" component={Register} />
       <Route path="/dashboard" component={Dashboard} />

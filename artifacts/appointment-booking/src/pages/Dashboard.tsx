@@ -359,39 +359,40 @@ export default function Dashboard() {
         />
       )}
 
-      <header className="bg-card border-b border-border sticky top-0 z-10">
-        <div className="max-w-6xl mx-auto px-4 h-16 flex items-center justify-between">
-          <Link href="/">
-            <div className="font-bold text-xl text-primary flex items-center gap-2 cursor-pointer">
-              <div className="w-8 h-8 rounded-lg bg-primary text-primary-foreground flex items-center justify-center text-sm font-bold">ת</div>
-              <div>
-                <div className="text-sm font-bold leading-tight">קבעתי</div>
-                {headerProfile?.name && (
-                  <div className="text-xs font-normal text-muted-foreground leading-tight">{headerProfile.name}</div>
-                )}
-              </div>
-            </div>
-          </Link>
+      <Navbar
+        leftContent={
           <div className="flex items-center gap-2">
             {!showTour && localStorage.getItem("onboarding_completed") && (
-              <Button
-                variant="ghost"
-                size="sm"
+              <button
                 onClick={() => setShowTour(true)}
-                className="text-muted-foreground hover:text-foreground gap-1.5 hidden sm:flex"
-                title="הצג הדרכה מחדש"
+                className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm transition-all"
+                style={{ color: "#c0c0c0" }}
+                onMouseEnter={e => (e.currentTarget.style.color = "#d4af37")}
+                onMouseLeave={e => (e.currentTarget.style.color = "#c0c0c0")}
               >
                 <HelpCircle className="w-4 h-4" />
                 הדרכה
-              </Button>
+              </button>
             )}
-            <Button variant="ghost" size="sm" onClick={handleLogout} className="text-muted-foreground hover:text-foreground gap-2">
+            {headerProfile?.name && (
+              <span className="hidden sm:block text-sm font-medium px-3 py-1.5 rounded-lg"
+                style={{ color: "#d4af37", border: "1px solid #d4af3740" }}>
+                {headerProfile.name}
+              </span>
+            )}
+            <button
+              onClick={handleLogout}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm transition-all"
+              style={{ color: "#c0c0c0" }}
+              onMouseEnter={e => (e.currentTarget.style.color = "#d4af37")}
+              onMouseLeave={e => (e.currentTarget.style.color = "#c0c0c0")}
+            >
               <LogOut className="w-4 h-4" />
               התנתק
-            </Button>
+            </button>
           </div>
-        </div>
-      </header>
+        }
+      />
 
       <main className="max-w-6xl mx-auto px-4 py-6">
         <SubscriptionBanner />

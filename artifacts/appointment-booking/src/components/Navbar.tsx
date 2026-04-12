@@ -1,24 +1,24 @@
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { Link, useLocation } from "wouter";
 import { Menu, X } from "lucide-react";
 
 const NAV_LINKS = [
   { label: "ראשי", href: "/" },
-  { label: "פרטים", href: "/#pricing" },
+  { label: "פרטים", href: "/details" },
   { label: "כניסה לבעלי עסקים", href: "/dashboard" },
   { label: "הצטרפות למנוי חדש", href: "/register", highlight: true },
 ];
 
-// 8 stars: [top%, left%, size, opacity, animation-delay]
+// 8 stars: top%, left%, size, delay, duration, drift (horizontal drift px)
 const STARS = [
-  { top: "18%", left: "12%",  size: 14, delay: "0s",    opacity: 0.55 },
-  { top: "55%", left: "5%",   size: 10, delay: "0.8s",  opacity: 0.4  },
-  { top: "25%", left: "28%",  size: 8,  delay: "1.4s",  opacity: 0.35 },
-  { top: "70%", left: "22%",  size: 12, delay: "0.4s",  opacity: 0.5  },
-  { top: "15%", left: "55%",  size: 9,  delay: "1.8s",  opacity: 0.38 },
-  { top: "60%", left: "48%",  size: 11, delay: "1.1s",  opacity: 0.45 },
-  { top: "30%", left: "75%",  size: 8,  delay: "0.6s",  opacity: 0.35 },
-  { top: "65%", left: "68%",  size: 13, delay: "2.0s",  opacity: 0.5  },
+  { top: -20, left: 8,   size: 20, delay: "0s",   dur: "4.5s", drift: 15  },
+  { top: -20, left: 18,  size: 16, delay: "0.7s",  dur: "5.2s", drift: -10 },
+  { top: -20, left: 32,  size: 22, delay: "1.3s",  dur: "4.8s", drift: 12  },
+  { top: -20, left: 47,  size: 18, delay: "0.3s",  dur: "5.5s", drift: -8  },
+  { top: -20, left: 58,  size: 14, delay: "1.8s",  dur: "4.2s", drift: 18  },
+  { top: -20, left: 70,  size: 20, delay: "0.9s",  dur: "5.0s", drift: -14 },
+  { top: -20, left: 82,  size: 16, delay: "2.2s",  dur: "4.6s", drift: 10  },
+  { top: -20, left: 92,  size: 18, delay: "1.5s",  dur: "5.3s", drift: -12 },
 ];
 
 function StarIcon({ size }: { size: number }) {
@@ -29,19 +29,22 @@ function StarIcon({ size }: { size: number }) {
   );
 }
 
-export default function Navbar() {
+export default function Navbar({ leftContent }: { leftContent?: ReactNode }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [location] = useLocation();
 
   return (
     <>
       <style>{`
-        @keyframes twinkle {
-          0%, 100% { opacity: var(--star-opacity); transform: scale(1) rotate(0deg); }
-          50% { opacity: calc(var(--star-opacity) * 0.3); transform: scale(0.7) rotate(20deg); }
+        @keyframes starFall {
+          0%   { transform: translateY(-20px) translateX(0px) rotate(0deg);  opacity: 0; }
+          10%  { opacity: 0.7; }
+          85%  { opacity: 0.5; }
+          100% { transform: translateY(80px) translateX(var(--drift)) rotate(180deg); opacity: 0; }
         }
-        .star-twinkle {
-          animation: twinkle 3s ease-in-out infinite;
+        .star-fall {
+          animation: starFall var(--dur) ease-in infinite;
+          animation-delay: var(--delay);
         }
       `}</style>
 
@@ -53,19 +56,19 @@ export default function Navbar() {
           borderBottom: "1px solid #2a2a2a",
         }}
       >
-        {/* Decorative stars */}
+        {/* Falling stars */}
         <div className="absolute inset-0 pointer-events-none">
           {STARS.map((s, i) => (
             <span
               key={i}
-              className="absolute star-twinkle"
+              className="absolute star-fall"
               style={{
-                top: s.top,
-                left: s.left,
+                top: `${s.top}px`,
+                left: `${s.left}%`,
                 color: "#d4af37",
-                "--star-opacity": s.opacity,
-                opacity: s.opacity,
-                animationDelay: s.delay,
+                "--dur": s.dur,
+                "--delay": s.delay,
+                "--drift": `${s.drift}px`,
               } as React.CSSProperties}
             >
               <StarIcon size={s.size} />
@@ -107,22 +110,24 @@ export default function Navbar() {
             </nav>
           </div>
 
-          {/* LEFT: gold CTA */}
+          {/* LEFT: custom content (dashboard logout etc.) OR gold CTA */}
           <div className="hidden md:block">
-            {NAV_LINKS.filter(l => l.highlight).map((link) => (
-              <Link key={link.href} href={link.href}>
-                <span
-                  className="px-5 py-2.5 rounded-xl text-sm font-bold cursor-pointer transition-all whitespace-nowrap"
-                  style={{
-                    background: "linear-gradient(135deg, #d4af37, #f0c040)",
-                    color: "#0a0a0a",
-                    boxShadow: "0 0 14px rgba(212,175,55,0.35)",
-                  }}
-                >
-                  {link.label}
-                </span>
-              </Link>
-            ))}
+            {leftContent ?? (
+              NAV_LINKS.filter(l => l.highlight).map((link) => (
+                <Link key={link.href} href={link.href}>
+                  <span
+                    className="px-5 py-2.5 rounded-xl text-sm font-bold cursor-pointer transition-all whitespace-nowrap"
+                    style={{
+                      background: "linear-gradient(135deg, #d4af37, #f0c040)",
+                      color: "#0a0a0a",
+                      boxShadow: "0 0 14px rgba(212,175,55,0.35)",
+                    }}
+                  >
+                    {link.label}
+                  </span>
+                </Link>
+              ))
+            )}
           </div>
 
           {/* Mobile hamburger */}

@@ -250,14 +250,16 @@ export default function Book() {
           <div className="px-6 py-4 flex gap-2 border-b" style={{ backgroundColor: primaryColor + "10" }}>
             {[1, 2, 3, 4].map(num => (
               <div key={num} className="flex items-center gap-2">
-                <div className="w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm transition-all"
-                  style={{
-                    backgroundColor: step === num ? primaryColor : step > num ? primaryColor + "30" : "#f1f5f9",
-                    color: step === num ? "white" : step > num ? primaryColor : "#94a3b8",
-                  }}>
+                <div
+                  className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm transition-all ${step < num ? "bg-muted text-muted-foreground" : ""}`}
+                  style={
+                    step === num ? { backgroundColor: primaryColor, color: "white" } :
+                    step > num ? { backgroundColor: primaryColor + "30", color: primaryColor } :
+                    {}
+                  }>
                   {step > num ? <Check className="w-4 h-4" /> : num}
                 </div>
-                {num < 4 && <div className="w-4 h-0.5" style={{ backgroundColor: step > num ? primaryColor + "60" : "#e2e8f0" }} />}
+                {num < 4 && <div className={`w-4 h-0.5 ${step <= num ? "bg-border" : ""}`} style={step > num ? { backgroundColor: primaryColor + "60" } : {}} />}
               </div>
             ))}
           </div>
@@ -323,12 +325,13 @@ export default function Book() {
                     <div className="grid grid-cols-3 sm:grid-cols-4 gap-3">
                       {slots.map((time, i) => (
                         <button key={i} onClick={() => { setSelectedTime(time); setTimeout(handleNext, 150); }}
-                          className="p-3 rounded-xl border-2 text-center font-medium transition-all"
-                          style={{
-                            borderColor: selectedTime === time ? primaryColor : "transparent",
-                            backgroundColor: selectedTime === time ? primaryColor + "15" : "#f8fafc",
-                            color: selectedTime === time ? primaryColor : "inherit",
-                          }} dir="ltr">
+                          className={`p-3 rounded-xl border-2 text-center font-medium transition-all ${selectedTime === time ? "" : "bg-muted/40 text-foreground hover:bg-muted"}`}
+                          style={selectedTime === time ? {
+                            borderColor: primaryColor,
+                            backgroundColor: primaryColor + "20",
+                            color: primaryColor,
+                          } : { borderColor: "transparent" }}
+                          dir="ltr">
                           {time}
                         </button>
                       ))}
