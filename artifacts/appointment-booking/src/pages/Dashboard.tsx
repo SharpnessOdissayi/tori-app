@@ -49,6 +49,7 @@ import { useLocation } from "wouter";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { format, parseISO } from "date-fns";
 import { he } from "date-fns/locale";
+import Navbar from "@/components/Navbar";
 
 const DAYS = ["ראשון", "שני", "שלישי", "רביעי", "חמישי", "שישי", "שבת"];
 
@@ -463,65 +464,68 @@ function Login({ onLogin }: { onLogin: (t: string) => void }) {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-muted/30 p-4" dir="rtl">
-      <Card className="w-full max-w-md shadow-xl">
-        <CardHeader className="text-center space-y-2 pb-6">
-          <a href="/" className="inline-block">
-            <img src="/logo.png" alt="קבעתי" className="h-16 w-16 rounded-2xl object-cover mx-auto mb-2" />
-          </a>
-          <CardTitle className="text-2xl">כניסה לקבעתי</CardTitle>
-          <CardDescription>הזן אימייל או מספר טלפון וסיסמה</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div className="space-y-2">
-              <Label>אימייל / מספר טלפון</Label>
-              <Input
-                required
-                value={identifier}
-                onChange={e => setIdentifier(e.target.value)}
-                dir="ltr"
-                placeholder="email@example.com  או  050-0000000"
-                autoComplete="username"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label>סיסמה</Label>
-              <div className="relative">
+    <div className="min-h-screen flex flex-col bg-muted/30" dir="rtl">
+      <Navbar />
+      <div className="flex-1 flex items-center justify-center p-4">
+        <Card className="w-full max-w-md shadow-xl">
+          <CardHeader className="text-center space-y-2 pb-6">
+            <a href="/" className="inline-block">
+              <img src="/logo.png" alt="קבעתי" className="h-16 w-16 rounded-2xl object-cover mx-auto mb-2" />
+            </a>
+            <CardTitle className="text-2xl">כניסה לקבעתי</CardTitle>
+            <CardDescription>הזן אימייל או מספר טלפון וסיסמה</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <form onSubmit={handleSubmit} className="space-y-4">
+              <div className="space-y-2">
+                <Label>אימייל / מספר טלפון</Label>
                 <Input
-                  type={showPassword ? "text" : "password"}
                   required
-                  value={password}
-                  onChange={e => setPassword(e.target.value)}
+                  value={identifier}
+                  onChange={e => setIdentifier(e.target.value)}
                   dir="ltr"
-                  autoComplete="current-password"
-                  className="pr-10"
+                  placeholder="email@example.com  או  050-0000000"
+                  autoComplete="username"
                 />
-                <button
-                  type="button"
-                  tabIndex={-1}
-                  onClick={() => setShowPassword(v => !v)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                >
-                  {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                </button>
               </div>
+              <div className="space-y-2">
+                <Label>סיסמה</Label>
+                <div className="relative">
+                  <Input
+                    type={showPassword ? "text" : "password"}
+                    required
+                    value={password}
+                    onChange={e => setPassword(e.target.value)}
+                    dir="ltr"
+                    autoComplete="current-password"
+                    className="pr-10"
+                  />
+                  <button
+                    type="button"
+                    tabIndex={-1}
+                    onClick={() => setShowPassword(v => !v)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                  >
+                    {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
+              </div>
+              <Button type="submit" className="w-full h-11" disabled={loginMutation.isPending}>
+                {loginMutation.isPending ? "מתחבר..." : "כניסה"}
+              </Button>
+            </form>
+            <div className="mt-5 text-center">
+              <span className="text-sm text-muted-foreground">עדיין אין לך חשבון? </span>
+              <button
+                onClick={() => navigate("/register")}
+                className="text-sm text-primary font-medium hover:underline"
+              >
+                הירשם עכשיו
+              </button>
             </div>
-            <Button type="submit" className="w-full h-11" disabled={loginMutation.isPending}>
-              {loginMutation.isPending ? "מתחבר..." : "כניסה"}
-            </Button>
-          </form>
-          <div className="mt-5 text-center">
-            <span className="text-sm text-muted-foreground">עדיין אין לך חשבון? </span>
-            <button
-              onClick={() => navigate("/register")}
-              className="text-sm text-primary font-medium hover:underline"
-            >
-              הירשם עכשיו
-            </button>
-          </div>
-        </CardContent>
-      </Card>
+          </CardContent>
+        </Card>
+      </div>
     </div>
   );
 }
