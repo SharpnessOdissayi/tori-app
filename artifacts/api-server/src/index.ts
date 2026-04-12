@@ -1,5 +1,7 @@
 import app from "./app";
 import { logger } from "./lib/logger";
+import cron from "node-cron";
+import { sendReminders } from "./lib/reminders";
 
 const rawPort = process.env["PORT"];
 
@@ -22,4 +24,10 @@ app.listen(port, (err) => {
   }
 
   logger.info({ port }, "Server listening");
+
+  // Run reminders every 15 minutes
+  cron.schedule("*/15 * * * *", () => {
+    sendReminders().catch(e => logger.error(e, "Reminders job failed"));
+  });
+  logger.info("Reminders cron started (every 15 minutes)");
 });

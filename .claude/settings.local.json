@@ -4,7 +4,8 @@
       "Bash(du -sh artifacts/* lib/*)",
       "Bash(xargs grep:*)",
       "Bash(gh --version)",
-      "Bash(node -e ':*)"
+      "Bash(node -e ':*)",
+      "Bash(pnpm add:*)"
     ]
   }
 }

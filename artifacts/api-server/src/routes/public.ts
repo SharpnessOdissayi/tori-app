@@ -12,7 +12,8 @@ import {
   JoinWaitlistBody,
 } from "@workspace/api-zod";
 import { computeAvailableSlots } from "../lib/availability";
-import { sendOtp, sendSms, verifyOtp, isPhoneVerified, consumeVerification } from "../lib/sms";
+import { sendOtp, verifyOtp, sendWhatsApp } from "../lib/twilio";
+import { isPhoneVerified, consumeVerification, markPhoneVerified } from "../lib/otpStore";
 
 const router = Router();
 
@@ -122,20 +123,8 @@ router.post("/public/:businessSlug/otp/send", async (req, res): Promise<void> =>
     res.status(400).json({ error: "Missing phone" });
     return;
   }
-
-  // Look up per-business Green API credentials
-  const { businessSlug } = req.params;
-  const [business] = await db
-    .select({ greenApiInstanceId: businessesTable.greenApiInstanceId, greenApiToken: businessesTable.greenApiToken })
-    .from(businessesTable)
-    .where(eq(businessesTable.slug, businessSlug));
-
-  const creds = business?.greenApiInstanceId && business?.greenApiToken
-    ? { instanceId: business.greenApiInstanceId, token: business.greenApiToken }
-    : undefined;
-
   try {
-    await sendOtp(phone, creds);
+    await sendOtp(phone);
     res.json({ success: true });
   } catch (e: any) {
     res.status(500).json({ error: e.message ?? "Failed to send OTP" });
@@ -149,11 +138,12 @@ router.post("/public/:businessSlug/otp/verify", async (req, res): Promise<void> 
     res.status(400).json({ error: "Missing phone or code" });
     return;
   }
-  const ok = verifyOtp(phone, String(code));
+  const ok = await verifyOtp(phone, String(code));
   if (!ok) {
     res.status(400).json({ error: "invalid_code", message: "הקוד שגוי או פג תוקף" });
     return;
   }
+  markPhoneVerified(phone);
   res.json({ success: true });
 });
 
@@ -250,15 +240,12 @@ router.post("/public/:businessSlug/appointments", async (req, res): Promise<void
 
   // Notify business owner via WhatsApp (non-blocking)
   if (business.phone) {
-    const [year, month, day] = appointmentDate.split("-");
+    const [, month, day] = appointmentDate.split("-");
     const formattedDate = `${day}/${month}`;
     const pendingNote = appointmentStatus === "pending" ? "\n⏳ ממתין לאישורך" : "";
     const notesLine = notes ? `\nהערה: ${notes}` : "";
     const message = `${clientName} קבע תור בשעה ${appointmentTime} ב-${formattedDate} — ${service.name}${notesLine}${pendingNote}`;
-    const ownerCreds = business.greenApiInstanceId && business.greenApiToken
-      ? { instanceId: business.greenApiInstanceId, token: business.greenApiToken }
-      : undefined;
-    sendSms(business.phone, message, ownerCreds).catch(() => {});
+    sendWhatsApp(business.phone, message).catch(() => {});
   }
 
   res.status(201).json({ ...appointment, createdAt: appointment.createdAt.toISOString() });
