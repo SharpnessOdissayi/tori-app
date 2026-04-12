@@ -16,7 +16,7 @@ export async function sendEmail(to: string, subject: string, html: string) {
     return;
   }
   await transporter.sendMail({
-    from: `"תורי" <${process.env.SMTP_USER}>`,
+    from: `"קבעתי" <${process.env.SMTP_USER}>`,
     to,
     subject,
     html,

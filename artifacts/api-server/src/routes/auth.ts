@@ -180,7 +180,7 @@ router.post("/auth/business/forgot-password", async (req, res): Promise<void> =>
   const code = String(Math.floor(100000 + Math.random() * 900000));
   resetCodes.set(email.toLowerCase().trim(), { code, expiresAt: Date.now() + 10 * 60 * 1000 }); // 10 min
 
-  await sendEmail(email, "קוד איפוס סיסמה — תורי", `
+  await sendEmail(email, "קוד איפוס סיסמה — קבעתי", `
     <div dir="rtl" style="font-family: sans-serif; max-width: 400px; margin: 0 auto;">
       <h2>איפוס סיסמה</h2>
       <p>הקוד שלך לאיפוס הסיסמה:</p>

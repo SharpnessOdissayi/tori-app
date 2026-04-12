@@ -36,7 +36,7 @@ function StepPlan({ onNext }: { onNext: (plan: Plan) => void }) {
         <div className="mx-auto w-16 h-16 rounded-2xl bg-primary/10 flex items-center justify-center">
           <Calendar className="w-8 h-8 text-primary" />
         </div>
-        <h1 className="text-3xl font-bold">ברוכים הבאים לתורי</h1>
+        <h1 className="text-3xl font-bold">ברוכים הבאים לקבעתי</h1>
         <p className="text-muted-foreground">בחר את התוכנית המתאימה לעסק שלך</p>
       </div>
 
@@ -290,7 +290,7 @@ function StepDetails({
           </Label>
           <div className="flex items-center rounded-xl border bg-muted/40 overflow-hidden focus-within:ring-2 focus-within:ring-primary">
             <span className="px-3 text-sm text-muted-foreground whitespace-nowrap border-l bg-muted">
-              תורי.co.il/book/
+              kavati.co.il/book/
             </span>
             <input
               required
@@ -376,7 +376,7 @@ function StepSuccess({ onDashboard }: { onDashboard: () => void }) {
       </div>
       <div>
         <h2 className="text-2xl font-bold">החשבון נוצר בהצלחה!</h2>
-        <p className="text-muted-foreground mt-2">תורי מוכן לשימוש. בוא ניכנס ללוח הבקרה ונתחיל.</p>
+        <p className="text-muted-foreground mt-2">קבעתי מוכן לשימוש. בוא ניכנס ללוח הבקרה ונתחיל.</p>
       </div>
       <Button className="w-full h-11 text-base" onClick={onDashboard}>
         כנס ללוח הבקרה

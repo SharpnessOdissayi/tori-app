@@ -90,7 +90,7 @@ export default function Home() {
       </main>
 
       <footer className="py-6 text-center text-xs text-muted-foreground border-t">
-        <p>תורי — מערכת ניהול תורים לעסקים ישראליים</p>
+        <p>קבעתי — מערכת ניהול תורים לעסקים ישראליים</p>
       </footer>
     </div>
   );

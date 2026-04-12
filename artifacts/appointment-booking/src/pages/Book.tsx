@@ -536,7 +536,7 @@ export default function Book() {
 
       <footer className="text-center py-4 text-xs text-muted-foreground border-t">
         מופעל על ידי{" "}
-        <a href="/" className="font-bold text-foreground hover:text-primary transition-colors">תורי</a>
+        <a href="/" className="font-bold text-foreground hover:text-primary transition-colors">קבעתי</a>
       </footer>
     </div>
   );

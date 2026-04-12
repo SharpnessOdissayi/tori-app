@@ -195,7 +195,7 @@ function SubscriptionBanner() {
               לרכישת מנוי צור איתנו קשר בוואטסאפ
             </div>
 
-            <a href="https://wa.me/972500000000?text=שלום%2C%20אני%20מעוניין%20לשדרג%20למנוי%20פרו%20של%20תורי" target="_blank" rel="noopener noreferrer">
+            <a href="https://wa.me/972500000000?text=שלום%2C%20אני%20מעוניין%20לשדרג%20למנוי%20פרו%20של%20קבעתי" target="_blank" rel="noopener noreferrer">
               <Button className="w-full gap-2 bg-green-600 hover:bg-green-700 text-white h-11 text-base">
                 <Phone className="w-5 h-5" /> צור קשר בוואטסאפ לשדרוג
               </Button>
@@ -212,7 +212,7 @@ function SubscriptionBanner() {
 // ─────────────────────────────────────────────────────────
 const TOUR_STEPS = [
   {
-    title: "ברוך הבא לתורי! 👋",
+    title: "ברוך הבא לקבעתי! 👋",
     description: "בוא נכיר את לוח הבקרה בכמה שניות. אפשר לדלג בכל שלב.",
     tab: null,
   },
@@ -364,7 +364,7 @@ export default function Dashboard() {
             <div className="font-bold text-xl text-primary flex items-center gap-2 cursor-pointer">
               <div className="w-8 h-8 rounded-lg bg-primary text-primary-foreground flex items-center justify-center text-sm font-bold">ת</div>
               <div>
-                <div className="text-sm font-bold leading-tight">תורי</div>
+                <div className="text-sm font-bold leading-tight">קבעתי</div>
                 {headerProfile?.name && (
                   <div className="text-xs font-normal text-muted-foreground leading-tight">{headerProfile.name}</div>
                 )}
@@ -469,7 +469,7 @@ function Login({ onLogin }: { onLogin: (t: string) => void }) {
           <div className="mx-auto w-16 h-16 rounded-2xl bg-primary/10 flex items-center justify-center mb-2">
             <div className="w-10 h-10 rounded-xl bg-primary text-primary-foreground flex items-center justify-center text-lg font-bold">ת</div>
           </div>
-          <CardTitle className="text-2xl">כניסה לתורי</CardTitle>
+          <CardTitle className="text-2xl">כניסה לקבעתי</CardTitle>
           <CardDescription>הזן אימייל או מספר טלפון וסיסמה</CardDescription>
         </CardHeader>
         <CardContent>
