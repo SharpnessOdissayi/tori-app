@@ -1377,114 +1377,87 @@ function IntegrationsTab() {
   const queryClient = useQueryClient();
   const { toast } = useToast();
 
-  const [form, setForm] = useState({ greenApiInstanceId: "", greenApiToken: "" });
+  const [notificationEnabled, setNotificationEnabled] = useState(true);
+  const [notificationMessage, setNotificationMessage] = useState("");
 
   useEffect(() => {
     if (profile) {
-      setForm({
-        greenApiInstanceId: (profile as any).greenApiInstanceId ?? "",
-        greenApiToken: (profile as any).greenApiToken ?? "",
-      });
+      setNotificationEnabled(profile.notificationEnabled ?? true);
+      setNotificationMessage(profile.notificationMessage ?? "");
     }
   }, [profile]);
 
   const handleSave = () => {
     updateIntegrations.mutate({
-      data: {
-        greenApiInstanceId: form.greenApiInstanceId || null,
-        greenApiToken: form.greenApiToken || null,
-      }
+      data: { notificationEnabled, notificationMessage: notificationMessage || null }
     }, {
-      onSuccess: () => { toast({ title: "הגדרות הודעות נשמרו" }); queryClient.invalidateQueries({ queryKey: getGetBusinessProfileQueryKey() }); },
+      onSuccess: () => {
+        toast({ title: "הגדרות הודעות נשמרו" });
+        queryClient.invalidateQueries({ queryKey: getGetBusinessProfileQueryKey() });
+      },
     });
   };
-
-  const isConnected = !!(form.greenApiInstanceId && form.greenApiToken);
 
   return (
     <div className="space-y-6 max-w-2xl">
 
       {/* Status */}
-      <div className={`flex items-center gap-3 p-4 rounded-xl border ${isConnected ? "bg-green-50 border-green-200" : "bg-muted/30 border-border"}`}>
-        <div className={`w-3 h-3 rounded-full shrink-0 ${isConnected ? "bg-green-500" : "bg-muted-foreground/40"}`} />
+      <div className="flex items-center gap-3 p-4 rounded-xl border bg-green-50 border-green-200">
+        <div className="w-3 h-3 rounded-full shrink-0 bg-green-500" />
         <div>
-          <div className={`font-semibold text-sm ${isConnected ? "text-green-800" : "text-muted-foreground"}`}>
-            {isConnected ? "WhatsApp מחובר — הודעות יוצאות מהמספר שלך" : "WhatsApp לא מחובר — הודעות לא יישלחו"}
-          </div>
-          {isConnected && (
-            <div className="text-xs text-green-600 mt-0.5">לקוחות מקבלים קוד אימות ואתה מקבל התראה על כל תור</div>
-          )}
+          <div className="font-semibold text-sm text-green-800">WhatsApp פעיל — מופעל על ידי קבעתי</div>
+          <div className="text-xs text-green-600 mt-0.5">הודעות נשלחות אוטומטית ללקוחות ואליך מהמספר הרשמי של קבעתי</div>
         </div>
       </div>
 
-      {/* Guide */}
+      {/* What's sent */}
       <Card>
         <CardHeader>
-          <CardTitle>מדריך חיבור WhatsApp</CardTitle>
-          <CardDescription>תהליך חד-פעמי של כ-3 דקות</CardDescription>
+          <CardTitle>מה נשלח אוטומטית?</CardTitle>
+          <CardDescription>קבעתי שולח הודעות WhatsApp בשמך ללא כל הגדרה</CardDescription>
         </CardHeader>
-        <CardContent className="space-y-4">
+        <CardContent>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-            <div className="rounded-xl border bg-muted/20 p-4 space-y-2 text-center">
-              <div className="w-9 h-9 rounded-full bg-green-100 text-green-700 font-bold flex items-center justify-center mx-auto text-base">1</div>
-              <div className="font-semibold text-sm">הירשם לשירות</div>
-              <p className="text-xs text-muted-foreground">
-                כנס לאתר{" "}
-                <a href="https://green-api.com" target="_blank" rel="noopener noreferrer" className="text-green-700 underline font-medium" dir="ltr">green-api.com</a>
-                {" "}והירשם בחינם
-              </p>
-            </div>
-            <div className="rounded-xl border bg-muted/20 p-4 space-y-2 text-center">
-              <div className="w-9 h-9 rounded-full bg-green-100 text-green-700 font-bold flex items-center justify-center mx-auto text-base">2</div>
-              <div className="font-semibold text-sm">צור מכשיר וסרוק</div>
-              <p className="text-xs text-muted-foreground">
-                לחץ "צור מכשיר חדש", ואז עבור להגדרות וסרוק את קוד ה-QR עם WhatsApp בטלפון שלך
-              </p>
-            </div>
-            <div className="rounded-xl border bg-muted/20 p-4 space-y-2 text-center">
-              <div className="w-9 h-9 rounded-full bg-green-100 text-green-700 font-bold flex items-center justify-center mx-auto text-base">3</div>
-              <div className="font-semibold text-sm">העתק את הפרטים</div>
-              <p className="text-xs text-muted-foreground">
-                העתק את מספר המכשיר ואת מפתח ה-API מדף המכשיר שלך
-              </p>
-            </div>
-          </div>
-          <div className="text-xs text-muted-foreground bg-muted/30 rounded-lg p-3">
-            מנוי חינמי: עד 100 הודעות ביום — מספיק לרוב העסקים הקטנים
+            {[
+              { num: "1", title: "התראה עליך", desc: "כשלקוח קובע תור — מקבלת הודעה לנייד שלך עם כל הפרטים", color: "bg-blue-100 text-blue-700" },
+              { num: "2", title: "תזכורת 24 שעות", desc: "הלקוח מקבל תזכורת יום לפני התור שלו", color: "bg-purple-100 text-purple-700" },
+              { num: "3", title: "תזכורת שעה", desc: "הלקוח מקבל תזכורת שעה לפני התור", color: "bg-green-100 text-green-700" },
+            ].map(item => (
+              <div key={item.num} className="rounded-xl border bg-muted/20 p-4 space-y-2 text-center">
+                <div className={`w-9 h-9 rounded-full font-bold flex items-center justify-center mx-auto text-base ${item.color}`}>{item.num}</div>
+                <div className="font-semibold text-sm">{item.title}</div>
+                <p className="text-xs text-muted-foreground">{item.desc}</p>
+              </div>
+            ))}
           </div>
         </CardContent>
       </Card>
 
-      {/* Credentials */}
+      {/* Toggle */}
       <Card>
         <CardHeader>
-          <CardTitle>פרטי החיבור</CardTitle>
-          <CardDescription>מוצגים בדף המכשיר שלך באתר green-api.com</CardDescription>
+          <CardTitle>הגדרות התראות</CardTitle>
         </CardHeader>
-        <CardContent className="space-y-4">
+        <CardContent className="space-y-5">
+          <div className="flex items-center justify-between">
+            <div>
+              <div className="font-medium text-sm">קבל התראה על כל תור חדש</div>
+              <div className="text-xs text-muted-foreground">הודעת WhatsApp תישלח לנייד שלך ({profile?.phone})</div>
+            </div>
+            <Switch checked={notificationEnabled} onCheckedChange={setNotificationEnabled} />
+          </div>
+          <Separator />
           <div className="space-y-2">
-            <Label>מספר מכשיר</Label>
+            <Label>הודעה מותאמת אישית ללקוחות (אופציונלי)</Label>
+            <p className="text-xs text-muted-foreground">תוסף להתראות שנשלחות ללקוחות</p>
             <Input
-              placeholder="7107584668"
-              value={form.greenApiInstanceId}
-              onChange={e => setForm(p => ({ ...p, greenApiInstanceId: e.target.value }))}
-              dir="ltr"
-              className="font-mono"
+              placeholder="לביטול תור נא לפנות 24 שעות מראש"
+              value={notificationMessage}
+              onChange={e => setNotificationMessage(e.target.value)}
             />
           </div>
-          <div className="space-y-2">
-            <Label>מפתח API</Label>
-            <Input
-              type="password"
-              placeholder="553b2c2530af4dec..."
-              value={form.greenApiToken}
-              onChange={e => setForm(p => ({ ...p, greenApiToken: e.target.value }))}
-              dir="ltr"
-              className="font-mono"
-            />
-          </div>
-          <Button onClick={handleSave} disabled={updateIntegrations.isPending} className="w-full" size="lg">
-            {updateIntegrations.isPending ? "שומר..." : "שמור"}
+          <Button onClick={handleSave} disabled={updateIntegrations.isPending} size="lg" className="w-full">
+            {updateIntegrations.isPending ? "שומר..." : "שמור הגדרות"}
           </Button>
         </CardContent>
       </Card>
