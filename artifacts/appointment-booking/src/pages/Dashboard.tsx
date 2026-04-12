@@ -1318,25 +1318,12 @@ function BrandingTab() {
 
           <Separator />
 
-          <div className="space-y-3">
-            <h3 className="font-semibold text-base border-b pb-2">הודעת פתיחה (אופציונלי)</h3>
-            <p className="text-sm text-muted-foreground">תוצג ללקוח בראש עמוד ההזמנות</p>
-            <textarea
-              value={form.welcomeText}
-              onChange={e => setForm(p => ({ ...p, welcomeText: e.target.value }))}
-              placeholder="ברוכים הבאים! אנחנו שמחים לראות אתכם. ניתן לבטל עד 24 שעות לפני התור."
-              rows={3}
-              className="w-full border rounded-xl p-3 text-sm bg-background resize-none outline-none focus:ring-2 focus:ring-primary/30"
-            />
-          </div>
-
-          <Separator />
-
           <div className="space-y-4">
             <h3 className="font-semibold text-base border-b pb-2">לוגו ובאנר</h3>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
               <div className="space-y-3">
                 <Label>לוגו העסק</Label>
+                <p className="text-xs text-muted-foreground">מומלץ: 400×400px • PNG/JPG • עד 2MB</p>
                 {form.logoUrl && (
                   <div className="relative">
                     <img src={form.logoUrl} alt="לוגו" className="w-24 h-24 rounded-xl object-cover border" />
@@ -1351,6 +1338,7 @@ function BrandingTab() {
               </div>
               <div className="space-y-3">
                 <Label>תמונת רקע (באנר)</Label>
+                <p className="text-xs text-muted-foreground">מומלץ: 1200×400px • PNG/JPG • עד 5MB</p>
                 {form.bannerUrl && (
                   <div className="relative">
                     <img src={form.bannerUrl} alt="באנר" className="w-full h-24 rounded-xl object-cover border" />

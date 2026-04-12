@@ -45,6 +45,9 @@ router.get("/public/:businessSlug", async (req, res): Promise<void> => {
     logoUrl: business.logoUrl ?? null,
     bannerUrl: business.bannerUrl ?? null,
     themeMode: business.themeMode ?? null,
+    backgroundColor: business.backgroundColor ?? null,
+    borderRadius: business.borderRadius ?? null,
+    welcomeText: business.welcomeText ?? null,
     stripeEnabled: business.stripeEnabled,
     depositAmountAgorot: null,
   });

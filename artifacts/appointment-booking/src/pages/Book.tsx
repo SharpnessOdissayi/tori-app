@@ -54,9 +54,9 @@ export default function Book() {
 
   const primaryColor = business?.primaryColor ?? "#2563eb";
   const fontFamily = business?.fontFamily ?? "Heebo";
-  const backgroundColor = (business as any)?.backgroundColor ?? "#f8fafc";
+  const backgroundColor = (business as any)?.backgroundColor ?? null;
   const borderRadius = (business as any)?.borderRadius ?? "medium";
-  const welcomeText = (business as any)?.welcomeText ?? "";
+  const themeMode = business?.themeMode ?? "light";
   const requireApproval = (business as any)?.requireAppointmentApproval ?? false;
 
   const cardRadius = borderRadius === "sharp" ? "8px" : borderRadius === "rounded" ? "24px" : "16px";
@@ -64,6 +64,15 @@ export default function Book() {
   useEffect(() => {
     if (!business) return;
     const root = document.documentElement;
+
+    // Apply theme mode
+    if (themeMode === "dark") {
+      root.classList.add("dark");
+    } else {
+      root.classList.remove("dark");
+    }
+
+    // Apply primary color
     if (business.primaryColor) {
       const hex = business.primaryColor.replace("#", "");
       const r = parseInt(hex.substr(0, 2), 16);
@@ -73,6 +82,7 @@ export default function Book() {
       root.style.setProperty("--primary-g", String(g));
       root.style.setProperty("--primary-b", String(b));
     }
+
     // Load Google Font dynamically
     if (fontFamily && fontFamily !== "inherit") {
       const id = `gfont-${fontFamily.replace(/\s+/g, "-")}`;
@@ -84,7 +94,9 @@ export default function Book() {
         document.head.appendChild(link);
       }
     }
-  }, [business, fontFamily]);
+
+    return () => { root.classList.remove("dark"); };
+  }, [business, fontFamily, themeMode]);
 
   if (businessLoading) return (
     <div className="min-h-screen flex items-center justify-center">
