@@ -8,14 +8,7 @@ import Navbar from "@/components/Navbar";
 export default function Home() {
   return (
     <div className="min-h-[100dvh] flex flex-col bg-background" dir="rtl">
-      <Navbar>
-        <Link href="/dashboard">
-          <Button variant="ghost" size="sm" className="text-sm">כניסה לבעלי עסקים</Button>
-        </Link>
-        <Link href="/super-admin">
-          <Button variant="outline" size="sm" className="text-sm">ניהול</Button>
-        </Link>
-      </Navbar>
+      <Navbar />
 
       <main className="flex-1 flex flex-col items-center justify-center px-6 py-16 max-w-3xl mx-auto w-full text-center">
         <motion.div
