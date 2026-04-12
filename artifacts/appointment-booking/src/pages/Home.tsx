@@ -80,14 +80,17 @@ export default function Home() {
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ duration: 0.6, delay: 0.6 }}
-          className="mt-16 p-6 bg-muted/50 rounded-2xl border border-dashed w-full max-w-md"
+          className="mt-16 w-full max-w-md"
         >
-          <p className="text-muted-foreground text-sm mb-3">דוגמה לעסק: <strong className="text-foreground">Lilash — הלחמת ריסים באשדוד</strong></p>
+          <p className="text-muted-foreground text-xs mb-2 text-center">דוגמה חיה</p>
           <Link href="/book/lilash">
-            <Button variant="link" className="text-primary font-semibold gap-1 p-0 h-auto">
-              כנס לדף ההזמנה
-              <ArrowLeft className="w-4 h-4" />
-            </Button>
+            <div className="flex items-center gap-0 rounded-2xl border bg-card shadow-sm hover:shadow-md transition-shadow overflow-hidden cursor-pointer group">
+              <span className="px-4 py-3 text-sm text-muted-foreground bg-muted border-l shrink-0">kavati.net/book/</span>
+              <span className="flex-1 px-4 py-3 text-sm font-medium text-foreground group-hover:text-primary transition-colors">Lilash</span>
+              <span className="px-3 py-3 text-muted-foreground group-hover:text-primary transition-colors">
+                <ArrowLeft className="w-4 h-4" />
+              </span>
+            </div>
           </Link>
         </motion.div>
       </main>
