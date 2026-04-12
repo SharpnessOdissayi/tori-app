@@ -175,6 +175,9 @@ importers:
       '@workspace/db':
         specifier: workspace:*
         version: link:../../lib/db
+      axios:
+        specifier: ^1.7.9
+        version: 1.15.0
       bcryptjs:
         specifier: ^3.0.3
         version: 3.0.3

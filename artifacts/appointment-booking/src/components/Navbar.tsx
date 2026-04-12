@@ -6,7 +6,7 @@ export default function Navbar({ children }: { children?: ReactNode }) {
     <header className="px-6 py-4 flex items-center justify-between bg-card border-b sticky top-0 z-50" dir="rtl">
       <Link href="/">
         <div className="flex items-center gap-2 cursor-pointer select-none">
-          <img src="/logo.png" alt="קבעתי" className="h-10 w-10 rounded-xl object-cover" />
+          <img src="/logo.png" alt="קבעתי" className="h-12 w-12 rounded-xl object-contain bg-black" />
           <span className="text-primary font-bold text-2xl">קבעתי</span>
         </div>
       </Link>
