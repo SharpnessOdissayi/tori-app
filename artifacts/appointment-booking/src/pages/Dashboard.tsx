@@ -1180,7 +1180,7 @@ function BrandingTab() {
     fontFamily: "Heebo",
     logoUrl: "",
     bannerUrl: "",
-    themeMode: "light" as "light" | "dark",
+    themeMode: "light" as "light" | "dark" | "fuchsia",
     borderRadius: "medium" as "sharp" | "medium" | "rounded",
     buttonRadius: "medium" as "sharp" | "medium" | "rounded",
     welcomeText: "",
@@ -1193,7 +1193,7 @@ function BrandingTab() {
         fontFamily: profile.fontFamily ?? "Heebo",
         logoUrl: profile.logoUrl ?? "",
         bannerUrl: profile.bannerUrl ?? "",
-        themeMode: (profile.themeMode ?? "light") as "light" | "dark",
+        themeMode: (profile.themeMode ?? "light") as "light" | "dark" | "fuchsia",
         borderRadius: ((profile as any).borderRadius ?? "medium") as "sharp" | "medium" | "rounded",
         buttonRadius: ((profile as any).buttonRadius ?? "medium") as "sharp" | "medium" | "rounded",
         welcomeText: (profile as any).welcomeText ?? "",
@@ -1289,48 +1289,57 @@ function BrandingTab() {
 
           <div className="space-y-4">
             <h3 className="font-semibold text-base border-b pb-2">מצב תצוגה</h3>
-            <div className="grid grid-cols-2 gap-4">
-              {/* Light mode card */}
-              <button
-                onClick={() => setForm(p => ({ ...p, themeMode: "light" }))}
-                className={`relative rounded-2xl overflow-hidden border-2 transition-all text-right ${form.themeMode === "light" ? "border-primary shadow-lg scale-[1.02]" : "border-border hover:border-muted-foreground"}`}
-              >
-                {/* Preview */}
-                <div className="bg-white p-4 space-y-2">
-                  <div className="h-2.5 w-20 bg-gray-800 rounded-full" />
-                  <div className="h-2 w-32 bg-gray-300 rounded-full" />
-                  <div className="h-8 w-full bg-blue-500 rounded-xl mt-3" />
-                  <div className="grid grid-cols-2 gap-1.5 mt-1">
-                    <div className="h-10 bg-gray-100 rounded-xl border border-gray-200" />
-                    <div className="h-10 bg-gray-100 rounded-xl border border-gray-200" />
+            <div className="grid grid-cols-3 gap-3">
+              {/* Light */}
+              <button onClick={() => setForm(p => ({ ...p, themeMode: "light" }))}
+                className={`relative rounded-2xl overflow-hidden border-2 transition-all text-right ${form.themeMode === "light" ? "border-primary shadow-lg scale-[1.02]" : "border-border hover:border-muted-foreground"}`}>
+                <div className="bg-white p-3 space-y-1.5">
+                  <div className="h-2 w-14 bg-gray-800 rounded-full" />
+                  <div className="h-1.5 w-20 bg-gray-300 rounded-full" />
+                  <div className="h-6 w-full bg-blue-500 rounded-lg mt-2" />
+                  <div className="grid grid-cols-2 gap-1 mt-1">
+                    <div className="h-8 bg-gray-100 rounded-lg border border-gray-200" />
+                    <div className="h-8 bg-gray-100 rounded-lg border border-gray-200" />
                   </div>
                 </div>
-                {/* Label */}
-                <div className={`py-2.5 text-center text-sm font-bold flex items-center justify-center gap-1.5 ${form.themeMode === "light" ? "bg-primary text-white" : "bg-muted text-foreground"}`}>
-                  ☀️ בהיר
-                  {form.themeMode === "light" && <Check className="w-4 h-4" />}
+                <div className={`py-2 text-center text-xs font-bold flex items-center justify-center gap-1 ${form.themeMode === "light" ? "bg-primary text-white" : "bg-muted text-foreground"}`}>
+                  ☀️ בהיר {form.themeMode === "light" && <Check className="w-3 h-3" />}
                 </div>
               </button>
 
-              {/* Dark mode card */}
-              <button
-                onClick={() => setForm(p => ({ ...p, themeMode: "dark" }))}
-                className={`relative rounded-2xl overflow-hidden border-2 transition-all text-right ${form.themeMode === "dark" ? "border-primary shadow-lg scale-[1.02]" : "border-border hover:border-muted-foreground"}`}
-              >
-                {/* Preview */}
-                <div className="p-4 space-y-2" style={{ background: "#0f172a" }}>
-                  <div className="h-2.5 w-20 rounded-full" style={{ background: "#f8fafc" }} />
-                  <div className="h-2 w-32 rounded-full" style={{ background: "#334155" }} />
-                  <div className="h-8 w-full rounded-xl mt-3" style={{ background: "#6d28d9" }} />
-                  <div className="grid grid-cols-2 gap-1.5 mt-1">
-                    <div className="h-10 rounded-xl border" style={{ background: "#1e293b", borderColor: "#334155" }} />
-                    <div className="h-10 rounded-xl border" style={{ background: "#1e293b", borderColor: "#334155" }} />
+              {/* Dark */}
+              <button onClick={() => setForm(p => ({ ...p, themeMode: "dark" }))}
+                className={`relative rounded-2xl overflow-hidden border-2 transition-all text-right ${form.themeMode === "dark" ? "border-primary shadow-lg scale-[1.02]" : "border-border hover:border-muted-foreground"}`}>
+                <div className="p-3 space-y-1.5" style={{ background: "#0f172a" }}>
+                  <div className="h-2 w-14 rounded-full" style={{ background: "#f8fafc" }} />
+                  <div className="h-1.5 w-20 rounded-full" style={{ background: "#334155" }} />
+                  <div className="h-6 w-full rounded-lg mt-2" style={{ background: "#6d28d9" }} />
+                  <div className="grid grid-cols-2 gap-1 mt-1">
+                    <div className="h-8 rounded-lg border" style={{ background: "#1e293b", borderColor: "#334155" }} />
+                    <div className="h-8 rounded-lg border" style={{ background: "#1e293b", borderColor: "#334155" }} />
                   </div>
                 </div>
-                {/* Label */}
-                <div className={`py-2.5 text-center text-sm font-bold flex items-center justify-center gap-1.5 ${form.themeMode === "dark" ? "bg-primary text-white" : "bg-muted text-foreground"}`}>
-                  🌙 כהה
-                  {form.themeMode === "dark" && <Check className="w-4 h-4" />}
+                <div className={`py-2 text-center text-xs font-bold flex items-center justify-center gap-1 ${form.themeMode === "dark" ? "bg-primary text-white" : "bg-muted text-foreground"}`}>
+                  🌙 כהה {form.themeMode === "dark" && <Check className="w-3 h-3" />}
+                </div>
+              </button>
+
+              {/* Fuchsia */}
+              <button onClick={() => setForm(p => ({ ...p, themeMode: "fuchsia" }))}
+                className={`relative rounded-2xl overflow-hidden border-2 transition-all text-right ${form.themeMode === "fuchsia" ? "shadow-lg scale-[1.02]" : "border-border hover:border-fuchsia-400"}`}
+                style={{ borderColor: form.themeMode === "fuchsia" ? "#d946ef" : undefined }}>
+                <div className="p-3 space-y-1.5" style={{ background: "#0a0a0a" }}>
+                  <div className="h-2 w-14 rounded-full" style={{ background: "#f0abfc" }} />
+                  <div className="h-1.5 w-20 rounded-full" style={{ background: "#3f0049" }} />
+                  <div className="h-6 w-full rounded-lg mt-2" style={{ background: "linear-gradient(135deg,#d946ef,#a21caf)" }} />
+                  <div className="grid grid-cols-2 gap-1 mt-1">
+                    <div className="h-8 rounded-lg border" style={{ background: "#1a0020", borderColor: "#7e22ce" }} />
+                    <div className="h-8 rounded-lg border" style={{ background: "#1a0020", borderColor: "#7e22ce" }} />
+                  </div>
+                </div>
+                <div className="py-2 text-center text-xs font-bold flex items-center justify-center gap-1"
+                  style={{ background: form.themeMode === "fuchsia" ? "#d946ef" : "#1a0020", color: "#fff" }}>
+                  💜 פוקסיה {form.themeMode === "fuchsia" && <Check className="w-3 h-3" />}
                 </div>
               </button>
             </div>
@@ -1341,18 +1350,32 @@ function BrandingTab() {
           <div className="space-y-4">
             <h3 className="font-semibold text-base border-b pb-2">סגנון פינות כרטיסים</h3>
             <p className="text-xs text-muted-foreground">משפיע על כרטיסים ומיכלים בעמוד ההזמנות</p>
-            <div className="flex gap-3">
+            <div className="flex gap-3 mb-3">
               {([
-                { value: "sharp", label: "ישר", icon: "⬜" },
-                { value: "medium", label: "מעוגל", icon: "▢" },
-                { value: "rounded", label: "עגול מאוד", icon: "◯" },
+                { value: "sharp", label: "ישר" },
+                { value: "medium", label: "מעוגל" },
+                { value: "rounded", label: "עגול מאוד" },
               ] as const).map(s => (
                 <button key={s.value} onClick={() => setForm(p => ({ ...p, borderRadius: s.value }))}
-                  className={`flex-1 py-3 border-2 text-sm font-medium transition-all flex flex-col items-center gap-1 ${form.borderRadius === s.value ? "border-primary bg-primary/5 text-primary" : "border-border"}`}
+                  className={`flex-1 py-3 border-2 text-sm font-medium transition-all ${form.borderRadius === s.value ? "border-primary bg-primary/5 text-primary" : "border-border"}`}
                   style={{ borderRadius: s.value === "sharp" ? "4px" : s.value === "medium" ? "12px" : "999px" }}>
-                  <span className="text-lg">{s.icon}</span>
                   {s.label}
                 </button>
+              ))}
+            </div>
+            {/* Live card preview */}
+            <div className="p-4 rounded-xl border bg-muted/30 flex gap-3 justify-center">
+              {[1, 2].map(i => (
+                <div key={i} className="border-2 p-3 w-28 space-y-1.5 transition-all"
+                  style={{
+                    borderColor: form.primaryColor + "60",
+                    borderRadius: form.borderRadius === "sharp" ? "4px" : form.borderRadius === "rounded" ? "24px" : "14px",
+                    background: form.primaryColor + "08",
+                  }}>
+                  <div className="h-2 w-12 rounded-full" style={{ background: form.primaryColor + "40" }} />
+                  <div className="h-2 w-16 rounded-full bg-muted" />
+                  <div className="h-5 w-full rounded-md mt-1" style={{ background: form.primaryColor + "30" }} />
+                </div>
               ))}
             </div>
           </div>
@@ -1573,12 +1596,16 @@ function SettingsTab() {
     sendReminders: true,
     requireArrivalConfirmation: true,
     sendWhatsAppReminders: true,
-    reminderDaysBefore: "1",
     reminderTimeFriday: "15:00",
     reminderTimeSaturday: "20:00",
     reminderTimeOtherDays: "20:00",
     reminderCustomText: "",
   });
+
+  // Reminder triggers (up to 3)
+  const [reminderTriggers, setReminderTriggers] = useState<Array<{ amount: string; unit: string }>>([
+    { amount: "24", unit: "hours" }
+  ]);
 
   // Password change state
   const [pwForm, setPwForm] = useState({ currentPassword: "", newPassword: "", confirmPassword: "" });
@@ -1606,12 +1633,16 @@ function SettingsTab() {
       sendReminders: (profile as any).sendReminders ?? true,
       requireArrivalConfirmation: (profile as any).requireArrivalConfirmation ?? true,
       sendWhatsAppReminders: (profile as any).sendWhatsAppReminders ?? true,
-      reminderDaysBefore: ((profile as any).reminderDaysBefore ?? 1).toString(),
       reminderTimeFriday: (profile as any).reminderTimeFriday ?? "15:00",
       reminderTimeSaturday: (profile as any).reminderTimeSaturday ?? "20:00",
       reminderTimeOtherDays: (profile as any).reminderTimeOtherDays ?? "20:00",
       reminderCustomText: (profile as any).reminderCustomText ?? "",
     });
+    // Load reminder triggers
+    const saved = (profile as any).reminderTriggers;
+    if (saved) {
+      try { setReminderTriggers(JSON.parse(saved)); } catch {}
+    }
   }, [profile]);
 
   const handleSave = (e: React.FormEvent) => {
@@ -1637,7 +1668,7 @@ function SettingsTab() {
         sendReminders: form.sendReminders,
         requireArrivalConfirmation: form.requireArrivalConfirmation,
         sendWhatsAppReminders: form.sendWhatsAppReminders,
-        reminderDaysBefore: parseInt(form.reminderDaysBefore) || 1,
+        reminderTriggers: JSON.stringify(reminderTriggers),
         reminderTimeFriday: form.reminderTimeFriday,
         reminderTimeSaturday: form.reminderTimeSaturday,
         reminderTimeOtherDays: form.reminderTimeOtherDays,
@@ -1919,29 +1950,85 @@ function SettingsTab() {
             </div>
           </div>
 
-          {/* Reminder timing */}
+          {/* Reminder triggers */}
           {form.sendReminders && (
             <div className="p-4 border rounded-xl bg-muted/20 space-y-4">
-              <div className="font-medium text-sm border-b pb-2">שעות שליחת התזכורות</div>
-
-              <div className="space-y-2">
-                <Label className="text-sm">מועד שליחת התזכורות</Label>
-                <div className="flex items-center gap-3">
-                  <select
-                    value={form.reminderDaysBefore}
-                    onChange={e => setForm(p => ({ ...p, reminderDaysBefore: e.target.value }))}
-                    className="rounded-lg border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-                  >
-                    <option value="1">יום לפני</option>
-                    <option value="2">יומיים לפני</option>
-                    <option value="3">3 ימים לפני</option>
-                    <option value="7">שבוע לפני</option>
-                  </select>
-                </div>
+              <div className="flex items-center justify-between border-b pb-2">
+                <span className="font-medium text-sm">מתי לשלוח התראות?</span>
+                <span className="text-xs text-muted-foreground">{reminderTriggers.length} / 3 התראות</span>
               </div>
 
               <div className="space-y-3">
-                <Label className="text-sm">שעות קבלת התזכורות</Label>
+                {reminderTriggers.map((trigger, idx) => (
+                  <div key={idx} className="flex items-center gap-2 p-3 border rounded-xl bg-background">
+                    <span className="text-xs font-bold text-muted-foreground w-5 text-center">{idx + 1}</span>
+
+                    {trigger.unit === "morning" ? (
+                      <div className="flex-1 text-sm font-medium text-primary">🌅 בבוקר של יום התור</div>
+                    ) : (
+                      <>
+                        <select
+                          value={trigger.amount}
+                          onChange={e => setReminderTriggers(prev => prev.map((t, i) => i === idx ? { ...t, amount: e.target.value } : t))}
+                          className="rounded-lg border bg-background px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary w-20"
+                        >
+                          {trigger.unit === "minutes" && [5,10,15,20,30,45,60].map(n => <option key={n} value={n}>{n}</option>)}
+                          {trigger.unit === "hours"   && [1,2,3,4,6,8,12,24,48,72].map(n => <option key={n} value={n}>{n}</option>)}
+                          {trigger.unit === "days"    && [1,2,3,7,14].map(n => <option key={n} value={n}>{n}</option>)}
+                        </select>
+                        <select
+                          value={trigger.unit}
+                          onChange={e => {
+                            const unit = e.target.value;
+                            const defaultAmount = unit === "minutes" ? "30" : unit === "hours" ? "24" : "1";
+                            setReminderTriggers(prev => prev.map((t, i) => i === idx ? { ...t, unit, amount: defaultAmount } : t));
+                          }}
+                          className="rounded-lg border bg-background px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary flex-1"
+                        >
+                          <option value="minutes">דקות לפני</option>
+                          <option value="hours">שעות לפני</option>
+                          <option value="days">ימים לפני</option>
+                        </select>
+                      </>
+                    )}
+
+                    {/* Change to morning toggle */}
+                    <button
+                      type="button"
+                      title={trigger.unit === "morning" ? "החלף לזמן מדויק" : "שלח בבוקר של היום"}
+                      onClick={() => setReminderTriggers(prev => prev.map((t, i) => i === idx
+                        ? (t.unit === "morning" ? { amount: "24", unit: "hours" } : { amount: "0", unit: "morning" })
+                        : t))}
+                      className="text-lg hover:scale-110 transition-transform"
+                    >
+                      {trigger.unit === "morning" ? "🕐" : "🌅"}
+                    </button>
+
+                    {reminderTriggers.length > 1 && (
+                      <button
+                        type="button"
+                        onClick={() => setReminderTriggers(prev => prev.filter((_, i) => i !== idx))}
+                        className="text-muted-foreground hover:text-destructive transition-colors text-lg"
+                      >
+                        ✕
+                      </button>
+                    )}
+                  </div>
+                ))}
+
+                {reminderTriggers.length < 3 && (
+                  <button
+                    type="button"
+                    onClick={() => setReminderTriggers(prev => [...prev, { amount: "1", unit: "hours" }])}
+                    className="w-full py-2.5 border-2 border-dashed border-border rounded-xl text-sm text-muted-foreground hover:border-primary hover:text-primary transition-all"
+                  >
+                    + הוסף התראה נוספת
+                  </button>
+                )}
+              </div>
+
+              <div className="space-y-3 pt-2 border-t">
+                <Label className="text-sm">שעות שליחה מותרות</Label>
                 <div className="grid grid-cols-1 gap-3">
                   <div className="flex items-center justify-between">
                     <span className="text-sm text-muted-foreground">בימי שישי</span>
