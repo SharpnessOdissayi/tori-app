@@ -281,9 +281,9 @@ router.post("/auth/business/request-email-change", requireBusinessAuth, async (r
       res.status(400).json({ error: "no_phone", message: "לא נמצא מספר טלפון מחובר לחשבון" });
       return;
     }
-    const { sendTemplate } = await import("../lib/whatsapp");
-    // verify_otp_usecase: "קוד OTP: {{1}}. זהו קוד OTP שלך עבור {{2}}. למען ביטחונכם, אל תשתפו את הקוד הזה."
-    await sendTemplate(business.phone, "verify_otp_usecase", [code, "שינוי אימייל בקבעתי"]);
+    const { sendAuthTemplate } = await import("../lib/whatsapp");
+    // verify_otp_usecase: AUTHENTICATION template — body {{1}}=code, {{2}}=use-case + copy-code button
+    await sendAuthTemplate(business.phone, "verify_otp_usecase", [code, "שינוי אימייל בקבעתי"], code);
   }
 
   res.json({ success: true });

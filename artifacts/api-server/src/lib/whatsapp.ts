@@ -71,6 +71,36 @@ export async function sendTemplate(
   });
 }
 
+// Send an AUTHENTICATION template (requires code in both body and copy-code button)
+export async function sendAuthTemplate(
+  phone: string,
+  templateName: string,
+  bodyParams: string[],
+  copyCode: string
+): Promise<void> {
+  await callMetaAPI({
+    messaging_product: "whatsapp",
+    to: toE164(phone),
+    type: "template",
+    template: {
+      name: templateName,
+      language: { code: "he" },
+      components: [
+        {
+          type: "body",
+          parameters: bodyParams.map((text) => ({ type: "text", text })),
+        },
+        {
+          type: "button",
+          sub_type: "url",
+          index: "0",
+          parameters: [{ type: "text", text: copyCode }],
+        },
+      ],
+    },
+  });
+}
+
 // Send a free-form text message (only within 24h customer-initiated window)
 export async function sendWhatsApp(phone: string, message: string): Promise<void> {
   await callMetaAPI({
@@ -88,8 +118,8 @@ export async function sendOtp(phone: string): Promise<void> {
   const code = String(Math.floor(100000 + Math.random() * 900000));
   otpStore.set(phone, { code, expiresAt: Date.now() + 5 * 60 * 1000 });
 
-  // Pre-approved template: verify_code_1 — "{{1}} הוא קוד האימות שלך."
-  await sendTemplate(phone, "verify_code_1", [code]);
+  // Authentication template: verify_code_1 — body + copy-code button both receive the OTP code
+  await sendAuthTemplate(phone, "verify_code_1", [code], code);
 }
 
 export async function verifyOtp(phone: string, code: string): Promise<boolean> {
