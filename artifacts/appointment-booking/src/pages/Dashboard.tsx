@@ -2243,6 +2243,11 @@ function SettingsTab() {
   const [pwLoading, setPwLoading] = useState(false);
   const [showPw, setShowPw] = useState(false);
 
+  // Email change state
+  const [emailStep, setEmailStep] = useState<"idle" | "sent">("idle");
+  const [emailForm, setEmailForm] = useState({ newEmail: "", via: "email" as "email" | "phone", code: "" });
+  const [emailLoading, setEmailLoading] = useState(false);
+
   useEffect(() => {
     if (profile) setForm({
       name: profile.name,
@@ -2309,6 +2314,58 @@ function SettingsTab() {
         queryClient.invalidateQueries({ queryKey: getGetBusinessProfileQueryKey() });
       },
     });
+  };
+
+  const handleRequestEmailChange = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!emailForm.newEmail) { toast({ title: "הכנס אימייל חדש", variant: "destructive" }); return; }
+    setEmailLoading(true);
+    try {
+      const token = localStorage.getItem("biz_token") || sessionStorage.getItem("biz_token");
+      const res = await fetch(`${API_BASE_DASH}/auth/business/request-email-change`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ newEmail: emailForm.newEmail, via: emailForm.via }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        toast({ title: "שגיאה", description: data.message ?? "לא ניתן לשלוח קוד", variant: "destructive" });
+      } else {
+        setEmailStep("sent");
+        toast({ title: emailForm.via === "email" ? "קוד נשלח לאימייל החדש" : "קוד נשלח לווצאפ שלך" });
+      }
+    } catch {
+      toast({ title: "שגיאת רשת", variant: "destructive" });
+    } finally {
+      setEmailLoading(false);
+    }
+  };
+
+  const handleConfirmEmailChange = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!emailForm.code) { toast({ title: "הכנס את הקוד", variant: "destructive" }); return; }
+    setEmailLoading(true);
+    try {
+      const token = localStorage.getItem("biz_token") || sessionStorage.getItem("biz_token");
+      const res = await fetch(`${API_BASE_DASH}/auth/business/confirm-email-change`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ code: emailForm.code }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        toast({ title: "שגיאה", description: data.message ?? "קוד שגוי או פג תוקף", variant: "destructive" });
+      } else {
+        toast({ title: "האימייל עודכן בהצלחה!" });
+        setEmailStep("idle");
+        setEmailForm({ newEmail: "", via: "email", code: "" });
+        queryClient.invalidateQueries({ queryKey: getGetBusinessProfileQueryKey() });
+      }
+    } catch {
+      toast({ title: "שגיאת רשת", variant: "destructive" });
+    } finally {
+      setEmailLoading(false);
+    }
   };
 
   const handlePasswordChange = async (e: React.FormEvent) => {
@@ -2699,6 +2756,89 @@ function SettingsTab() {
           <div className="flex justify-end pt-2">
             <Button onClick={handleSave} disabled={updateMutation.isPending} size="lg">שמירה</Button>
           </div>
+        </CardContent>
+      </Card>
+
+      {/* Email change card */}
+      <Card>
+        <CardHeader>
+          <CardTitle>שינוי אימייל</CardTitle>
+          <CardDescription>
+            אימייל נוכחי: <span className="font-medium text-foreground" dir="ltr">{(profile as any)?.email ?? "—"}</span>
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {emailStep === "idle" ? (
+            <form onSubmit={handleRequestEmailChange} className="space-y-4">
+              <div className="space-y-2">
+                <Label>אימייל חדש</Label>
+                <Input
+                  type="email"
+                  dir="ltr"
+                  placeholder="new@example.com"
+                  required
+                  value={emailForm.newEmail}
+                  onChange={e => setEmailForm(p => ({ ...p, newEmail: e.target.value }))}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>שלח קוד אימות אל</Label>
+                <div className="flex gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setEmailForm(p => ({ ...p, via: "email" }))}
+                    className={`flex-1 flex items-center justify-center gap-2 p-3 rounded-xl border-2 text-sm font-medium transition-all ${emailForm.via === "email" ? "border-primary bg-primary/5 text-primary" : "border-border hover:border-muted-foreground"}`}
+                  >
+                    ✉️ האימייל החדש
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setEmailForm(p => ({ ...p, via: "phone" }))}
+                    className={`flex-1 flex items-center justify-center gap-2 p-3 rounded-xl border-2 text-sm font-medium transition-all ${emailForm.via === "phone" ? "border-primary bg-primary/5 text-primary" : "border-border hover:border-muted-foreground"}`}
+                  >
+                    📱 ווצאפ שלי
+                  </button>
+                </div>
+              </div>
+              <div className="flex justify-end">
+                <Button type="submit" variant="outline" disabled={emailLoading} size="lg">
+                  {emailLoading ? "שולח..." : "שלח קוד אימות"}
+                </Button>
+              </div>
+            </form>
+          ) : (
+            <form onSubmit={handleConfirmEmailChange} className="space-y-4">
+              <div className="p-3 bg-primary/5 rounded-xl text-sm text-center text-muted-foreground">
+                קוד נשלח {emailForm.via === "email" ? `לאימייל ${emailForm.newEmail}` : "לווצאפ שלך"} — תקף ל-10 דקות
+              </div>
+              <div className="space-y-2">
+                <Label>קוד אימות (6 ספרות)</Label>
+                <Input
+                  type="text"
+                  dir="ltr"
+                  inputMode="numeric"
+                  maxLength={6}
+                  placeholder="123456"
+                  required
+                  value={emailForm.code}
+                  onChange={e => setEmailForm(p => ({ ...p, code: e.target.value.replace(/\D/g, "") }))}
+                  className="text-center text-xl tracking-[0.4em] font-mono"
+                />
+              </div>
+              <div className="flex justify-between items-center">
+                <button
+                  type="button"
+                  onClick={() => { setEmailStep("idle"); setEmailForm(p => ({ ...p, code: "" })); }}
+                  className="text-sm text-muted-foreground hover:text-foreground underline underline-offset-2"
+                >
+                  חזור / שנה אימייל
+                </button>
+                <Button type="submit" disabled={emailLoading} size="lg">
+                  {emailLoading ? "מאמת..." : "אמת ועדכן אימייל"}
+                </Button>
+              </div>
+            </form>
+          )}
         </CardContent>
       </Card>
 

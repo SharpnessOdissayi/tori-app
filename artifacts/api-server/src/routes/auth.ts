@@ -10,6 +10,9 @@ import { sendEmail } from "../lib/email";
 // In-memory store for password reset codes: email → { code, expiresAt }
 const resetCodes = new Map<string, { code: string; expiresAt: number }>();
 
+// In-memory store for email-change OTPs: businessId → { newEmail, code, expiresAt }
+const emailChangeCodes = new Map<number, { newEmail: string; code: string; expiresAt: number }>();
+
 const router = Router();
 
 function buildLoginResponse(business: typeof businessesTable.$inferSelect, token: string) {
@@ -228,6 +231,80 @@ router.post("/auth/business/reset-password", async (req, res): Promise<void> => 
   resetCodes.delete(email.toLowerCase().trim());
 
   res.json({ success: true });
+});
+
+// POST /auth/business/request-email-change — send OTP to new email OR existing phone
+router.post("/auth/business/request-email-change", requireBusinessAuth, async (req, res): Promise<void> => {
+  const { newEmail, via } = req.body ?? {};
+  if (!newEmail || typeof newEmail !== "string") {
+    res.status(400).json({ error: "Missing newEmail" });
+    return;
+  }
+  if (!["email", "phone"].includes(via)) {
+    res.status(400).json({ error: "via must be 'email' or 'phone'" });
+    return;
+  }
+
+  const normalized = newEmail.toLowerCase().trim();
+
+  // Make sure new email isn't already taken by another business
+  const [existing] = await db.select({ id: businessesTable.id })
+    .from(businessesTable)
+    .where(eq(businessesTable.email, normalized));
+  if (existing && existing.id !== req.business!.businessId) {
+    res.status(409).json({ error: "email_taken", message: "כתובת האימייל כבר רשומה במערכת" });
+    return;
+  }
+
+  const [business] = await db.select().from(businessesTable)
+    .where(eq(businessesTable.id, req.business!.businessId));
+  if (!business) { res.status(404).json({ error: "Not found" }); return; }
+
+  const code = String(Math.floor(100000 + Math.random() * 900000));
+  emailChangeCodes.set(business.id, { newEmail: normalized, code, expiresAt: Date.now() + 10 * 60 * 1000 });
+
+  if (via === "email") {
+    await sendEmail(normalized, "אימות שינוי אימייל — קבעתי", `
+      <div dir="rtl" style="font-family: sans-serif; max-width: 400px; margin: 0 auto;">
+        <h2>אימות כתובת אימייל חדשה</h2>
+        <p>קיבלת בקשה לשנות את האימייל של העסק שלך בקבעתי לכתובת זו.</p>
+        <p>קוד האימות שלך:</p>
+        <div style="font-size: 36px; font-weight: bold; letter-spacing: 8px; text-align: center; padding: 20px; background: #f1f5f9; border-radius: 12px; margin: 16px 0;">
+          ${code}
+        </div>
+        <p style="color: #888;">הקוד תקף ל-10 דקות. אם לא ביקשת זאת, אנא התעלם.</p>
+      </div>
+    `);
+  } else {
+    // via phone — send OTP via WhatsApp to the registered phone
+    if (!business.phone) {
+      res.status(400).json({ error: "no_phone", message: "לא נמצא מספר טלפון מחובר לחשבון" });
+      return;
+    }
+    const { sendWhatsApp } = await import("../lib/whatsapp");
+    await sendWhatsApp(business.phone, `קוד אימות לשינוי אימייל בקבעתי: *${code}*\nהקוד תקף ל-10 דקות.`);
+  }
+
+  res.json({ success: true });
+});
+
+// POST /auth/business/confirm-email-change — verify OTP and apply new email
+router.post("/auth/business/confirm-email-change", requireBusinessAuth, async (req, res): Promise<void> => {
+  const { code } = req.body ?? {};
+  if (!code) { res.status(400).json({ error: "Missing code" }); return; }
+
+  const entry = emailChangeCodes.get(req.business!.businessId);
+  if (!entry || String(code) !== entry.code || Date.now() > entry.expiresAt) {
+    res.status(400).json({ error: "invalid_code", message: "הקוד שגוי או פג תוקף" });
+    return;
+  }
+
+  await db.update(businessesTable)
+    .set({ email: entry.newEmail })
+    .where(eq(businessesTable.id, req.business!.businessId));
+
+  emailChangeCodes.delete(req.business!.businessId);
+  res.json({ success: true, newEmail: entry.newEmail });
 });
 
 // POST /auth/forgot-password — send OTP via WhatsApp for phone-based reset
