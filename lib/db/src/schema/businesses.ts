@@ -60,6 +60,13 @@ export const businessesTable = pgTable("businesses", {
   showLogo: boolean("show_logo").notNull().default(true),
   showBanner: boolean("show_banner").notNull().default(true),
   headerLayout: text("header_layout").notNull().default("stacked"),
+  // Profile landing page
+  websiteUrl: text("website_url"),
+  instagramUrl: text("instagram_url"),
+  wazeUrl: text("waze_url"),
+  businessDescription: text("business_description"),
+  galleryImages: text("gallery_images"), // JSON array of image URLs
+  bannerPosition: text("banner_position").notNull().default("center"), // CSS object-position
 });
 
 export const insertBusinessSchema = createInsertSchema(businessesTable).omit({ id: true, createdAt: true });

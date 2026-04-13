@@ -10,6 +10,7 @@ export const servicesTable = pgTable("services", {
   durationMinutes: integer("duration_minutes").notNull().default(30),
   bufferMinutes: integer("buffer_minutes").notNull().default(0),
   imageUrl: text("image_url"),
+  description: text("description"),
   isActive: boolean("is_active").notNull().default(true),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });

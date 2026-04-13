@@ -777,14 +777,14 @@ function ServicesTab() {
 
   const [isAdding, setIsAdding] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
-  const [form, setForm] = useState({ name: "", price: "", durationMinutes: "30", bufferMinutes: "0", isActive: true, imageUrl: "" });
+  const [form, setForm] = useState({ name: "", price: "", durationMinutes: "30", bufferMinutes: "0", isActive: true, imageUrl: "", description: "" });
 
   const activeServices = Array.isArray(services) ? services.filter(s => s.isActive) : [];
   const isPro = profile?.subscriptionPlan !== "free";
   const atLimit = !isPro && activeServices.length >= FREE_SERVICE_LIMIT;
 
   const reset = () => {
-    setForm({ name: "", price: "", durationMinutes: "30", bufferMinutes: "0", isActive: true, imageUrl: "" });
+    setForm({ name: "", price: "", durationMinutes: "30", bufferMinutes: "0", isActive: true, imageUrl: "", description: "" });
     setIsAdding(false);
     setEditingId(null);
     imageUpload.reset?.();
@@ -799,9 +799,10 @@ function ServicesTab() {
       durationMinutes: parseInt(form.durationMinutes),
       bufferMinutes: parseInt(form.bufferMinutes),
       imageUrl,
-    };
+      description: form.description || null,
+    } as any;
     if (editingId) {
-      updateMutation.mutate({ id: editingId, data: { ...data, isActive: form.isActive } }, {
+      updateMutation.mutate({ id: editingId, data: { ...data, isActive: form.isActive } as any }, {
         onSuccess: () => { toast({ title: "עודכן" }); queryClient.invalidateQueries({ queryKey: getListBusinessServicesQueryKey() }); reset(); },
       });
     } else {
@@ -865,6 +866,16 @@ function ServicesTab() {
                 <Label>זמן מאגר אחרי השירות (דקות)</Label>
                 <Input type="number" min="0" step="5" value={form.bufferMinutes} onChange={e => setForm(p => ({ ...p, bufferMinutes: e.target.value }))} />
                 <p className="text-xs text-muted-foreground">זמן קצוב לניקיון/מנוחה לאחר השירות</p>
+              </div>
+              <div className="space-y-2 sm:col-span-2">
+                <Label>תיאור השירות (אופציונלי)</Label>
+                <textarea
+                  value={form.description}
+                  onChange={e => setForm(p => ({ ...p, description: e.target.value }))}
+                  className="flex min-h-[70px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                  placeholder="כתבו תיאור קצר של השירות..."
+                />
+                <p className="text-xs text-muted-foreground">יוצג בעמוד הפרופיל של העסק</p>
               </div>
               <div className="space-y-2 sm:col-span-2">
                 <Label className="flex items-center gap-1.5"><ImageIcon className="w-3.5 h-3.5" /> תמונת שירות</Label>
@@ -939,7 +950,7 @@ function ServicesTab() {
                   <button
                     onClick={() => {
                       setEditingId(s.id);
-                      setForm({ name: s.name, price: (s.price / 100).toString(), durationMinutes: s.durationMinutes.toString(), bufferMinutes: (s.bufferMinutes ?? 0).toString(), isActive: s.isActive, imageUrl: s.imageUrl ?? "" });
+                      setForm({ name: s.name, price: (s.price / 100).toString(), durationMinutes: s.durationMinutes.toString(), bufferMinutes: (s.bufferMinutes ?? 0).toString(), isActive: s.isActive, imageUrl: s.imageUrl ?? "", description: (s as any).description ?? "" });
                       setIsAdding(false);
                     }}
                     className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium bg-primary/8 hover:bg-primary/15 text-primary border border-primary/15 transition-all"
@@ -1284,10 +1295,24 @@ function BrandingTab() {
     showLogo: true,
     showBanner: true,
     headerLayout: "stacked" as "stacked" | "side",
+    // Profile landing page
+    websiteUrl: "",
+    instagramUrl: "",
+    wazeUrl: "",
+    businessDescription: "",
+    galleryImages: [] as string[],
+    bannerPosition: "center" as string,
   });
+  const galleryUpload = useImageUpload();
+  const galleryRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (profile) {
+      let galleryImages: string[] = [];
+      try {
+        const raw = (profile as any).galleryImages;
+        if (raw) galleryImages = JSON.parse(raw);
+      } catch {}
       setForm({
         primaryColor: profile.primaryColor ?? "#2563eb",
         fontFamily: profile.fontFamily ?? "Heebo",
@@ -1301,6 +1326,12 @@ function BrandingTab() {
         showLogo: (profile as any).showLogo ?? true,
         showBanner: (profile as any).showBanner ?? true,
         headerLayout: ((profile as any).headerLayout ?? "stacked") as "stacked" | "side",
+        websiteUrl: (profile as any).websiteUrl ?? "",
+        instagramUrl: (profile as any).instagramUrl ?? "",
+        wazeUrl: (profile as any).wazeUrl ?? "",
+        businessDescription: (profile as any).businessDescription ?? "",
+        galleryImages,
+        bannerPosition: (profile as any).bannerPosition ?? "center",
       });
     }
   }, [profile]);
@@ -1308,8 +1339,17 @@ function BrandingTab() {
   // Update form when uploads complete
   useEffect(() => { if (logoUpload.url) setForm(p => ({ ...p, logoUrl: logoUpload.url! })); }, [logoUpload.url]);
   useEffect(() => { if (bannerUpload.url) setForm(p => ({ ...p, bannerUrl: bannerUpload.url! })); }, [bannerUpload.url]);
+  useEffect(() => {
+    if (galleryUpload.url) {
+      setForm(p => {
+        const updated = [...p.galleryImages, galleryUpload.url!].slice(0, 12);
+        return { ...p, galleryImages: updated };
+      });
+      galleryUpload.reset?.();
+    }
+  }, [galleryUpload.url]);
 
-  const uploading = logoUpload.isUploading || bannerUpload.isUploading;
+  const uploading = logoUpload.isUploading || bannerUpload.isUploading || galleryUpload.isUploading;
 
   const handleSave = () => {
     updateBranding.mutate({
@@ -1327,7 +1367,13 @@ function BrandingTab() {
         showLogo: form.showLogo,
         showBanner: form.showBanner,
         headerLayout: form.headerLayout,
-      }
+        websiteUrl: form.websiteUrl || null,
+        instagramUrl: form.instagramUrl || null,
+        wazeUrl: form.wazeUrl || null,
+        businessDescription: form.businessDescription || null,
+        galleryImages: form.galleryImages.length > 0 ? JSON.stringify(form.galleryImages) : null,
+        bannerPosition: form.bannerPosition || "center",
+      } as any
     }, {
       onSuccess: () => { toast({ title: "עיצוב נשמר" }); queryClient.invalidateQueries({ queryKey: getGetBusinessProfileQueryKey() }); },
     });
@@ -1617,6 +1663,105 @@ function BrandingTab() {
                 </button>
               </div>
             </div>
+          </div>
+
+          <Separator />
+
+          {/* Business profile info */}
+          <div className="space-y-4">
+            <h3 className="font-semibold text-base border-b pb-2">פרטי העסק לעמוד הפרופיל</h3>
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <Label>תיאור העסק</Label>
+                <textarea
+                  value={form.businessDescription}
+                  onChange={e => setForm(p => ({ ...p, businessDescription: e.target.value }))}
+                  className="flex min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 resize-none"
+                  placeholder="כתבו כמה מילים על העסק..."
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>קישור לאתר</Label>
+                <Input dir="ltr" value={form.websiteUrl} onChange={e => setForm(p => ({ ...p, websiteUrl: e.target.value }))} placeholder="https://www.mywebsite.com" />
+              </div>
+              <div className="space-y-2">
+                <Label>קישור לאינסטגרם</Label>
+                <Input dir="ltr" value={form.instagramUrl} onChange={e => setForm(p => ({ ...p, instagramUrl: e.target.value }))} placeholder="https://instagram.com/mybusiness" />
+              </div>
+              <div className="space-y-2">
+                <Label>קישור לוויז</Label>
+                <Input dir="ltr" value={form.wazeUrl} onChange={e => setForm(p => ({ ...p, wazeUrl: e.target.value }))} placeholder="https://waze.com/ul/..." />
+              </div>
+            </div>
+          </div>
+
+          <Separator />
+
+          {/* Banner position */}
+          <div className="space-y-4">
+            <h3 className="font-semibold text-base border-b pb-2">מיקום תמונת הרקע בפרופיל</h3>
+            <p className="text-xs text-muted-foreground">בחר את הנקודה המרכזית שתוצג בתמונת הרקע</p>
+            <div className="flex gap-3">
+              {([
+                { value: "top", label: "עליון" },
+                { value: "center", label: "מרכז" },
+                { value: "bottom", label: "תחתון" },
+              ] as const).map(pos => (
+                <button
+                  key={pos.value}
+                  type="button"
+                  onClick={() => setForm(p => ({ ...p, bannerPosition: pos.value }))}
+                  className={`flex-1 py-2.5 border-2 text-sm font-medium rounded-xl transition-all ${form.bannerPosition === pos.value ? "border-primary bg-primary/5 text-primary" : "border-border"}`}
+                >
+                  {pos.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <Separator />
+
+          {/* Gallery */}
+          <div className="space-y-4">
+            <h3 className="font-semibold text-base border-b pb-2">גלריה (עד 12 תמונות)</h3>
+            <p className="text-xs text-muted-foreground">תמונות מעבודות העסק שיוצגו בגלריה בעמוד הפרופיל</p>
+            <input
+              ref={galleryRef}
+              type="file"
+              accept="image/*"
+              className="hidden"
+              onChange={e => { if (e.target.files?.[0]) { galleryUpload.upload(e.target.files[0]); e.target.value = ""; } }}
+            />
+            {form.galleryImages.length > 0 && (
+              <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
+                {form.galleryImages.map((url, i) => (
+                  <div key={i} className="relative aspect-square rounded-lg overflow-hidden border">
+                    <img src={url} alt={`gallery-${i}`} className="w-full h-full object-cover" />
+                    <button
+                      type="button"
+                      onClick={() => setForm(p => ({ ...p, galleryImages: p.galleryImages.filter((_, j) => j !== i) }))}
+                      className="absolute top-1 right-1 bg-black/60 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs hover:bg-black/80"
+                    >
+                      ×
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+            {form.galleryImages.length < 12 && (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="gap-1.5"
+                disabled={galleryUpload.isUploading}
+                onClick={() => galleryRef.current?.click()}
+              >
+                <Upload className="w-4 h-4" />
+                {galleryUpload.isUploading ? "מעלה תמונה..." : "הוסף תמונה לגלריה"}
+              </Button>
+            )}
+            {galleryUpload.error && <p className="text-xs text-destructive">{galleryUpload.error}</p>}
           </div>
 
         </CardContent>

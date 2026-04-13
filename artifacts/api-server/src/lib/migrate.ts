@@ -33,6 +33,14 @@ export async function runMigrations() {
       `ALTER TABLE businesses ADD COLUMN IF NOT EXISTS show_logo BOOLEAN NOT NULL DEFAULT TRUE`,
       `ALTER TABLE businesses ADD COLUMN IF NOT EXISTS show_banner BOOLEAN NOT NULL DEFAULT TRUE`,
       `ALTER TABLE businesses ADD COLUMN IF NOT EXISTS header_layout TEXT NOT NULL DEFAULT 'stacked'`,
+      // Profile landing page
+      `ALTER TABLE businesses ADD COLUMN IF NOT EXISTS website_url TEXT`,
+      `ALTER TABLE businesses ADD COLUMN IF NOT EXISTS instagram_url TEXT`,
+      `ALTER TABLE businesses ADD COLUMN IF NOT EXISTS waze_url TEXT`,
+      `ALTER TABLE businesses ADD COLUMN IF NOT EXISTS business_description TEXT`,
+      `ALTER TABLE businesses ADD COLUMN IF NOT EXISTS gallery_images TEXT`,
+      `ALTER TABLE businesses ADD COLUMN IF NOT EXISTS banner_position TEXT NOT NULL DEFAULT 'center'`,
+      `ALTER TABLE services ADD COLUMN IF NOT EXISTS description TEXT`,
     ];
 
     for (const stmt of alterations) {

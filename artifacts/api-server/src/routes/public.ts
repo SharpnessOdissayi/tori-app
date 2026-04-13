@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { db, businessesTable, servicesTable, appointmentsTable, waitlistTable } from "@workspace/db";
+import { db, businessesTable, servicesTable, appointmentsTable, waitlistTable, workingHoursTable } from "@workspace/db";
 import { eq, and, gte, sql, countDistinct, count } from "drizzle-orm";
 import {
   GetPublicBusinessParams,
@@ -50,6 +50,18 @@ router.get("/public/:businessSlug", async (req, res): Promise<void> => {
     welcomeText: business.welcomeText ?? null,
     stripeEnabled: business.stripeEnabled,
     depositAmountAgorot: null,
+    requirePhoneVerification: business.requirePhoneVerification,
+    phone: business.phone ?? null,
+    websiteUrl: (business as any).websiteUrl ?? null,
+    instagramUrl: (business as any).instagramUrl ?? null,
+    wazeUrl: (business as any).wazeUrl ?? null,
+    businessDescription: (business as any).businessDescription ?? null,
+    galleryImages: (business as any).galleryImages ?? null,
+    bannerPosition: (business as any).bannerPosition ?? "center",
+    buttonRadius: (business as any).buttonRadius ?? null,
+    showBusinessName: (business as any).showBusinessName ?? true,
+    showLogo: (business as any).showLogo ?? true,
+    showBanner: (business as any).showBanner ?? true,
   });
 });
 
@@ -76,7 +88,36 @@ router.get("/public/:businessSlug/services", async (req, res): Promise<void> => 
     .where(and(eq(servicesTable.businessId, business.id), eq(servicesTable.isActive, true)))
     .orderBy(servicesTable.createdAt);
 
-  res.json(services.map((s) => ({ ...s, createdAt: s.createdAt.toISOString() })));
+  res.json(services.map((s) => ({ ...s, description: (s as any).description ?? null, createdAt: s.createdAt.toISOString() })));
+});
+
+router.get("/public/:businessSlug/hours", async (req, res): Promise<void> => {
+  const { businessSlug } = req.params;
+
+  const [business] = await db
+    .select({ id: businessesTable.id })
+    .from(businessesTable)
+    .where(and(eq(businessesTable.slug, businessSlug), eq(businessesTable.isActive, true)));
+
+  if (!business) {
+    res.status(404).json({ error: "Business not found" });
+    return;
+  }
+
+  const hours = await db
+    .select()
+    .from(workingHoursTable)
+    .where(eq(workingHoursTable.businessId, business.id))
+    .orderBy(workingHoursTable.dayOfWeek);
+
+  res.json(hours.map((h) => ({
+    id: h.id,
+    businessId: h.businessId,
+    dayOfWeek: h.dayOfWeek,
+    startTime: h.startTime,
+    endTime: h.endTime,
+    isEnabled: h.isEnabled,
+  })));
 });
 
 router.get("/public/:businessSlug/availability", async (req, res): Promise<void> => {

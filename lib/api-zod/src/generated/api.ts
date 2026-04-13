@@ -257,6 +257,13 @@ export const UpdateBusinessBrandingBody = zod.object({
   showLogo: zod.boolean().optional(),
   showBanner: zod.boolean().optional(),
   headerLayout: zod.string().optional(),
+  // Profile landing page
+  websiteUrl: zod.string().nullish(),
+  instagramUrl: zod.string().nullish(),
+  wazeUrl: zod.string().nullish(),
+  businessDescription: zod.string().nullish(),
+  galleryImages: zod.string().nullish(),
+  bannerPosition: zod.string().optional(),
 });
 
 export const UpdateBusinessBrandingResponse = zod.object({
@@ -365,6 +372,7 @@ export const CreateBusinessServiceBody = zod.object({
     .optional()
     .describe("Buffer time after this service in minutes"),
   imageUrl: zod.string().nullish(),
+  description: zod.string().nullish(),
 });
 
 export const UpdateBusinessServiceParams = zod.object({
@@ -378,6 +386,7 @@ export const UpdateBusinessServiceBody = zod.object({
   bufferMinutes: zod.number().optional(),
   imageUrl: zod.string().nullish(),
   isActive: zod.boolean().optional(),
+  description: zod.string().nullish(),
 });
 
 export const UpdateBusinessServiceResponse = zod.object({

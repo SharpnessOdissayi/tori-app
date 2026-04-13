@@ -74,6 +74,13 @@ function mapBusiness(b: typeof businessesTable.$inferSelect) {
     showLogo: b.showLogo,
     showBanner: b.showBanner,
     headerLayout: b.headerLayout,
+    // Profile landing page
+    websiteUrl: (b as any).websiteUrl ?? null,
+    instagramUrl: (b as any).instagramUrl ?? null,
+    wazeUrl: (b as any).wazeUrl ?? null,
+    businessDescription: (b as any).businessDescription ?? null,
+    galleryImages: (b as any).galleryImages ?? null,
+    bannerPosition: (b as any).bannerPosition ?? "center",
   };
 }
 
@@ -157,6 +164,14 @@ router.patch("/business/branding", requireBusinessAuth, async (req, res): Promis
   if (parsed.data.showLogo !== undefined) updates.showLogo = parsed.data.showLogo;
   if (parsed.data.showBanner !== undefined) updates.showBanner = parsed.data.showBanner;
   if (parsed.data.headerLayout !== undefined) updates.headerLayout = parsed.data.headerLayout;
+  // Profile landing page fields
+  const bd = parsed.data as any;
+  if (bd.websiteUrl !== undefined) (updates as any).websiteUrl = bd.websiteUrl ?? null;
+  if (bd.instagramUrl !== undefined) (updates as any).instagramUrl = bd.instagramUrl ?? null;
+  if (bd.wazeUrl !== undefined) (updates as any).wazeUrl = bd.wazeUrl ?? null;
+  if (bd.businessDescription !== undefined) (updates as any).businessDescription = bd.businessDescription ?? null;
+  if (bd.galleryImages !== undefined) (updates as any).galleryImages = bd.galleryImages ?? null;
+  if (bd.bannerPosition !== undefined) (updates as any).bannerPosition = bd.bannerPosition ?? "center";
 
   const [updated] = await db
     .update(businessesTable)
@@ -232,9 +247,10 @@ router.post("/business/services", requireBusinessAuth, async (req, res): Promise
     return;
   }
 
+  const serviceData: any = { ...parsed.data, businessId: req.business!.businessId };
   const [service] = await db
     .insert(servicesTable)
-    .values({ ...parsed.data, businessId: req.business!.businessId })
+    .values(serviceData)
     .returning();
 
   res.status(201).json({ ...service, createdAt: service.createdAt.toISOString() });
@@ -256,7 +272,7 @@ router.patch("/business/services/:id", requireBusinessAuth, async (req, res): Pr
 
   const [service] = await db
     .update(servicesTable)
-    .set(bodyParsed.data)
+    .set(bodyParsed.data as any)
     .where(and(eq(servicesTable.id, paramsParsed.data.id), eq(servicesTable.businessId, req.business!.businessId)))
     .returning();
 

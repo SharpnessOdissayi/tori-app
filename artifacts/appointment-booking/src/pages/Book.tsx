@@ -15,10 +15,12 @@ import { Label } from "@/components/ui/label";
 import { DayPicker } from "react-day-picker";
 import { format } from "date-fns";
 import { he } from "date-fns/locale";
-import { Check, ChevronRight, Clock, CalendarIcon, User, Phone, CheckCircle2, ListOrdered } from "lucide-react";
+import { Check, ChevronRight, Clock, CalendarIcon, User, Phone, CheckCircle2, ListOrdered, Globe, MapPin, Instagram } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import "react-day-picker/dist/style.css";
 import { useToast } from "@/hooks/use-toast";
+
+const DAYS_HE = ["ראשון", "שני", "שלישי", "רביעי", "חמישי", "שישי", "שבת"];
 
 function formatDuration(minutes: number): string {
   if (minutes < 60) return `${minutes} דקות`;
@@ -29,9 +31,14 @@ function formatDuration(minutes: number): string {
 
 export default function Book() {
   const { businessSlug } = useParams<{ businessSlug: string }>();
-  const [step, setStep] = useState(1);
+  // step 0 = profile page, 1-5 = booking wizard
+  const [step, setStep] = useState(0);
   const [showNotification, setShowNotification] = useState(true);
   const [showWaitlist, setShowWaitlist] = useState(false);
+  const [showExistingBooking, setShowExistingBooking] = useState(false);
+  const [activeTab, setActiveTab] = useState<"services" | "hours" | "gallery">("services");
+  const [existingBooking, setExistingBooking] = useState<any>(null);
+  const [workingHours, setWorkingHours] = useState<any[]>([]);
 
   const [selectedServiceId, setSelectedServiceId] = useState<number | null>(null);
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(undefined);
@@ -65,26 +72,51 @@ export default function Book() {
   const borderRadius = (business as any)?.borderRadius ?? "medium";
   const themeMode = business?.themeMode ?? "light";
   const requireApproval = (business as any)?.requireAppointmentApproval ?? false;
-  const welcomeText = (business as any)?.welcomeText ?? null;
   const showBusinessName = (business as any)?.showBusinessName ?? true;
   const showLogo = (business as any)?.showLogo ?? true;
   const showBanner = (business as any)?.showBanner ?? true;
-  const headerLayout = (business as any)?.headerLayout ?? "stacked";
+  const logoUrl = business?.logoUrl ?? null;
+  const bannerUrl = business?.bannerUrl ?? null;
+  const phone = (business as any)?.phone ?? null;
+  const websiteUrl = (business as any)?.websiteUrl ?? null;
+  const instagramUrl = (business as any)?.instagramUrl ?? null;
+  const wazeUrl = (business as any)?.wazeUrl ?? null;
+  const businessDescription = (business as any)?.businessDescription ?? null;
+  const bannerPosition = (business as any)?.bannerPosition ?? "center";
+  const galleryImagesRaw = (business as any)?.galleryImages ?? null;
+  let galleryImages: string[] = [];
+  try { if (galleryImagesRaw) galleryImages = JSON.parse(galleryImagesRaw); } catch {}
 
   const cardRadius = borderRadius === "sharp" ? "8px" : borderRadius === "rounded" ? "24px" : "16px";
+
+  // Load working hours
+  useEffect(() => {
+    if (!businessSlug) return;
+    fetch(`/api/public/${businessSlug}/hours`)
+      .then(r => r.ok ? r.json() : [])
+      .then(data => setWorkingHours(Array.isArray(data) ? data : []))
+      .catch(() => {});
+  }, [businessSlug]);
+
+  // Load existing booking from localStorage
+  useEffect(() => {
+    if (!businessSlug) return;
+    const saved = localStorage.getItem(`kavati_booking_${businessSlug}`);
+    if (saved) {
+      try { setExistingBooking(JSON.parse(saved)); } catch {}
+    }
+  }, [businessSlug]);
 
   useEffect(() => {
     if (!business) return;
     const root = document.documentElement;
 
-    // Apply theme mode
     if (themeMode === "dark") {
       root.classList.add("dark");
     } else {
       root.classList.remove("dark");
     }
 
-    // Apply primary color
     if (business.primaryColor) {
       const hex = business.primaryColor.replace("#", "");
       const r = parseInt(hex.substr(0, 2), 16);
@@ -95,7 +127,6 @@ export default function Book() {
       root.style.setProperty("--primary-b", String(b));
     }
 
-    // Load Google Font dynamically
     if (fontFamily && fontFamily !== "inherit") {
       const id = `gfont-${fontFamily.replace(/\s+/g, "-")}`;
       if (!document.getElementById(id)) {
@@ -177,23 +208,320 @@ export default function Book() {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedServiceId || !dateStr || !selectedTime) return;
-    createMutation.mutate({ businessSlug: businessSlug || "", data: { serviceId: selectedServiceId, clientName: clientData.name, phoneNumber: clientData.phone, appointmentDate: dateStr, appointmentTime: selectedTime, notes: clientData.notes } }, {
-      onSuccess: () => setStep(5),
-      onError: () => toast({ title: "שגיאה", description: "לא ניתן לקבוע את התור, נסה שוב", variant: "destructive" }),
-    });
+    createMutation.mutate(
+      { businessSlug: businessSlug || "", data: { serviceId: selectedServiceId, clientName: clientData.name, phoneNumber: clientData.phone, appointmentDate: dateStr, appointmentTime: selectedTime, notes: clientData.notes } },
+      {
+        onSuccess: () => {
+          // Save booking to localStorage
+          const bookingData = {
+            date: dateStr,
+            time: selectedTime,
+            service: selectedService?.name,
+            name: clientData.name,
+          };
+          localStorage.setItem(`kavati_booking_${businessSlug}`, JSON.stringify(bookingData));
+          setStep(5);
+        },
+        onError: () => toast({ title: "שגיאה", description: "לא ניתן לקבוע את התור, נסה שוב", variant: "destructive" }),
+      }
+    );
   };
 
   const handleWaitlist = (e: React.FormEvent) => {
     e.preventDefault();
-    waitlistMutation.mutate({ businessSlug: businessSlug || "", data: { serviceId: selectedServiceId ?? undefined, clientName: waitlistData.name, phoneNumber: waitlistData.phone, preferredDate: dateStr || undefined, notes: waitlistData.notes || undefined } }, {
-      onSuccess: () => { toast({ title: "✅ נרשמת לרשימת ההמתנה", description: "נודיע לך כשיתפנה מקום" }); setShowWaitlist(false); },
-      onError: () => toast({ title: "שגיאה", variant: "destructive" }),
-    });
+    waitlistMutation.mutate(
+      { businessSlug: businessSlug || "", data: { serviceId: selectedServiceId ?? undefined, clientName: waitlistData.name, phoneNumber: waitlistData.phone, preferredDate: dateStr || undefined, notes: waitlistData.notes || undefined } },
+      {
+        onSuccess: () => { toast({ title: "✅ נרשמת לרשימת ההמתנה", description: "נודיע לך כשיתפנה מקום" }); setShowWaitlist(false); },
+        onError: () => toast({ title: "שגיאה", variant: "destructive" }),
+      }
+    );
   };
 
   const slots: string[] = availability?.slots ?? [];
   const isFullyBooked = availability?.isFullyBooked ?? false;
 
+  // ─── STEP 0: Profile landing page ──────────────────────────────────────────
+  if (step === 0) {
+    const tabs = [
+      { id: "services" as const, label: "שירותים" },
+      { id: "hours" as const, label: "שעות עבודה" },
+      { id: "gallery" as const, label: "גלריה" },
+    ];
+
+    return (
+      <div dir="rtl" style={{ fontFamily: `'${fontFamily}', sans-serif`, backgroundColor }} className="min-h-screen overflow-x-hidden">
+
+        {/* Notification Dialog */}
+        <Dialog open={business.notificationEnabled && showNotification} onOpenChange={setShowNotification}>
+          <DialogContent className="sm:max-w-md text-center" dir="rtl">
+            <DialogHeader>
+              <DialogTitle className="text-xl">הודעה מבית העסק</DialogTitle>
+            </DialogHeader>
+            <DialogDescription className="text-base py-4 whitespace-pre-wrap text-foreground">
+              {business.notificationMessage}
+            </DialogDescription>
+            <Button onClick={() => setShowNotification(false)} style={{ backgroundColor: primaryColor }}>הבנתי, תודה</Button>
+          </DialogContent>
+        </Dialog>
+
+        {/* Existing booking dialog */}
+        <Dialog open={showExistingBooking} onOpenChange={setShowExistingBooking}>
+          <DialogContent className="sm:max-w-sm text-center" dir="rtl">
+            <DialogHeader>
+              <DialogTitle>התור שלך</DialogTitle>
+            </DialogHeader>
+            {existingBooking && (
+              <div className="space-y-3 py-2">
+                <div className="p-4 rounded-xl bg-muted/30 text-right space-y-2">
+                  {existingBooking.service && <div className="font-semibold">{existingBooking.service}</div>}
+                  {existingBooking.date && <div className="text-sm text-muted-foreground flex items-center gap-2"><CalendarIcon className="w-4 h-4" /> {existingBooking.date}</div>}
+                  {existingBooking.time && <div className="text-sm text-muted-foreground flex items-center gap-2"><Clock className="w-4 h-4" /><span dir="ltr">{existingBooking.time}</span></div>}
+                  {existingBooking.name && <div className="text-sm text-muted-foreground flex items-center gap-2"><User className="w-4 h-4" /> {existingBooking.name}</div>}
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    localStorage.removeItem(`kavati_booking_${businessSlug}`);
+                    setExistingBooking(null);
+                    setShowExistingBooking(false);
+                  }}
+                >
+                  בטל תור שמור
+                </Button>
+              </div>
+            )}
+          </DialogContent>
+        </Dialog>
+
+        {/* Hero banner */}
+        <div className="relative">
+          {showBanner && bannerUrl ? (
+            <img
+              src={bannerUrl}
+              alt={business.name}
+              className="w-full object-cover"
+              style={{ height: "224px", objectPosition: bannerPosition }}
+            />
+          ) : (
+            <div
+              className="w-full"
+              style={{ height: "224px", background: `linear-gradient(135deg, ${primaryColor}20, ${primaryColor}40)` }}
+            />
+          )}
+          {/* Logo overlapping bottom edge of banner */}
+          {showLogo && logoUrl && (
+            <div className="absolute -bottom-12 left-1/2 -translate-x-1/2">
+              <img
+                src={logoUrl}
+                alt={business.name}
+                className="w-24 h-24 rounded-full object-cover border-4 border-white shadow-xl"
+              />
+            </div>
+          )}
+        </div>
+
+        {/* Content */}
+        <div className={`pb-28 px-4 max-w-2xl mx-auto ${showLogo && logoUrl ? "pt-14" : "pt-6"}`}>
+          {/* Business name */}
+          {showBusinessName && (
+            <h1 className="text-2xl font-bold text-center mb-1">{business.name}</h1>
+          )}
+          {/* Description */}
+          {businessDescription && (
+            <p className="text-center text-muted-foreground text-sm mb-4 max-w-sm mx-auto">{businessDescription}</p>
+          )}
+
+          {/* Social links row */}
+          {(phone || websiteUrl || instagramUrl || wazeUrl) && (
+            <div className="flex justify-center gap-3 mb-6 flex-wrap">
+              {phone && (
+                <a href={`tel:${phone}`}>
+                  <button
+                    className="w-11 h-11 rounded-full border-2 flex items-center justify-center text-muted-foreground hover:text-foreground hover:border-foreground/40 transition-all"
+                    title="התקשר"
+                  >
+                    <Phone className="w-5 h-5" />
+                  </button>
+                </a>
+              )}
+              {phone && (
+                <a
+                  href={`https://wa.me/972${phone.replace(/^0/, "").replace(/\D/g, "")}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  <button
+                    className="w-11 h-11 rounded-full border-2 flex items-center justify-center font-bold text-green-600 border-green-200 hover:border-green-400 transition-all text-sm"
+                    title="WhatsApp"
+                  >
+                    W
+                  </button>
+                </a>
+              )}
+              {instagramUrl && (
+                <a href={instagramUrl} target="_blank" rel="noopener noreferrer">
+                  <button
+                    className="w-11 h-11 rounded-full border-2 flex items-center justify-center text-muted-foreground hover:text-foreground hover:border-foreground/40 transition-all"
+                    title="אינסטגרם"
+                  >
+                    <Instagram className="w-5 h-5" />
+                  </button>
+                </a>
+              )}
+              {websiteUrl && (
+                <a href={websiteUrl} target="_blank" rel="noopener noreferrer">
+                  <button
+                    className="w-11 h-11 rounded-full border-2 flex items-center justify-center text-muted-foreground hover:text-foreground hover:border-foreground/40 transition-all"
+                    title="אתר"
+                  >
+                    <Globe className="w-5 h-5" />
+                  </button>
+                </a>
+              )}
+              {wazeUrl && (
+                <a href={wazeUrl} target="_blank" rel="noopener noreferrer">
+                  <button
+                    className="w-11 h-11 rounded-full border-2 flex items-center justify-center text-muted-foreground hover:text-foreground hover:border-foreground/40 transition-all"
+                    title="Waze"
+                  >
+                    <MapPin className="w-5 h-5" />
+                  </button>
+                </a>
+              )}
+            </div>
+          )}
+
+          {/* Existing appointment banner */}
+          {existingBooking && (
+            <div
+              className="mb-4 p-3 rounded-xl border text-sm text-center"
+              style={{ backgroundColor: primaryColor + "0d", borderColor: primaryColor + "33" }}
+            >
+              יש לכם תור!{" "}
+              <button
+                onClick={() => setShowExistingBooking(true)}
+                className="font-bold underline"
+                style={{ color: primaryColor }}
+              >
+                לחצו לצפייה
+              </button>
+            </div>
+          )}
+
+          {/* Tabs */}
+          <div className="flex border-b mb-4">
+            {tabs.map(tab => (
+              <button
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id)}
+                className={`flex-1 py-2.5 text-sm font-medium transition-all border-b-2 -mb-px ${
+                  activeTab === tab.id
+                    ? "border-current font-semibold"
+                    : "border-transparent text-muted-foreground"
+                }`}
+                style={activeTab === tab.id ? { color: primaryColor, borderColor: primaryColor } : {}}
+              >
+                {tab.label}
+              </button>
+            ))}
+          </div>
+
+          {/* Services tab */}
+          {activeTab === "services" && (
+            <div className="space-y-3">
+              {servicesLoading && <div className="text-center py-8 text-muted-foreground">טוען שירותים...</div>}
+              {servicesList.filter(s => s.isActive).map(service => (
+                <div key={service.id} className="border rounded-2xl overflow-hidden shadow-sm">
+                  {service.imageUrl && (
+                    <img src={service.imageUrl} alt={service.name} className="w-full h-32 object-cover" />
+                  )}
+                  <div className="p-4">
+                    <div className="flex justify-between items-start">
+                      <div className="font-bold text-base">{service.name}</div>
+                      <div className="font-bold" style={{ color: primaryColor }}>₪{(service.price / 100).toFixed(0)}</div>
+                    </div>
+                    {(service as any).description && (
+                      <p className="text-sm text-muted-foreground mt-1">{(service as any).description}</p>
+                    )}
+                    <div className="flex justify-between items-center mt-3">
+                      <span className="text-xs text-muted-foreground flex items-center gap-1">
+                        <Clock className="w-3.5 h-3.5" /> {formatDuration(service.durationMinutes)}
+                      </span>
+                      <button
+                        onClick={() => { setSelectedServiceId(service.id); setStep(2); }}
+                        className="px-4 py-1.5 rounded-full text-sm font-medium text-white shadow-sm"
+                        style={{ backgroundColor: primaryColor }}
+                      >
+                        קבע תור
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ))}
+              {!servicesLoading && !servicesList.filter(s => s.isActive).length && (
+                <div className="text-center py-8 text-muted-foreground">אין שירותים זמינים כרגע</div>
+              )}
+            </div>
+          )}
+
+          {/* Hours tab */}
+          {activeTab === "hours" && (
+            <div className="space-y-0">
+              {DAYS_HE.map((day, i) => {
+                const h = workingHours.find(h => h.dayOfWeek === i);
+                return (
+                  <div key={i} className="flex justify-between items-center py-3 border-b last:border-0">
+                    <span className="font-medium">{day}</span>
+                    {h?.isEnabled ? (
+                      <span className="text-sm text-muted-foreground" dir="ltr">{h.startTime} — {h.endTime}</span>
+                    ) : (
+                      <span className="text-sm text-muted-foreground">סגור</span>
+                    )}
+                  </div>
+                );
+              })}
+              {workingHours.length === 0 && (
+                <div className="text-center py-8 text-muted-foreground">שעות העבודה לא הוגדרו עדיין</div>
+              )}
+            </div>
+          )}
+
+          {/* Gallery tab */}
+          {activeTab === "gallery" && (
+            galleryImages.length > 0 ? (
+              <div className="grid grid-cols-3 gap-1">
+                {galleryImages.map((url, i) => (
+                  <img key={i} src={url} alt={`gallery-${i}`} className="w-full aspect-square object-cover rounded-lg" />
+                ))}
+              </div>
+            ) : (
+              <div className="text-center py-8 text-muted-foreground">אין תמונות בגלריה עדיין</div>
+            )
+          )}
+        </div>
+
+        {/* Floating book button */}
+        <div className="fixed bottom-0 left-0 right-0 p-4 bg-white/90 dark:bg-black/90 backdrop-blur border-t">
+          <button
+            onClick={() => setStep(1)}
+            className="w-full h-12 rounded-2xl text-white font-bold text-base shadow-lg"
+            style={{ backgroundColor: primaryColor }}
+          >
+            לקביעת תור ←
+          </button>
+        </div>
+
+        <footer className="text-center py-4 text-xs text-muted-foreground border-t">
+          מופעל על ידי{" "}
+          <a href="/" className="font-bold text-foreground hover:text-primary transition-colors">קבעתי</a>
+        </footer>
+      </div>
+    );
+  }
+
+  // ─── STEPS 1-5: Booking wizard ──────────────────────────────────────────────
   return (
     <div className="min-h-[100dvh] flex flex-col relative" dir="rtl" style={{ fontFamily: `'${fontFamily}', sans-serif`, backgroundColor }}>
       <div className="absolute top-0 w-full h-52 -z-10 rounded-b-[40px]" style={{ backgroundColor: primaryColor + "18" }} />
@@ -242,46 +570,17 @@ export default function Book() {
       </Dialog>
 
       <div className="flex-1 max-w-2xl mx-auto w-full px-4 py-8">
-        <header className="mb-8">
-          {headerLayout === "side" ? (
-            /* Side layout: logo + name in a row */
-            <div className="flex items-center gap-4 mb-3">
-              {showLogo && business.logoUrl && (
-                <img src={business.logoUrl} alt={business.name} className="w-16 h-16 rounded-2xl object-cover shadow-md border shrink-0" />
-              )}
-              {showBanner && business.bannerUrl && (!showLogo || !business.logoUrl) && (
-                <img src={business.bannerUrl} alt={business.name} className="w-full h-24 rounded-2xl object-cover shadow-md" />
-              )}
-              <div className="flex-1">
-                {showBusinessName && (
-                  <h1 className="text-2xl font-extrabold" style={{ color: primaryColor }}>{business.name}</h1>
-                )}
-                {welcomeText ? (
-                  <p className="text-muted-foreground text-sm whitespace-pre-wrap mt-1">{welcomeText}</p>
-                ) : (
-                  <p className="text-muted-foreground text-sm">קביעת תור אונליין</p>
-                )}
-              </div>
-            </div>
-          ) : (
-            /* Stacked layout (default): centered */
-            <div className="text-center">
-              {showLogo && business.logoUrl && (
-                <img src={business.logoUrl} alt={business.name} className="w-20 h-20 rounded-2xl object-cover mx-auto mb-4 shadow-md border" />
-              )}
-              {showBanner && business.bannerUrl && (!showLogo || !business.logoUrl) && (
-                <img src={business.bannerUrl} alt={business.name} className="w-full h-32 rounded-2xl object-cover mb-4 shadow-md" />
-              )}
-              {showBusinessName && (
-                <h1 className="text-3xl font-extrabold mb-2" style={{ color: primaryColor }}>{business.name}</h1>
-              )}
-              {welcomeText ? (
-                <p className="text-muted-foreground whitespace-pre-wrap max-w-md mx-auto">{welcomeText}</p>
-              ) : (
-                <p className="text-muted-foreground">קביעת תור אונליין</p>
-              )}
-            </div>
+        <header className="mb-8 text-center">
+          {showLogo && logoUrl && (
+            <img src={logoUrl} alt={business.name} className="w-20 h-20 rounded-2xl object-cover mx-auto mb-4 shadow-md border" />
           )}
+          {showBanner && bannerUrl && (!showLogo || !logoUrl) && (
+            <img src={bannerUrl} alt={business.name} className="w-full h-32 rounded-2xl object-cover mb-4 shadow-md" style={{ objectPosition: bannerPosition }} />
+          )}
+          {showBusinessName && (
+            <h1 className="text-3xl font-extrabold mb-2" style={{ color: primaryColor }}>{business.name}</h1>
+          )}
+          <p className="text-muted-foreground">קביעת תור אונליין</p>
         </header>
 
         <Card className="shadow-lg overflow-hidden" style={{ borderRadius: cardRadius }}>
@@ -325,6 +624,9 @@ export default function Book() {
                               <div className="font-semibold text-lg">{service.name}</div>
                               <div className="font-bold text-lg" style={{ color: primaryColor }}>₪{(service.price / 100).toFixed(0)}</div>
                             </div>
+                            {(service as any).description && (
+                              <p className="text-sm text-muted-foreground mt-1">{(service as any).description}</p>
+                            )}
                             <div className="text-muted-foreground text-sm flex items-center gap-1 mt-1">
                               <Clock className="w-4 h-4" />{formatDuration(service.durationMinutes)}
                             </div>
@@ -558,7 +860,7 @@ export default function Book() {
                       </Button>
                     </div>
                   )}
-                  <Button variant="outline" onClick={() => window.location.reload()}>קבע תור נוסף</Button>
+                  <Button variant="outline" onClick={() => { setStep(0); }}>חזור לעמוד הפרופיל</Button>
                 </motion.div>
               )}
 
@@ -570,6 +872,10 @@ export default function Book() {
               {step > 1 ? (
                 <Button variant="outline" onClick={handleBack} className="gap-2">
                   <ChevronRight className="w-4 h-4" /> חזור
+                </Button>
+              ) : step === 1 ? (
+                <Button variant="outline" onClick={() => setStep(0)} className="gap-2">
+                  <ChevronRight className="w-4 h-4" /> פרופיל
                 </Button>
               ) : <div />}
               {step === 4 ? (
