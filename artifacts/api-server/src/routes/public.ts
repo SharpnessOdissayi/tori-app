@@ -340,7 +340,10 @@ router.post("/public/:businessSlug/appointments", async (req, res): Promise<void
     return;
   }
 
-  const appointmentStatus = business.requireAppointmentApproval ? "pending" : "confirmed";
+  const tranzilaEnabled = (business as any).tranzilaEnabled ?? false;
+  const depositAmountAgorot = (business as any).depositAmountAgorot ?? null;
+  const requiresPayment = tranzilaEnabled && depositAmountAgorot && depositAmountAgorot > 0;
+  const appointmentStatus = requiresPayment ? "pending_payment" : business.requireAppointmentApproval ? "pending" : "confirmed";
 
   const [appointment] = await db
     .insert(appointmentsTable)
@@ -371,7 +374,12 @@ router.post("/public/:businessSlug/appointments", async (req, res): Promise<void
   // Send confirmation to client (non-blocking)
   sendClientConfirmation(phoneNumber, clientName, business.name, service.name, formattedDate, appointmentTime, business.slug).catch(() => {});
 
-  res.status(201).json({ ...appointment, createdAt: appointment.createdAt.toISOString() });
+  res.status(201).json({
+    ...appointment,
+    createdAt: appointment.createdAt.toISOString(),
+    requiresPayment: !!requiresPayment,
+    depositAmountILS: requiresPayment ? (depositAmountAgorot! / 100) : null,
+  });
 });
 
 router.post("/public/:businessSlug/waitlist", async (req, res): Promise<void> => {

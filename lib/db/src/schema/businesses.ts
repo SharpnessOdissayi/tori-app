@@ -69,6 +69,9 @@ export const businessesTable = pgTable("businesses", {
   bannerPosition: text("banner_position").notNull().default("center"), // CSS object-position
   contactPhone: text("contact_phone"), // Display phone (overrides login phone in profile)
   address: text("address"), // Business address shown on profile page
+  // Tranzila deposit payment
+  tranzilaEnabled: boolean("tranzila_enabled").notNull().default(false),
+  depositAmountAgorot: integer("deposit_amount_agorot"), // deposit in agorot (100 = 1 ILS), null = no deposit
 });
 
 export const insertBusinessSchema = createInsertSchema(businessesTable).omit({ id: true, createdAt: true });

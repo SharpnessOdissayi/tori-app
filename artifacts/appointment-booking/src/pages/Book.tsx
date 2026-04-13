@@ -388,7 +388,15 @@ export default function Book() {
             phone: clientData.phone,
           };
           localStorage.setItem(`kavati_booking_${businessSlug}`, JSON.stringify(bookingData));
-          setStep(5);
+          // If payment required, redirect to Tranzila
+          if (data?.requiresPayment && data?.id) {
+            fetch(`${API_BASE}/tranzila/payment-url/${data.id}`)
+              .then(r => r.json())
+              .then(({ url }) => { if (url) window.location.href = url; })
+              .catch(() => setStep(5));
+          } else {
+            setStep(5);
+          }
         },
         onError: () => toast({ title: "שגיאה", description: "לא ניתן לקבוע את התור, נסה שוב", variant: "destructive" }),
       }

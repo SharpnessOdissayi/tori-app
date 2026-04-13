@@ -2225,6 +2225,8 @@ function SettingsTab() {
   const [form, setForm] = useState({
     name: "", ownerName: "", phone: "",
     bufferMinutes: "0", notificationEnabled: false, notificationMessage: "", requireAppointmentApproval: false, requirePhoneVerification: false,
+    tranzilaEnabled: false,
+    depositAmount: "0",
     // booking restrictions
     minLeadHours: "20",
     cancellationHours: "24",
@@ -2268,6 +2270,8 @@ function SettingsTab() {
       notificationMessage: profile.notificationMessage ?? "",
       requireAppointmentApproval: (profile as any).requireAppointmentApproval ?? false,
       requirePhoneVerification: (profile as any).requirePhoneVerification ?? false,
+      tranzilaEnabled: (profile as any).tranzilaEnabled ?? false,
+      depositAmount: (((profile as any).depositAmountAgorot ?? 0) / 100).toString(),
       minLeadHours: ((profile as any).minLeadHours ?? 20).toString(),
       cancellationHours: ((profile as any).cancellationHours ?? 24).toString(),
       maxFutureWeeks: ((profile as any).maxFutureWeeks ?? 15).toString(),
@@ -2317,6 +2321,8 @@ function SettingsTab() {
         shabbatMode: form.shabbatMode,
         reminderSendTime: form.reminderSendTime,
         reminderCustomText: form.reminderCustomText || null,
+        tranzilaEnabled: form.tranzilaEnabled,
+        depositAmountAgorot: form.tranzilaEnabled ? Math.round(parseFloat(form.depositAmount || "0") * 100) : null,
       } as any
     }, {
       onSuccess: () => {
@@ -2496,6 +2502,28 @@ function SettingsTab() {
                 </div>
                 <Switch checked={form.requirePhoneVerification} onCheckedChange={v => setForm(p => ({ ...p, requirePhoneVerification: v }))} />
               </div>
+              {/* Tranzila Deposit */}
+              <div className="flex items-center justify-between py-3 border-b border-border/50">
+                <div>
+                  <div className="font-medium text-sm">תשלום מקדמה (טרנזילה)</div>
+                  <div className="text-xs text-muted-foreground mt-0.5">דלוק = לקוח חייב לשלם מקדמה לפני אישור התור</div>
+                </div>
+                <Switch checked={form.tranzilaEnabled} onCheckedChange={v => setForm(p => ({ ...p, tranzilaEnabled: v }))} />
+              </div>
+              {form.tranzilaEnabled && (
+                <div className="space-y-2 pb-3 border-b border-border/50">
+                  <Label className="text-sm">סכום מקדמה (₪)</Label>
+                  <Input
+                    type="number"
+                    min="1"
+                    step="1"
+                    value={form.depositAmount}
+                    onChange={e => setForm(p => ({ ...p, depositAmount: e.target.value }))}
+                    className="h-10 w-32"
+                    placeholder="50"
+                  />
+                </div>
+              )}
             </div>
 
             <div className="flex justify-end">
