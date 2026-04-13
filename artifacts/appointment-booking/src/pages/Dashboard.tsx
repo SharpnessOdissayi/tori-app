@@ -676,14 +676,18 @@ function AppointmentsTab() {
                     </div>
                   </div>
                   <div className="flex gap-2">
-                    <Button size="sm" className="bg-green-600 hover:bg-green-700 text-white"
-                      onClick={() => handleApprove(apt.id)} disabled={approvingId === apt.id}>
-                      {approvingId === apt.id ? "מאשר..." : "אשר תור"}
-                    </Button>
-                    <Button variant="outline" size="sm" className="text-destructive border-destructive/40 hover:bg-destructive/10"
-                      onClick={() => handleCancel(apt.id)} disabled={cancelMutation.isPending}>
-                      דחה
-                    </Button>
+                    <button
+                      onClick={() => handleApprove(apt.id)} disabled={approvingId === apt.id}
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-green-600 hover:bg-green-700 text-white border border-green-700 transition-all disabled:opacity-60"
+                    >
+                      <CheckCircle className="w-3.5 h-3.5" /> {approvingId === apt.id ? "מאשר..." : "אשר"}
+                    </button>
+                    <button
+                      onClick={() => handleCancel(apt.id)} disabled={cancelMutation.isPending}
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-red-50 hover:bg-red-100 text-red-500 border border-red-100 transition-all disabled:opacity-60"
+                    >
+                      <X className="w-3.5 h-3.5" /> דחה
+                    </button>
                   </div>
                 </div>
               ))}
@@ -709,10 +713,12 @@ function AppointmentsTab() {
                       {format(parseISO(apt.appointmentDate + "T" + apt.appointmentTime), "EEEE, d בMMMM yyyy", { locale: he })} • {apt.appointmentTime}
                     </div>
                   </div>
-                  <Button variant="outline" size="sm" className="text-destructive border-destructive/40 hover:bg-destructive/10"
-                    onClick={() => handleCancel(apt.id)} disabled={cancelMutation.isPending}>
-                    ביטול
-                  </Button>
+                  <button
+                    onClick={() => handleCancel(apt.id)} disabled={cancelMutation.isPending}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-red-50 hover:bg-red-100 text-red-500 border border-red-100 transition-all disabled:opacity-60"
+                  >
+                    <X className="w-3.5 h-3.5" /> ביטול
+                  </button>
                 </div>
               ))}
             </div>
@@ -883,8 +889,11 @@ function ServicesTab() {
               )}
             </div>
             <div className="flex gap-2 justify-end pt-2">
-              <Button type="button" variant="outline" onClick={reset}>ביטול</Button>
-              <Button type="submit" disabled={createMutation.isPending || updateMutation.isPending || imageUpload.isUploading}>שמור שירות</Button>
+              <button type="button" onClick={reset}
+                className="px-4 py-2 rounded-xl text-sm font-medium border border-border bg-muted/40 hover:bg-muted text-muted-foreground transition-all">
+                ביטול
+              </button>
+              <Button type="submit" className="rounded-xl px-5" disabled={createMutation.isPending || updateMutation.isPending || imageUpload.isUploading}>שמור שירות</Button>
             </div>
           </form>
         )}
@@ -907,15 +916,23 @@ function ServicesTab() {
                     {s.bufferMinutes > 0 && <span className="mr-2">• מאגר: {s.bufferMinutes} דקות</span>}
                   </div>
                 </div>
-                <div className="flex gap-1">
-                  <Button variant="ghost" size="icon" onClick={() => {
-                    setEditingId(s.id);
-                    setForm({ name: s.name, price: (s.price / 100).toString(), durationMinutes: s.durationMinutes.toString(), bufferMinutes: (s.bufferMinutes ?? 0).toString(), isActive: s.isActive, imageUrl: s.imageUrl ?? "" });
-                    setIsAdding(false);
-                  }}><Edit className="w-4 h-4" /></Button>
-                  <Button variant="ghost" size="icon" className="text-destructive hover:bg-destructive/10" onClick={() => {
-                    if (confirm("למחוק שירות?")) deleteMutation.mutate({ id: s.id }, { onSuccess: () => queryClient.invalidateQueries({ queryKey: getListBusinessServicesQueryKey() }) });
-                  }}><Trash2 className="w-4 h-4" /></Button>
+                <div className="flex gap-1.5">
+                  <button
+                    onClick={() => {
+                      setEditingId(s.id);
+                      setForm({ name: s.name, price: (s.price / 100).toString(), durationMinutes: s.durationMinutes.toString(), bufferMinutes: (s.bufferMinutes ?? 0).toString(), isActive: s.isActive, imageUrl: s.imageUrl ?? "" });
+                      setIsAdding(false);
+                    }}
+                    className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium bg-primary/8 hover:bg-primary/15 text-primary border border-primary/15 transition-all"
+                  >
+                    <Edit className="w-3 h-3" /> ערוך
+                  </button>
+                  <button
+                    onClick={() => { if (confirm("למחוק שירות?")) deleteMutation.mutate({ id: s.id }, { onSuccess: () => queryClient.invalidateQueries({ queryKey: getListBusinessServicesQueryKey() }) }); }}
+                    className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium bg-red-50 hover:bg-red-100 text-red-500 border border-red-100 transition-all"
+                  >
+                    <Trash2 className="w-3 h-3" /> מחק
+                  </button>
                 </div>
               </div>
             </div>
@@ -1024,9 +1041,10 @@ function BreaksTab() {
               <span className="text-muted-foreground">—</span>
               <Input type="time" value={b.endTime} onChange={e => { const n = [...localBreaks]; n[i].endTime = e.target.value; setLocalBreaks(n); }} className="w-28" dir="ltr" />
               <Input placeholder="תיאור (אופציונלי)" value={b.label || ""} onChange={e => { const n = [...localBreaks]; n[i].label = e.target.value; setLocalBreaks(n); }} className="flex-1 min-w-32" />
-              <Button variant="ghost" size="icon" className="text-destructive" onClick={() => { const n = [...localBreaks]; n.splice(i, 1); setLocalBreaks(n); }}>
-                <Trash2 className="w-4 h-4" />
-              </Button>
+              <button onClick={() => { const n = [...localBreaks]; n.splice(i, 1); setLocalBreaks(n); }}
+                className="p-1.5 rounded-lg bg-red-50 hover:bg-red-100 text-red-400 border border-red-100 transition-all shrink-0">
+                <Trash2 className="w-3.5 h-3.5" />
+              </button>
             </div>
           ))
         )}
@@ -1145,9 +1163,10 @@ function WaitlistTab() {
                       <Phone className="w-3.5 h-3.5" /> WhatsApp
                     </Button>
                   </a>
-                  <Button variant="ghost" size="sm" className="text-destructive hover:bg-destructive/10" onClick={() => handleRemove(w.id)}>
-                    <Trash2 className="w-4 h-4" />
-                  </Button>
+                  <button onClick={() => handleRemove(w.id)}
+                    className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium bg-red-50 hover:bg-red-100 text-red-500 border border-red-100 transition-all">
+                    <Trash2 className="w-3 h-3" /> הסר
+                  </button>
                 </div>
               </div>
             ))}
