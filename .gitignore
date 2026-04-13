@@ -49,3 +49,7 @@ Thumbs.db
 .local/
 node_modules/
 node_modules/
+
+# Capacitor native build output (generated locally, not committed)
+artifacts/appointment-booking/android/
+artifacts/appointment-booking/ios/

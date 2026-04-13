@@ -351,7 +351,9 @@ export async function customFetch<T = unknown>(
 
   // Attach bearer token when an auth getter is configured and no
   // Authorization header has been explicitly provided.
-  const localToken = typeof window !== "undefined" ? localStorage.getItem("biz_token") : null;
+  const localToken = typeof window !== "undefined"
+    ? (localStorage.getItem("biz_token") || sessionStorage.getItem("biz_token"))
+    : null;
   if (localToken && !headers.has("authorization")) {
     headers.set("authorization", `Bearer ${localToken}`);
   } else if (_authTokenGetter && !headers.has("authorization")) {
