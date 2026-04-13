@@ -9,6 +9,7 @@ import SuperAdmin from "@/pages/SuperAdmin";
 import Dashboard from "@/pages/Dashboard";
 import Register from "@/pages/Register";
 import Book from "@/pages/Book";
+import ClientPortal from "@/pages/ClientPortal";
 import Details from "@/pages/Details";
 import Contact from "@/pages/Contact";
 import Privacy from "@/pages/Privacy";
@@ -56,6 +57,7 @@ function Router() {
       <Route path="/register" component={Register} />
       <Route path="/dashboard" component={Dashboard} />
       <Route path="/book/:businessSlug" component={Book} />
+      <Route path="/client" component={ClientPortal} />
       <Route path="/privacy" component={Privacy} />
       <Route path="/terms" component={Terms} />
       <Route component={NotFound} />

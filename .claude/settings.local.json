@@ -6,7 +6,22 @@
       "Bash(gh --version)",
       "Bash(node -e ':*)",
       "Bash(pnpm add:*)",
-      "Bash(pnpm install:*)"
+      "Bash(pnpm install:*)",
+      "WebFetch(domain:docs.tranzila.com)",
+      "WebSearch",
+      "WebFetch(domain:github.com)",
+      "WebFetch(domain:docs.bill.run)",
+      "WebFetch(domain:gist.github.com)",
+      "WebFetch(domain:anyflip.com)",
+      "WebFetch(domain:support.titandxp.com)",
+      "WebFetch(domain:docplayer.net)",
+      "WebFetch(domain:docs.j2store.org)",
+      "WebFetch(domain:www.npmjs.com)",
+      "WebFetch(domain:doctr6.interspace.net)",
+      "WebFetch(domain:apps.make.com)",
+      "WebFetch(domain:msg91.com)",
+      "WebFetch(domain:developers.facebook.com)",
+      "WebFetch(domain:business.whatsapp.com)"
     ]
   }
 }

@@ -82,6 +82,16 @@ const PRESET_COLORS = [
 const FREE_SERVICE_LIMIT = 3;
 const FREE_MONTHLY_CUSTOMER_LIMIT = 20;
 
+function formatDuration(minutes: number): string {
+  if (minutes < 60) return `${minutes} דקות`;
+  const h = Math.floor(minutes / 60);
+  const m = minutes % 60;
+  if (h === 1 && m === 0) return "שעה";
+  if (h === 1 && m > 0) return `שעה ו-${m} דקות`;
+  if (m === 0) return `${h} שעות`;
+  return `${h} שעות ו-${m} דקות`;
+}
+
 function CopyLinkButton({ slug }: { slug: string }) {
   const [copied, setCopied] = useState(false);
   const fullUrl = `${window.location.origin}/book/${slug}`;
@@ -741,7 +751,7 @@ function AppointmentsTab() {
                     <div className="font-semibold">{apt.clientName}
                       <span className="text-muted-foreground text-sm font-normal mr-2" dir="ltr">{apt.phoneNumber}</span>
                     </div>
-                    <div className="text-sm text-muted-foreground mt-0.5">{apt.serviceName} • {apt.durationMinutes} דקות</div>
+                    <div className="text-sm text-muted-foreground mt-0.5">{apt.serviceName} • {formatDuration(apt.durationMinutes)}</div>
                     <div className="text-yellow-700 font-medium text-sm mt-1">
                       {format(parseISO(apt.appointmentDate + "T" + apt.appointmentTime), "EEEE, d בMMMM yyyy", { locale: he })} • {apt.appointmentTime}
                     </div>
@@ -779,7 +789,7 @@ function AppointmentsTab() {
                       {apt.clientName}
                       <span className="text-muted-foreground text-sm font-normal" dir="ltr">{apt.phoneNumber}</span>
                     </div>
-                    <div className="text-sm text-muted-foreground mt-0.5">{apt.serviceName} • {apt.durationMinutes} דקות</div>
+                    <div className="text-sm text-muted-foreground mt-0.5">{apt.serviceName} • {formatDuration(apt.durationMinutes)}</div>
                     <div className="text-primary font-medium text-sm mt-1">
                       {format(parseISO(apt.appointmentDate + "T" + apt.appointmentTime), "EEEE, d בMMMM yyyy", { locale: he })} • {apt.appointmentTime}
                     </div>
@@ -994,7 +1004,7 @@ function ServicesTab() {
                     {!s.isActive && <Badge variant="secondary" className="text-xs">לא פעיל</Badge>}
                   </div>
                   <div className="text-sm text-muted-foreground mt-1">
-                    ₪{(s.price / 100).toFixed(0)} • {s.durationMinutes} דקות
+                    ₪{(s.price / 100).toFixed(0)} • {formatDuration(s.durationMinutes)}
                     {s.bufferMinutes > 0 && <span className="mr-2">• מאגר: {s.bufferMinutes} דקות</span>}
                   </div>
                 </div>

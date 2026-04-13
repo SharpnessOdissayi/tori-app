@@ -172,7 +172,10 @@ function formatDuration(minutes: number): string {
   if (minutes < 60) return `${minutes} דקות`;
   const h = Math.floor(minutes / 60);
   const m = minutes % 60;
-  return m === 0 ? `${h}:00 שעות` : `${h}:${m.toString().padStart(2, "0")} שעות`;
+  if (h === 1 && m === 0) return "שעה";
+  if (h === 1 && m > 0) return `שעה ו-${m} דקות`;
+  if (m === 0) return `${h} שעות`;
+  return `${h} שעות ו-${m} דקות`;
 }
 
 export default function Book() {

@@ -5,6 +5,7 @@ import authRouter from "./auth";
 import businessRouter from "./business";
 import publicRouter from "./public";
 import storageRouter from "./storage";
+import clientRouter from "./client";
 
 const router: IRouter = Router();
 
@@ -14,5 +15,6 @@ router.use(authRouter);
 router.use(businessRouter);
 router.use(publicRouter);
 router.use(storageRouter);
+router.use(clientRouter);
 
 export default router;
