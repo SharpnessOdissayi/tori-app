@@ -395,6 +395,23 @@ export default function Dashboard() {
       />
 
       <main className="max-w-6xl mx-auto px-4 py-6">
+        {/* Mobile-only welcome header */}
+        <div className="sm:hidden flex items-center justify-between mb-4">
+          <div>
+            <p className="text-xs text-muted-foreground">ברוך הבא,</p>
+            <p className="font-bold text-lg leading-tight" style={{ color: "#d4af37" }}>
+              {headerProfile?.name ?? ""}!
+            </p>
+          </div>
+          <button
+            onClick={handleLogout}
+            className="flex items-center gap-1.5 px-3 py-2 rounded-xl border text-sm font-medium text-muted-foreground hover:text-foreground hover:border-foreground/40 transition-all"
+          >
+            <LogOut className="w-4 h-4" />
+            יציאה
+          </button>
+        </div>
+
         <SubscriptionBanner />
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
 
