@@ -335,6 +335,21 @@ export default function Dashboard() {
     setToken(null);
   };
 
+  // Apply business font to the whole dashboard
+  useEffect(() => {
+    const fontFamily = (headerProfile as any)?.fontFamily;
+    if (!fontFamily || fontFamily === "inherit") return;
+    const id = `gfont-dash-${fontFamily.replace(/\s+/g, "-")}`;
+    if (!document.getElementById(id)) {
+      const link = document.createElement("link");
+      link.id = id;
+      link.rel = "stylesheet";
+      link.href = `https://fonts.googleapis.com/css2?family=${encodeURIComponent(fontFamily)}:wght@400;500;600;700&display=swap`;
+      document.head.appendChild(link);
+    }
+    document.documentElement.style.setProperty("--dashboard-font", `'${fontFamily}', sans-serif`);
+  }, [headerProfile]);
+
   const completeTour = () => {
     localStorage.removeItem("onboarding_pending");
     localStorage.setItem("onboarding_completed", "true");
@@ -350,8 +365,12 @@ export default function Dashboard() {
 
   if (!token) return <Login onLogin={handleLogin} />;
 
+  const dashFont = (headerProfile as any)?.fontFamily;
+
   return (
-    <div className="min-h-screen bg-muted/30" dir="rtl">
+    <div className="min-h-screen bg-muted/30" dir="rtl"
+      style={dashFont && dashFont !== "inherit" ? { fontFamily: `'${dashFont}', sans-serif` } : undefined}
+    >
       {showTour && (
         <OnboardingTour
           onComplete={completeTour}
