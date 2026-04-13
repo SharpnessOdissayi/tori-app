@@ -34,6 +34,7 @@ interface EditFormData {
 }
 
 export default function SuperAdmin() {
+  const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const { toast } = useToast();
@@ -65,6 +66,10 @@ export default function SuperAdmin() {
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
     if (!password.trim()) return;
+    if (username.trim().toLowerCase() !== "admin") {
+      toast({ title: "שם משתמש שגוי", variant: "destructive" });
+      return;
+    }
     setLoginAttempted(true);
   };
 
@@ -181,8 +186,12 @@ export default function SuperAdmin() {
             <CardContent>
               <form onSubmit={handleLogin} className="space-y-4">
                 <div className="space-y-2">
+                  <Label>שם משתמש</Label>
+                  <Input value={username} onChange={e => setUsername(e.target.value)} dir="ltr" placeholder="admin" autoComplete="username" />
+                </div>
+                <div className="space-y-2">
                   <Label>סיסמת מנהל</Label>
-                  <Input type="password" value={password} onChange={e => setPassword(e.target.value)} dir="ltr" placeholder="••••••••" />
+                  <Input type="password" value={password} onChange={e => setPassword(e.target.value)} dir="ltr" placeholder="••••••••" autoComplete="current-password" />
                 </div>
                 <Button type="submit" className="w-full h-11">כניסה</Button>
               </form>

@@ -65,7 +65,7 @@ export default function Home() {
         >
           {[
             { icon: <MessageCircle className="w-5 h-5 text-primary" />, title: "תזכורות בווצאפ", desc: "לקוחות מקבלים תזכורת אוטומטית לפני כל תור" },
-            { icon: <Bell className="w-5 h-5 text-primary" />, title: "הודעות כניסה", desc: "הודעת פתיחה מותאמת אישית ללקוחות שנכנסים לדף" },
+            { icon: <Bell className="w-5 h-5 text-primary" />, title: "לקוחות מעודכנים", desc: "אפשרויות רבות להשאיר את הלקוחות שלכם מעודכנים, מהודעה בכניסה לעמוד הקביעת תורים עד להודעות מותאמות אישיות בתזכורות שלפני התור בווצאפ" },
             { icon: <CalendarCheck className="w-5 h-5 text-primary" />, title: "לינק ייחודי", desc: "כל עסק מקבל עמוד הזמנה אישי ומעוצב" },
           ].map((f, i) => (
             <Card key={i} className="text-right border-border shadow-sm hover:shadow-md transition-shadow">

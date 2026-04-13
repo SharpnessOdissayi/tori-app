@@ -1,0 +1,17 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "Frontend (appointment-booking)",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": ["--filter", "@workspace/appointment-booking", "run", "dev"],
+      "port": 5173
+    },
+    {
+      "name": "API Server",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": ["--filter", "@workspace/api-server", "run", "dev"],
+      "port": 3000
+    }
+  ]
+}

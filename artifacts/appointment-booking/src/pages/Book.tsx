@@ -20,6 +20,13 @@ import { motion, AnimatePresence } from "framer-motion";
 import "react-day-picker/dist/style.css";
 import { useToast } from "@/hooks/use-toast";
 
+function formatDuration(minutes: number): string {
+  if (minutes < 60) return `${minutes} דקות`;
+  const h = Math.floor(minutes / 60);
+  const m = minutes % 60;
+  return m === 0 ? `${h}:00 שעות` : `${h}:${m.toString().padStart(2, "0")} שעות`;
+}
+
 export default function Book() {
   const { businessSlug } = useParams<{ businessSlug: string }>();
   const [step, setStep] = useState(1);
@@ -274,7 +281,7 @@ export default function Book() {
                     <div className="grid gap-3">
                       {servicesList.filter(s => s.isActive).map(service => (
                         <div key={service.id}
-                          onClick={() => { setSelectedServiceId(service.id); setTimeout(handleNext, 150); }}
+                          onClick={() => { setSelectedServiceId(service.id); }}
                           className={`border-2 rounded-xl cursor-pointer transition-all overflow-hidden ${selectedServiceId === service.id ? "border-primary" : "border-transparent bg-muted/40 hover:bg-muted"}`}
                           style={{ borderColor: selectedServiceId === service.id ? primaryColor : undefined, backgroundColor: selectedServiceId === service.id ? primaryColor + "0d" : undefined }}>
                           {service.imageUrl && (
@@ -288,7 +295,7 @@ export default function Book() {
                               <div className="font-bold text-lg" style={{ color: primaryColor }}>₪{(service.price / 100).toFixed(0)}</div>
                             </div>
                             <div className="text-muted-foreground text-sm flex items-center gap-1 mt-1">
-                              <Clock className="w-4 h-4" />{service.durationMinutes} דקות
+                              <Clock className="w-4 h-4" />{formatDuration(service.durationMinutes)}
                             </div>
                           </div>
                         </div>
@@ -304,9 +311,9 @@ export default function Book() {
               {step === 2 && (
                 <motion.div key="s2" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} className="space-y-4">
                   <h2 className="text-xl font-bold">בחר תאריך</h2>
-                  <div className="flex justify-center bg-muted/20 p-4 rounded-xl border">
+                  <div className="flex justify-center bg-muted/20 p-4 rounded-xl border" dir="ltr">
                     <DayPicker mode="single" selected={selectedDate}
-                      onSelect={(date) => { if (date) { setSelectedDate(date); setSelectedTime(null); setTimeout(handleNext, 150); } }}
+                      onSelect={(date) => { if (date) { setSelectedDate(date); setSelectedTime(null); } }}
                       locale={he} weekStartsOn={0} disabled={{ before: new Date() }}
                       modifiersClassNames={{ selected: "font-bold rounded-full", today: "font-bold" }}
                       modifiersStyles={{ selected: { backgroundColor: primaryColor, color: "white" } }}
@@ -324,7 +331,7 @@ export default function Book() {
                   ) : slots.length > 0 ? (
                     <div className="grid grid-cols-3 sm:grid-cols-4 gap-3">
                       {slots.map((time, i) => (
-                        <button key={i} onClick={() => { setSelectedTime(time); setTimeout(handleNext, 150); }}
+                        <button key={i} onClick={() => { setSelectedTime(time); }}
                           className={`p-3 rounded-xl border-2 text-center font-medium transition-all ${selectedTime === time ? "" : "bg-muted/40 text-foreground hover:bg-muted"}`}
                           style={selectedTime === time ? {
                             borderColor: primaryColor,
@@ -364,7 +371,7 @@ export default function Book() {
                   <form id="booking-form" onSubmit={handleSubmit} className="space-y-4">
                     <div className="space-y-2">
                       <Label>שם מלא *</Label>
-                      <Input required value={clientData.name} onChange={e => setClientData(p => ({ ...p, name: e.target.value }))} className="h-12 text-base" placeholder="ישראל ישראלי" />
+                      <Input required value={clientData.name} onChange={e => setClientData(p => ({ ...p, name: e.target.value }))} className="h-12 text-base" placeholder="שם מלא" />
                     </div>
                     <div className="space-y-2">
                       <Label>מספר טלפון *</Label>
@@ -376,7 +383,7 @@ export default function Book() {
                           onChange={e => { setClientData(p => ({ ...p, phone: e.target.value })); setOtpSent(false); setPhoneVerified(false); setOtpCode(""); }}
                           className="h-12 text-base flex-1"
                           dir="ltr"
-                          placeholder="050-0000000"
+                          placeholder="מספר טלפון"
                           disabled={phoneVerified}
                         />
                         {!phoneVerified && (
