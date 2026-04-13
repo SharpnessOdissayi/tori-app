@@ -13,7 +13,6 @@ import Details from "@/pages/Details";
 import Contact from "@/pages/Contact";
 import Privacy from "@/pages/Privacy";
 import Terms from "@/pages/Terms";
-import Demo from "@/pages/Demo";
 
 class ErrorBoundary extends Component<{ children: ReactNode }, { hasError: boolean; error: Error | null }> {
   constructor(props: { children: ReactNode }) {
@@ -59,7 +58,6 @@ function Router() {
       <Route path="/book/:businessSlug" component={Book} />
       <Route path="/privacy" component={Privacy} />
       <Route path="/terms" component={Terms} />
-      <Route path="/demo" component={Demo} />
       <Route component={NotFound} />
     </Switch>
   );
