@@ -421,7 +421,7 @@ export default function Dashboard() {
         <div className="sm:hidden flex items-center justify-between mb-4">
           <div>
             <p className="text-xs text-muted-foreground">ברוך הבא,</p>
-            <p className="font-bold text-lg leading-tight" style={{ color: "#d4af37" }}>
+            <p className="font-bold text-lg leading-tight" dir="rtl" style={{ color: "#d4af37" }}>
               {headerProfile?.name ?? ""}!
             </p>
           </div>
