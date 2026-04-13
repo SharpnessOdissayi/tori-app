@@ -135,42 +135,36 @@ export async function verifyOtp(phone: string, code: string): Promise<boolean> {
 }
 
 // ── Notification to business owner ─────────────────────────────────────────
-// Pre-approved template: appointment_confirmed
-// "שלום {{1}}, תודה שהזמנתם עם {{2}}. התור שלך ל{{3}} ב{{4}} בשעה {{5}} אושר."
-// We re-use this template to notify the business owner about a new booking.
+// Pre-approved template: appointment_confirmed (4 params)
+// {{1}}=clientName, {{2}}=businessName, {{3}}=date, {{4}}=time
 export async function notifyBusinessOwner(
   phone: string,
   clientName: string,
   time: string,
   date: string,
-  serviceName: string
+  businessName: string
 ): Promise<void> {
-  // Template: appointment_confirmed
-  // {{1}}=clientName, {{2}}=businessName, {{3}}=serviceName, {{4}}=date, {{5}}=time
   await sendTemplate(phone, "appointment_confirmed", [
     clientName,
-    "קבעתי",
-    serviceName,
+    businessName,
     date,
     time,
   ]);
 }
 
 // ── Confirmation to client ──────────────────────────────────────────────────
-// Pre-approved template: appointment_confirmed
-// "שלום {{1}}, תודה שהזמנתם עם {{2}}. התור שלך ל{{3}} ב{{4}} בשעה {{5}} אושר."
+// Pre-approved template: appointment_confirmed (4 params)
+// {{1}}=clientName, {{2}}=businessName, {{3}}=date, {{4}}=time
 export async function sendClientConfirmation(
   phone: string,
   clientName: string,
   businessName: string,
-  serviceName: string,
   date: string,
   time: string
 ): Promise<void> {
   await sendTemplate(phone, "appointment_confirmed", [
     clientName,
     businessName,
-    serviceName,
     date,
     time,
   ]);

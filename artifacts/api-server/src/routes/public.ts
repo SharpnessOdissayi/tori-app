@@ -365,11 +365,11 @@ router.post("/public/:businessSlug/appointments", async (req, res): Promise<void
 
   // Notify business owner via WhatsApp (non-blocking)
   if (business.phone) {
-    notifyBusinessOwner(business.phone, clientName, appointmentTime, formattedDate, service.name).catch(() => {});
+    notifyBusinessOwner(business.phone, clientName, appointmentTime, formattedDate, business.name).catch(() => {});
   }
 
   // Send confirmation to client (non-blocking)
-  sendClientConfirmation(phoneNumber, clientName, business.name, service.name, formattedDate, appointmentTime).catch(() => {});
+  sendClientConfirmation(phoneNumber, clientName, business.name, formattedDate, appointmentTime).catch(() => {});
 
   res.status(201).json({ ...appointment, createdAt: appointment.createdAt.toISOString() });
 });
