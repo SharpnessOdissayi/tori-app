@@ -135,7 +135,7 @@ export async function verifyOtp(phone: string, code: string): Promise<boolean> {
 }
 
 // ── Notification to business owner ─────────────────────────────────────────
-// Template: appointment_confirmation_1 (5 params + URL button)
+// Template: appointment_confirmation_12 (5 params + URL button)
 // "שלום {{1}}, תודה שהזמנתם עם {{2}}. התור שלך ל{{3}} ב{{4}} בשעה {{5}} אושר."
 // Button "הצגת פרטים" → https://kavati.app/book/{{slug}}
 export async function notifyBusinessOwner(
@@ -147,7 +147,7 @@ export async function notifyBusinessOwner(
   time: string,
   businessSlug: string
 ): Promise<void> {
-  await sendTemplate(phone, "appointment_confirmation_1", [
+  await sendTemplate(phone, "appointment_confirmation_12", [
     clientName,
     businessName,
     serviceName,
@@ -157,7 +157,7 @@ export async function notifyBusinessOwner(
 }
 
 // ── Confirmation to client ──────────────────────────────────────────────────
-// Template: appointment_confirmation_1 (5 params + URL button)
+// Template: appointment_confirmation_12 (5 params + URL button)
 // "שלום {{1}}, תודה שהזמנתם עם {{2}}. התור שלך ל{{3}} ב{{4}} בשעה {{5}} אושר."
 export async function sendClientConfirmation(
   phone: string,
@@ -168,7 +168,7 @@ export async function sendClientConfirmation(
   time: string,
   businessSlug: string
 ): Promise<void> {
-  await sendTemplate(phone, "appointment_confirmation_1", [
+  await sendTemplate(phone, "appointment_confirmation_12", [
     clientName,
     businessName,
     serviceName,
