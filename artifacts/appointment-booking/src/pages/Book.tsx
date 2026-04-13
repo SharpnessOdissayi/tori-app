@@ -161,27 +161,27 @@ function AccessibilityWidget({ primaryColor }: { primaryColor: string }) {
         className="fixed right-4 z-50 w-11 h-11 rounded-full shadow-lg flex items-center justify-center transition-all hover:scale-110 focus:outline-none focus:ring-2 focus:ring-offset-2"
         style={{ backgroundColor: "#1560BD", bottom: "5rem" }}
       >
-        {/* International Symbol of Access (ISA) — wheelchair icon */}
-        <svg viewBox="0 0 100 100" className="w-7 h-7" fill="white" aria-hidden="true">
+        {/* Dynamic Symbol of Access — active wheelchair user leaning forward */}
+        <svg viewBox="0 0 69 80" className="w-6 h-7" fill="white" aria-hidden="true">
           {/* Head */}
-          <circle cx="54" cy="10" r="8" />
-          {/* Body leaning forward */}
-          <path d="M54 20 C54 20 44 28 42 42 L58 42 L62 30 Z" />
-          {/* Arm reaching forward */}
-          <path d="M58 30 L72 38 L69 43 L55 36 Z" />
-          {/* Seat */}
-          <path d="M40 44 L40 68 L62 68 L62 64 L44 64 L44 44 Z" />
-          {/* Leg extended */}
-          <path d="M62 64 L72 78 L68 81 L57 67 Z" />
-          {/* Large rear wheel */}
-          <circle cx="36" cy="72" r="20" fill="none" stroke="white" strokeWidth="6" />
-          {/* Small front wheel */}
-          <circle cx="66" cy="82" r="9" fill="none" stroke="white" strokeWidth="5" />
-          {/* Wheel spokes */}
-          <line x1="36" y1="52" x2="36" y2="92" stroke="white" strokeWidth="3" />
-          <line x1="16" y1="72" x2="56" y2="72" stroke="white" strokeWidth="3" />
-          <line x1="22" y1="58" x2="50" y2="86" stroke="white" strokeWidth="3" />
-          <line x1="50" y1="58" x2="22" y2="86" stroke="white" strokeWidth="3" />
+          <circle cx="45" cy="6" r="6" />
+          {/* Body leaning forward aggressively */}
+          <path d="M43 13 C38 16 30 22 27 34 L42 34 L47 20 Z" />
+          {/* Arm outstretched forward-down */}
+          <path d="M44 20 L58 30 L56 34 L41 25 Z" />
+          {/* Seat / lap area */}
+          <path d="M25 36 L25 54 L46 54 L46 50 L29 50 L29 36 Z" />
+          {/* Lower leg kicking forward */}
+          <path d="M46 50 L60 65 L57 68 L42 53 Z" />
+          {/* Large rear wheel (circle) */}
+          <circle cx="22" cy="62" r="18" fill="none" stroke="white" strokeWidth="5.5" />
+          {/* Rear wheel spokes */}
+          <line x1="22" y1="44" x2="22" y2="80" stroke="white" strokeWidth="2.5" />
+          <line x1="4"  y1="62" x2="40" y2="62" stroke="white" strokeWidth="2.5" />
+          <line x1="9"  y1="49" x2="35" y2="75" stroke="white" strokeWidth="2.5" />
+          <line x1="35" y1="49" x2="9"  y2="75" stroke="white" strokeWidth="2.5" />
+          {/* Small front caster wheel */}
+          <circle cx="52" cy="72" r="7" fill="none" stroke="white" strokeWidth="4.5" />
         </svg>
       </button>
     </>
