@@ -158,14 +158,30 @@ function AccessibilityWidget({ primaryColor }: { primaryColor: string }) {
         aria-label="פתח תפריט נגישות"
         aria-expanded={open}
         title="נגישות"
-        className="fixed right-4 z-50 w-11 h-11 rounded-full shadow-lg flex items-center justify-center text-white transition-all hover:scale-110 focus:outline-none focus:ring-2 focus:ring-offset-2"
-        style={{ backgroundColor: primaryColor, bottom: "5rem" }}
+        className="fixed right-4 z-50 w-11 h-11 rounded-full shadow-lg flex items-center justify-center transition-all hover:scale-110 focus:outline-none focus:ring-2 focus:ring-offset-2"
+        style={{ backgroundColor: "#1560BD", bottom: "5rem" }}
       >
-        <svg viewBox="0 0 24 24" className="w-6 h-6" fill="currentColor" aria-hidden="true">
-          <circle cx="12" cy="4" r="1.5"/>
-          <path d="M19 9H5l2 7h3v4h4v-4h3z"/>
-          <path d="M12 5.5c-.83 0-1.5-.67-1.5-1.5S11.17 2.5 12 2.5s1.5.67 1.5 1.5S12.83 5.5 12 5.5z"/>
-          <path d="M7.5 9l1.5 5.5H9L7.5 9zm9 0L15 14.5h1L18 9h-1.5z" opacity=".6"/>
+        {/* International Symbol of Access (ISA) — wheelchair icon */}
+        <svg viewBox="0 0 100 100" className="w-7 h-7" fill="white" aria-hidden="true">
+          {/* Head */}
+          <circle cx="54" cy="10" r="8" />
+          {/* Body leaning forward */}
+          <path d="M54 20 C54 20 44 28 42 42 L58 42 L62 30 Z" />
+          {/* Arm reaching forward */}
+          <path d="M58 30 L72 38 L69 43 L55 36 Z" />
+          {/* Seat */}
+          <path d="M40 44 L40 68 L62 68 L62 64 L44 64 L44 44 Z" />
+          {/* Leg extended */}
+          <path d="M62 64 L72 78 L68 81 L57 67 Z" />
+          {/* Large rear wheel */}
+          <circle cx="36" cy="72" r="20" fill="none" stroke="white" strokeWidth="6" />
+          {/* Small front wheel */}
+          <circle cx="66" cy="82" r="9" fill="none" stroke="white" strokeWidth="5" />
+          {/* Wheel spokes */}
+          <line x1="36" y1="52" x2="36" y2="92" stroke="white" strokeWidth="3" />
+          <line x1="16" y1="72" x2="56" y2="72" stroke="white" strokeWidth="3" />
+          <line x1="22" y1="58" x2="50" y2="86" stroke="white" strokeWidth="3" />
+          <line x1="50" y1="58" x2="22" y2="86" stroke="white" strokeWidth="3" />
         </svg>
       </button>
     </>
