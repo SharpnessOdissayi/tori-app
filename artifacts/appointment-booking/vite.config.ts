@@ -23,6 +23,11 @@ export default defineConfig({
   build: {
     outDir: path.resolve(import.meta.dirname, "dist"),
     emptyOutDir: true,
+    rollupOptions: {
+      // Capacitor is only available in native mobile builds, not on Railway.
+      // The import in main.tsx is wrapped in try/catch so it fails gracefully.
+      external: ["@capacitor/core", "@capacitor/splash-screen", "@capacitor/status-bar"],
+    },
   },
   server: {
     port,
