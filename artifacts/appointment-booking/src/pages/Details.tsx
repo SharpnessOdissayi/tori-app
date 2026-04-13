@@ -3,11 +3,14 @@ import { Link } from "wouter";
 import {
   CalendarCheck, MessageCircle, Bell, Clock, Shield, Zap, Crown,
   CheckCircle, Users, Settings, Palette, Star, ArrowLeft, Phone,
+  BarChart2, Briefcase, Umbrella, DollarSign, TrendingUp, LayoutDashboard,
+  Smartphone, ExternalLink,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import Navbar from "@/components/Navbar";
+import SiteFooter from "@/components/SiteFooter";
 
 const FEATURES = [
   {
@@ -18,7 +21,7 @@ const FEATURES = [
   {
     icon: <MessageCircle className="w-7 h-7" style={{ color: "#d4af37" }} />,
     title: "תזכורות בוואטסאפ",
-    desc: "24 שעות ושעה לפני כל תור — לקוח מקבל תזכורת אוטומטית בווצאפ ולא שוכח.",
+    desc: "עד 3 תזכורות מותאמות אישית לכל תור — שעה לפני, יום לפני, ואפילו בוקר יום התור ב-08:00.",
   },
   {
     icon: <Bell className="w-7 h-7" style={{ color: "#d4af37" }} />,
@@ -32,8 +35,8 @@ const FEATURES = [
   },
   {
     icon: <Clock className="w-7 h-7" style={{ color: "#d4af37" }} />,
-    title: "ניהול שעות וחסימות",
-    desc: "הגדר שעות עבודה, הפסקות, חופשות וימים שאתה סגור — המערכת לא תציג תורים בזמן הזה.",
+    title: "ניהול שעות וחופשות",
+    desc: "הגדר שעות עבודה, הפסקות, ימי חופש וסגירות — המערכת לא תציג תורים בזמן הזה.",
   },
   {
     icon: <Users className="w-7 h-7" style={{ color: "#d4af37" }} />,
@@ -49,6 +52,52 @@ const FEATURES = [
     icon: <Settings className="w-7 h-7" style={{ color: "#d4af37" }} />,
     title: "אישור תורים ידני",
     desc: "בחר לאשר כל תור ידנית לפני שהוא נכנס ליומן — שליטה מלאה בזמינות שלך.",
+  },
+];
+
+/** Dashboard tabs — explained for potential customers */
+const DASHBOARD_TABS = [
+  {
+    icon: <CalendarCheck className="w-6 h-6 text-blue-600" />,
+    color: "bg-blue-50 border-blue-200",
+    title: "תורים",
+    desc: "רשימה מלאה של כל התורים הקרובים — ניתן לאשר, לבטל או לסמן הגעה לכל תור. מוצג לפי תאריך עם שם הלקוח, שירות ושעה.",
+  },
+  {
+    icon: <Briefcase className="w-6 h-6 text-violet-600" />,
+    color: "bg-violet-50 border-violet-200",
+    title: "שירותים",
+    desc: "הוספת שירותים, עריכת מחירים ומשך זמן, הגדרת תיאור — הכל מתעדכן מיידית בעמוד ההזמנה של הלקוחות.",
+  },
+  {
+    icon: <Users className="w-6 h-6 text-green-600" />,
+    color: "bg-green-50 border-green-200",
+    title: "לקוחות",
+    desc: "צפייה בכל הלקוחות שנרשמו, היסטוריית התורים שלהם, ורשימת המתנה — כדי לא להפסיד שום בקשה.",
+  },
+  {
+    icon: <Umbrella className="w-6 h-6 text-sky-600" />,
+    color: "bg-sky-50 border-sky-200",
+    title: "ימי חופש",
+    desc: "חסימת ימים שלמים או שעות ספציפיות בתאריך מסוים — לחגים, חופשות, ימי מחלה. הלקוחות לא יוכלו לקבוע בזמן זה.",
+  },
+  {
+    icon: <TrendingUp className="w-6 h-6 text-orange-600" />,
+    color: "bg-orange-50 border-orange-200",
+    title: "נתונים",
+    desc: "סטטיסטיקות תורים: כמה תורים קבעו השבוע, השוואה לשבוע שעבר, ומגמת צמיחה — כל מה שצריך לדעת במבט אחד.",
+  },
+  {
+    icon: <DollarSign className="w-6 h-6 text-emerald-600" />,
+    color: "bg-emerald-50 border-emerald-200",
+    title: "כסף",
+    desc: "הכנסה החודש, תחזית לחודש הבא לפי התורים הקבועים, וסה\"כ הכנסות כל הזמנים — מבוסס על מחירי השירותים.",
+  },
+  {
+    icon: <Settings className="w-6 h-6 text-slate-600" />,
+    color: "bg-slate-50 border-slate-200",
+    title: "הגדרות",
+    desc: "שעות עבודה, תזכורות, עיצוב העמוד, הגבלות הזמנה, אפשרות שומר שבת, אימות טלפון ועוד — הכל במקום אחד.",
   },
 ];
 
@@ -142,9 +191,70 @@ export default function Details() {
         </motion.div>
       </section>
 
+      {/* Dashboard panel breakdown */}
+      <section className="py-16 px-6 max-w-5xl mx-auto w-full">
+        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5, delay: 0.15 }}>
+          <div className="text-center mb-12 space-y-3">
+            <div className="inline-flex items-center gap-2 bg-primary/10 text-primary rounded-full px-4 py-2 text-sm font-medium">
+              <LayoutDashboard className="w-4 h-4" />
+              פאנל הניהול
+            </div>
+            <h2 className="text-3xl font-bold">מה תמצאו בפאנל הניהול?</h2>
+            <p className="text-muted-foreground max-w-xl mx-auto">
+              לוח הבקרה שלנו מחולק לכרטיסיות ברורות — כל אחת עם מטרה ספציפית
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+            {DASHBOARD_TABS.map((tab, i) => (
+              <div key={i} className={`rounded-2xl border-2 p-5 space-y-3 ${tab.color}`}>
+                <div className="flex items-center gap-3">
+                  <div className="p-2 rounded-xl bg-white shadow-sm">{tab.icon}</div>
+                  <span className="font-bold text-lg">{tab.title}</span>
+                </div>
+                <p className="text-sm text-muted-foreground leading-relaxed">{tab.desc}</p>
+              </div>
+            ))}
+          </div>
+        </motion.div>
+      </section>
+
+      {/* Mobile app preview placeholder */}
+      <section className="py-16 px-6 max-w-4xl mx-auto w-full">
+        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5, delay: 0.2 }}>
+          <div className="rounded-3xl border-2 border-dashed border-primary/30 bg-primary/5 p-10 text-center space-y-5">
+            <div className="flex justify-center">
+              <div className="w-16 h-16 rounded-2xl bg-primary/10 flex items-center justify-center">
+                <Smartphone className="w-8 h-8 text-primary" />
+              </div>
+            </div>
+            <h3 className="text-2xl font-bold">נהל את העסק מהפלאפון</h3>
+            <p className="text-muted-foreground max-w-lg mx-auto leading-relaxed">
+              פאנל הניהול עובד מושלם דרך הדפדפן בנייד — כל הכרטיסיות, הנתונים וההגדרות זמינים בלחיצה.
+              <br />
+              <span className="text-primary font-medium">אפליקציה ייעודית לאייפון ואנדרואיד — בקרוב</span>
+            </p>
+            <div className="flex flex-col sm:flex-row gap-3 justify-center pt-2">
+              <Link href="/dashboard">
+                <Button size="lg" className="rounded-2xl gap-2">
+                  <LayoutDashboard className="w-5 h-5" />
+                  פתח פאנל ניהול
+                </Button>
+              </Link>
+              <Link href="/book/lilash">
+                <Button size="lg" variant="outline" className="rounded-2xl gap-2">
+                  <ExternalLink className="w-4 h-4" />
+                  ראה דוגמה חיה
+                </Button>
+              </Link>
+            </div>
+          </div>
+        </motion.div>
+      </section>
+
       {/* Pricing */}
       <section id="pricing" className="py-16 px-6 max-w-4xl mx-auto w-full">
-        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5, delay: 0.2 }}>
+        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5, delay: 0.25 }}>
           <h2 className="text-3xl font-bold text-center mb-4">תוכניות מחיר</h2>
           <p className="text-center text-muted-foreground mb-12">ניתן לשדרג בכל עת מלוח הבקרה</p>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
@@ -211,9 +321,7 @@ export default function Details() {
         </motion.div>
       </section>
 
-      <footer className="py-6 text-center text-xs text-muted-foreground border-t">
-        <p>קבעתי — מערכת ניהול תורים לעסקים ישראליים</p>
-      </footer>
+      <SiteFooter />
     </div>
   );
 }

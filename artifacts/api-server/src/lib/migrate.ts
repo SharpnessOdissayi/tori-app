@@ -58,6 +58,8 @@ export async function runMigrations() {
       // Contact & address for profile page
       `ALTER TABLE businesses ADD COLUMN IF NOT EXISTS contact_phone TEXT`,
       `ALTER TABLE businesses ADD COLUMN IF NOT EXISTS address TEXT`,
+      // Morning reminder
+      `ALTER TABLE appointments ADD COLUMN IF NOT EXISTS reminder_morning_sent BOOLEAN NOT NULL DEFAULT FALSE`,
     ];
 
     for (const stmt of alterations) {

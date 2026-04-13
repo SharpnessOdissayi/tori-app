@@ -1,6 +1,6 @@
 import { motion } from "framer-motion";
 import { Link } from "wouter";
-import { CalendarCheck, Building2, MessageCircle, Bell, Sparkles } from "lucide-react";
+import { CalendarCheck, Building2, LayoutDashboard, Bell, Sparkles, Zap } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import Navbar from "@/components/Navbar";
@@ -65,9 +65,9 @@ export default function Home() {
           className="grid grid-cols-1 sm:grid-cols-3 gap-6 mt-24 w-full"
         >
           {[
-            { icon: <MessageCircle className="w-5 h-5 text-primary" />, title: "תזכורות בווצאפ", desc: "לקוחות מקבלים תזכורת אוטומטית לפני כל תור" },
+            { icon: <LayoutDashboard className="w-5 h-5 text-primary" />, title: "פאנל ניהול מתקדם", desc: "נתונים מעניינים על העסק שלכם, סטטיסטיקות תורים, תחזית הכנסות וניהול לקוחות — הכל מחכה לכם בפנים" },
             { icon: <Bell className="w-5 h-5 text-primary" />, title: "לקוחות מעודכנים", desc: "אפשרויות רבות להשאיר את הלקוחות שלכם מעודכנים, מהודעה בכניסה לעמוד הקביעת תורים עד להודעות מותאמות אישיות בתזכורות שלפני התור בווצאפ" },
-            { icon: <CalendarCheck className="w-5 h-5 text-primary" />, title: "לינק ייחודי", desc: "כל עסק מקבל עמוד הזמנה אישי ומעוצב" },
+            { icon: <Zap className="w-5 h-5 text-primary" />, title: "חוסך שעות בשבוע", desc: "בממוצע בעלי עסקים חוסכים 3–5 שעות בשבוע על ניהול תורים ידני — הזמן הזה חוזר אליכם" },
           ].map((f, i) => (
             <Card key={i} className="text-right border-border shadow-sm hover:shadow-md transition-shadow">
               <CardContent className="pt-6 pb-6 space-y-2">

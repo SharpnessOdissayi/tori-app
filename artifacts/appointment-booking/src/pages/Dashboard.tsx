@@ -2590,6 +2590,13 @@ function SettingsTab() {
               {reminderTriggers.length > 0 && (
                 <div className="flex flex-wrap gap-2">
                   {reminderTriggers.map((t, i) => {
+                    if (t.unit === "morning") {
+                      return (
+                        <span key={i} className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-semibold bg-amber-100 text-amber-700 border border-amber-200">
+                          🌅 בוקר יום התור (08:00)
+                        </span>
+                      );
+                    }
                     const unitLabel = t.unit === "minutes" ? "דקות" : t.unit === "hours" ? "שעות" : "ימים";
                     return (
                       <span key={i} className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-semibold bg-primary/10 text-primary border border-primary/20">
@@ -2605,14 +2612,17 @@ function SettingsTab() {
                   <div key={idx} className="flex items-center gap-2 p-3 border rounded-xl bg-background">
                     <span className="text-xs font-bold text-muted-foreground w-5 text-center">{idx + 1}</span>
 
-                    <input
-                      type="number"
-                      min="1"
-                      max="999"
-                      value={trigger.amount}
-                      onChange={e => setReminderTriggers(prev => prev.map((t, i) => i === idx ? { ...t, amount: e.target.value } : t))}
-                      className="rounded-lg border bg-background px-2 py-1.5 text-sm text-center focus:outline-none focus:ring-2 focus:ring-primary w-20"
-                    />
+                    {/* Hide number input for "morning" trigger */}
+                    {trigger.unit !== "morning" && (
+                      <input
+                        type="number"
+                        min="1"
+                        max="999"
+                        value={trigger.amount}
+                        onChange={e => setReminderTriggers(prev => prev.map((t, i) => i === idx ? { ...t, amount: e.target.value } : t))}
+                        className="rounded-lg border bg-background px-2 py-1.5 text-sm text-center focus:outline-none focus:ring-2 focus:ring-primary w-20"
+                      />
+                    )}
 
                     <select
                       value={trigger.unit}
@@ -2622,6 +2632,7 @@ function SettingsTab() {
                       <option value="minutes">דקות לפני</option>
                       <option value="hours">שעות לפני</option>
                       <option value="days">ימים לפני</option>
+                      <option value="morning">🌅 בוקר יום התור (08:00)</option>
                     </select>
 
                     {reminderTriggers.length > 1 && (
