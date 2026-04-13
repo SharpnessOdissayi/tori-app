@@ -2214,7 +2214,7 @@ function SettingsTab() {
 
   const [form, setForm] = useState({
     name: "", ownerName: "", phone: "",
-    bufferMinutes: "0", notificationEnabled: false, notificationMessage: "", requireAppointmentApproval: false, requirePhoneVerification: true,
+    bufferMinutes: "0", notificationEnabled: false, notificationMessage: "", requireAppointmentApproval: false, requirePhoneVerification: false,
     // booking restrictions
     minLeadHours: "20",
     cancellationHours: "24",
@@ -2257,7 +2257,7 @@ function SettingsTab() {
       notificationEnabled: profile.notificationEnabled ?? false,
       notificationMessage: profile.notificationMessage ?? "",
       requireAppointmentApproval: (profile as any).requireAppointmentApproval ?? false,
-      requirePhoneVerification: (profile as any).requirePhoneVerification ?? true,
+      requirePhoneVerification: (profile as any).requirePhoneVerification ?? false,
       minLeadHours: ((profile as any).minLeadHours ?? 20).toString(),
       cancellationHours: ((profile as any).cancellationHours ?? 24).toString(),
       maxFutureWeeks: ((profile as any).maxFutureWeeks ?? 15).toString(),

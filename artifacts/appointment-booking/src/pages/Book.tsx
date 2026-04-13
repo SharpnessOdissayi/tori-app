@@ -244,6 +244,7 @@ export default function Book() {
   const instagramUrl = (business as any)?.instagramUrl ?? null;
   const wazeUrl = (business as any)?.wazeUrl ?? null;
   const businessDescription = (business as any)?.businessDescription ?? null;
+  const requirePhoneVerification = (business as any)?.requirePhoneVerification ?? false;
   const bannerPosition = (business as any)?.bannerPosition ?? "center";
   const galleryImagesRaw = (business as any)?.galleryImages ?? null;
   let galleryImages: string[] = [];
@@ -1027,7 +1028,7 @@ export default function Book() {
                           dir="ltr"
                           disabled={phoneVerified}
                         />
-                        {!phoneVerified && (
+                        {requirePhoneVerification && !phoneVerified && (
                           <button
                             type="button"
                             onClick={handleSendOtp}
@@ -1038,7 +1039,7 @@ export default function Book() {
                             {otpLoading && !otpSent ? "שולח..." : otpSent ? "שלח שוב" : "שלח קוד"}
                           </button>
                         )}
-                        {phoneVerified && (
+                        {requirePhoneVerification && phoneVerified && (
                           <div className="h-12 px-4 flex items-center gap-1 text-green-600 font-medium text-sm">
                             ✓ מאומת
                           </div>
@@ -1046,9 +1047,9 @@ export default function Book() {
                       </div>
                     </div>
 
-                    {otpSent && !phoneVerified && (
+                    {requirePhoneVerification && otpSent && !phoneVerified && (
                       <div className="space-y-2">
-                        <Label>קוד אימות SMS *</Label>
+                        <Label>קוד אימות *</Label>
                         <div className="flex gap-2">
                           <Input
                             value={otpCode}
