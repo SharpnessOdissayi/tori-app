@@ -397,7 +397,9 @@ export default function Dashboard() {
       <main className="max-w-6xl mx-auto px-4 py-6">
         <SubscriptionBanner />
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-          <div className="overflow-x-auto pb-1">
+
+          {/* Desktop: horizontal scrollable tabs */}
+          <div className="hidden sm:block overflow-x-auto pb-1">
             <TabsList className="bg-card border w-max h-auto p-1 gap-1 flex">
               <TabsTrigger value="appointments" className="gap-1.5 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground whitespace-nowrap">
                 <Calendar className="w-4 h-4" /> פגישות
@@ -423,11 +425,40 @@ export default function Dashboard() {
               <TabsTrigger value="integrations" className="gap-1.5 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground whitespace-nowrap">
                 <Phone className="w-4 h-4" /> הודעות
               </TabsTrigger>
-
               <TabsTrigger value="settings" className="gap-1.5 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground whitespace-nowrap">
                 <Settings className="w-4 h-4" /> הגדרות
               </TabsTrigger>
             </TabsList>
+          </div>
+
+          {/* Mobile: icon grid */}
+          <div className="sm:hidden">
+            <div className="grid grid-cols-3 gap-2">
+              {[
+                { value: "appointments", icon: <Calendar className="w-6 h-6" />, label: "פגישות" },
+                { value: "services", icon: <Scissors className="w-6 h-6" />, label: "שירותים" },
+                { value: "hours", icon: <Clock className="w-6 h-6" />, label: "שעות" },
+                { value: "breaks", icon: <TrendingUp className="w-6 h-6" />, label: "הפסקות" },
+                { value: "customers", icon: <Users className="w-6 h-6" />, label: "לקוחות" },
+                { value: "waitlist", icon: <ListOrdered className="w-6 h-6" />, label: "המתנה" },
+                { value: "branding", icon: <Palette className="w-6 h-6" />, label: "עיצוב" },
+                { value: "integrations", icon: <Phone className="w-6 h-6" />, label: "הודעות" },
+                { value: "settings", icon: <Settings className="w-6 h-6" />, label: "הגדרות" },
+              ].map(({ value, icon, label }) => (
+                <button
+                  key={value}
+                  onClick={() => setActiveTab(value)}
+                  className={`flex flex-col items-center justify-center gap-1.5 py-4 rounded-2xl border-2 transition-all text-sm font-medium ${
+                    activeTab === value
+                      ? "border-primary bg-primary text-primary-foreground shadow-md scale-[1.02]"
+                      : "border-border bg-card text-muted-foreground hover:border-primary/40"
+                  }`}
+                >
+                  {icon}
+                  <span className="text-xs leading-tight">{label}</span>
+                </button>
+              ))}
+            </div>
           </div>
 
           <TabsContent value="appointments"><AppointmentsTab /></TabsContent>
