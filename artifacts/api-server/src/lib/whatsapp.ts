@@ -135,39 +135,46 @@ export async function verifyOtp(phone: string, code: string): Promise<boolean> {
 }
 
 // ── Notification to business owner ─────────────────────────────────────────
-// Pre-approved template: appointment_confirmed (4 params)
-// {{1}}=clientName, {{2}}=businessName, {{3}}=date, {{4}}=time
+// Template: appointment_confirmation_1 (5 params + URL button)
+// "שלום {{1}}, תודה שהזמנתם עם {{2}}. התור שלך ל{{3}} ב{{4}} בשעה {{5}} אושר."
+// Button "הצגת פרטים" → https://kavati.app/book/{{slug}}
 export async function notifyBusinessOwner(
   phone: string,
   clientName: string,
-  time: string,
+  businessName: string,
+  serviceName: string,
   date: string,
-  businessName: string
+  time: string,
+  businessSlug: string
 ): Promise<void> {
-  await sendTemplate(phone, "appointment_confirmed", [
+  await sendTemplate(phone, "appointment_confirmation_1", [
     clientName,
     businessName,
+    serviceName,
     date,
     time,
-  ]);
+  ], businessSlug);
 }
 
 // ── Confirmation to client ──────────────────────────────────────────────────
-// Pre-approved template: appointment_confirmed (4 params)
-// {{1}}=clientName, {{2}}=businessName, {{3}}=date, {{4}}=time
+// Template: appointment_confirmation_1 (5 params + URL button)
+// "שלום {{1}}, תודה שהזמנתם עם {{2}}. התור שלך ל{{3}} ב{{4}} בשעה {{5}} אושר."
 export async function sendClientConfirmation(
   phone: string,
   clientName: string,
   businessName: string,
+  serviceName: string,
   date: string,
-  time: string
+  time: string,
+  businessSlug: string
 ): Promise<void> {
-  await sendTemplate(phone, "appointment_confirmed", [
+  await sendTemplate(phone, "appointment_confirmation_1", [
     clientName,
     businessName,
+    serviceName,
     date,
     time,
-  ]);
+  ], businessSlug);
 }
 
 // ── Cancellation notification to client ────────────────────────────────────
