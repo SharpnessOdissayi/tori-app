@@ -516,9 +516,8 @@ export default function Book() {
               {contactPhone && (
                 <a href={`tel:${contactPhone}`} aria-label="התקשר">
                   <button
-                    className="w-11 h-11 rounded-full border-2 flex items-center justify-center text-white transition-all hover:opacity-80"
+                    className="w-11 h-11 rounded-full border-2 border-white flex items-center justify-center text-white bg-transparent transition-all hover:bg-white/10"
                     title="התקשר"
-                    style={{ backgroundColor: primaryColor, borderColor: primaryColor }}
                   >
                     <Phone className="w-5 h-5" />
                   </button>
