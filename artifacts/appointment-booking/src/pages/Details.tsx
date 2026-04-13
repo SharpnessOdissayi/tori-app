@@ -219,36 +219,53 @@ export default function Details() {
         </motion.div>
       </section>
 
-      {/* Mobile app preview placeholder */}
-      <section className="py-16 px-6 max-w-4xl mx-auto w-full">
+      {/* Embedded dashboard panel */}
+      <section className="py-16 px-6 max-w-5xl mx-auto w-full">
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5, delay: 0.2 }}>
-          <div className="rounded-3xl border-2 border-dashed border-primary/30 bg-primary/5 p-10 text-center space-y-5">
-            <div className="flex justify-center">
-              <div className="w-16 h-16 rounded-2xl bg-primary/10 flex items-center justify-center">
-                <Smartphone className="w-8 h-8 text-primary" />
-              </div>
+          <div className="text-center mb-8 space-y-3">
+            <div className="inline-flex items-center gap-2 bg-primary/10 text-primary rounded-full px-4 py-2 text-sm font-medium">
+              <LayoutDashboard className="w-4 h-4" />
+              נסו עכשיו
             </div>
-            <h3 className="text-2xl font-bold">נהל את העסק מהפלאפון</h3>
-            <p className="text-muted-foreground max-w-lg mx-auto leading-relaxed">
-              פאנל הניהול עובד מושלם דרך הדפדפן בנייד — כל הכרטיסיות, הנתונים וההגדרות זמינים בלחיצה.
-              <br />
-              <span className="text-primary font-medium">אפליקציה ייעודית לאייפון ואנדרואיד — בקרוב</span>
+            <h2 className="text-3xl font-bold">פאנל הניהול — הדגמה חיה</h2>
+            <p className="text-muted-foreground">
+              עסק לדוגמה עם נתונים אמיתיים — לחצו על הכרטיסיות לסיור מלא
             </p>
-            <div className="flex flex-col sm:flex-row gap-3 justify-center pt-2">
-              <Link href="/dashboard">
-                <Button size="lg" className="rounded-2xl gap-2">
-                  <LayoutDashboard className="w-5 h-5" />
-                  פתח פאנל ניהול
-                </Button>
-              </Link>
-              <Link href="/book/lilash">
-                <Button size="lg" variant="outline" className="rounded-2xl gap-2">
-                  <ExternalLink className="w-4 h-4" />
-                  ראה דוגמה חיה
-                </Button>
+          </div>
+
+          {/* Browser chrome mockup */}
+          <div className="rounded-2xl border shadow-2xl overflow-hidden">
+
+            {/* Browser top bar */}
+            <div className="bg-muted/80 px-4 py-2.5 flex items-center gap-3 border-b">
+              {/* Traffic lights */}
+              <div className="flex gap-1.5 shrink-0">
+                <div className="w-3 h-3 rounded-full bg-red-400" />
+                <div className="w-3 h-3 rounded-full bg-yellow-400" />
+                <div className="w-3 h-3 rounded-full bg-green-400" />
+              </div>
+              {/* Address bar */}
+              <div className="flex-1 bg-background/80 rounded-lg px-3 py-1 text-xs text-muted-foreground text-center font-mono border">
+                kavati.app/demo
+              </div>
+              {/* Open in new tab */}
+              <Link href="/demo" className="shrink-0 text-muted-foreground hover:text-foreground transition-colors" title="פתח בלשונית חדשה">
+                <ExternalLink className="w-4 h-4" />
               </Link>
             </div>
+
+            {/* iframe */}
+            <iframe
+              src="/demo"
+              title="הדגמת פאנל ניהול קבעתי"
+              className="w-full block"
+              style={{ height: "680px", border: "none" }}
+            />
           </div>
+
+          <p className="text-center text-xs text-muted-foreground mt-3">
+            <span className="font-medium">אפליקציה ייעודית לאייפון ואנדרואיד — בקרוב</span>
+          </p>
         </motion.div>
       </section>
 
