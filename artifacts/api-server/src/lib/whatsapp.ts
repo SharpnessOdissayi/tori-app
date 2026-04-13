@@ -92,7 +92,7 @@ export async function verifyOtp(phone: string, code: string): Promise<boolean> {
 }
 
 // ── Notification to business owner ─────────────────────────────────────────
-// Pre-approved template: appointment_confirmation_1
+// Pre-approved template: appointment_confirmed
 // "שלום {{1}}, תודה שהזמנתם עם {{2}}. התור שלך ל{{3}} ב{{4}} בשעה {{5}} אושר."
 // We re-use this template to notify the business owner about a new booking.
 export async function notifyBusinessOwner(
@@ -102,12 +102,50 @@ export async function notifyBusinessOwner(
   date: string,
   serviceName: string
 ): Promise<void> {
-  // Template: appointment_confirmation_1
-  // {{1}}=clientName, {{2}}=businessName(reuse as "קבעתי"), {{3}}=serviceName, {{4}}=date, {{5}}=time
-  await sendTemplate(phone, "appointment_confirmation_1", [
+  // Template: appointment_confirmed
+  // {{1}}=clientName, {{2}}=businessName, {{3}}=serviceName, {{4}}=date, {{5}}=time
+  await sendTemplate(phone, "appointment_confirmed", [
     clientName,
     "קבעתי",
     serviceName,
+    date,
+    time,
+  ]);
+}
+
+// ── Confirmation to client ──────────────────────────────────────────────────
+// Pre-approved template: appointment_confirmed
+// "שלום {{1}}, תודה שהזמנתם עם {{2}}. התור שלך ל{{3}} ב{{4}} בשעה {{5}} אושר."
+export async function sendClientConfirmation(
+  phone: string,
+  clientName: string,
+  businessName: string,
+  serviceName: string,
+  date: string,
+  time: string
+): Promise<void> {
+  await sendTemplate(phone, "appointment_confirmed", [
+    clientName,
+    businessName,
+    serviceName,
+    date,
+    time,
+  ]);
+}
+
+// ── Cancellation notification to client ────────────────────────────────────
+// Pre-approved template: appointment_cancelled
+// "שלום {{1}}, התור שלך עם {{2}} ב{{3}} בשעה {{4}} בוטל."
+export async function sendClientCancellation(
+  phone: string,
+  clientName: string,
+  businessName: string,
+  date: string,
+  time: string
+): Promise<void> {
+  await sendTemplate(phone, "appointment_cancelled", [
+    clientName,
+    businessName,
     date,
     time,
   ]);

@@ -12,7 +12,7 @@ import {
   JoinWaitlistBody,
 } from "@workspace/api-zod";
 import { computeAvailableSlots } from "../lib/availability";
-import { sendOtp, verifyOtp, notifyBusinessOwner, sendTemplate } from "../lib/whatsapp";
+import { sendOtp, verifyOtp, notifyBusinessOwner, sendClientConfirmation, sendClientCancellation, sendTemplate } from "../lib/whatsapp";
 import { isPhoneVerified, consumeVerification, markPhoneVerified } from "../lib/otpStore";
 
 const router = Router();
@@ -360,12 +360,16 @@ router.post("/public/:businessSlug/appointments", async (req, res): Promise<void
 
   if (business.requirePhoneVerification) consumeVerification(phoneNumber);
 
+  const [, month, day] = appointmentDate.split("-");
+  const formattedDate = `${day}/${month}`;
+
   // Notify business owner via WhatsApp (non-blocking)
   if (business.phone) {
-    const [, month, day] = appointmentDate.split("-");
-    const formattedDate = `${day}/${month}`;
     notifyBusinessOwner(business.phone, clientName, appointmentTime, formattedDate, service.name).catch(() => {});
   }
+
+  // Send confirmation to client (non-blocking)
+  sendClientConfirmation(phoneNumber, clientName, business.name, service.name, formattedDate, appointmentTime).catch(() => {});
 
   res.status(201).json({ ...appointment, createdAt: appointment.createdAt.toISOString() });
 });
@@ -456,6 +460,11 @@ router.post("/public/:businessSlug/appointments/:id/cancel", async (req, res): P
   }
 
   await db.update(appointmentsTable).set({ status: "cancelled" }).where(eq(appointmentsTable.id, appt.id));
+
+  // Notify client of cancellation via WhatsApp (non-blocking)
+  const [, cancelMonth, cancelDay] = appt.appointmentDate.split("-");
+  const cancelFormattedDate = `${cancelDay}/${cancelMonth}`;
+  sendClientCancellation(appt.phoneNumber, appt.clientName, business?.name ?? "העסק", cancelFormattedDate, appt.appointmentTime).catch(() => {});
 
   res.json({ success: true });
 });
