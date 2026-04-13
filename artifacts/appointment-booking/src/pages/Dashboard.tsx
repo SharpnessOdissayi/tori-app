@@ -322,7 +322,9 @@ function OnboardingTour({ onComplete, onTabChange }: { onComplete: () => void; o
 }
 
 export default function Dashboard() {
-  const [token, setToken] = useState(localStorage.getItem("biz_token"));
+  const [token, setToken] = useState(
+    () => localStorage.getItem("biz_token") || sessionStorage.getItem("biz_token")
+  );
   const [activeTab, setActiveTab] = useState("appointments");
   const { data: headerProfile } = useGetBusinessProfile();
   const [showTour, setShowTour] = useState(() => {
@@ -332,6 +334,7 @@ export default function Dashboard() {
 
   const handleLogout = () => {
     localStorage.removeItem("biz_token");
+    sessionStorage.removeItem("biz_token");
     setToken(null);
   };
 
@@ -516,6 +519,7 @@ function Login({ onLogin }: { onLogin: (t: string) => void }) {
   const [identifier, setIdentifier] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
+  const [rememberMe, setRememberMe] = useState(true);
   const { toast } = useToast();
   const loginMutation = useBusinessLogin();
   const [, navigate] = useLocation();
@@ -533,7 +537,16 @@ function Login({ onLogin }: { onLogin: (t: string) => void }) {
       return;
     }
     loginMutation.mutate({ data: { email: identifier, password } }, {
-      onSuccess: (data) => { localStorage.setItem("biz_token", data.token); onLogin(data.token); },
+      onSuccess: (data) => {
+        if (rememberMe) {
+          localStorage.setItem("biz_token", data.token);
+          sessionStorage.removeItem("biz_token");
+        } else {
+          sessionStorage.setItem("biz_token", data.token);
+          localStorage.removeItem("biz_token");
+        }
+        onLogin(data.token);
+      },
       onError: (err: any) => {
         const msg = err?.response?.data?.message ?? "אימייל/טלפון או סיסמה שגויים";
         toast({ title: "כניסה נכשלה", description: msg, variant: "destructive" });
@@ -587,6 +600,18 @@ function Login({ onLogin }: { onLogin: (t: string) => void }) {
                   </button>
                 </div>
               </div>
+              <div className="flex items-center gap-2 py-1">
+                <input
+                  type="checkbox"
+                  id="remember-me"
+                  checked={rememberMe}
+                  onChange={e => setRememberMe(e.target.checked)}
+                  className="w-4 h-4 rounded border-border accent-primary cursor-pointer"
+                />
+                <label htmlFor="remember-me" className="text-sm text-muted-foreground cursor-pointer select-none">
+                  זכור אותי במכשיר זה
+                </label>
+              </div>
               <Button type="submit" className="w-full h-11" disabled={loginMutation.isPending}>
                 {loginMutation.isPending ? "מתחבר..." : "כניסה"}
               </Button>
@@ -621,7 +646,7 @@ function AppointmentsTab() {
   const handleApprove = async (id: number) => {
     setApprovingId(id);
     try {
-      const token = localStorage.getItem("biz_token");
+      const token = localStorage.getItem("biz_token") || sessionStorage.getItem("biz_token");
       const res = await fetch(`/api/business/appointments/${id}/approve`, {
         method: "PATCH",
         headers: { Authorization: `Bearer ${token}` },
@@ -1994,7 +2019,7 @@ function SettingsTab() {
     }
     setPwLoading(true);
     try {
-      const token = localStorage.getItem("biz_token");
+      const token = localStorage.getItem("biz_token") || sessionStorage.getItem("biz_token");
       const res = await fetch(`${API_BASE_DASH}/auth/business/change-password`, {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
