@@ -1,6 +1,6 @@
 import { db, appointmentsTable, businessesTable } from "@workspace/db";
 import { eq, not } from "drizzle-orm";
-import { sendReminder24h, sendReminder1h } from "./whatsapp";
+import { sendReminder24h, sendReminder1h, sendReminderMorning } from "./whatsapp";
 
 function parseAppointmentDate(date: string, time: string): Date {
   const [year, month, day] = date.split("-").map(Number);
@@ -68,7 +68,7 @@ function getTriggerFireTime(
 
 /**
  * Send a WhatsApp reminder for a given trigger.
- * Reuses the existing 24h/1h templates; for other triggers, falls back to sendReminder24h template.
+ * All variants use appointment_reminder_2 with the business slug for the URL button.
  */
 async function sendReminderForTrigger(
   trigger: { amount: string; unit: string },
@@ -76,20 +76,19 @@ async function sendReminderForTrigger(
   clientName: string,
   businessName: string,
   formattedDate: string,
-  time: string
+  time: string,
+  businessSlug: string
 ) {
   const amount = parseInt(trigger.amount) || 0;
   const isOneHour = trigger.unit === "hours" && amount === 1;
   const isMorning = trigger.unit === "morning";
-  const isOneDay = trigger.unit === "hours" && amount === 24;
-  const isDays = trigger.unit === "days" && amount === 1;
 
   if (isOneHour) {
-    await sendReminder1h(phone, clientName, businessName, formattedDate, time);
-  } else if (isOneDay || isDays || isMorning) {
-    await sendReminder24h(phone, clientName, businessName, formattedDate, time);
+    await sendReminder1h(phone, clientName, businessName, formattedDate, time, businessSlug);
+  } else if (isMorning) {
+    await sendReminderMorning(phone, clientName, businessName, formattedDate, time, businessSlug);
   } else {
-    await sendReminder24h(phone, clientName, businessName, formattedDate, time);
+    await sendReminder24h(phone, clientName, businessName, formattedDate, time, businessSlug);
   }
 }
 
@@ -110,6 +109,7 @@ export async function sendReminders(): Promise<void> {
       reminderMorningSent: appointmentsTable.reminderMorningSent,
       status: appointmentsTable.status,
       businessName: businessesTable.name,
+      businessSlug: businessesTable.slug,
       sendReminders: businessesTable.sendReminders,
       reminderTriggers: businessesTable.reminderTriggers,
       shabbatMode: businessesTable.shabbatMode,
@@ -171,7 +171,8 @@ export async function sendReminders(): Promise<void> {
           appt.clientName,
           appt.businessName,
           formattedDate,
-          appt.appointmentTime
+          appt.appointmentTime,
+          appt.businessSlug
         );
 
         // Mark as sent

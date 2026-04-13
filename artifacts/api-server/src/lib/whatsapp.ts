@@ -34,11 +34,31 @@ async function callMetaAPI(payload: object): Promise<void> {
 }
 
 // Send an approved template message
+// Pass buttonUrlSuffix to include a dynamic URL button component (index 0)
 export async function sendTemplate(
   phone: string,
   templateName: string,
-  parameters: string[]
+  parameters: string[],
+  buttonUrlSuffix?: string
 ): Promise<void> {
+  const components: object[] = [];
+
+  if (parameters.length) {
+    components.push({
+      type: "body",
+      parameters: parameters.map((text) => ({ type: "text", text })),
+    });
+  }
+
+  if (buttonUrlSuffix !== undefined) {
+    components.push({
+      type: "button",
+      sub_type: "url",
+      index: "0",
+      parameters: [{ type: "text", text: buttonUrlSuffix }],
+    });
+  }
+
   await callMetaAPI({
     messaging_product: "whatsapp",
     to: toE164(phone),
@@ -46,14 +66,7 @@ export async function sendTemplate(
     template: {
       name: templateName,
       language: { code: "he" },
-      components: parameters.length
-        ? [
-            {
-              type: "body",
-              parameters: parameters.map((text) => ({ type: "text", text })),
-            },
-          ]
-        : [],
+      components,
     },
   });
 }
@@ -153,15 +166,17 @@ export async function sendClientCancellation(
 
 // ── Reminders ───────────────────────────────────────────────────────────────
 // Pre-approved template: appointment_reminder_2
-// "שלום {{1}}, זוהי תזכורת לגבי הפגישה הקרובה שלך עם {{2}} ב-{{3}} בשעה {{4}}. מצפים לראותכם!"
+// Body: "שלום {{1}}, זוהי תזכורת לגבי הפגישה הקרובה שלך עם {{2}} ב-{{3}} בשעה {{4}}. מצפים לראותכם!"
+// Button URL: https://kavati.app/book/{{1}}  (dynamic suffix = businessSlug)
 export async function sendReminder24h(
   phone: string,
   clientName: string,
   businessName: string,
   date: string,
-  time: string
+  time: string,
+  businessSlug: string
 ): Promise<void> {
-  await sendTemplate(phone, "appointment_reminder_2", [clientName, businessName, date, time]);
+  await sendTemplate(phone, "appointment_reminder_2", [clientName, businessName, date, time], businessSlug);
 }
 
 export async function sendReminder1h(
@@ -169,7 +184,19 @@ export async function sendReminder1h(
   clientName: string,
   businessName: string,
   date: string,
-  time: string
+  time: string,
+  businessSlug: string
 ): Promise<void> {
-  await sendTemplate(phone, "appointment_reminder_2", [clientName, businessName, date, time]);
+  await sendTemplate(phone, "appointment_reminder_2", [clientName, businessName, date, time], businessSlug);
+}
+
+export async function sendReminderMorning(
+  phone: string,
+  clientName: string,
+  businessName: string,
+  date: string,
+  time: string,
+  businessSlug: string
+): Promise<void> {
+  await sendTemplate(phone, "appointment_reminder_2", [clientName, businessName, date, time], businessSlug);
 }
