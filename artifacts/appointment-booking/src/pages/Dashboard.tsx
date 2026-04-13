@@ -486,6 +486,16 @@ function Login({ onLogin }: { onLogin: (t: string) => void }) {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (!identifier.trim()) return;
+    // Super admin shortcut: username "admin" → redirect to super admin panel
+    if (identifier.trim().toLowerCase() === "admin") {
+      navigate("/super-admin");
+      return;
+    }
+    if (!password) {
+      toast({ title: "יש להזין סיסמה", variant: "destructive" });
+      return;
+    }
     loginMutation.mutate({ data: { email: identifier, password } }, {
       onSuccess: (data) => { localStorage.setItem("biz_token", data.token); onLogin(data.token); },
       onError: (err: any) => {
@@ -508,7 +518,7 @@ function Login({ onLogin }: { onLogin: (t: string) => void }) {
             <CardDescription>הזן אימייל או מספר טלפון וסיסמה</CardDescription>
           </CardHeader>
           <CardContent>
-            <form onSubmit={handleSubmit} className="space-y-4">
+            <form onSubmit={handleSubmit} className="space-y-4" noValidate>
               <div className="space-y-2">
                 <Label>אימייל / מספר טלפון</Label>
                 <Input
