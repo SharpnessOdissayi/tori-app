@@ -4,3 +4,4 @@ export * from "./working-hours";
 export * from "./break-times";
 export * from "./appointments";
 export * from "./waitlist";
+export * from "./time-off";

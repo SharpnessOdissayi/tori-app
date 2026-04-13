@@ -40,10 +40,10 @@ import { Separator } from "@/components/ui/separator";
 import { useToast } from "@/hooks/use-toast";
 import { useImageUpload } from "@/hooks/useImageUpload";
 import {
-  Calendar, Clock, Settings, Scissors, LogOut, Plus, Trash2, Edit,
+  Calendar, Clock, Settings, Briefcase, LogOut, Plus, Trash2, Edit,
   Users, ListOrdered, Palette, Puzzle, Phone, TrendingUp, CheckCircle,
   ExternalLink, Info, Upload, Image as ImageIcon, Crown, Zap, X, Copy, Check, Link,
-  ChevronLeft, ChevronRight, HelpCircle, Eye, EyeOff
+  ChevronLeft, ChevronRight, HelpCircle, Eye, EyeOff, Umbrella, DollarSign
 } from "lucide-react";
 import { useLocation } from "wouter";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
@@ -444,19 +444,25 @@ export default function Dashboard() {
                 <Calendar className="w-4 h-4" /> פגישות
               </TabsTrigger>
               <TabsTrigger value="services" className="gap-1.5 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground whitespace-nowrap">
-                <Scissors className="w-4 h-4" /> שירותים
+                <Briefcase className="w-4 h-4" /> שירותים
               </TabsTrigger>
               <TabsTrigger value="hours" className="gap-1.5 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground whitespace-nowrap">
                 <Clock className="w-4 h-4" /> שעות עבודה
               </TabsTrigger>
-              <TabsTrigger value="breaks" className="gap-1.5 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground whitespace-nowrap">
-                הפסקות
+              <TabsTrigger value="timeoff" className="gap-1.5 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground whitespace-nowrap">
+                <Umbrella className="w-4 h-4" /> ימי חופש
               </TabsTrigger>
               <TabsTrigger value="customers" className="gap-1.5 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground whitespace-nowrap">
                 <Users className="w-4 h-4" /> לקוחות
               </TabsTrigger>
               <TabsTrigger value="waitlist" className="gap-1.5 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground whitespace-nowrap">
                 <ListOrdered className="w-4 h-4" /> רשימת המתנה
+              </TabsTrigger>
+              <TabsTrigger value="analytics" className="gap-1.5 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground whitespace-nowrap">
+                <TrendingUp className="w-4 h-4" /> נתונים
+              </TabsTrigger>
+              <TabsTrigger value="revenue" className="gap-1.5 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground whitespace-nowrap">
+                <DollarSign className="w-4 h-4" /> כסף
               </TabsTrigger>
               <TabsTrigger value="branding" className="gap-1.5 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground whitespace-nowrap">
                 <Palette className="w-4 h-4" /> עיצוב
@@ -475,11 +481,13 @@ export default function Dashboard() {
             <div className="grid grid-cols-3 gap-2">
               {[
                 { value: "appointments", icon: <Calendar className="w-6 h-6" />, label: "פגישות" },
-                { value: "services", icon: <Scissors className="w-6 h-6" />, label: "שירותים" },
+                { value: "services", icon: <Briefcase className="w-6 h-6" />, label: "שירותים" },
                 { value: "hours", icon: <Clock className="w-6 h-6" />, label: "שעות" },
-                { value: "breaks", icon: <TrendingUp className="w-6 h-6" />, label: "הפסקות" },
+                { value: "timeoff", icon: <Umbrella className="w-6 h-6" />, label: "ימי חופש" },
                 { value: "customers", icon: <Users className="w-6 h-6" />, label: "לקוחות" },
                 { value: "waitlist", icon: <ListOrdered className="w-6 h-6" />, label: "המתנה" },
+                { value: "analytics", icon: <TrendingUp className="w-6 h-6" />, label: "נתונים" },
+                { value: "revenue", icon: <DollarSign className="w-6 h-6" />, label: "כסף" },
                 { value: "branding", icon: <Palette className="w-6 h-6" />, label: "עיצוב" },
                 { value: "integrations", icon: <Phone className="w-6 h-6" />, label: "הודעות" },
                 { value: "settings", icon: <Settings className="w-6 h-6" />, label: "הגדרות" },
@@ -503,13 +511,21 @@ export default function Dashboard() {
           <TabsContent value="appointments"><AppointmentsTab /></TabsContent>
           <TabsContent value="services"><ServicesTab /></TabsContent>
           <TabsContent value="hours"><WorkingHoursTab /></TabsContent>
-          <TabsContent value="breaks"><BreaksTab /></TabsContent>
+          <TabsContent value="timeoff"><DayOffTab /></TabsContent>
           <TabsContent value="customers"><CustomersTab /></TabsContent>
           <TabsContent value="waitlist"><WaitlistTab /></TabsContent>
+          <TabsContent value="analytics"><AnalyticsTab /></TabsContent>
+          <TabsContent value="revenue"><RevenueTab /></TabsContent>
           <TabsContent value="branding"><BrandingTab /></TabsContent>
           <TabsContent value="integrations"><IntegrationsTab /></TabsContent>
           <TabsContent value="settings"><SettingsTab /></TabsContent>
         </Tabs>
+
+        {/* Suggestion banner */}
+        <div className="mt-6 p-4 rounded-2xl bg-muted/40 border text-center text-sm text-muted-foreground">
+          💡 יש לך הצעה לשיפור לוח הניהול?{" "}
+          <a href="/contact" className="font-semibold text-primary underline">צור איתנו קשר</a>
+        </div>
       </main>
     </div>
   );
@@ -520,6 +536,7 @@ function Login({ onLogin }: { onLogin: (t: string) => void }) {
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [rememberMe, setRememberMe] = useState(true);
+  const [showForgotPassword, setShowForgotPassword] = useState(false);
   const { toast } = useToast();
   const loginMutation = useBusinessLogin();
   const [, navigate] = useLocation();
@@ -600,21 +617,32 @@ function Login({ onLogin }: { onLogin: (t: string) => void }) {
                   </button>
                 </div>
               </div>
-              <div className="flex items-center gap-2 py-1">
-                <input
-                  type="checkbox"
-                  id="remember-me"
-                  checked={rememberMe}
-                  onChange={e => setRememberMe(e.target.checked)}
-                  className="w-4 h-4 rounded border-border accent-primary cursor-pointer"
-                />
-                <label htmlFor="remember-me" className="text-sm text-muted-foreground cursor-pointer select-none">
-                  זכור אותי במכשיר זה
-                </label>
-              </div>
-              <Button type="submit" className="w-full h-11" disabled={loginMutation.isPending}>
-                {loginMutation.isPending ? "מתחבר..." : "כניסה"}
-              </Button>
+              {!showForgotPassword ? (
+                <button type="button" className="text-xs text-primary underline mt-1" onClick={() => setShowForgotPassword(true)}>
+                  שכחתי סיסמא
+                </button>
+              ) : (
+                <ForgotPasswordFlow onBack={() => setShowForgotPassword(false)} />
+              )}
+              {!showForgotPassword && (
+                <>
+                  <div className="flex items-center gap-2 py-1">
+                    <input
+                      type="checkbox"
+                      id="remember-me"
+                      checked={rememberMe}
+                      onChange={e => setRememberMe(e.target.checked)}
+                      className="w-4 h-4 rounded border-border accent-primary cursor-pointer"
+                    />
+                    <label htmlFor="remember-me" className="text-sm text-muted-foreground cursor-pointer select-none">
+                      זכור אותי במכשיר זה
+                    </label>
+                  </div>
+                  <Button type="submit" className="w-full h-11" disabled={loginMutation.isPending}>
+                    {loginMutation.isPending ? "מתחבר..." : "כניסה"}
+                  </Button>
+                </>
+              )}
             </form>
             <div className="mt-5 text-center">
               <span className="text-sm text-muted-foreground">עדיין אין לך חשבון? </span>
@@ -1054,59 +1082,320 @@ function WorkingHoursTab() {
   );
 }
 
-function BreaksTab() {
-  const { data: breaks } = useGetBreakTimes();
-  const updateMutation = useSetBreakTimes();
-  const queryClient = useQueryClient();
+function ForgotPasswordFlow({ onBack }: { onBack: () => void }) {
   const { toast } = useToast();
-  const [localBreaks, setLocalBreaks] = useState<any[]>([]);
+  const [phone, setPhone] = useState("");
+  const [otpSent, setOtpSent] = useState(false);
+  const [otp, setOtp] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [done, setDone] = useState(false);
 
-  useEffect(() => { if (breaks) setLocalBreaks([...breaks]); }, [breaks]);
-
-  const handleSave = () => {
-    updateMutation.mutate({ data: { breaks: localBreaks.map(b => ({ dayOfWeek: parseInt(b.dayOfWeek), startTime: b.startTime, endTime: b.endTime, label: b.label || null })) } }, {
-      onSuccess: () => { toast({ title: "הפסקות נשמרו" }); queryClient.invalidateQueries({ queryKey: getGetBreakTimesQueryKey() }); },
-    });
+  const handleSendOtp = async () => {
+    if (!phone) return;
+    setLoading(true);
+    try {
+      const r = await fetch("/api/auth/forgot-password", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ phone }),
+      });
+      if (r.ok) { setOtpSent(true); toast({ title: "קוד נשלח לוואטסאפ שלך" }); }
+      else { const e = await r.json(); toast({ title: e.error || "שגיאה", variant: "destructive" }); }
+    } catch {} finally { setLoading(false); }
   };
 
-  if (!breaks) return <div className="p-8 text-center text-muted-foreground">טוען...</div>;
+  const handleReset = async () => {
+    if (!otp || !newPassword) return;
+    setLoading(true);
+    try {
+      const r = await fetch("/api/auth/reset-password", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ phone, code: otp, newPassword }),
+      });
+      if (r.ok) { setDone(true); toast({ title: "הסיסמא שונתה בהצלחה" }); }
+      else { const e = await r.json(); toast({ title: e.error || "קוד שגוי", variant: "destructive" }); }
+    } catch {} finally { setLoading(false); }
+  };
+
+  if (done) return (
+    <div className="text-center space-y-3 py-4">
+      <div className="text-4xl">✅</div>
+      <p className="font-semibold">הסיסמא שונתה!</p>
+      <Button size="sm" onClick={onBack}>חזור להתחברות</Button>
+    </div>
+  );
 
   return (
-    <Card>
-      <CardHeader className="flex flex-row items-center justify-between">
-        <div>
-          <CardTitle>הפסקות</CardTitle>
-          <CardDescription>הגדר זמני מנוחה בהם לא ניתן לקבוע תורים</CardDescription>
-        </div>
-        <Button onClick={() => setLocalBreaks([...localBreaks, { dayOfWeek: 0, startTime: "12:00", endTime: "13:00", label: "" }])} size="sm" className="gap-1.5">
-          <Plus className="w-4 h-4" /> הוסף הפסקה
-        </Button>
-      </CardHeader>
-      <CardContent className="space-y-3">
-        {localBreaks.length === 0 ? (
-          <EmptyState text="אין הפסקות מוגדרות" />
-        ) : (
-          localBreaks.map((b, i) => (
-            <div key={i} className="flex flex-wrap gap-3 p-4 border rounded-xl bg-card items-center">
-              <select value={b.dayOfWeek} onChange={e => { const n = [...localBreaks]; n[i].dayOfWeek = e.target.value; setLocalBreaks(n); }} className="border rounded-lg h-10 px-3 bg-background text-sm">
-                {DAYS.map((d, j) => <option key={j} value={j}>{d}</option>)}
-              </select>
-              <Input type="time" value={b.startTime} onChange={e => { const n = [...localBreaks]; n[i].startTime = e.target.value; setLocalBreaks(n); }} className="w-28" dir="ltr" />
-              <span className="text-muted-foreground">—</span>
-              <Input type="time" value={b.endTime} onChange={e => { const n = [...localBreaks]; n[i].endTime = e.target.value; setLocalBreaks(n); }} className="w-28" dir="ltr" />
-              <Input placeholder="תיאור (אופציונלי)" value={b.label || ""} onChange={e => { const n = [...localBreaks]; n[i].label = e.target.value; setLocalBreaks(n); }} className="flex-1 min-w-32" />
-              <button onClick={() => { const n = [...localBreaks]; n.splice(i, 1); setLocalBreaks(n); }}
-                className="p-1.5 rounded-lg bg-red-50 hover:bg-red-100 text-red-400 border border-red-100 transition-all shrink-0">
-                <Trash2 className="w-3.5 h-3.5" />
-              </button>
+    <div className="space-y-3 pt-2">
+      <p className="text-sm font-medium">איפוס סיסמא</p>
+      {!otpSent ? (
+        <>
+          <div className="space-y-1">
+            <Label className="text-xs">מספר טלפון הרשום בחשבון</Label>
+            <Input dir="ltr" value={phone} onChange={e => setPhone(e.target.value)} placeholder="050-0000000" />
+          </div>
+          <Button size="sm" className="w-full" onClick={handleSendOtp} disabled={loading || !phone}>
+            {loading ? "שולח..." : "שלח קוד לוואטסאפ"}
+          </Button>
+        </>
+      ) : (
+        <>
+          <div className="space-y-1">
+            <Label className="text-xs">קוד שהתקבל בוואטסאפ</Label>
+            <Input dir="ltr" value={otp} onChange={e => setOtp(e.target.value)} placeholder="123456" maxLength={6} />
+          </div>
+          <div className="space-y-1">
+            <Label className="text-xs">סיסמא חדשה</Label>
+            <Input type="password" value={newPassword} onChange={e => setNewPassword(e.target.value)} placeholder="סיסמא חדשה" />
+          </div>
+          <Button size="sm" className="w-full" onClick={handleReset} disabled={loading || !otp || !newPassword}>
+            {loading ? "מאמת..." : "שנה סיסמא"}
+          </Button>
+        </>
+      )}
+      <button type="button" className="text-xs text-muted-foreground underline" onClick={onBack}>חזור</button>
+    </div>
+  );
+}
+
+function DayOffTab() {
+  const { toast } = useToast();
+  const [items, setItems] = useState<any[]>([]);
+  const [type, setType] = useState<"full" | "partial">("full");
+  const [date, setDate] = useState("");
+  const [startTime, setStartTime] = useState("09:00");
+  const [endTime, setEndTime] = useState("17:00");
+  const [note, setNote] = useState("");
+  const [loading, setLoading] = useState(false);
+
+  const load = async () => {
+    try {
+      const r = await fetch("/api/business/time-off", { headers: { authorization: `Bearer ${localStorage.getItem("biz_token") || sessionStorage.getItem("biz_token")}` } });
+      if (r.ok) setItems(await r.json());
+    } catch {}
+  };
+
+  useEffect(() => { load(); }, []);
+
+  const handleAdd = async () => {
+    if (!date) { toast({ title: "יש לבחור תאריך", variant: "destructive" }); return; }
+    setLoading(true);
+    try {
+      const token = localStorage.getItem("biz_token") || sessionStorage.getItem("biz_token");
+      const r = await fetch("/api/business/time-off", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", authorization: `Bearer ${token}` },
+        body: JSON.stringify({
+          date,
+          fullDay: type === "full",
+          startTime: type === "partial" ? startTime : null,
+          endTime: type === "partial" ? endTime : null,
+          note: note || null,
+        }),
+      });
+      if (r.ok) {
+        toast({ title: "יום החופש נוסף" });
+        setDate(""); setNote("");
+        load();
+      }
+    } catch {} finally { setLoading(false); }
+  };
+
+  const handleDelete = async (id: number) => {
+    const token = localStorage.getItem("biz_token") || sessionStorage.getItem("biz_token");
+    await fetch(`/api/business/time-off/${id}`, { method: "DELETE", headers: { authorization: `Bearer ${token}` } });
+    load();
+  };
+
+  const formatDate = (d: string) => {
+    try { return new Date(d).toLocaleDateString("he-IL", { weekday: "long", day: "numeric", month: "long", year: "numeric" }); } catch { return d; }
+  };
+
+  return (
+    <div className="space-y-6">
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Umbrella className="w-5 h-5" /> יום חופש
+          </CardTitle>
+          <CardDescription>הוסף ימי חופש או שעות בהן לא ניתן לקבוע תורים</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {/* Type toggle */}
+          <div className="flex gap-2">
+            <button onClick={() => setType("full")} className={`flex-1 py-2 rounded-xl border-2 text-sm font-medium transition-all ${type === "full" ? "border-primary bg-primary/5 text-primary" : "border-border"}`}>
+              🌴 יום חופש מלא
+            </button>
+            <button onClick={() => setType("partial")} className={`flex-1 py-2 rounded-xl border-2 text-sm font-medium transition-all ${type === "partial" ? "border-primary bg-primary/5 text-primary" : "border-border"}`}>
+              ⏰ שעות ספציפיות
+            </button>
+          </div>
+
+          {/* Date */}
+          <div className="space-y-1">
+            <Label>תאריך</Label>
+            <Input type="date" value={date} onChange={e => setDate(e.target.value)} min={new Date().toISOString().split("T")[0]} />
+          </div>
+
+          {/* Time range (partial only) */}
+          {type === "partial" && (
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <Label>משעה</Label>
+                <Input type="time" value={startTime} onChange={e => setStartTime(e.target.value)} />
+              </div>
+              <div className="space-y-1">
+                <Label>עד שעה</Label>
+                <Input type="time" value={endTime} onChange={e => setEndTime(e.target.value)} />
+              </div>
             </div>
-          ))
-        )}
-        <div className="pt-4 flex justify-end">
-          <Button onClick={handleSave} disabled={updateMutation.isPending} size="lg">שמור הפסקות</Button>
-        </div>
-      </CardContent>
-    </Card>
+          )}
+
+          {/* Note */}
+          <div className="space-y-1">
+            <Label>הערה (אופציונלי)</Label>
+            <Input value={note} onChange={e => setNote(e.target.value)} placeholder="לדוגמה: חופשה משפחתית" />
+          </div>
+
+          <Button onClick={handleAdd} disabled={loading} className="w-full gap-2">
+            <Plus className="w-4 h-4" /> הוסף יום חופש
+          </Button>
+        </CardContent>
+      </Card>
+
+      {/* List */}
+      {items.length > 0 && (
+        <Card>
+          <CardHeader><CardTitle className="text-base">ימי חופש מתוכננים</CardTitle></CardHeader>
+          <CardContent className="space-y-2">
+            {items.map(item => (
+              <div key={item.id} className="flex items-center justify-between py-2 border-b last:border-0">
+                <div>
+                  <div className="font-medium text-sm">{formatDate(item.date)}</div>
+                  <div className="text-xs text-muted-foreground">
+                    {item.fullDay ? "יום חופש מלא" : `${item.startTime} — ${item.endTime}`}
+                    {item.note && ` • ${item.note}`}
+                  </div>
+                </div>
+                <button onClick={() => handleDelete(item.id)} className="text-red-400 hover:text-red-600 p-1.5 rounded-lg hover:bg-red-50 transition-all">
+                  <Trash2 className="w-4 h-4" />
+                </button>
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+      )}
+    </div>
+  );
+}
+
+function AnalyticsTab() {
+  const [data, setData] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const token = localStorage.getItem("biz_token") || sessionStorage.getItem("biz_token");
+    fetch("/api/business/analytics", { headers: { authorization: `Bearer ${token}` } })
+      .then(r => r.json()).then(setData).finally(() => setLoading(false));
+  }, []);
+
+  if (loading) return <div className="text-center py-12 text-muted-foreground">טוען נתונים...</div>;
+  if (!data) return null;
+
+  const stats = [
+    { label: "תורים קבועים עתידיים", value: data.future, color: "text-blue-600", bg: "bg-blue-50" },
+    { label: "תורים שהושלמו", value: data.past, color: "text-green-600", bg: "bg-green-50" },
+    { label: "תורים שבוטלו", value: data.cancelled, color: "text-red-500", bg: "bg-red-50" },
+    { label: "סה\"כ תורים פעילים", value: data.total, color: "text-purple-600", bg: "bg-purple-50" },
+  ];
+
+  return (
+    <div className="space-y-4">
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <TrendingUp className="w-5 h-5" /> נתוני עסק
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          {/* Trend banner */}
+          {data.trending ? (
+            <div className="mb-4 p-3 rounded-xl bg-green-50 border border-green-200 flex items-center gap-2 text-green-700 text-sm font-medium">
+              <span className="text-lg">📈</span>
+              הממוצע החודשי עולה! החודש <strong>{data.currentMonth}</strong> תורים לעומת {data.prevMonth} בחודש הקודם
+            </div>
+          ) : data.prevMonth > 0 && data.currentMonth <= data.prevMonth ? (
+            <div className="mb-4 p-3 rounded-xl bg-orange-50 border border-orange-200 flex items-center gap-2 text-orange-700 text-sm">
+              <span className="text-lg">📊</span>
+              החודש <strong>{data.currentMonth}</strong> תורים לעומת {data.prevMonth} בחודש הקודם
+            </div>
+          ) : null}
+
+          {/* Stats grid */}
+          <div className="grid grid-cols-2 gap-3">
+            {stats.map(s => (
+              <div key={s.label} className={`${s.bg} rounded-2xl p-4 text-center`}>
+                <div className={`text-3xl font-bold ${s.color}`}>{s.value}</div>
+                <div className="text-xs text-muted-foreground mt-1">{s.label}</div>
+              </div>
+            ))}
+          </div>
+
+          <div className="mt-4 pt-4 border-t text-center text-sm text-muted-foreground">
+            ממוצע חודשי: <strong>{data.avg}</strong> תורים
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+function RevenueTab() {
+  const [data, setData] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const token = localStorage.getItem("biz_token") || sessionStorage.getItem("biz_token");
+    fetch("/api/business/revenue", { headers: { authorization: `Bearer ${token}` } })
+      .then(r => r.json()).then(setData).finally(() => setLoading(false));
+  }, []);
+
+  if (loading) return <div className="text-center py-12 text-muted-foreground">טוען נתונים...</div>;
+  if (!data) return null;
+
+  return (
+    <div className="space-y-4">
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            💰 סיכום הכנסות
+          </CardTitle>
+          <CardDescription>מבוסס על מחירי השירותים והתורים הקבועים</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <div className="grid grid-cols-1 gap-3">
+            <div className="p-4 rounded-2xl bg-green-50 border border-green-200">
+              <div className="text-sm text-green-700 font-medium mb-1">החודש (מה-1)</div>
+              <div className="text-4xl font-bold text-green-700">₪{data.thisMonth.toLocaleString()}</div>
+            </div>
+            <div className="p-4 rounded-2xl bg-blue-50 border border-blue-200">
+              <div className="text-sm text-blue-700 font-medium mb-1">תורים קבועים לחודש הבא</div>
+              <div className="text-3xl font-bold text-blue-700">₪{data.nextMonthBooked.toLocaleString()}</div>
+              {data.forecast > 0 && (
+                <div className="text-xs text-blue-500 mt-1">תחזית לפי ממוצע 3 חודשים: ₪{data.forecast.toLocaleString()}</div>
+              )}
+            </div>
+            <div className="p-4 rounded-2xl bg-purple-50 border border-purple-200">
+              <div className="text-sm text-purple-700 font-medium mb-1">סה"כ מאז הצטרפות</div>
+              <div className="text-3xl font-bold text-purple-700">₪{data.allTime.toLocaleString()}</div>
+            </div>
+          </div>
+          <p className="text-xs text-muted-foreground text-center pt-2">* הנתונים מבוססים על מחירי השירותים ואינם כוללים מזומן שהתקבל ישירות</p>
+        </CardContent>
+      </Card>
+    </div>
   );
 }
 

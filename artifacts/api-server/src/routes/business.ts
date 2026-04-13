@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { db, businessesTable, servicesTable, workingHoursTable, breakTimesTable, appointmentsTable, waitlistTable } from "@workspace/db";
+import { db, businessesTable, servicesTable, workingHoursTable, breakTimesTable, appointmentsTable, waitlistTable, timeOffTable } from "@workspace/db";
 import { eq, and, gte, sql, count } from "drizzle-orm";
 import {
   UpdateBusinessProfileBody,
@@ -13,6 +13,7 @@ import {
   UpdateBusinessBrandingBody,
   UpdateBusinessIntegrationsBody,
   RemoveFromWaitlistParams,
+  CreateTimeOffBody,
 } from "@workspace/api-zod";
 import { requireBusinessAuth } from "../middlewares/business-auth";
 
@@ -527,6 +528,115 @@ router.delete("/business/waitlist/:id", requireBusinessAuth, async (req, res): P
   }
 
   res.json({ success: true, message: "Removed from waitlist" });
+});
+
+// GET /business/time-off
+router.get("/business/time-off", requireBusinessAuth, async (req, res): Promise<void> => {
+  const items = await db.select().from(timeOffTable)
+    .where(eq(timeOffTable.businessId, req.business!.businessId))
+    .orderBy(timeOffTable.date);
+  res.json(items.map(t => ({ id: t.id, date: t.date, startTime: t.startTime ?? null, endTime: t.endTime ?? null, fullDay: t.fullDay, note: t.note ?? null })));
+});
+
+// POST /business/time-off
+router.post("/business/time-off", requireBusinessAuth, async (req, res): Promise<void> => {
+  const parsed = CreateTimeOffBody.safeParse(req.body);
+  if (!parsed.success) { res.status(400).json({ error: "Invalid data" }); return; }
+  const [item] = await db.insert(timeOffTable).values({
+    businessId: req.business!.businessId,
+    date: parsed.data.date,
+    startTime: parsed.data.startTime ?? undefined,
+    endTime: parsed.data.endTime ?? undefined,
+    fullDay: parsed.data.fullDay ?? true,
+    note: parsed.data.note ?? undefined,
+  }).returning();
+  res.json({ id: item.id, date: item.date, startTime: item.startTime ?? null, endTime: item.endTime ?? null, fullDay: item.fullDay, note: item.note ?? null });
+});
+
+// DELETE /business/time-off/:id
+router.delete("/business/time-off/:id", requireBusinessAuth, async (req, res): Promise<void> => {
+  await db.delete(timeOffTable).where(and(eq(timeOffTable.id, Number(req.params.id)), eq(timeOffTable.businessId, req.business!.businessId)));
+  res.json({ ok: true });
+});
+
+// GET /business/analytics
+router.get("/business/analytics", requireBusinessAuth, async (req, res): Promise<void> => {
+  const businessId = req.business!.businessId;
+  const today = new Date().toISOString().split("T")[0];
+
+  const allAppts = await db.select().from(appointmentsTable)
+    .where(eq(appointmentsTable.businessId, businessId));
+
+  const future = allAppts.filter(a => a.appointmentDate >= today && a.status !== "cancelled").length;
+  const past = allAppts.filter(a => a.appointmentDate < today && a.status !== "cancelled").length;
+  const cancelled = allAppts.filter(a => a.status === "cancelled").length;
+  const total = allAppts.filter(a => a.status !== "cancelled").length;
+
+  // Monthly averages for trend
+  const byMonth: Record<string, number> = {};
+  allAppts.filter(a => a.status !== "cancelled").forEach(a => {
+    const m = a.appointmentDate.slice(0, 7);
+    byMonth[m] = (byMonth[m] || 0) + 1;
+  });
+  const months = Object.values(byMonth);
+  const avg = months.length ? Math.round(months.reduce((a, b) => a + b, 0) / months.length) : 0;
+
+  const currentMonth = new Date().toISOString().slice(0, 7);
+  const prevMonth = new Date(new Date().getFullYear(), new Date().getMonth() - 1, 1).toISOString().slice(0, 7);
+  const currentCount = byMonth[currentMonth] || 0;
+  const prevCount = byMonth[prevMonth] || 0;
+  const trending = currentCount > prevCount;
+
+  res.json({ total, future, past, cancelled, avg, currentMonth: currentCount, prevMonth: prevCount, trending });
+});
+
+// GET /business/revenue
+router.get("/business/revenue", requireBusinessAuth, async (req, res): Promise<void> => {
+  const businessId = req.business!.businessId;
+
+  const allAppts = await db.select({
+    date: appointmentsTable.appointmentDate,
+    status: appointmentsTable.status,
+    serviceId: appointmentsTable.serviceId,
+  }).from(appointmentsTable).where(eq(appointmentsTable.businessId, businessId));
+
+  const services = await db.select().from(servicesTable)
+    .where(eq(servicesTable.businessId, businessId));
+  const priceMap: Record<number, number> = {};
+  services.forEach(s => { priceMap[s.id] = s.price; });
+
+  const now = new Date();
+  const thisMonthStr = now.toISOString().slice(0, 7);
+  const nextMonthDate = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+  const nextMonthStr = nextMonthDate.toISOString().slice(0, 7);
+
+  let thisMonth = 0, nextMonth = 0, allTime = 0;
+
+  allAppts.filter(a => a.status !== "cancelled").forEach(a => {
+    const price = priceMap[a.serviceId] ?? 0;
+    const month = a.date?.slice(0, 7);
+    if (month === thisMonthStr) thisMonth += price;
+    if (month === nextMonthStr) nextMonth += price;
+    allTime += price;
+  });
+
+  // forecast next month based on avg of last 3 months
+  const last3: number[] = [];
+  for (let i = 1; i <= 3; i++) {
+    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    const m = d.toISOString().slice(0, 7);
+    const total = allAppts.filter(a => a.status !== "cancelled" && a.date?.startsWith(m))
+      .reduce((sum, a) => sum + (priceMap[a.serviceId] ?? 0), 0);
+    last3.push(total);
+  }
+  const forecast = last3.length ? Math.round(last3.reduce((a, b) => a + b, 0) / last3.length) : 0;
+
+  res.json({
+    thisMonth: Math.round(thisMonth / 100),
+    nextMonthBooked: Math.round(nextMonth / 100),
+    forecast: Math.round(forecast / 100),
+    allTime: Math.round(allTime / 100),
+  });
 });
 
 export default router;

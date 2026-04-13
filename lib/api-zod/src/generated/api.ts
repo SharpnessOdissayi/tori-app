@@ -474,6 +474,23 @@ export const SetBreakTimesResponseItem = zod.object({
 });
 export const SetBreakTimesResponse = zod.array(SetBreakTimesResponseItem);
 
+export const CreateTimeOffBody = zod.object({
+  date: zod.string(),
+  startTime: zod.string().nullish(),
+  endTime: zod.string().nullish(),
+  fullDay: zod.boolean().default(true),
+  note: zod.string().nullish(),
+});
+export const TimeOffItem = zod.object({
+  id: zod.number(),
+  date: zod.string(),
+  startTime: zod.string().nullable(),
+  endTime: zod.string().nullable(),
+  fullDay: zod.boolean(),
+  note: zod.string().nullable(),
+});
+export const TimeOffList = zod.array(TimeOffItem);
+
 export const ListBusinessAppointmentsResponseItem = zod.object({
   id: zod.number(),
   businessId: zod.number(),

@@ -8,6 +8,20 @@ import { logger } from "./logger";
  */
 export async function runMigrations() {
   try {
+    // Create new tables if they don't exist
+    await db.execute(sql.raw(`
+      CREATE TABLE IF NOT EXISTS time_off (
+        id SERIAL PRIMARY KEY,
+        business_id INTEGER NOT NULL,
+        date TEXT NOT NULL,
+        start_time TEXT,
+        end_time TEXT,
+        full_day BOOLEAN NOT NULL DEFAULT TRUE,
+        note TEXT,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      )
+    `));
+
     const alterations: string[] = [
       // Booking restrictions
       `ALTER TABLE businesses ADD COLUMN IF NOT EXISTS min_lead_hours INTEGER NOT NULL DEFAULT 0`,

@@ -1,6 +1,7 @@
 import { motion } from "framer-motion";
 import { MessageCircle, Phone, Clock } from "lucide-react";
 import Navbar from "@/components/Navbar";
+import SiteFooter from "@/components/SiteFooter";
 
 const WHATSAPP_NUMBER = "972504241007";
 const DISPLAY_PHONE = "050-4241007";
@@ -79,9 +80,7 @@ export default function Contact() {
         </motion.div>
       </main>
 
-      <footer className="py-6 text-center text-xs text-muted-foreground border-t">
-        <p>קבעתי — מערכת ניהול תורים לעסקים ישראליים</p>
-      </footer>
+      <SiteFooter />
     </div>
   );
 }

@@ -230,4 +230,37 @@ router.post("/auth/business/reset-password", async (req, res): Promise<void> => 
   res.json({ success: true });
 });
 
+// POST /auth/forgot-password — send OTP via WhatsApp for phone-based reset
+router.post("/auth/forgot-password", async (req, res): Promise<void> => {
+  const { phone } = req.body;
+  if (!phone) { res.status(400).json({ error: "Phone required" }); return; }
+
+  const [business] = await db.select().from(businessesTable).where(eq(businessesTable.phone, phone));
+  if (!business) { res.status(404).json({ error: "מספר טלפון לא נמצא במערכת" }); return; }
+
+  const { sendOtp } = await import("../lib/whatsapp");
+  await sendOtp(phone);
+  res.json({ ok: true });
+});
+
+// POST /auth/reset-password — verify OTP and set new password
+router.post("/auth/reset-password", async (req, res): Promise<void> => {
+  const { phone, code, newPassword } = req.body;
+  if (!phone || !code || !newPassword) { res.status(400).json({ error: "Missing fields" }); return; }
+
+  const { verifyOtp } = await import("../lib/whatsapp");
+  const { consumeVerification } = await import("../lib/otpStore");
+
+  const valid = await verifyOtp(phone, code);
+  if (!valid) { res.status(400).json({ error: "קוד שגוי או פג תוקף" }); return; }
+
+  consumeVerification(phone);
+
+  const bcryptLib = await import("bcryptjs");
+  const hash = await bcryptLib.hash(newPassword, 10);
+
+  await db.update(businessesTable).set({ passwordHash: hash }).where(eq(businessesTable.phone, phone));
+  res.json({ ok: true });
+});
+
 export default router;

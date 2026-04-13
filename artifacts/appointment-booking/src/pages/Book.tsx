@@ -664,9 +664,16 @@ export default function Book() {
           )}
 
           {/* Footer — inside pb-28 content area so floating button never covers it */}
-          <footer className="text-center pt-8 pb-4 text-xs text-muted-foreground border-t mt-8">
-            מופעל על ידי{" "}
-            <a href="/" className="font-bold text-foreground hover:text-primary transition-colors">קבעתי</a>
+          <footer className="pt-8 pb-4 text-xs text-muted-foreground border-t mt-8 text-center space-y-2">
+            <div className="flex flex-wrap justify-center gap-x-4 gap-y-1">
+              <a href="/privacy" className="hover:text-foreground transition-colors">מדיניות פרטיות</a>
+              <a href="/terms" className="hover:text-foreground transition-colors">תנאי שימוש</a>
+              <a href="/contact" className="hover:text-foreground transition-colors">יצירת קשר</a>
+            </div>
+            <div>
+              מופעל על ידי{" "}
+              <a href="/" className="font-bold text-foreground hover:text-primary transition-colors">קבעתי</a>
+            </div>
           </footer>
         </div>
 
@@ -1059,9 +1066,16 @@ export default function Book() {
         </Card>
       </div>
 
-      <footer className="text-center py-4 text-xs text-muted-foreground border-t">
-        מופעל על ידי{" "}
-        <a href="/" className="font-bold text-foreground hover:text-primary transition-colors">קבעתי</a>
+      <footer className="py-4 text-xs text-muted-foreground border-t text-center space-y-2">
+        <div className="flex flex-wrap justify-center gap-x-4 gap-y-1">
+          <a href="/privacy" className="hover:text-foreground transition-colors">מדיניות פרטיות</a>
+          <a href="/terms" className="hover:text-foreground transition-colors">תנאי שימוש</a>
+          <a href="/contact" className="hover:text-foreground transition-colors">יצירת קשר</a>
+        </div>
+        <div>
+          מופעל על ידי{" "}
+          <a href="/" className="font-bold text-foreground hover:text-primary transition-colors">קבעתי</a>
+        </div>
       </footer>
 
       {/* Accessibility floating button (IS 5568 / WCAG 2.1) */}

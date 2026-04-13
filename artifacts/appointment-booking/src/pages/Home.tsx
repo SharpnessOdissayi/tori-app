@@ -4,6 +4,7 @@ import { CalendarCheck, Building2, MessageCircle, Bell, Sparkles } from "lucide-
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import Navbar from "@/components/Navbar";
+import SiteFooter from "@/components/SiteFooter";
 
 export default function Home() {
   return (
@@ -80,9 +81,7 @@ export default function Home() {
 
       </main>
 
-      <footer className="py-6 text-center text-xs text-muted-foreground border-t">
-        <p>קבעתי — מערכת ניהול תורים לעסקים ישראליים</p>
-      </footer>
+      <SiteFooter />
     </div>
   );
 }
