@@ -185,6 +185,11 @@ export default function Book() {
   const [activeTab, setActiveTab] = useState<"services" | "hours" | "gallery">("services");
   const [existingBooking, setExistingBooking] = useState<any>(null);
   const [workingHours, setWorkingHours] = useState<any[]>([]);
+  const [rescheduleStep, setRescheduleStep] = useState<"idle" | "picking">("idle");
+  const [rescheduleDate, setRescheduleDate] = useState<Date | undefined>(undefined);
+  const [rescheduleTime, setRescheduleTime] = useState<string | null>(null);
+  const [rescheduleLoading, setRescheduleLoading] = useState(false);
+  const [cancelLoading, setCancelLoading] = useState(false);
 
   const [selectedServiceId, setSelectedServiceId] = useState<number | null>(null);
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(undefined);
@@ -207,6 +212,14 @@ export default function Book() {
     businessSlug || "",
     { date: dateStr, serviceId: selectedServiceId! },
     { query: { enabled: !!dateStr && !!selectedServiceId } }
+  );
+
+  // Availability for reschedule flow
+  const rescheduleDateStr = rescheduleDate?.toISOString().split("T")[0] ?? "";
+  const { data: rescheduleAvailability } = useGetPublicAvailability(
+    businessSlug || "",
+    { date: rescheduleDateStr, serviceId: 0 },
+    { query: { enabled: !!rescheduleDateStr && rescheduleStep === "picking" } }
   );
 
   const createMutation = useCreatePublicAppointment();
@@ -360,13 +373,15 @@ export default function Book() {
     createMutation.mutate(
       { businessSlug: businessSlug || "", data: { serviceId: selectedServiceId, clientName: clientData.name, phoneNumber: clientData.phone, appointmentDate: dateStr, appointmentTime: selectedTime, notes: clientData.notes } },
       {
-        onSuccess: () => {
-          // Save booking to localStorage
+        onSuccess: (data: any) => {
+          // Save booking to localStorage (include id + phone for reschedule/cancel)
           const bookingData = {
+            id: data?.id,
             date: dateStr,
             time: selectedTime,
             service: selectedService?.name,
             name: clientData.name,
+            phone: clientData.phone,
           };
           localStorage.setItem(`kavati_booking_${businessSlug}`, JSON.stringify(bookingData));
           setStep(5);
@@ -374,6 +389,63 @@ export default function Book() {
         onError: () => toast({ title: "שגיאה", description: "לא ניתן לקבוע את התור, נסה שוב", variant: "destructive" }),
       }
     );
+  };
+
+  const API_BASE = import.meta.env.VITE_API_BASE_URL ?? "/api";
+
+  const handleCancelAppointment = async () => {
+    if (!existingBooking?.id || !existingBooking?.phone) return;
+    setCancelLoading(true);
+    try {
+      const res = await fetch(`${API_BASE}/public/${businessSlug}/appointments/${existingBooking.id}/cancel`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ phoneNumber: existingBooking.phone }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        toast({ title: "שגיאה", description: data.message ?? "לא ניתן לבטל", variant: "destructive" });
+      } else {
+        localStorage.removeItem(`kavati_booking_${businessSlug}`);
+        setExistingBooking(null);
+        setShowExistingBooking(false);
+        toast({ title: "התור בוטל בהצלחה" });
+      }
+    } catch {
+      toast({ title: "שגיאת רשת", variant: "destructive" });
+    } finally {
+      setCancelLoading(false);
+    }
+  };
+
+  const handleReschedule = async () => {
+    if (!existingBooking?.id || !existingBooking?.phone || !rescheduleDate || !rescheduleTime) return;
+    const newDate = rescheduleDate.toISOString().split("T")[0];
+    setRescheduleLoading(true);
+    try {
+      const res = await fetch(`${API_BASE}/public/${businessSlug}/appointments/${existingBooking.id}/reschedule`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ phoneNumber: existingBooking.phone, newDate, newTime: rescheduleTime }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        toast({ title: "שגיאה", description: data.message ?? "לא ניתן לדחות", variant: "destructive" });
+      } else {
+        const [, month, day] = newDate.split("-");
+        const updated = { ...existingBooking, date: `${day}/${month}`, time: rescheduleTime };
+        localStorage.setItem(`kavati_booking_${businessSlug}`, JSON.stringify(updated));
+        setExistingBooking(updated);
+        setRescheduleStep("idle");
+        setRescheduleDate(undefined);
+        setRescheduleTime(null);
+        toast({ title: "✅ התור נדחה בהצלחה!", description: `${day}/${month} בשעה ${rescheduleTime}` });
+      }
+    } catch {
+      toast({ title: "שגיאת רשת", variant: "destructive" });
+    } finally {
+      setRescheduleLoading(false);
+    }
   };
 
   const handleWaitlist = (e: React.FormEvent) => {
@@ -421,24 +493,88 @@ export default function Book() {
               <DialogTitle>התור שלך</DialogTitle>
             </DialogHeader>
             {existingBooking && (
-              <div className="space-y-3 py-2">
-                <div className="p-4 rounded-xl bg-muted/30 text-right space-y-2">
-                  {existingBooking.service && <div className="font-semibold">{existingBooking.service}</div>}
+              <div className="space-y-4 py-2" dir="rtl">
+                {/* Appointment details */}
+                <div className="p-4 rounded-xl bg-muted/30 space-y-2">
+                  {existingBooking.service && <div className="font-bold text-base">{existingBooking.service}</div>}
                   {existingBooking.date && <div className="text-sm text-muted-foreground flex items-center gap-2"><CalendarIcon className="w-4 h-4" /> {existingBooking.date}</div>}
                   {existingBooking.time && <div className="text-sm text-muted-foreground flex items-center gap-2"><Clock className="w-4 h-4" /><span dir="ltr">{existingBooking.time}</span></div>}
-                  {existingBooking.name && <div className="text-sm text-muted-foreground flex items-center gap-2"><User className="w-4 h-4" /> {existingBooking.name}</div>}
+                  {existingBooking.name && <div className="text-sm text-muted-foreground flex items-center gap-2"><User className="w-4 h-4" />{existingBooking.name}</div>}
                 </div>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => {
-                    localStorage.removeItem(`kavati_booking_${businessSlug}`);
-                    setExistingBooking(null);
-                    setShowExistingBooking(false);
-                  }}
-                >
-                  בטל תור שמור
-                </Button>
+
+                {rescheduleStep === "idle" ? (
+                  <div className="flex gap-2">
+                    {/* Reschedule */}
+                    <Button
+                      variant="outline"
+                      className="flex-1"
+                      onClick={() => setRescheduleStep("picking")}
+                      disabled={!existingBooking.id}
+                    >
+                      <CalendarIcon className="w-4 h-4 ml-1" /> דחה תור
+                    </Button>
+                    {/* Cancel */}
+                    <Button
+                      variant="destructive"
+                      className="flex-1"
+                      onClick={handleCancelAppointment}
+                      disabled={cancelLoading || !existingBooking.id}
+                    >
+                      {cancelLoading ? "מבטל..." : "בטל תור"}
+                    </Button>
+                  </div>
+                ) : (
+                  /* Reschedule picker */
+                  <div className="space-y-3">
+                    <div className="text-sm font-medium">בחר תאריך ושעה חדשים:</div>
+                    <DayPicker
+                      mode="single"
+                      selected={rescheduleDate}
+                      onSelect={d => { setRescheduleDate(d); setRescheduleTime(null); }}
+                      locale={he}
+                      disabled={[{ before: new Date() }]}
+                      className="rounded-xl border p-2 mx-auto"
+                    />
+                    {rescheduleDate && (() => {
+                      const available: string[] = rescheduleAvailability?.slots ?? [];
+                      return available.length > 0 ? (
+                        <div className="grid grid-cols-3 gap-2">
+                          {available.map((t: string) => (
+                            <button
+                              key={t}
+                              onClick={() => setRescheduleTime(t)}
+                              className={`py-2 rounded-xl border text-sm font-medium transition-all ${rescheduleTime === t ? "text-white border-transparent" : "border-border hover:border-primary/50"}`}
+                              style={rescheduleTime === t ? { backgroundColor: primaryColor } : {}}
+                            >
+                              {t}
+                            </button>
+                          ))}
+                        </div>
+                      ) : <div className="text-center text-sm text-muted-foreground py-2">אין זמנים פנויים ביום זה</div>;
+                    })()}
+                    <div className="flex gap-2 pt-1">
+                      <Button
+                        variant="outline"
+                        className="flex-1"
+                        onClick={() => { setRescheduleStep("idle"); setRescheduleDate(undefined); setRescheduleTime(null); }}
+                      >
+                        חזור
+                      </Button>
+                      <Button
+                        className="flex-1"
+                        style={{ backgroundColor: primaryColor }}
+                        disabled={!rescheduleDate || !rescheduleTime || rescheduleLoading}
+                        onClick={handleReschedule}
+                      >
+                        {rescheduleLoading ? "שומר..." : "אשר דחייה"}
+                      </Button>
+                    </div>
+                  </div>
+                )}
+
+                {!existingBooking.id && (
+                  <p className="text-xs text-muted-foreground text-center">ביטול ודחייה זמינים רק לתורים שנקבעו מהמכשיר הזה</p>
+                )}
               </div>
             )}
           </DialogContent>

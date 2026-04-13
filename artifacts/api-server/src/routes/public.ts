@@ -12,7 +12,7 @@ import {
   JoinWaitlistBody,
 } from "@workspace/api-zod";
 import { computeAvailableSlots } from "../lib/availability";
-import { sendOtp, verifyOtp, notifyBusinessOwner } from "../lib/whatsapp";
+import { sendOtp, verifyOtp, notifyBusinessOwner, sendTemplate } from "../lib/whatsapp";
 import { isPhoneVerified, consumeVerification, markPhoneVerified } from "../lib/otpStore";
 
 const router = Router();
@@ -409,6 +409,128 @@ router.post("/public/:businessSlug/waitlist", async (req, res): Promise<void> =>
   });
 
   res.status(201).json({ success: true, message: "Added to waitlist" });
+});
+
+// POST /public/:businessSlug/appointments/:id/cancel — client cancels their own appointment
+// Requires phoneNumber in body to verify ownership
+router.post("/public/:businessSlug/appointments/:id/cancel", async (req, res): Promise<void> => {
+  const { businessSlug, id } = req.params;
+  const { phoneNumber } = req.body ?? {};
+
+  if (!phoneNumber) { res.status(400).json({ error: "phoneNumber required" }); return; }
+
+  const [appt] = await db
+    .select({
+      id: appointmentsTable.id,
+      phoneNumber: appointmentsTable.phoneNumber,
+      clientName: appointmentsTable.clientName,
+      businessId: appointmentsTable.businessId,
+      status: appointmentsTable.status,
+      appointmentDate: appointmentsTable.appointmentDate,
+      appointmentTime: appointmentsTable.appointmentTime,
+    })
+    .from(appointmentsTable)
+    .innerJoin(businessesTable, eq(appointmentsTable.businessId, businessesTable.id))
+    .where(and(
+      eq(appointmentsTable.id, parseInt(id)),
+      eq(businessesTable.slug, businessSlug),
+      eq(appointmentsTable.phoneNumber, phoneNumber),
+    ));
+
+  if (!appt) { res.status(404).json({ error: "תור לא נמצא" }); return; }
+  if (appt.status === "cancelled") { res.status(400).json({ error: "התור כבר בוטל" }); return; }
+
+  // Check cancellation hours policy
+  const [business] = await db
+    .select({ cancellationHours: businessesTable.cancellationHours, name: businessesTable.name })
+    .from(businessesTable)
+    .where(eq(businessesTable.id, appt.businessId));
+
+  if (business?.cancellationHours) {
+    const apptTime = new Date(`${appt.appointmentDate}T${appt.appointmentTime}:00`);
+    const hoursUntil = (apptTime.getTime() - Date.now()) / (1000 * 60 * 60);
+    if (hoursUntil < (business.cancellationHours ?? 0)) {
+      res.status(400).json({ error: "cancellation_too_late", message: `לא ניתן לבטל פחות מ-${business.cancellationHours} שעות לפני התור` });
+      return;
+    }
+  }
+
+  await db.update(appointmentsTable).set({ status: "cancelled" }).where(eq(appointmentsTable.id, appt.id));
+
+  res.json({ success: true });
+});
+
+// PATCH /public/:businessSlug/appointments/:id/reschedule — client reschedules their appointment
+router.patch("/public/:businessSlug/appointments/:id/reschedule", async (req, res): Promise<void> => {
+  const { businessSlug, id } = req.params;
+  const { phoneNumber, newDate, newTime } = req.body ?? {};
+
+  if (!phoneNumber || !newDate || !newTime) {
+    res.status(400).json({ error: "phoneNumber, newDate, newTime required" });
+    return;
+  }
+
+  const [appt] = await db
+    .select({
+      id: appointmentsTable.id,
+      phoneNumber: appointmentsTable.phoneNumber,
+      clientName: appointmentsTable.clientName,
+      businessId: appointmentsTable.businessId,
+      serviceName: appointmentsTable.serviceName,
+      durationMinutes: appointmentsTable.durationMinutes,
+      status: appointmentsTable.status,
+    })
+    .from(appointmentsTable)
+    .innerJoin(businessesTable, eq(appointmentsTable.businessId, businessesTable.id))
+    .where(and(
+      eq(appointmentsTable.id, parseInt(id)),
+      eq(businessesTable.slug, businessSlug),
+      eq(appointmentsTable.phoneNumber, phoneNumber),
+    ));
+
+  if (!appt) { res.status(404).json({ error: "תור לא נמצא" }); return; }
+  if (appt.status === "cancelled") { res.status(400).json({ error: "לא ניתן לדחות תור שבוטל" }); return; }
+
+  // Verify the new slot is available
+  const [business] = await db
+    .select()
+    .from(businessesTable)
+    .where(eq(businessesTable.id, appt.businessId));
+
+  if (!business) { res.status(404).json({ error: "Business not found" }); return; }
+
+  // Check for conflicts at the new time
+  const [conflict] = await db
+    .select({ id: appointmentsTable.id })
+    .from(appointmentsTable)
+    .where(and(
+      eq(appointmentsTable.businessId, appt.businessId),
+      eq(appointmentsTable.appointmentDate, newDate),
+      eq(appointmentsTable.appointmentTime, newTime),
+      sql`${appointmentsTable.status} != 'cancelled'`,
+      sql`${appointmentsTable.id} != ${appt.id}`,
+    ));
+
+  if (conflict) {
+    res.status(409).json({ error: "slot_taken", message: "השעה המבוקשת כבר תפוסה" });
+    return;
+  }
+
+  await db.update(appointmentsTable)
+    .set({ appointmentDate: newDate, appointmentTime: newTime, reminder24hSent: false, reminder1hSent: false, reminderMorningSent: false })
+    .where(eq(appointmentsTable.id, appt.id));
+
+  // Send WhatsApp notification — appointment_rescheduled template
+  // "Hello {{1}}, Your upcoming appointment with {{שם העסק}} has been rescheduled for {{תאריך}} at {{2}}."
+  const [, month, day] = newDate.split("-");
+  const formattedDate = `${day}/${month}`;
+  sendTemplate(appt.phoneNumber, "appointment_rescheduled", [
+    appt.clientName,
+    formattedDate,
+    newTime,
+  ]).catch(() => {});
+
+  res.json({ success: true, newDate, newTime });
 });
 
 export default router;
