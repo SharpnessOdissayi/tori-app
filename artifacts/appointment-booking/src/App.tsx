@@ -11,6 +11,8 @@ import Register from "@/pages/Register";
 import Book from "@/pages/Book";
 import Details from "@/pages/Details";
 import Contact from "@/pages/Contact";
+import Privacy from "@/pages/Privacy";
+import Terms from "@/pages/Terms";
 
 class ErrorBoundary extends Component<{ children: ReactNode }, { hasError: boolean; error: Error | null }> {
   constructor(props: { children: ReactNode }) {
@@ -54,6 +56,8 @@ function Router() {
       <Route path="/register" component={Register} />
       <Route path="/dashboard" component={Dashboard} />
       <Route path="/book/:businessSlug" component={Book} />
+      <Route path="/privacy" component={Privacy} />
+      <Route path="/terms" component={Terms} />
       <Route component={NotFound} />
     </Switch>
   );

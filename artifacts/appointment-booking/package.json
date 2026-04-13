@@ -1,6 +1,6 @@
 {
   "name": "@workspace/appointment-booking",
-  "version": "0.0.0",
+  "version": "1.0.0",
   "private": true,
   "type": "module",
   "scripts": {
@@ -9,8 +9,11 @@
     "serve": "vite preview --config vite.config.ts --host 0.0.0.0",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "cap:build": "pnpm build && npx cap sync",
+    "cap:build:staging": "cross-env CAPACITOR_ENV=staging pnpm build && npx cap sync",
     "cap:android": "npx cap open android",
-    "cap:ios": "npx cap open ios"
+    "cap:ios": "npx cap open ios",
+    "cap:staging:android": "pnpm cap:build:staging && npx cap open android",
+    "cap:staging:ios": "pnpm cap:build:staging && npx cap open ios"
   },
   "devDependencies": {
     "@hookform/resolvers": "^3.10.0",
@@ -78,6 +81,7 @@
     "zod": "catalog:"
   },
   "dependencies": {
+    "cross-env": "^7.0.3",
     "@capacitor/android": "^7.0.0",
     "@capacitor/core": "^7.0.0",
     "@capacitor/ios": "^7.0.0",

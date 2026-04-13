@@ -1,0 +1,79 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  Apple Privacy Manifest (required since May 2024 for all new/updated apps).
+  After running `npx cap add ios`, COPY this file to:
+    ios/App/App/PrivacyInfo.xcprivacy
+  Then in Xcode, add it to the App target.
+  Docs: https://developer.apple.com/documentation/bundleresources/privacy_manifest_files
+-->
+<plist version="1.0">
+<dict>
+  <!-- APIs that require reason declarations -->
+  <key>NSPrivacyAccessedAPITypes</key>
+  <array>
+    <!-- UserDefaults / localStorage equivalent via WKWebView -->
+    <dict>
+      <key>NSPrivacyAccessedAPIType</key>
+      <string>NSPrivacyAccessedAPICategoryUserDefaults</string>
+      <key>NSPrivacyAccessedAPITypeReasons</key>
+      <array>
+        <!-- CA92.1: Read/write user preferences set by the user -->
+        <string>CA92.1</string>
+      </array>
+    </dict>
+  </array>
+
+  <!-- Data collected and how it's used -->
+  <key>NSPrivacyCollectedDataTypes</key>
+  <array>
+    <!-- Phone number -->
+    <dict>
+      <key>NSPrivacyCollectedDataType</key>
+      <string>NSPrivacyCollectedDataTypePhoneNumber</string>
+      <key>NSPrivacyCollectedDataTypeLinked</key>
+      <true/>
+      <key>NSPrivacyCollectedDataTypeTracking</key>
+      <false/>
+      <key>NSPrivacyCollectedDataTypePurposes</key>
+      <array>
+        <string>NSPrivacyCollectedDataTypePurposeAppFunctionality</string>
+      </array>
+    </dict>
+    <!-- Name -->
+    <dict>
+      <key>NSPrivacyCollectedDataType</key>
+      <string>NSPrivacyCollectedDataTypeName</string>
+      <key>NSPrivacyCollectedDataTypeLinked</key>
+      <true/>
+      <key>NSPrivacyCollectedDataTypeTracking</key>
+      <false/>
+      <key>NSPrivacyCollectedDataTypePurposes</key>
+      <array>
+        <string>NSPrivacyCollectedDataTypePurposeAppFunctionality</string>
+      </array>
+    </dict>
+    <!-- Email (business owners only) -->
+    <dict>
+      <key>NSPrivacyCollectedDataType</key>
+      <string>NSPrivacyCollectedDataTypeEmailAddress</string>
+      <key>NSPrivacyCollectedDataTypeLinked</key>
+      <true/>
+      <key>NSPrivacyCollectedDataTypeTracking</key>
+      <false/>
+      <key>NSPrivacyCollectedDataTypePurposes</key>
+      <array>
+        <string>NSPrivacyCollectedDataTypePurposeAppFunctionality</string>
+      </array>
+    </dict>
+  </array>
+
+  <!-- No cross-app tracking -->
+  <key>NSPrivacyTracking</key>
+  <false/>
+
+  <!-- No tracking domains -->
+  <key>NSPrivacyTrackingDomains</key>
+  <array/>
+</dict>
+</plist>
