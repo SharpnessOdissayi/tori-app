@@ -250,8 +250,13 @@ export const UpdateBusinessBrandingBody = zod.object({
   bannerUrl: zod.string().nullish(),
   themeMode: zod.string().nullish(),
   borderRadius: zod.string().nullish(),
+  buttonRadius: zod.string().nullish(),
   welcomeText: zod.string().nullish(),
   backgroundColor: zod.string().nullish(),
+  showBusinessName: zod.boolean().optional(),
+  showLogo: zod.boolean().optional(),
+  showBanner: zod.boolean().optional(),
+  headerLayout: zod.string().optional(),
 });
 
 export const UpdateBusinessBrandingResponse = zod.object({

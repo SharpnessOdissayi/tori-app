@@ -66,6 +66,10 @@ export default function Book() {
   const themeMode = business?.themeMode ?? "light";
   const requireApproval = (business as any)?.requireAppointmentApproval ?? false;
   const welcomeText = (business as any)?.welcomeText ?? null;
+  const showBusinessName = (business as any)?.showBusinessName ?? true;
+  const showLogo = (business as any)?.showLogo ?? true;
+  const showBanner = (business as any)?.showBanner ?? true;
+  const headerLayout = (business as any)?.headerLayout ?? "stacked";
 
   const cardRadius = borderRadius === "sharp" ? "8px" : borderRadius === "rounded" ? "24px" : "16px";
 
@@ -238,18 +242,45 @@ export default function Book() {
       </Dialog>
 
       <div className="flex-1 max-w-2xl mx-auto w-full px-4 py-8">
-        <header className="mb-8 text-center">
-          {business.logoUrl && (
-            <img src={business.logoUrl} alt={business.name} className="w-20 h-20 rounded-2xl object-cover mx-auto mb-4 shadow-md border" />
-          )}
-          {business.bannerUrl && !business.logoUrl && (
-            <img src={business.bannerUrl} alt={business.name} className="w-full h-32 rounded-2xl object-cover mb-4 shadow-md" />
-          )}
-          <h1 className="text-3xl font-extrabold mb-2" style={{ color: primaryColor }}>{business.name}</h1>
-          {welcomeText ? (
-            <p className="text-muted-foreground whitespace-pre-wrap max-w-md mx-auto">{welcomeText}</p>
+        <header className="mb-8">
+          {headerLayout === "side" ? (
+            /* Side layout: logo + name in a row */
+            <div className="flex items-center gap-4 mb-3">
+              {showLogo && business.logoUrl && (
+                <img src={business.logoUrl} alt={business.name} className="w-16 h-16 rounded-2xl object-cover shadow-md border shrink-0" />
+              )}
+              {showBanner && business.bannerUrl && (!showLogo || !business.logoUrl) && (
+                <img src={business.bannerUrl} alt={business.name} className="w-full h-24 rounded-2xl object-cover shadow-md" />
+              )}
+              <div className="flex-1">
+                {showBusinessName && (
+                  <h1 className="text-2xl font-extrabold" style={{ color: primaryColor }}>{business.name}</h1>
+                )}
+                {welcomeText ? (
+                  <p className="text-muted-foreground text-sm whitespace-pre-wrap mt-1">{welcomeText}</p>
+                ) : (
+                  <p className="text-muted-foreground text-sm">קביעת תור אונליין</p>
+                )}
+              </div>
+            </div>
           ) : (
-            <p className="text-muted-foreground">קביעת תור אונליין</p>
+            /* Stacked layout (default): centered */
+            <div className="text-center">
+              {showLogo && business.logoUrl && (
+                <img src={business.logoUrl} alt={business.name} className="w-20 h-20 rounded-2xl object-cover mx-auto mb-4 shadow-md border" />
+              )}
+              {showBanner && business.bannerUrl && (!showLogo || !business.logoUrl) && (
+                <img src={business.bannerUrl} alt={business.name} className="w-full h-32 rounded-2xl object-cover mb-4 shadow-md" />
+              )}
+              {showBusinessName && (
+                <h1 className="text-3xl font-extrabold mb-2" style={{ color: primaryColor }}>{business.name}</h1>
+              )}
+              {welcomeText ? (
+                <p className="text-muted-foreground whitespace-pre-wrap max-w-md mx-auto">{welcomeText}</p>
+              ) : (
+                <p className="text-muted-foreground">קביעת תור אונליין</p>
+              )}
+            </div>
           )}
         </header>
 

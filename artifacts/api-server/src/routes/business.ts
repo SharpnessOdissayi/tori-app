@@ -69,6 +69,11 @@ function mapBusiness(b: typeof businessesTable.$inferSelect) {
     reminderCustomText: b.reminderCustomText ?? null,
     shabbatMode: b.shabbatMode,
     reminderSendTime: b.reminderSendTime,
+    // Header display controls
+    showBusinessName: b.showBusinessName,
+    showLogo: b.showLogo,
+    showBanner: b.showBanner,
+    headerLayout: b.headerLayout,
   };
 }
 
@@ -145,8 +150,13 @@ router.patch("/business/branding", requireBusinessAuth, async (req, res): Promis
   if (parsed.data.bannerUrl !== undefined) updates.bannerUrl = parsed.data.bannerUrl ?? undefined;
   if (parsed.data.themeMode !== undefined) updates.themeMode = parsed.data.themeMode ?? undefined;
   if (parsed.data.borderRadius !== undefined) updates.borderRadius = parsed.data.borderRadius ?? undefined;
+  if (parsed.data.buttonRadius !== undefined) updates.buttonRadius = parsed.data.buttonRadius ?? undefined;
   if (parsed.data.welcomeText !== undefined) updates.welcomeText = parsed.data.welcomeText ?? undefined;
   if (parsed.data.backgroundColor !== undefined) updates.backgroundColor = parsed.data.backgroundColor ?? undefined;
+  if (parsed.data.showBusinessName !== undefined) updates.showBusinessName = parsed.data.showBusinessName;
+  if (parsed.data.showLogo !== undefined) updates.showLogo = parsed.data.showLogo;
+  if (parsed.data.showBanner !== undefined) updates.showBanner = parsed.data.showBanner;
+  if (parsed.data.headerLayout !== undefined) updates.headerLayout = parsed.data.headerLayout;
 
   const [updated] = await db
     .update(businessesTable)

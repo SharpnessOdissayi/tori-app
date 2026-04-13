@@ -55,6 +55,11 @@ export const businessesTable = pgTable("businesses", {
   // Shabbat settings: "any" = send any day | "before" = only before Shabbat (Friday) | "after" = only after Shabbat (Sat night)
   shabbatMode: text("shabbat_mode").notNull().default("any"),
   reminderSendTime: text("reminder_send_time").notNull().default("20:00"),
+  // Header display controls
+  showBusinessName: boolean("show_business_name").notNull().default(true),
+  showLogo: boolean("show_logo").notNull().default(true),
+  showBanner: boolean("show_banner").notNull().default(true),
+  headerLayout: text("header_layout").notNull().default("stacked"),
 });
 
 export const insertBusinessSchema = createInsertSchema(businessesTable).omit({ id: true, createdAt: true });

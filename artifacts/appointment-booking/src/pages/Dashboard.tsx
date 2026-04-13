@@ -1184,6 +1184,10 @@ function BrandingTab() {
     borderRadius: "medium" as "sharp" | "medium" | "rounded",
     buttonRadius: "medium" as "sharp" | "medium" | "rounded",
     welcomeText: "",
+    showBusinessName: true,
+    showLogo: true,
+    showBanner: true,
+    headerLayout: "stacked" as "stacked" | "side",
   });
 
   useEffect(() => {
@@ -1197,6 +1201,10 @@ function BrandingTab() {
         borderRadius: ((profile as any).borderRadius ?? "medium") as "sharp" | "medium" | "rounded",
         buttonRadius: ((profile as any).buttonRadius ?? "medium") as "sharp" | "medium" | "rounded",
         welcomeText: (profile as any).welcomeText ?? "",
+        showBusinessName: (profile as any).showBusinessName ?? true,
+        showLogo: (profile as any).showLogo ?? true,
+        showBanner: (profile as any).showBanner ?? true,
+        headerLayout: ((profile as any).headerLayout ?? "stacked") as "stacked" | "side",
       });
     }
   }, [profile]);
@@ -1216,9 +1224,13 @@ function BrandingTab() {
         bannerUrl: form.bannerUrl || null,
         themeMode: form.themeMode || null,
         borderRadius: form.borderRadius || null,
-        buttonRadius: (form as any).buttonRadius || null,
+        buttonRadius: form.buttonRadius || null,
         welcomeText: null,
         backgroundColor: null,
+        showBusinessName: form.showBusinessName,
+        showLogo: form.showLogo,
+        showBanner: form.showBanner,
+        headerLayout: form.headerLayout,
       }
     }, {
       onSuccess: () => { toast({ title: "עיצוב נשמר" }); queryClient.invalidateQueries({ queryKey: getGetBusinessProfileQueryKey() }); },
@@ -1460,6 +1472,57 @@ function BrandingTab() {
               </div>
             </div>
           </div>
+          <Separator />
+
+          <div className="space-y-4">
+            <h3 className="font-semibold text-base border-b pb-2">כותרת עמוד ההזמנות</h3>
+            <p className="text-xs text-muted-foreground">בחר אילו אלמנטים יוצגו בראש עמוד הקביעת תורים</p>
+
+            <div className="space-y-3">
+              {[
+                { key: "showBusinessName", label: "שם העסק" },
+                { key: "showLogo", label: "לוגו" },
+                { key: "showBanner", label: "באנר" },
+              ].map(({ key, label }) => (
+                <div key={key} className="flex items-center justify-between py-2 border-b last:border-b-0">
+                  <span className="text-sm font-medium">{label}</span>
+                  <Switch
+                    checked={(form as any)[key]}
+                    onCheckedChange={(v) => setForm(p => ({ ...p, [key]: v }))}
+                  />
+                </div>
+              ))}
+            </div>
+
+            <div className="space-y-2 pt-2">
+              <Label className="text-sm font-medium">סידור כותרת</Label>
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setForm(p => ({ ...p, headerLayout: "stacked" }))}
+                  className={`flex-1 py-3 border-2 text-sm font-medium rounded-xl transition-all ${form.headerLayout === "stacked" ? "border-primary bg-primary/5 text-primary" : "border-border"}`}
+                >
+                  <div className="flex flex-col items-center gap-1">
+                    <div className="w-8 h-8 rounded-lg bg-current opacity-20 mx-auto" />
+                    <div className="w-16 h-2 rounded bg-current opacity-20" />
+                    <span>מוערם</span>
+                  </div>
+                </button>
+                <button
+                  onClick={() => setForm(p => ({ ...p, headerLayout: "side" }))}
+                  className={`flex-1 py-3 border-2 text-sm font-medium rounded-xl transition-all ${form.headerLayout === "side" ? "border-primary bg-primary/5 text-primary" : "border-border"}`}
+                >
+                  <div className="flex flex-col items-center gap-1">
+                    <div className="flex items-center gap-1 mx-auto">
+                      <div className="w-6 h-6 rounded bg-current opacity-20" />
+                      <div className="w-12 h-2 rounded bg-current opacity-20" />
+                    </div>
+                    <span>לצד</span>
+                  </div>
+                </button>
+              </div>
+            </div>
+          </div>
+
         </CardContent>
         <div className="px-6 pb-6 flex justify-end">
           <Button onClick={handleSave} disabled={updateBranding.isPending} size="lg">שמור עיצוב</Button>

@@ -378,8 +378,11 @@ function BusinessCard({ business, onToggleActive, onChangePlan, onDelete, onEdit
             <div className="text-xs text-muted-foreground" dir="ltr">{business.email}</div>
             {business.phone && <div className="text-xs text-muted-foreground" dir="ltr">{business.phone}</div>}
           </div>
-          <div className="flex items-center gap-1 shrink-0">
+          <div className="flex flex-col items-center gap-1 shrink-0">
             <Switch checked={business.isActive} onCheckedChange={onToggleActive} disabled={isPending} />
+            <span className={`text-[10px] font-medium ${business.isActive ? "text-green-600" : "text-red-500"}`}>
+              {business.isActive ? "פעיל" : "מושהה"}
+            </span>
           </div>
         </div>
       </CardHeader>
@@ -387,7 +390,6 @@ function BusinessCard({ business, onToggleActive, onChangePlan, onDelete, onEdit
         <div className="flex items-center gap-2 flex-wrap">
           <Badge className={plan.color + " border-0"}>{plan.label}</Badge>
           <Badge variant="outline" className="text-xs font-mono" dir="ltr">/{business.slug}</Badge>
-          {!business.isActive && <Badge variant="outline" className="text-xs bg-red-50 text-red-600 border-red-200">מושהה</Badge>}
         </div>
 
         <div className="space-y-2">
