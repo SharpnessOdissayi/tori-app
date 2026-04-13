@@ -666,13 +666,13 @@ export default function Book() {
               <div className="text-center py-8 text-muted-foreground">אין תמונות בגלריה עדיין</div>
             )
           )}
-        </div>
 
-        {/* Footer inside the scrollable area so the fixed button doesn't hide it */}
-        <footer className="text-center pt-6 pb-2 text-xs text-muted-foreground border-t mt-6">
-          מופעל על ידי{" "}
-          <a href="/" className="font-bold text-foreground hover:text-primary transition-colors">קבעתי</a>
-        </footer>
+          {/* Footer — inside pb-28 content area so floating button never covers it */}
+          <footer className="text-center pt-8 pb-4 text-xs text-muted-foreground border-t mt-8">
+            מופעל על ידי{" "}
+            <a href="/" className="font-bold text-foreground hover:text-primary transition-colors">קבעתי</a>
+          </footer>
+        </div>
       </div>
 
       {/* Floating book button */}
