@@ -62,6 +62,8 @@ router.get("/public/:businessSlug", async (req, res): Promise<void> => {
     showBusinessName: (business as any).showBusinessName ?? true,
     showLogo: (business as any).showLogo ?? true,
     showBanner: (business as any).showBanner ?? true,
+    contactPhone: (business as any).contactPhone ?? null,
+    address: (business as any).address ?? null,
   });
 });
 

@@ -264,6 +264,8 @@ export const UpdateBusinessBrandingBody = zod.object({
   businessDescription: zod.string().nullish(),
   galleryImages: zod.string().nullish(),
   bannerPosition: zod.string().optional(),
+  contactPhone: zod.string().nullish(),
+  address: zod.string().nullish(),
 });
 
 export const UpdateBusinessBrandingResponse = zod.object({

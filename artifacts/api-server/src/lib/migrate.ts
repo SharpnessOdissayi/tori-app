@@ -41,6 +41,9 @@ export async function runMigrations() {
       `ALTER TABLE businesses ADD COLUMN IF NOT EXISTS gallery_images TEXT`,
       `ALTER TABLE businesses ADD COLUMN IF NOT EXISTS banner_position TEXT NOT NULL DEFAULT 'center'`,
       `ALTER TABLE services ADD COLUMN IF NOT EXISTS description TEXT`,
+      // Contact & address for profile page
+      `ALTER TABLE businesses ADD COLUMN IF NOT EXISTS contact_phone TEXT`,
+      `ALTER TABLE businesses ADD COLUMN IF NOT EXISTS address TEXT`,
     ];
 
     for (const stmt of alterations) {

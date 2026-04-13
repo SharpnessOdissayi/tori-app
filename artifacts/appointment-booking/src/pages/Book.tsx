@@ -22,6 +22,156 @@ import { useToast } from "@/hooks/use-toast";
 
 const DAYS_HE = ["ראשון", "שני", "שלישי", "רביעי", "חמישי", "שישי", "שבת"];
 
+// ─── Accessibility Widget (IS 5568 / WCAG 2.1 AA) ─────────────────────────────
+function AccessibilityWidget({ primaryColor }: { primaryColor: string }) {
+  const [open, setOpen] = useState(false);
+  const [fontSize, setFontSize] = useState(0); // -2 to +4 steps
+  const [highContrast, setHighContrast] = useState(false);
+  const [largeLinks, setLargeLinks] = useState(false);
+  const [letterSpacing, setLetterSpacing] = useState(false);
+
+  useEffect(() => {
+    const root = document.documentElement;
+    const base = 16 + fontSize * 2;
+    root.style.setProperty("font-size", `${base}px`);
+  }, [fontSize]);
+
+  useEffect(() => {
+    const root = document.documentElement;
+    if (highContrast) {
+      root.classList.add("a11y-high-contrast");
+    } else {
+      root.classList.remove("a11y-high-contrast");
+    }
+  }, [highContrast]);
+
+  useEffect(() => {
+    const root = document.documentElement;
+    if (largeLinks) {
+      root.classList.add("a11y-large-links");
+    } else {
+      root.classList.remove("a11y-large-links");
+    }
+  }, [largeLinks]);
+
+  useEffect(() => {
+    const root = document.documentElement;
+    if (letterSpacing) {
+      root.classList.add("a11y-letter-spacing");
+    } else {
+      root.classList.remove("a11y-letter-spacing");
+    }
+  }, [letterSpacing]);
+
+  const handleReset = () => {
+    setFontSize(0);
+    setHighContrast(false);
+    setLargeLinks(false);
+    setLetterSpacing(false);
+    document.documentElement.style.removeProperty("font-size");
+    document.documentElement.classList.remove("a11y-high-contrast", "a11y-large-links", "a11y-letter-spacing");
+  };
+
+  return (
+    <>
+      {/* Global a11y CSS */}
+      <style>{`
+        .a11y-high-contrast { filter: contrast(1.6) !important; }
+        .a11y-large-links a, .a11y-large-links button { min-height: 44px !important; min-width: 44px !important; }
+        .a11y-letter-spacing * { letter-spacing: 0.12em !important; word-spacing: 0.16em !important; }
+      `}</style>
+
+      {/* Panel */}
+      {open && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-label="הגדרות נגישות"
+          dir="rtl"
+          className="fixed bottom-24 right-4 z-50 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-2xl shadow-2xl p-4 w-64"
+        >
+          <div className="flex items-center justify-between mb-3">
+            <h2 className="font-bold text-sm">הגדרות נגישות</h2>
+            <button
+              onClick={() => setOpen(false)}
+              aria-label="סגור"
+              className="text-muted-foreground hover:text-foreground text-lg leading-none"
+            >✕</button>
+          </div>
+
+          {/* Font size */}
+          <div className="mb-3">
+            <p className="text-xs text-muted-foreground mb-1.5">גודל טקסט</p>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setFontSize(f => Math.max(f - 1, -2))}
+                aria-label="הקטן טקסט"
+                className="w-9 h-9 rounded-lg border text-lg font-bold flex items-center justify-center hover:bg-muted"
+              >A−</button>
+              <div className="flex-1 text-center text-xs text-muted-foreground">{fontSize === 0 ? "ברירת מחדל" : fontSize > 0 ? `+${fontSize * 2}px` : `${fontSize * 2}px`}</div>
+              <button
+                onClick={() => setFontSize(f => Math.min(f + 1, 4))}
+                aria-label="הגדל טקסט"
+                className="w-9 h-9 rounded-lg border text-lg font-bold flex items-center justify-center hover:bg-muted"
+              >A+</button>
+            </div>
+          </div>
+
+          {/* Toggles */}
+          <div className="space-y-2 mb-3">
+            {[
+              { label: "ניגודיות גבוהה", state: highContrast, set: setHighContrast },
+              { label: "כפתורים וקישורים גדולים", state: largeLinks, set: setLargeLinks },
+              { label: "ריווח אותיות מוגדל", state: letterSpacing, set: setLetterSpacing },
+            ].map(({ label, state, set }) => (
+              <button
+                key={label}
+                onClick={() => set(s => !s)}
+                role="switch"
+                aria-checked={state}
+                className={`w-full flex items-center justify-between px-3 py-2 rounded-xl border text-sm transition-all ${state ? "border-green-500 bg-green-50 text-green-700 dark:bg-green-900/30 dark:text-green-400" : "border-border hover:bg-muted"}`}
+              >
+                <span>{label}</span>
+                <span className={`w-8 h-4 rounded-full transition-colors relative ${state ? "bg-green-500" : "bg-gray-300"}`}>
+                  <span className={`absolute top-0.5 w-3 h-3 rounded-full bg-white transition-all ${state ? "right-0.5" : "left-0.5"}`} />
+                </span>
+              </button>
+            ))}
+          </div>
+
+          <button
+            onClick={handleReset}
+            className="w-full py-2 text-xs text-muted-foreground border rounded-xl hover:bg-muted transition-all"
+          >
+            איפוס הגדרות נגישות
+          </button>
+
+          <p className="text-[10px] text-muted-foreground text-center mt-2">
+            תואם תקן IS 5568 / WCAG 2.1 AA
+          </p>
+        </div>
+      )}
+
+      {/* Floating toggle button */}
+      <button
+        onClick={() => setOpen(o => !o)}
+        aria-label="פתח תפריט נגישות"
+        aria-expanded={open}
+        title="נגישות"
+        className="fixed right-4 z-50 w-11 h-11 rounded-full shadow-lg flex items-center justify-center text-white transition-all hover:scale-110 focus:outline-none focus:ring-2 focus:ring-offset-2"
+        style={{ backgroundColor: primaryColor, bottom: "5rem" }}
+      >
+        <svg viewBox="0 0 24 24" className="w-6 h-6" fill="currentColor" aria-hidden="true">
+          <circle cx="12" cy="4" r="1.5"/>
+          <path d="M19 9H5l2 7h3v4h4v-4h3z"/>
+          <path d="M12 5.5c-.83 0-1.5-.67-1.5-1.5S11.17 2.5 12 2.5s1.5.67 1.5 1.5S12.83 5.5 12 5.5z"/>
+          <path d="M7.5 9l1.5 5.5H9L7.5 9zm9 0L15 14.5h1L18 9h-1.5z" opacity=".6"/>
+        </svg>
+      </button>
+    </>
+  );
+}
+
 function formatDuration(minutes: number): string {
   if (minutes < 60) return `${minutes} דקות`;
   const h = Math.floor(minutes / 60);
@@ -78,6 +228,9 @@ export default function Book() {
   const logoUrl = business?.logoUrl ?? null;
   const bannerUrl = business?.bannerUrl ?? null;
   const phone = (business as any)?.phone ?? null;
+  // Use contactPhone for display if set, otherwise fall back to login phone
+  const contactPhone = (business as any)?.contactPhone ?? phone;
+  const address = (business as any)?.address ?? null;
   const websiteUrl = (business as any)?.websiteUrl ?? null;
   const instagramUrl = (business as any)?.instagramUrl ?? null;
   const wazeUrl = (business as any)?.wazeUrl ?? null;
@@ -333,11 +486,19 @@ export default function Book() {
             <p className="text-center text-muted-foreground text-sm mb-4 max-w-sm mx-auto">{businessDescription}</p>
           )}
 
+          {/* Address row */}
+          {address && (
+            <div className="flex justify-center items-center gap-1.5 mb-3 text-sm text-muted-foreground">
+              <MapPin className="w-4 h-4 shrink-0" />
+              <span>{address}</span>
+            </div>
+          )}
+
           {/* Social links row */}
-          {(phone || websiteUrl || instagramUrl || wazeUrl) && (
+          {(contactPhone || websiteUrl || instagramUrl || wazeUrl) && (
             <div className="flex justify-center gap-3 mb-6 flex-wrap">
-              {phone && (
-                <a href={`tel:${phone}`}>
+              {contactPhone && (
+                <a href={`tel:${contactPhone}`} aria-label="התקשר">
                   <button
                     className="w-11 h-11 rounded-full border-2 flex items-center justify-center text-muted-foreground hover:text-foreground hover:border-foreground/40 transition-all"
                     title="התקשר"
@@ -346,22 +507,27 @@ export default function Book() {
                   </button>
                 </a>
               )}
-              {phone && (
+              {contactPhone && (
                 <a
-                  href={`https://wa.me/972${phone.replace(/^0/, "").replace(/\D/g, "")}`}
+                  href={`https://wa.me/972${contactPhone.replace(/^0/, "").replace(/\D/g, "")}`}
                   target="_blank"
                   rel="noopener noreferrer"
+                  aria-label="WhatsApp"
                 >
                   <button
-                    className="w-11 h-11 rounded-full border-2 flex items-center justify-center font-bold text-green-600 border-green-200 hover:border-green-400 transition-all text-sm"
+                    className="w-11 h-11 rounded-full border-2 flex items-center justify-center border-green-200 hover:border-green-400 transition-all overflow-hidden"
                     title="WhatsApp"
                   >
-                    W
+                    {/* Real WhatsApp SVG logo */}
+                    <svg viewBox="0 0 24 24" className="w-6 h-6" fill="none" xmlns="http://www.w3.org/2000/svg">
+                      <path d="M12 2C6.477 2 2 6.477 2 12c0 1.89.525 3.66 1.438 5.168L2 22l4.978-1.38A9.953 9.953 0 0012 22c5.523 0 10-4.477 10-10S17.523 2 12 2z" fill="#25D366"/>
+                      <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z" fill="white"/>
+                    </svg>
                   </button>
                 </a>
               )}
               {instagramUrl && (
-                <a href={instagramUrl} target="_blank" rel="noopener noreferrer">
+                <a href={instagramUrl} target="_blank" rel="noopener noreferrer" aria-label="אינסטגרם">
                   <button
                     className="w-11 h-11 rounded-full border-2 flex items-center justify-center text-muted-foreground hover:text-foreground hover:border-foreground/40 transition-all"
                     title="אינסטגרם"
@@ -371,7 +537,7 @@ export default function Book() {
                 </a>
               )}
               {websiteUrl && (
-                <a href={websiteUrl} target="_blank" rel="noopener noreferrer">
+                <a href={websiteUrl} target="_blank" rel="noopener noreferrer" aria-label="אתר">
                   <button
                     className="w-11 h-11 rounded-full border-2 flex items-center justify-center text-muted-foreground hover:text-foreground hover:border-foreground/40 transition-all"
                     title="אתר"
@@ -381,7 +547,7 @@ export default function Book() {
                 </a>
               )}
               {wazeUrl && (
-                <a href={wazeUrl} target="_blank" rel="noopener noreferrer">
+                <a href={wazeUrl} target="_blank" rel="noopener noreferrer" aria-label="ניווט בוויז">
                   <button
                     className="w-11 h-11 rounded-full border-2 flex items-center justify-center text-muted-foreground hover:text-foreground hover:border-foreground/40 transition-all"
                     title="Waze"
@@ -502,22 +668,27 @@ export default function Book() {
           )}
         </div>
 
-        {/* Floating book button */}
-        <div className="fixed bottom-0 left-0 right-0 p-4 bg-white/90 dark:bg-black/90 backdrop-blur border-t">
-          <button
-            onClick={() => setStep(1)}
-            className="w-full h-12 rounded-2xl text-white font-bold text-base shadow-lg"
-            style={{ backgroundColor: primaryColor }}
-          >
-            לקביעת תור ←
-          </button>
-        </div>
-
-        <footer className="text-center py-4 text-xs text-muted-foreground border-t">
+        {/* Footer inside the scrollable area so the fixed button doesn't hide it */}
+        <footer className="text-center pt-6 pb-2 text-xs text-muted-foreground border-t mt-6">
           מופעל על ידי{" "}
           <a href="/" className="font-bold text-foreground hover:text-primary transition-colors">קבעתי</a>
         </footer>
       </div>
+
+      {/* Floating book button */}
+      <div className="fixed bottom-0 left-0 right-0 p-4 bg-white/90 dark:bg-black/90 backdrop-blur border-t z-40">
+        <button
+          onClick={() => setStep(1)}
+          className="w-full h-12 rounded-2xl text-white font-bold text-base shadow-lg"
+          style={{ backgroundColor: primaryColor }}
+        >
+          לקביעת תור ←
+        </button>
+      </div>
+
+      {/* Accessibility floating button (IS 5568 / WCAG 2.1) */}
+      <AccessibilityWidget primaryColor={primaryColor} />
+    </div>
     );
   }
 
@@ -897,6 +1068,9 @@ export default function Book() {
         מופעל על ידי{" "}
         <a href="/" className="font-bold text-foreground hover:text-primary transition-colors">קבעתי</a>
       </footer>
+
+      {/* Accessibility floating button (IS 5568 / WCAG 2.1) */}
+      <AccessibilityWidget primaryColor={primaryColor} />
     </div>
   );
 }

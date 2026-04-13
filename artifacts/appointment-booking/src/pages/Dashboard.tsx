@@ -1326,6 +1326,8 @@ function BrandingTab() {
     businessDescription: "",
     galleryImages: [] as string[],
     bannerPosition: "center" as string,
+    contactPhone: "",
+    address: "",
   });
   const galleryUpload = useImageUpload();
   const galleryRef = useRef<HTMLInputElement>(null);
@@ -1356,6 +1358,8 @@ function BrandingTab() {
         businessDescription: (profile as any).businessDescription ?? "",
         galleryImages,
         bannerPosition: (profile as any).bannerPosition ?? "center",
+        contactPhone: (profile as any).contactPhone ?? "",
+        address: (profile as any).address ?? "",
       });
     }
   }, [profile]);
@@ -1397,6 +1401,8 @@ function BrandingTab() {
         businessDescription: form.businessDescription || null,
         galleryImages: form.galleryImages.length > 0 ? JSON.stringify(form.galleryImages) : null,
         bannerPosition: form.bannerPosition || "center",
+        contactPhone: form.contactPhone || null,
+        address: form.address || null,
       } as any
     }, {
       onSuccess: () => { toast({ title: "עיצוב נשמר" }); queryClient.invalidateQueries({ queryKey: getGetBusinessProfileQueryKey() }); },
@@ -1703,6 +1709,15 @@ function BrandingTab() {
                   className="flex min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 resize-none"
                   placeholder="כתבו כמה מילים על העסק..."
                 />
+              </div>
+              <div className="space-y-2">
+                <Label>מספר טלפון ליצירת קשר (יוצג ללקוחות)</Label>
+                <p className="text-xs text-muted-foreground">אם לא מוזן, יוצג מספר הטלפון הרשום בחשבון</p>
+                <Input dir="ltr" value={form.contactPhone} onChange={e => setForm(p => ({ ...p, contactPhone: e.target.value }))} placeholder="050-0000000" />
+              </div>
+              <div className="space-y-2">
+                <Label>כתובת העסק (תוצג בפרופיל)</Label>
+                <Input value={form.address} onChange={e => setForm(p => ({ ...p, address: e.target.value }))} placeholder="רחוב הרצל 1, תל אביב" />
               </div>
               <div className="space-y-2">
                 <Label>קישור לאתר</Label>

@@ -67,6 +67,8 @@ export const businessesTable = pgTable("businesses", {
   businessDescription: text("business_description"),
   galleryImages: text("gallery_images"), // JSON array of image URLs
   bannerPosition: text("banner_position").notNull().default("center"), // CSS object-position
+  contactPhone: text("contact_phone"), // Display phone (overrides login phone in profile)
+  address: text("address"), // Business address shown on profile page
 });
 
 export const insertBusinessSchema = createInsertSchema(businessesTable).omit({ id: true, createdAt: true });

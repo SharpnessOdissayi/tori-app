@@ -81,6 +81,8 @@ function mapBusiness(b: typeof businessesTable.$inferSelect) {
     businessDescription: (b as any).businessDescription ?? null,
     galleryImages: (b as any).galleryImages ?? null,
     bannerPosition: (b as any).bannerPosition ?? "center",
+    contactPhone: (b as any).contactPhone ?? null,
+    address: (b as any).address ?? null,
   };
 }
 
@@ -172,6 +174,8 @@ router.patch("/business/branding", requireBusinessAuth, async (req, res): Promis
   if (bd.businessDescription !== undefined) (updates as any).businessDescription = bd.businessDescription ?? null;
   if (bd.galleryImages !== undefined) (updates as any).galleryImages = bd.galleryImages ?? null;
   if (bd.bannerPosition !== undefined) (updates as any).bannerPosition = bd.bannerPosition ?? "center";
+  if (bd.contactPhone !== undefined) (updates as any).contactPhone = bd.contactPhone ?? null;
+  if (bd.address !== undefined) (updates as any).address = bd.address ?? null;
 
   const [updated] = await db
     .update(businessesTable)
