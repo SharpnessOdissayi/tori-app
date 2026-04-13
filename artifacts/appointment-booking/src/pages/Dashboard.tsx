@@ -562,7 +562,6 @@ function Login({ onLogin }: { onLogin: (t: string) => void }) {
                   value={identifier}
                   onChange={e => setIdentifier(e.target.value)}
                   dir="ltr"
-                  placeholder="email@example.com  או  050-0000000"
                   autoComplete="username"
                 />
               </div>

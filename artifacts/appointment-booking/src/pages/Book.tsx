@@ -704,7 +704,7 @@ export default function Book() {
                   <form id="booking-form" onSubmit={handleSubmit} className="space-y-4">
                     <div className="space-y-2">
                       <Label>שם מלא *</Label>
-                      <Input required value={clientData.name} onChange={e => setClientData(p => ({ ...p, name: e.target.value }))} className="h-12 text-base" placeholder="שם מלא" />
+                      <Input required value={clientData.name} onChange={e => setClientData(p => ({ ...p, name: e.target.value }))} className="h-12 text-base" />
                     </div>
                     <div className="space-y-2">
                       <Label>מספר טלפון *</Label>
@@ -716,7 +716,6 @@ export default function Book() {
                           onChange={e => { setClientData(p => ({ ...p, phone: e.target.value })); setOtpSent(false); setPhoneVerified(false); setOtpCode(""); }}
                           className="h-12 text-base flex-1"
                           dir="ltr"
-                          placeholder="מספר טלפון"
                           disabled={phoneVerified}
                         />
                         {!phoneVerified && (
