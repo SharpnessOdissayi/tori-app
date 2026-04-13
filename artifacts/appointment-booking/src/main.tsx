@@ -7,8 +7,10 @@ import "./index.css";
 // In the browser, relative paths work fine as-is.
 async function bootstrap() {
   try {
+    // @vite-ignore: Capacitor is only installed when building the mobile app locally.
+    // In the web/Railway build, this import gracefully fails and is caught below.
     const [{ Capacitor }, { setBaseUrl }] = await Promise.all([
-      import("@capacitor/core"),
+      import(/* @vite-ignore */ "@capacitor/core"),
       import("@workspace/api-client-react"),
     ]);
     if (Capacitor.isNativePlatform()) {
