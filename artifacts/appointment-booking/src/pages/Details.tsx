@@ -4,7 +4,7 @@ import {
   CalendarCheck, MessageCircle, Bell, Clock, Shield, Zap, Crown,
   CheckCircle, Users, Settings, Palette, Star, ArrowLeft, Phone,
   BarChart2, Briefcase, Umbrella, DollarSign, TrendingUp, LayoutDashboard,
-  Smartphone, ExternalLink,
+  ExternalLink,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -219,38 +219,6 @@ export default function Details() {
         </motion.div>
       </section>
 
-      {/* Mobile panel CTA */}
-      <section className="py-16 px-6 max-w-4xl mx-auto w-full">
-        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5, delay: 0.2 }}>
-          <div className="rounded-3xl border-2 border-dashed border-primary/30 bg-primary/5 p-10 text-center space-y-5">
-            <div className="flex justify-center">
-              <div className="w-16 h-16 rounded-2xl bg-primary/10 flex items-center justify-center">
-                <Smartphone className="w-8 h-8 text-primary" />
-              </div>
-            </div>
-            <h3 className="text-2xl font-bold">נהל את העסק מכל מקום</h3>
-            <p className="text-muted-foreground max-w-lg mx-auto leading-relaxed">
-              פאנל הניהול עובד מושלם דרך הדפדפן בנייד — כל הכרטיסיות, הנתונים וההגדרות זמינים בלחיצה.
-              <br />
-              <span className="text-primary font-medium">אפליקציה ייעודית לאייפון ואנדרואיד — בקרוב</span>
-            </p>
-            <div className="flex flex-col sm:flex-row gap-3 justify-center pt-2">
-              <Link href="/dashboard">
-                <Button size="lg" className="rounded-2xl gap-2">
-                  <LayoutDashboard className="w-5 h-5" />
-                  פתח פאנל ניהול
-                </Button>
-              </Link>
-              <Link href="/book/lilash">
-                <Button size="lg" variant="outline" className="rounded-2xl gap-2">
-                  <ExternalLink className="w-4 h-4" />
-                  ראה דוגמה חיה
-                </Button>
-              </Link>
-            </div>
-          </div>
-        </motion.div>
-      </section>
 
       {/* Pricing */}
       <section id="pricing" className="py-16 px-6 max-w-4xl mx-auto w-full">
