@@ -673,7 +673,6 @@ export default function Book() {
             <a href="/" className="font-bold text-foreground hover:text-primary transition-colors">קבעתי</a>
           </footer>
         </div>
-      </div>
 
       {/* Floating book button */}
       <div className="fixed bottom-0 left-0 right-0 p-4 bg-white/90 dark:bg-black/90 backdrop-blur border-t z-40">
