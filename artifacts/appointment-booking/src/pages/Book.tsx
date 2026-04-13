@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { FaWheelchair } from "react-icons/fa";
 import { useParams } from "wouter";
 import {
   useGetPublicBusiness,
@@ -161,28 +162,7 @@ function AccessibilityWidget({ primaryColor }: { primaryColor: string }) {
         className="fixed right-4 z-50 w-11 h-11 rounded-full shadow-lg flex items-center justify-center transition-all hover:scale-110 focus:outline-none focus:ring-2 focus:ring-offset-2"
         style={{ backgroundColor: "#1560BD", bottom: "5rem" }}
       >
-        {/* Dynamic Symbol of Access — active wheelchair user leaning forward */}
-        <svg viewBox="0 0 69 80" className="w-6 h-7" fill="white" aria-hidden="true">
-          {/* Head */}
-          <circle cx="45" cy="6" r="6" />
-          {/* Body leaning forward aggressively */}
-          <path d="M43 13 C38 16 30 22 27 34 L42 34 L47 20 Z" />
-          {/* Arm outstretched forward-down */}
-          <path d="M44 20 L58 30 L56 34 L41 25 Z" />
-          {/* Seat / lap area */}
-          <path d="M25 36 L25 54 L46 54 L46 50 L29 50 L29 36 Z" />
-          {/* Lower leg kicking forward */}
-          <path d="M46 50 L60 65 L57 68 L42 53 Z" />
-          {/* Large rear wheel (circle) */}
-          <circle cx="22" cy="62" r="18" fill="none" stroke="white" strokeWidth="5.5" />
-          {/* Rear wheel spokes */}
-          <line x1="22" y1="44" x2="22" y2="80" stroke="white" strokeWidth="2.5" />
-          <line x1="4"  y1="62" x2="40" y2="62" stroke="white" strokeWidth="2.5" />
-          <line x1="9"  y1="49" x2="35" y2="75" stroke="white" strokeWidth="2.5" />
-          <line x1="35" y1="49" x2="9"  y2="75" stroke="white" strokeWidth="2.5" />
-          {/* Small front caster wheel */}
-          <circle cx="52" cy="72" r="7" fill="none" stroke="white" strokeWidth="4.5" />
-        </svg>
+        <FaWheelchair size={22} color="white" aria-hidden="true" />
       </button>
     </>
   );
