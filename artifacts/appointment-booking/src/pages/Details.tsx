@@ -4,7 +4,7 @@ import {
   CalendarCheck, MessageCircle, Bell, Clock, Shield, Zap, Crown,
   CheckCircle, Users, Settings, Palette, Star, ArrowLeft, Phone,
   BarChart2, Briefcase, Umbrella, DollarSign, TrendingUp, LayoutDashboard,
-  ExternalLink,
+  ExternalLink, Compass, Navigation, Image, UserCheck, Megaphone,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -24,9 +24,14 @@ const FEATURES = [
     desc: "עד 3 תזכורות מותאמות אישית לכל תור — שעה לפני, יום לפני, ואפילו בוקר יום התור ב-08:00.",
   },
   {
-    icon: <Bell className="w-7 h-7" style={{ color: "#d4af37" }} />,
-    title: "הודעת כניסה אישית",
-    desc: "הגדר הודעה שתוצג ללקוחות כשנכנסים לדף ההזמנה — מבצע, חוק העסק, מידע חשוב.",
+    icon: <Megaphone className="w-7 h-7" style={{ color: "#d4af37" }} />,
+    title: "הודעת פתיחה לפרופיל",
+    desc: "הגדר הודעה שתוצג ללקוחות בכניסה לעמוד — מבצע, עדכון חשוב, הכרזה. בחר לכמה שעות ההודעה תקפה.",
+  },
+  {
+    icon: <Compass className="w-7 h-7" style={{ color: "#d4af37" }} />,
+    title: "גלה עסקים בפורטל הלקוח",
+    desc: "ללקוחות יש פורטל אישי לניהול התורים שלהם — ובו ספריית עסקים שמחפשים שירות חדש יכולים למצוא אותך ישירות.",
   },
   {
     icon: <Palette className="w-7 h-7" style={{ color: "#d4af37" }} />,
@@ -34,9 +39,24 @@ const FEATURES = [
     desc: "בחר צבע, פונט, רדיוס פינות, תמונת לוגו ובאנר — הדף יראה בדיוק כמו המותג שלך.",
   },
   {
+    icon: <Image className="w-7 h-7" style={{ color: "#d4af37" }} />,
+    title: "גלריה עם תצוגה מוגדלת",
+    desc: "הוסף תמונות לפרופיל העסק שלך — לקוחות יכולים ללחוץ על כל תמונה כדי להגדיל אותה במסך מלא.",
+  },
+  {
+    icon: <Navigation className="w-7 h-7" style={{ color: "#d4af37" }} />,
+    title: "ניווט אוטומטי לווייז",
+    desc: "לקוחות לוחצים על 'נווט אליי' — ווייז נפתח ישירות לכתובת העסק, בלי צורך להדביק קישור ידנית.",
+  },
+  {
     icon: <Clock className="w-7 h-7" style={{ color: "#d4af37" }} />,
     title: "ניהול שעות וחופשות",
     desc: "הגדר שעות עבודה, הפסקות, ימי חופש וסגירות — המערכת לא תציג תורים בזמן הזה.",
+  },
+  {
+    icon: <UserCheck className="w-7 h-7" style={{ color: "#d4af37" }} />,
+    title: "פורטל לקוח אישי",
+    desc: "כל לקוח מתחבר עם הטלפון שלו, רואה את התורים הקרובים שלו, יכול לבטל ולנהל העדפות התראות.",
   },
   {
     icon: <Users className="w-7 h-7" style={{ color: "#d4af37" }} />,
@@ -97,7 +117,7 @@ const DASHBOARD_TABS = [
     icon: <Settings className="w-6 h-6 text-slate-600" />,
     color: "bg-slate-50 border-slate-200",
     title: "הגדרות",
-    desc: "שעות עבודה, תזכורות, עיצוב העמוד, הגבלות הזמנה, אפשרות שומר שבת, אימות טלפון ועוד — הכל במקום אחד.",
+    desc: "שעות עבודה, תזכורות, עיצוב העמוד, הגבלות הזמנה, שומר שבת, אימות טלפון, אישור תורים, הגדרות התראות ללקוחות ועוד.",
   },
 ];
 
@@ -131,7 +151,10 @@ const PLANS = [
       "שירותים ללא הגבלה",
       "לקוחות ללא הגבלה",
       "תזכורות וואטסאפ אוטומטיות",
-      "הודעת כניסה מותאמת אישית",
+      "הודעת פתיחה לפרופיל עם תוקף מותאם",
+      "פרסום בספריית 'גלה עסקים' בפורטל הלקוח",
+      "גלריה עם תצוגה מוגדלת (lightbox)",
+      "ניווט אוטומטי לווייז לפי כתובת",
       "עיצוב מלא — צבע, פונט, לוגו, באנר",
       "רשימת המתנה",
       "אישור תורים ידני",
@@ -279,7 +302,7 @@ export default function Details() {
                 התחל ב-30 שניות
               </Button>
             </Link>
-            <Link href="/book/lilash">
+            <Link href="/book/demo">
               <Button size="lg" variant="outline" className="h-12 px-8 rounded-2xl gap-2">
                 <CalendarCheck className="w-4 h-4" />
                 צפה בדוגמה חיה
