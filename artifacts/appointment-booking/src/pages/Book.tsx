@@ -1382,9 +1382,10 @@ export default function Book() {
                     <>
                       <button
                         onClick={() => { setUseCalendar(false); setSelectedDate(undefined); setSelectedTime(null); }}
-                        className="text-sm text-muted-foreground hover:text-foreground"
+                        className="w-full py-2 text-sm border rounded-xl hover:bg-muted/30 transition-all"
+                        style={{ color: primaryColor, borderColor: primaryColor + "40" }}
                       >
-                        ← חזור לזמנים הפנויים
+                        ← חזור לתורים קרובים
                       </button>
                       <div className="flex justify-center bg-muted/20 p-4 rounded-xl border" dir="ltr">
                         <DayPicker mode="single" selected={selectedDate}
