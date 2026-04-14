@@ -448,7 +448,7 @@ export default function Dashboard() {
         {/* Mobile-only welcome header */}
         <div className="sm:hidden flex items-center justify-between mb-4">
           <div>
-            <p className="text-xs text-muted-foreground">ברוך הבא,</p>
+            <p className="text-xs text-muted-foreground">{(() => { const h = new Date().getHours(); return h < 12 ? "בוקר טוב," : h < 17 ? "צהריים טובים," : h < 21 ? "ערב טוב," : "לילה טוב,"; })()}</p>
             <p className="font-bold text-lg leading-tight" dir="rtl" style={{ color: "#d4af37" }}>
               {renderBizName(headerProfile?.name ?? "")}!
             </p>
