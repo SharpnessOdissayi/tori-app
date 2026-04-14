@@ -178,9 +178,8 @@ function formatDuration(minutes: number): string {
   return `${h} שעות ו-${m} דקות`;
 }
 
-// Render a business name correctly in RTL context.
-// Handles BOTH "Lilash - הלחמת ריסים" AND "הלחמת ריסים - Lilash".
-// Always renders Hebrew on LEFT, English on RIGHT.
+// Hebrew on LEFT, English on RIGHT — works for both orderings.
+// <bdi dir="ltr"> provides built-in BiDi isolation (browser UA).
 function renderBizName(name: string): React.ReactNode {
   const SEP = [" - ", " – ", " | "].find((s) => name.includes(s));
   if (SEP) {
@@ -192,11 +191,7 @@ function renderBizName(name: string): React.ReactNode {
     if (part1IsLatin || part2IsLatin) {
       const heb = part1IsLatin ? part2 : part1;
       const eng = part1IsLatin ? part1 : part2;
-      return (
-        <span style={{ direction: "ltr", unicodeBidi: "isolate" }}>
-          {heb}{SEP}{eng}
-        </span>
-      );
+      return <bdi dir="ltr">{heb}{SEP}{eng}</bdi>;
     }
   }
   return <span dir="rtl">{name}</span>;
