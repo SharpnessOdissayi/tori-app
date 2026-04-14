@@ -160,15 +160,6 @@ function LoginScreen({ onLogin }: { onLogin: (token: string, name: string) => vo
         client_id: GOOGLE_CLIENT_ID,
         callback: handleCredential,
       });
-      const btn = document.getElementById("google-signin-btn");
-      if (btn) {
-        (window as any).google?.accounts?.id?.renderButton(btn, {
-          theme: "outline",
-          size: "large",
-          width: btn.offsetWidth || 320,
-          locale: "he",
-        });
-      }
     };
 
     if ((window as any).google?.accounts?.id) { init(); }
@@ -246,7 +237,24 @@ function LoginScreen({ onLogin }: { onLogin: (token: string, name: string) => vo
 
         <div className="space-y-2">
           {GOOGLE_CLIENT_ID && (
-            <div id="google-signin-btn" className="w-full flex justify-center" style={{ minHeight: 44 }} />
+            <button
+              onClick={() => (window as any).google?.accounts?.id?.prompt()}
+              disabled={loading}
+              className="w-full py-3 rounded-xl flex items-center justify-center gap-2 text-sm font-semibold border transition-all disabled:opacity-50 hover:bg-gray-50"
+              style={{ borderColor: "#dadce0", color: "#3c4043" }}
+            >
+              {loading ? "מתחבר..." : (
+                <>
+                  <svg width="18" height="18" viewBox="0 0 18 18" xmlns="http://www.w3.org/2000/svg">
+                    <path fill="#4285F4" d="M16.51 8H8.98v3h4.3c-.18 1-.74 1.48-1.6 2.04v2.01h2.6a7.8 7.8 0 002.38-5.88c0-.57-.05-.66-.15-1.18z"/>
+                    <path fill="#34A853" d="M8.98 17c2.16 0 3.97-.72 5.3-1.94l-2.6-2a4.8 4.8 0 01-7.18-2.54H1.83v2.07A8 8 0 008.98 17z"/>
+                    <path fill="#FBBC05" d="M4.5 10.52a4.8 4.8 0 010-3.04V5.41H1.83a8 8 0 000 7.18l2.67-2.07z"/>
+                    <path fill="#EA4335" d="M8.98 4.18c1.17 0 2.23.4 3.06 1.2l2.3-2.3A8 8 0 001.83 5.4L4.5 7.49a4.77 4.77 0 014.48-3.3z"/>
+                  </svg>
+                  המשך עם <span dir="ltr">Google</span>
+                </>
+              )}
+            </button>
           )}
           {FACEBOOK_APP_ID && (
             <button
