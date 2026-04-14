@@ -92,8 +92,8 @@ function formatDuration(minutes: number): string {
   return `${h} שעות ו-${m} דקות`;
 }
 
-// Splits a mixed Hebrew+English business name at any separator character.
-// Always renders: [Hebrew] [sep] [English] in an LTR flex so English appears on the right.
+// In dir="ltr": Hebrew RTL-run sits on the LEFT, English sits on the RIGHT.
+// Render order: heb + sep + eng so BiDi places English (Lilash) on the right.
 function renderBizName(name: string): React.ReactNode {
   if (!/[a-zA-Z]/.test(name) || !/[\u0590-\u05FF]/.test(name)) return name;
   const m = name.match(/^(.+?)\s*([-–—|\/])\s*(.+)$/);
@@ -101,13 +101,7 @@ function renderBizName(name: string): React.ReactNode {
   const [, p1, rawSep, p2] = m;
   const heb = /[\u0590-\u05FF]/.test(p1) ? p1 : p2;
   const eng = /[a-zA-Z]/.test(p1) ? p1 : p2;
-  return (
-    <span dir="ltr" style={{ display: "inline-flex", alignItems: "baseline", whiteSpace: "nowrap" }}>
-      <span dir="rtl" style={{ whiteSpace: "nowrap" }}>{heb}</span>
-      <span style={{ whiteSpace: "nowrap" }}>{` ${rawSep} `}</span>
-      <span dir="ltr" style={{ whiteSpace: "nowrap" }}>{eng}</span>
-    </span>
-  );
+  return <span dir="ltr">{`${heb} ${rawSep} ${eng}`}</span>;
 }
 
 function CopyLinkButton({ slug }: { slug: string }) {
