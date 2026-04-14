@@ -1,4 +1,4 @@
-// v1.0.0
+// v1.0.1
 import app from "./app";
 import { logger } from "./lib/logger";
 import cron from "node-cron";
