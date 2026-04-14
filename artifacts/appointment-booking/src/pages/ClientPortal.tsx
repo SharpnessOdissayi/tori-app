@@ -371,9 +371,9 @@ export default function ClientPortal() {
     setDiscoverOpen(true);
     setDiscoverLoading(true);
     fetch(`${API}/public/directory`)
-      .then(r => r.json())
-      .then(setDiscoverList)
-      .catch(() => {})
+      .then(r => r.ok ? r.json() : Promise.reject(r.status))
+      .then(data => setDiscoverList(Array.isArray(data) ? data : []))
+      .catch(() => setDiscoverList([]))
       .finally(() => setDiscoverLoading(false));
   };
 
