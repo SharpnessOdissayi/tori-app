@@ -48,12 +48,14 @@ router.post("/tranzila/notify", async (req, res): Promise<void> => {
       return;
     }
 
-    const responsecode = body.Response ?? body.responsecode ?? "";
-    const apptIdStr = body.pdesc ?? "";
+    const responsecode = String(body.Response ?? body.responsecode ?? "");
 
-    // Parse appointment ID from description or custom field
-    const apptIdMatch = String(body.myid ?? body.contact ?? "").match(/\d+/);
-    const apptId = apptIdMatch ? parseInt(apptIdMatch[0]) : null;
+    // Tranzila sends back pdesc: "שם שירות - תור מספר 9"
+    // myid is NOT returned in notify — parse from pdesc
+    const pdesc = String(body.pdesc ?? "");
+    const pdescMatch = pdesc.match(/תור מספר (\d+)/);
+    const apptId = pdescMatch ? parseInt(pdescMatch[1]) :
+      body.myid ? parseInt(String(body.myid)) : null;
 
     console.log("[Tranzila] Notify received:", { responsecode, apptId, body });
 
