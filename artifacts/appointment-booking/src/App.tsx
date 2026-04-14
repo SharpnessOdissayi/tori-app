@@ -58,6 +58,7 @@ function Router() {
       <Route path="/dashboard" component={Dashboard} />
       <Route path="/book/:businessSlug" component={Book} />
       <Route path="/client" component={ClientPortal} />
+      <Route path="/portal" component={ClientPortal} />
       <Route path="/privacy" component={Privacy} />
       <Route path="/terms" component={Terms} />
       <Route component={NotFound} />
