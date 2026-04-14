@@ -623,7 +623,7 @@ export default function Book() {
         <div className={`pb-28 px-4 max-w-2xl mx-auto ${showLogo && logoUrl ? "pt-14" : "pt-6"}`}>
           {/* Business name */}
           {showBusinessName && (
-            <h1 className="text-2xl font-bold text-center mb-1" dir="rtl">{business.name}</h1>
+            <h1 className="text-2xl font-bold text-center mb-1" dir="auto">{business.name}</h1>
           )}
           {/* Description */}
           {businessDescription && (
@@ -899,7 +899,7 @@ export default function Book() {
             <img src={bannerUrl} alt={business.name} className="w-full h-32 rounded-2xl object-cover mb-4 shadow-md" style={{ objectPosition: bannerPosition }} />
           )}
           {showBusinessName && (
-            <h1 className="text-3xl font-extrabold mb-2" dir="rtl" style={{ color: primaryColor }}>{business.name}</h1>
+            <h1 className="text-3xl font-extrabold mb-2" dir="auto" style={{ color: primaryColor }}>{business.name}</h1>
           )}
           <p className="text-muted-foreground">קביעת תור אונליין</p>
         </header>
