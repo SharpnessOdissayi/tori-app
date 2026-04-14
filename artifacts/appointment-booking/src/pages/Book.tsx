@@ -207,6 +207,19 @@ export default function Book() {
   const [phoneVerified, setPhoneVerified] = useState(false);
   const [otpLoading, setOtpLoading] = useState(false);
 
+  // Portal auth
+  const [clientToken, setClientToken] = useState<string | null>(() => localStorage.getItem("kavati_client_token"));
+  const [showPortalLogin, setShowPortalLogin] = useState(false);
+  const [portalLoginStep, setPortalLoginStep] = useState<"phone" | "otp">("phone");
+  const [portalPhone, setPortalPhone] = useState("");
+  const [portalOtpCode, setPortalOtpCode] = useState("");
+  const [portalLoading, setPortalLoading] = useState(false);
+
+  // Next available slots
+  const [nextSlots, setNextSlots] = useState<Array<{ date: string; time: string }>>([]);
+  const [nextSlotsLoading, setNextSlotsLoading] = useState(false);
+  const [useCalendar, setUseCalendar] = useState(false);
+
   const { toast } = useToast();
   const { data: business, isLoading: businessLoading, error: businessError } = useGetPublicBusiness(businessSlug || "");
   const { data: services, isLoading: servicesLoading } = useGetPublicServices(businessSlug || "");
@@ -256,6 +269,32 @@ export default function Book() {
   try { if (galleryImagesRaw) galleryImages = JSON.parse(galleryImagesRaw); } catch {}
 
   const cardRadius = borderRadius === "sharp" ? "8px" : borderRadius === "rounded" ? "24px" : "16px";
+
+  // Fetch next available slots when service is selected
+  useEffect(() => {
+    if (!selectedServiceId || !businessSlug) { setNextSlots([]); return; }
+    setNextSlotsLoading(true);
+    setUseCalendar(false);
+    fetch(`/api/public/${businessSlug}/next-slots?serviceId=${selectedServiceId}&count=8`)
+      .then(r => r.ok ? r.json() : [])
+      .then(data => setNextSlots(Array.isArray(data) ? data : []))
+      .catch(() => setNextSlots([]))
+      .finally(() => setNextSlotsLoading(false));
+  }, [selectedServiceId, businessSlug]);
+
+  // Auto-fill client details from portal session
+  useEffect(() => {
+    if (!clientToken) return;
+    fetch("/api/client/me", { headers: { "x-client-token": clientToken } })
+      .then(r => r.ok ? r.json() : null)
+      .then(data => {
+        if (data) setClientData(prev => ({
+          ...prev,
+          name: prev.name || data.clientName || "",
+          phone: prev.phone || data.phone || "",
+        }));
+      }).catch(() => {});
+  }, [clientToken]);
 
   // Load working hours
   useEffect(() => {
@@ -391,6 +430,12 @@ export default function Book() {
           };
           localStorage.setItem(`kavati_booking_${businessSlug}`, JSON.stringify(bookingData));
           // If payment required, redirect to Tranzila
+          // Auto-add business to portal if logged in
+          if (clientToken && businessSlug) {
+            fetch(`${API_BASE}/client/businesses/${businessSlug}`, {
+              method: "POST", headers: { "x-client-token": clientToken },
+            }).catch(() => {});
+          }
           if (data?.requiresPayment && data?.id) {
             fetch(`${API_BASE}/tranzila/payment-url/${data.id}`)
               .then(r => r.json())
@@ -406,6 +451,60 @@ export default function Book() {
   };
 
   const API_BASE = import.meta.env.VITE_API_BASE_URL ?? "/api";
+
+  // Format quick slot date for display: "ד׳ 18/04 14:30"
+  const formatQuickSlot = (slot: { date: string; time: string }) => {
+    const [y, m, d] = slot.date.split("-").map(Number);
+    const day = new Date(y, m - 1, d).getDay();
+    const dayLetters = ["א׳", "ב׳", "ג׳", "ד׳", "ה׳", "ו׳", "ש׳"];
+    return `${dayLetters[day]} ${String(d).padStart(2, "0")}/${String(m).padStart(2, "0")} | ${slot.time}`;
+  };
+
+  const handleQuickSlot = (slot: { date: string; time: string }) => {
+    const [y, m, d] = slot.date.split("-").map(Number);
+    setSelectedDate(new Date(y, m - 1, d));
+    setSelectedTime(slot.time);
+    setStep(4);
+  };
+
+  const handlePortalSendOtp = async () => {
+    if (!portalPhone.trim()) return;
+    setPortalLoading(true);
+    try {
+      const res = await fetch(`${API_BASE}/client/send-otp`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ phone: portalPhone.trim() }),
+      });
+      if (!res.ok) throw new Error();
+      setPortalLoginStep("otp");
+      toast({ title: "קוד נשלח לווצאפ שלך" });
+    } catch { toast({ title: "שגיאה בשליחת קוד", variant: "destructive" }); }
+    finally { setPortalLoading(false); }
+  };
+
+  const handlePortalVerifyOtp = async () => {
+    if (!portalOtpCode.trim()) return;
+    setPortalLoading(true);
+    try {
+      const res = await fetch(`${API_BASE}/client/verify-otp`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ phone: portalPhone.trim(), code: portalOtpCode.trim() }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+      localStorage.setItem("kavati_client_token", data.token);
+      setClientToken(data.token);
+      // Auto-add this business to the client's portal
+      if (businessSlug) {
+        fetch(`${API_BASE}/client/businesses/${businessSlug}`, {
+          method: "POST", headers: { "x-client-token": data.token },
+        }).catch(() => {});
+      }
+      setShowPortalLogin(false);
+      toast({ title: `ברוכ/ה הבא/ה${data.clientName ? `, ${data.clientName}` : ""}!` });
+    } catch (e: any) { toast({ title: e?.message ?? "קוד שגוי", variant: "destructive" }); }
+    finally { setPortalLoading(false); }
+  };
 
   const handleCancelAppointment = async () => {
     if (!existingBooking?.id || !existingBooking?.phone) return;
@@ -898,6 +997,58 @@ export default function Book() {
         </DialogContent>
       </Dialog>
 
+      {/* Portal login dialog */}
+      <Dialog open={showPortalLogin} onOpenChange={open => { if (!open) setShowPortalLogin(false); }}>
+        <DialogContent className="sm:max-w-sm" dir="rtl">
+          <DialogHeader>
+            <DialogTitle>כניסה לפורטל הלקוחות</DialogTitle>
+            <DialogDescription>נהל/י את כל התורים שלך במקום אחד</DialogDescription>
+          </DialogHeader>
+          {portalLoginStep === "phone" ? (
+            <div className="space-y-4 pt-2">
+              <div className="space-y-2">
+                <Label>מספר טלפון</Label>
+                <Input
+                  type="tel"
+                  dir="ltr"
+                  placeholder="05X-XXXXXXX"
+                  value={portalPhone}
+                  onChange={e => setPortalPhone(e.target.value)}
+                  onKeyDown={e => e.key === "Enter" && handlePortalSendOtp()}
+                />
+              </div>
+              <Button className="w-full" style={{ backgroundColor: primaryColor }} onClick={handlePortalSendOtp} disabled={portalLoading || !portalPhone.trim()}>
+                {portalLoading ? "שולח..." : "שלח קוד לווצאפ"}
+              </Button>
+              <Button variant="ghost" className="w-full text-muted-foreground" onClick={() => setShowPortalLogin(false)}>
+                המשך ללא כניסה
+              </Button>
+            </div>
+          ) : (
+            <div className="space-y-4 pt-2">
+              <div className="space-y-2">
+                <Label>קוד אימות</Label>
+                <Input
+                  dir="ltr"
+                  placeholder="123456"
+                  maxLength={6}
+                  value={portalOtpCode}
+                  onChange={e => setPortalOtpCode(e.target.value)}
+                  onKeyDown={e => e.key === "Enter" && handlePortalVerifyOtp()}
+                  className="text-center tracking-widest font-bold text-lg"
+                />
+              </div>
+              <Button className="w-full" style={{ backgroundColor: primaryColor }} onClick={handlePortalVerifyOtp} disabled={portalLoading || portalOtpCode.length < 6}>
+                {portalLoading ? "מאמת..." : "אמת קוד"}
+              </Button>
+              <Button variant="ghost" size="sm" className="w-full text-muted-foreground" onClick={() => { setPortalLoginStep("phone"); setPortalOtpCode(""); }}>
+                חזור לשינוי מספר
+              </Button>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
       <div className="flex-1 max-w-2xl mx-auto w-full px-4 py-8">
         <header className="mb-8 text-center">
           {showLogo && logoUrl && (
@@ -942,6 +1093,20 @@ export default function Book() {
               {step === 1 && (
                 <motion.div key="s1" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} className="space-y-4">
                   <h2 className="text-xl font-bold">בחר שירות</h2>
+                  {!clientToken && (
+                    <button
+                      onClick={() => { setPortalLoginStep("phone"); setPortalPhone(""); setPortalOtpCode(""); setShowPortalLogin(true); }}
+                      className="w-full flex items-center justify-between gap-2 px-4 py-2.5 rounded-xl border border-dashed text-sm text-muted-foreground hover:bg-muted/30 transition-all"
+                    >
+                      <span>🔑 כניסה לפורטל לקוחות לניהול התורים שלך</span>
+                      <span className="text-xs font-medium" style={{ color: primaryColor }}>כניסה ←</span>
+                    </button>
+                  )}
+                  {clientToken && (
+                    <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-green-50 border border-green-200 text-sm text-green-700">
+                      <span>✓</span> <span>מחובר/ת לפורטל הלקוחות</span>
+                    </div>
+                  )}
                   {servicesLoading ? <div className="text-center py-8 text-muted-foreground">טוען שירותים...</div> : (
                     <div className="grid gap-3">
                       {servicesList.filter(s => s.isActive).map(service => (
@@ -978,15 +1143,60 @@ export default function Book() {
 
               {step === 2 && (
                 <motion.div key="s2" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} className="space-y-4">
-                  <h2 className="text-xl font-bold">בחר תאריך</h2>
-                  <div className="flex justify-center bg-muted/20 p-4 rounded-xl border" dir="ltr">
-                    <DayPicker mode="single" selected={selectedDate}
-                      onSelect={(date) => { if (date) { setSelectedDate(date); setSelectedTime(null); } }}
-                      locale={he} weekStartsOn={0} disabled={{ before: new Date() }}
-                      modifiersClassNames={{ selected: "font-bold rounded-full", today: "font-bold" }}
-                      modifiersStyles={{ selected: { backgroundColor: primaryColor, color: "white" } }}
-                    />
-                  </div>
+                  <h2 className="text-xl font-bold">בחר תאריך ושעה</h2>
+
+                  {!useCalendar && (
+                    <>
+                      {nextSlotsLoading ? (
+                        <div className="text-center py-8 text-muted-foreground text-sm">מחפש זמנים פנויים...</div>
+                      ) : nextSlots.length > 0 ? (
+                        <>
+                          <p className="text-sm text-muted-foreground">הזמנים הפנויים הקרובים:</p>
+                          <div className="grid grid-cols-2 gap-2">
+                            {nextSlots.map((slot, i) => (
+                              <button
+                                key={i}
+                                onClick={() => handleQuickSlot(slot)}
+                                className="py-3 px-4 rounded-xl border-2 text-sm font-medium text-right transition-all hover:border-primary/50 hover:bg-muted/40"
+                                style={{ borderColor: "transparent", backgroundColor: primaryColor + "0d" }}
+                                dir="ltr"
+                              >
+                                {formatQuickSlot(slot)}
+                              </button>
+                            ))}
+                          </div>
+                        </>
+                      ) : (
+                        <div className="text-center py-6 text-muted-foreground text-sm">אין זמנים פנויים בקרוב</div>
+                      )}
+                      <button
+                        onClick={() => setUseCalendar(true)}
+                        className="w-full py-2 text-sm border rounded-xl hover:bg-muted/30 transition-all"
+                        style={{ color: primaryColor, borderColor: primaryColor + "40" }}
+                      >
+                        לכל התאריכים ←
+                      </button>
+                    </>
+                  )}
+
+                  {useCalendar && (
+                    <>
+                      <button
+                        onClick={() => { setUseCalendar(false); setSelectedDate(undefined); setSelectedTime(null); }}
+                        className="text-sm text-muted-foreground hover:text-foreground"
+                      >
+                        ← חזור לזמנים הפנויים
+                      </button>
+                      <div className="flex justify-center bg-muted/20 p-4 rounded-xl border" dir="ltr">
+                        <DayPicker mode="single" selected={selectedDate}
+                          onSelect={(date) => { if (date) { setSelectedDate(date); setSelectedTime(null); } }}
+                          locale={he} weekStartsOn={0} disabled={{ before: new Date() }}
+                          modifiersClassNames={{ selected: "font-bold rounded-full", today: "font-bold" }}
+                          modifiersStyles={{ selected: { backgroundColor: primaryColor, color: "white" } }}
+                        />
+                      </div>
+                    </>
+                  )}
                 </motion.div>
               )}
 
@@ -1218,7 +1428,7 @@ export default function Book() {
                 </Button>
               ) : step === 3 && selectedTime ? (
                 <Button onClick={handleNext} size="lg" style={{ backgroundColor: primaryColor }}>המשך</Button>
-              ) : step === 2 && selectedDate ? (
+              ) : step === 2 && useCalendar && selectedDate ? (
                 <Button onClick={handleNext} size="lg" style={{ backgroundColor: primaryColor }}>המשך</Button>
               ) : step === 1 && selectedServiceId ? (
                 <Button onClick={handleNext} size="lg" style={{ backgroundColor: primaryColor }}>המשך</Button>

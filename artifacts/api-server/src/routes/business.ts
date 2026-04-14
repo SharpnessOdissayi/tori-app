@@ -518,14 +518,15 @@ router.get("/business/stats", requireBusinessAuth, async (req, res): Promise<voi
   const nextWeekStr = nextWeek.toISOString().split("T")[0];
 
   const all = await db
-    .select({ appointmentDate: appointmentsTable.appointmentDate })
+    .select({ appointmentDate: appointmentsTable.appointmentDate, status: appointmentsTable.status })
     .from(appointmentsTable)
     .where(eq(appointmentsTable.businessId, businessId));
 
-  const totalAppointments = all.length;
-  const todayCount = all.filter((a) => a.appointmentDate === todayStr).length;
-  const thisWeekCount = all.filter((a) => a.appointmentDate >= todayStr && a.appointmentDate < nextWeekStr).length;
-  const upcomingCount = all.filter((a) => a.appointmentDate >= todayStr).length;
+  const active = all.filter(a => a.status !== "cancelled" && a.status !== "pending_payment");
+  const totalAppointments = active.length;
+  const todayCount = active.filter((a) => a.appointmentDate === todayStr).length;
+  const thisWeekCount = active.filter((a) => a.appointmentDate >= todayStr && a.appointmentDate < nextWeekStr).length;
+  const upcomingCount = active.filter((a) => a.appointmentDate >= todayStr).length;
 
   res.json({ totalAppointments, todayCount, thisWeekCount, upcomingCount });
 });
