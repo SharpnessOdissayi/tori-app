@@ -116,6 +116,15 @@ router.patch("/business/profile", requireBusinessAuth, async (req, res): Promise
   if (parsed.data.name !== undefined) updates.name = parsed.data.name;
   if (parsed.data.ownerName !== undefined) updates.ownerName = parsed.data.ownerName;
   if (parsed.data.phone !== undefined) updates.phone = parsed.data.phone ?? undefined;
+  if ((parsed.data as any).email !== undefined && (parsed.data as any).email) {
+    const newEmail = (parsed.data as any).email as string;
+    const [existing] = await db.select({ id: businessesTable.id }).from(businessesTable).where(eq(businessesTable.email, newEmail));
+    if (existing && existing.id !== req.business!.businessId) {
+      res.status(409).json({ error: "אימייל זה כבר בשימוש" });
+      return;
+    }
+    updates.email = newEmail;
+  }
   if (parsed.data.bufferMinutes !== undefined) updates.bufferMinutes = parsed.data.bufferMinutes;
   if (parsed.data.notificationEnabled !== undefined) updates.notificationEnabled = parsed.data.notificationEnabled;
   if (parsed.data.notificationMessage !== undefined) updates.notificationMessage = parsed.data.notificationMessage ?? undefined;

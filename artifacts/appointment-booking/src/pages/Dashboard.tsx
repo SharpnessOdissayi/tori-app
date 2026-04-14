@@ -1041,10 +1041,13 @@ function ServicesTab() {
 
 function WorkingHoursTab() {
   const { data: hours } = useGetWorkingHours();
+  const { data: profile } = useGetBusinessProfile();
   const updateMutation = useSetWorkingHours();
+  const updateProfileMutation = useUpdateBusinessProfile();
   const queryClient = useQueryClient();
   const { toast } = useToast();
   const [localHours, setLocalHours] = useState<any[]>([]);
+  const [bufferMinutes, setBufferMinutes] = useState("0");
 
   useEffect(() => {
     if (hours) {
@@ -1055,9 +1058,19 @@ function WorkingHoursTab() {
     }
   }, [hours]);
 
+  useEffect(() => {
+    if (profile) setBufferMinutes((profile.bufferMinutes ?? 0).toString());
+  }, [profile]);
+
   const handleSave = () => {
     updateMutation.mutate({ data: { hours: localHours.map(h => ({ dayOfWeek: h.dayOfWeek, startTime: h.startTime, endTime: h.endTime, isEnabled: h.isEnabled })) } }, {
-      onSuccess: () => { toast({ title: "שעות עבודה נשמרו" }); queryClient.invalidateQueries({ queryKey: getGetWorkingHoursQueryKey() }); },
+      onSuccess: () => { queryClient.invalidateQueries({ queryKey: getGetWorkingHoursQueryKey() }); },
+    });
+    updateProfileMutation.mutate({ data: { bufferMinutes: parseInt(bufferMinutes) || 0 } as any }, {
+      onSuccess: () => {
+        toast({ title: "הגדרות שעות עבודה נשמרו" });
+        queryClient.invalidateQueries({ queryKey: getGetBusinessProfileQueryKey() });
+      },
     });
   };
 
@@ -1087,8 +1100,16 @@ function WorkingHoursTab() {
             )}
           </div>
         ))}
+        <div className="pt-4 border-t space-y-2">
+          <Label>זמן הפסקה בין פגישות (דקות)</Label>
+          <div className="flex items-center gap-3">
+            <Input type="number" min="0" step="5" value={bufferMinutes} onChange={e => setBufferMinutes(e.target.value)} className="w-28 text-center" />
+            <span className="text-sm text-muted-foreground">דקות בין תורים</span>
+          </div>
+          <p className="text-xs text-muted-foreground">זמן קצוב לניקיון/מנוחה בין תור לתור</p>
+        </div>
         <div className="pt-4 flex justify-end">
-          <Button onClick={handleSave} disabled={updateMutation.isPending} size="lg">שמור שעות</Button>
+          <Button onClick={handleSave} disabled={updateMutation.isPending || updateProfileMutation.isPending} size="lg">שמור</Button>
         </div>
       </CardContent>
     </Card>
@@ -2125,23 +2146,47 @@ function BrandingTab() {
 
 function IntegrationsTab() {
   const { data: profile } = useGetBusinessProfile();
-  const updateIntegrations = useUpdateBusinessIntegrations();
+  const updateProfile = useUpdateBusinessProfile();
   const queryClient = useQueryClient();
   const { toast } = useToast();
 
   const [notificationEnabled, setNotificationEnabled] = useState(true);
   const [notificationMessage, setNotificationMessage] = useState("");
+  const [sendReminders, setSendReminders] = useState(true);
+  const [requireArrivalConfirmation, setRequireArrivalConfirmation] = useState(true);
+  const [sendWhatsAppReminders, setSendWhatsAppReminders] = useState(true);
+  const [shabbatMode, setShabbatMode] = useState<"any" | "shabbat">("any");
+  const [reminderCustomText, setReminderCustomText] = useState("");
+  const [reminderTriggers, setReminderTriggers] = useState<Array<{ amount: string; unit: string }>>([
+    { amount: "24", unit: "hours" }
+  ]);
 
   useEffect(() => {
     if (profile) {
       setNotificationEnabled(profile.notificationEnabled ?? true);
       setNotificationMessage(profile.notificationMessage ?? "");
+      setSendReminders((profile as any).sendReminders ?? true);
+      setRequireArrivalConfirmation((profile as any).requireArrivalConfirmation ?? true);
+      setSendWhatsAppReminders((profile as any).sendWhatsAppReminders ?? true);
+      setShabbatMode(((profile as any).shabbatMode ?? "any") as "any" | "shabbat");
+      setReminderCustomText((profile as any).reminderCustomText ?? "");
+      const saved = (profile as any).reminderTriggers;
+      if (saved) { try { setReminderTriggers(JSON.parse(saved)); } catch {} }
     }
   }, [profile]);
 
   const handleSave = () => {
-    updateIntegrations.mutate({
-      data: { notificationEnabled, notificationMessage: notificationMessage || null }
+    updateProfile.mutate({
+      data: {
+        notificationEnabled,
+        notificationMessage: notificationMessage || null,
+        sendReminders,
+        requireArrivalConfirmation,
+        sendWhatsAppReminders,
+        reminderTriggers: JSON.stringify(reminderTriggers),
+        shabbatMode,
+        reminderCustomText: reminderCustomText || null,
+      } as any
     }, {
       onSuccess: () => {
         toast({ title: "הגדרות הודעות נשמרו" });
@@ -2158,42 +2203,19 @@ function IntegrationsTab() {
         <div className="w-3 h-3 rounded-full shrink-0 bg-green-500" />
         <div>
           <div className="font-semibold text-sm text-green-800">WhatsApp פעיל — מופעל על ידי קבעתי</div>
-          <div className="text-xs text-green-600 mt-0.5">הודעות נשלחות אוטומטית ללקוחות ואליך מהמספר הרשמי של קבעתי</div>
+          <div className="text-xs text-green-600 mt-0.5">הודעות נשלחות ללקוחות ואליך מהמספר הרשמי של קבעתי</div>
         </div>
       </div>
 
-      {/* What's sent */}
+      {/* Notification to owner */}
       <Card>
         <CardHeader>
-          <CardTitle>מה נשלח אוטומטית?</CardTitle>
-          <CardDescription>קבעתי שולח הודעות WhatsApp בשמך ללא כל הגדרה</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-            {[
-              { num: "1", title: "התראה עליך", desc: "כשלקוח קובע תור — מקבלת הודעה לנייד שלך עם כל הפרטים", color: "bg-blue-100 text-blue-700" },
-              { num: "2", title: "תזכורת 24 שעות", desc: "הלקוח מקבל תזכורת יום לפני התור שלו", color: "bg-purple-100 text-purple-700" },
-              { num: "3", title: "תזכורת שעה", desc: "הלקוח מקבל תזכורת שעה לפני התור", color: "bg-green-100 text-green-700" },
-            ].map(item => (
-              <div key={item.num} className="rounded-xl border bg-muted/20 p-4 space-y-2 text-center">
-                <div className={`w-9 h-9 rounded-full font-bold flex items-center justify-center mx-auto text-base ${item.color}`}>{item.num}</div>
-                <div className="font-semibold text-sm">{item.title}</div>
-                <p className="text-xs text-muted-foreground">{item.desc}</p>
-              </div>
-            ))}
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Toggle */}
-      <Card>
-        <CardHeader>
-          <CardTitle>הגדרות התראות</CardTitle>
+          <CardTitle>התראות לבעלת העסק</CardTitle>
         </CardHeader>
         <CardContent className="space-y-5">
           <div className="flex items-center justify-between">
             <div>
-              <div className="font-medium text-sm">קבל התראה על כל תור חדש</div>
+              <div className="font-medium text-sm">קבלי התראה על כל תור חדש</div>
               <div className="text-xs text-muted-foreground">הודעת WhatsApp תישלח לנייד שלך ({profile?.phone})</div>
             </div>
             <Switch checked={notificationEnabled} onCheckedChange={setNotificationEnabled} />
@@ -2201,18 +2223,141 @@ function IntegrationsTab() {
           <Separator />
           <div className="space-y-2">
             <Label>הודעה מותאמת אישית ללקוחות (אופציונלי)</Label>
-            <p className="text-xs text-muted-foreground">תוסף להתראות שנשלחות ללקוחות</p>
+            <p className="text-xs text-muted-foreground">תוסף לאישור שנשלח ללקוחות בעת קביעת תור</p>
             <Input
               placeholder="לביטול תור נא לפנות 24 שעות מראש"
               value={notificationMessage}
               onChange={e => setNotificationMessage(e.target.value)}
             />
           </div>
-          <Button onClick={handleSave} disabled={updateIntegrations.isPending} size="lg" className="w-full">
-            {updateIntegrations.isPending ? "שומר..." : "שמור הגדרות"}
-          </Button>
         </CardContent>
       </Card>
+
+      {/* Reminders card */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <span className="text-xl">🔔</span> תזכורות ללקוחות לפני התור
+          </CardTitle>
+          <CardDescription>הגדר מתי ואיך לשלוח תזכורות ללקוחות לפני התור</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-5">
+          <div className="space-y-3">
+            <div className="flex items-center justify-between p-4 border rounded-xl bg-muted/20">
+              <div>
+                <div className="font-medium text-sm">שליחת תזכורות</div>
+                <div className="text-xs text-muted-foreground mt-0.5">תזכורות ישלחו ללקוחות לפני מועד התור</div>
+              </div>
+              <Switch checked={sendReminders} onCheckedChange={setSendReminders} />
+            </div>
+            <div className="flex items-center justify-between p-4 border rounded-xl bg-muted/20">
+              <div>
+                <div className="font-medium text-sm">דרישת אישור הגעה בתזכורת</div>
+                <div className="text-xs text-muted-foreground mt-0.5">הלקוח יצטרך לאשר הגעה בהודעת התזכורת</div>
+              </div>
+              <Switch checked={requireArrivalConfirmation} onCheckedChange={setRequireArrivalConfirmation} />
+            </div>
+            <div className="flex items-center justify-between p-4 border rounded-xl bg-muted/20">
+              <div>
+                <div className="font-medium text-sm">שליחת תזכורות ב-WhatsApp</div>
+                <div className="text-xs text-muted-foreground mt-0.5">כשכבוי — תזכורות יישלחו ב-SMS</div>
+              </div>
+              <Switch checked={sendWhatsAppReminders} onCheckedChange={setSendWhatsAppReminders} />
+            </div>
+          </div>
+
+          {sendReminders && (
+            <div className="p-4 border rounded-xl bg-muted/20 space-y-4">
+              <div className="flex items-center justify-between border-b pb-2">
+                <span className="font-medium text-sm">מתי לשלוח תזכורות?</span>
+                <span className="text-xs text-muted-foreground">{reminderTriggers.length} / 3 תזכורות</span>
+              </div>
+              {reminderTriggers.length > 0 && (
+                <div className="flex flex-wrap gap-2">
+                  {reminderTriggers.map((t, i) => {
+                    if (t.unit === "morning") return (
+                      <span key={i} className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-semibold bg-amber-100 text-amber-700 border border-amber-200">
+                        🌅 בוקר יום התור (08:00)
+                      </span>
+                    );
+                    const unitLabel = t.unit === "minutes" ? "דקות" : t.unit === "hours" ? "שעות" : "ימים";
+                    return (
+                      <span key={i} className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-semibold bg-primary/10 text-primary border border-primary/20">
+                        🔔 {t.amount} {unitLabel} לפני
+                      </span>
+                    );
+                  })}
+                </div>
+              )}
+              <div className="space-y-3">
+                {reminderTriggers.map((trigger, idx) => (
+                  <div key={idx} className="flex items-center gap-2 p-3 border rounded-xl bg-background">
+                    <span className="text-xs font-bold text-muted-foreground w-5 text-center">{idx + 1}</span>
+                    {trigger.unit !== "morning" && (
+                      <input type="number" min="1" max="999" value={trigger.amount}
+                        onChange={e => setReminderTriggers(prev => prev.map((t, i) => i === idx ? { ...t, amount: e.target.value } : t))}
+                        className="rounded-lg border bg-background px-2 py-1.5 text-sm text-center focus:outline-none focus:ring-2 focus:ring-primary w-20"
+                      />
+                    )}
+                    <select value={trigger.unit}
+                      onChange={e => setReminderTriggers(prev => prev.map((t, i) => i === idx ? { ...t, unit: e.target.value } : t))}
+                      className="rounded-lg border bg-background px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary flex-1"
+                    >
+                      <option value="minutes">דקות לפני</option>
+                      <option value="hours">שעות לפני</option>
+                      <option value="days">ימים לפני</option>
+                      <option value="morning">🌅 בוקר יום התור (08:00)</option>
+                    </select>
+                    {reminderTriggers.length > 1 && (
+                      <button type="button" onClick={() => setReminderTriggers(prev => prev.filter((_, i) => i !== idx))}
+                        className="text-muted-foreground hover:text-destructive transition-colors text-lg leading-none">✕</button>
+                    )}
+                  </div>
+                ))}
+                {reminderTriggers.length < 3 && (
+                  <button type="button"
+                    onClick={() => setReminderTriggers(prev => [...prev, { amount: "1", unit: "hours" }])}
+                    className="w-full py-2.5 border-2 border-dashed border-border rounded-xl text-sm text-muted-foreground hover:border-primary hover:text-primary transition-all"
+                  >+ הוסף תזכורת נוספת</button>
+                )}
+              </div>
+              <div className="pt-2 border-t">
+                <button type="button"
+                  onClick={() => setShabbatMode(m => m === "shabbat" ? "any" : "shabbat")}
+                  className={`w-full flex items-center gap-3 p-4 rounded-xl border-2 text-right transition-all ${shabbatMode === "shabbat" ? "border-primary bg-primary/5" : "border-border hover:border-muted-foreground"}`}
+                >
+                  <span className="text-2xl">🕍</span>
+                  <div className="flex-1">
+                    <div className={`text-sm font-semibold ${shabbatMode === "shabbat" ? "text-primary" : ""}`}>עסק שומר שבת</div>
+                    <div className="text-xs text-muted-foreground mt-0.5">שישי 08:00 — תזכורת לפני כניסת שבת &nbsp;|&nbsp; שבת 21:00 — תזכורת במוצאי שבת</div>
+                  </div>
+                  <div className={`w-5 h-5 rounded-md border-2 flex items-center justify-center shrink-0 transition-all ${shabbatMode === "shabbat" ? "bg-primary border-primary" : "border-border"}`}>
+                    {shabbatMode === "shabbat" && <Check className="w-3 h-3 text-white" />}
+                  </div>
+                </button>
+              </div>
+            </div>
+          )}
+
+          <div className="space-y-2">
+            <Label className="text-sm font-medium">תוספת מותאמת אישית לתזכורת</Label>
+            <textarea value={reminderCustomText}
+              onChange={e => setReminderCustomText(e.target.value.slice(0, 800))}
+              rows={3} maxLength={800}
+              className="w-full rounded-xl border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary resize-none"
+              placeholder="לדוגמא: לשלוח הודעה במידה ויש עיכוב בהגעה"
+            />
+            <div className="flex justify-between items-center">
+              <p className="text-xs text-muted-foreground">תוספת זו תופיע בסוף התזכורת שנשלחת ללקוחות</p>
+              <span className="text-xs text-muted-foreground">{reminderCustomText.length} / 800</span>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Button onClick={handleSave} disabled={updateProfile.isPending} size="lg" className="w-full">
+        {updateProfile.isPending ? "שומר..." : "שמור הגדרות"}
+      </Button>
     </div>
   );
 }
@@ -2226,8 +2371,8 @@ function SettingsTab() {
   const { toast } = useToast();
 
   const [form, setForm] = useState({
-    name: "", ownerName: "", phone: "",
-    bufferMinutes: "0", notificationEnabled: false, notificationMessage: "", requireAppointmentApproval: false, requirePhoneVerification: false,
+    name: "", ownerName: "", phone: "", email: "",
+    requireAppointmentApproval: false, requirePhoneVerification: false,
     tranzilaEnabled: false,
     depositAmount: "0",
     // booking restrictions
@@ -2239,38 +2384,19 @@ function SettingsTab() {
     maxAppointmentsPerCustomer: "",
     requireActiveSubscription: false,
     maxAppointmentsPerDay: "3",
-    // reminders
-    sendReminders: true,
-    requireArrivalConfirmation: true,
-    sendWhatsAppReminders: true,
-    shabbatMode: "any" as "any" | "shabbat",
-    reminderSendTime: "20:00",
-    reminderCustomText: "",
   });
-
-  // Reminder triggers (up to 3)
-  const [reminderTriggers, setReminderTriggers] = useState<Array<{ amount: string; unit: string }>>([
-    { amount: "24", unit: "hours" }
-  ]);
 
   // Password change state
   const [pwForm, setPwForm] = useState({ currentPassword: "", newPassword: "", confirmPassword: "" });
   const [pwLoading, setPwLoading] = useState(false);
   const [showPw, setShowPw] = useState(false);
 
-  // Email change state
-  const [emailStep, setEmailStep] = useState<"idle" | "sent">("idle");
-  const [emailForm, setEmailForm] = useState({ newEmail: "", via: "email" as "email" | "phone", code: "" });
-  const [emailLoading, setEmailLoading] = useState(false);
-
   useEffect(() => {
     if (profile) setForm({
       name: profile.name,
       ownerName: profile.ownerName,
       phone: (profile as any).phone ?? "",
-      bufferMinutes: (profile.bufferMinutes ?? 0).toString(),
-      notificationEnabled: profile.notificationEnabled ?? false,
-      notificationMessage: profile.notificationMessage ?? "",
+      email: (profile as any).email ?? "",
       requireAppointmentApproval: (profile as any).requireAppointmentApproval ?? false,
       requirePhoneVerification: (profile as any).requirePhoneVerification ?? false,
       tranzilaEnabled: (profile as any).tranzilaEnabled ?? false,
@@ -2283,18 +2409,7 @@ function SettingsTab() {
       maxAppointmentsPerCustomer: ((profile as any).maxAppointmentsPerCustomer ?? "").toString(),
       requireActiveSubscription: (profile as any).requireActiveSubscription ?? false,
       maxAppointmentsPerDay: ((profile as any).maxAppointmentsPerDay ?? 3).toString(),
-      sendReminders: (profile as any).sendReminders ?? true,
-      requireArrivalConfirmation: (profile as any).requireArrivalConfirmation ?? true,
-      sendWhatsAppReminders: (profile as any).sendWhatsAppReminders ?? true,
-      shabbatMode: ((profile as any).shabbatMode ?? "any") as "any" | "shabbat",
-      reminderSendTime: (profile as any).reminderSendTime ?? "20:00",
-      reminderCustomText: (profile as any).reminderCustomText ?? "",
     });
-    // Load reminder triggers
-    const saved = (profile as any).reminderTriggers;
-    if (saved) {
-      try { setReminderTriggers(JSON.parse(saved)); } catch {}
-    }
   }, [profile]);
 
   const handleSave = (e: React.FormEvent) => {
@@ -2304,9 +2419,7 @@ function SettingsTab() {
         name: form.name,
         ownerName: form.ownerName,
         phone: form.phone || null,
-        bufferMinutes: parseInt(form.bufferMinutes),
-        notificationEnabled: form.notificationEnabled,
-        notificationMessage: form.notificationMessage || null,
+        email: form.email || undefined,
         requireAppointmentApproval: form.requireAppointmentApproval,
         requirePhoneVerification: form.requirePhoneVerification,
         minLeadHours: parseInt(form.minLeadHours) || 0,
@@ -2317,13 +2430,6 @@ function SettingsTab() {
         maxAppointmentsPerCustomer: form.maxAppointmentsPerCustomer ? parseInt(form.maxAppointmentsPerCustomer) : null,
         requireActiveSubscription: form.requireActiveSubscription,
         maxAppointmentsPerDay: form.maxAppointmentsPerDay ? parseInt(form.maxAppointmentsPerDay) : null,
-        sendReminders: form.sendReminders,
-        requireArrivalConfirmation: form.requireArrivalConfirmation,
-        sendWhatsAppReminders: form.sendWhatsAppReminders,
-        reminderTriggers: JSON.stringify(reminderTriggers),
-        shabbatMode: form.shabbatMode,
-        reminderSendTime: form.reminderSendTime,
-        reminderCustomText: form.reminderCustomText || null,
         tranzilaEnabled: form.tranzilaEnabled,
         depositAmountAgorot: form.tranzilaEnabled ? Math.round(parseFloat(form.depositAmount || "0") * 100) : null,
       } as any
@@ -2335,57 +2441,6 @@ function SettingsTab() {
     });
   };
 
-  const handleRequestEmailChange = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!emailForm.newEmail) { toast({ title: "הכנס אימייל חדש", variant: "destructive" }); return; }
-    setEmailLoading(true);
-    try {
-      const token = localStorage.getItem("biz_token") || sessionStorage.getItem("biz_token");
-      const res = await fetch(`${API_BASE_DASH}/auth/business/request-email-change`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ newEmail: emailForm.newEmail, via: emailForm.via }),
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        toast({ title: "שגיאה", description: data.message ?? "לא ניתן לשלוח קוד", variant: "destructive" });
-      } else {
-        setEmailStep("sent");
-        toast({ title: emailForm.via === "email" ? "קוד נשלח לאימייל החדש" : "קוד נשלח לווצאפ שלך" });
-      }
-    } catch {
-      toast({ title: "שגיאת רשת", variant: "destructive" });
-    } finally {
-      setEmailLoading(false);
-    }
-  };
-
-  const handleConfirmEmailChange = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!emailForm.code) { toast({ title: "הכנס את הקוד", variant: "destructive" }); return; }
-    setEmailLoading(true);
-    try {
-      const token = localStorage.getItem("biz_token") || sessionStorage.getItem("biz_token");
-      const res = await fetch(`${API_BASE_DASH}/auth/business/confirm-email-change`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ code: emailForm.code }),
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        toast({ title: "שגיאה", description: data.message ?? "קוד שגוי או פג תוקף", variant: "destructive" });
-      } else {
-        toast({ title: "האימייל עודכן בהצלחה!" });
-        setEmailStep("idle");
-        setEmailForm({ newEmail: "", via: "email", code: "" });
-        queryClient.invalidateQueries({ queryKey: getGetBusinessProfileQueryKey() });
-      }
-    } catch {
-      toast({ title: "שגיאת רשת", variant: "destructive" });
-    } finally {
-      setEmailLoading(false);
-    }
-  };
 
   const handlePasswordChange = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -2454,39 +2509,14 @@ function SettingsTab() {
                   <p className="text-xs text-muted-foreground">ניתן להתחבר גם עם מספר הטלפון</p>
                 </div>
                 <div className="space-y-2">
-                  <Label>אימייל (לא ניתן לשינוי)</Label>
-                  <Input value={profile.email} disabled dir="ltr" className="bg-muted/50" />
-                </div>
-                <div className="space-y-2">
-                  <Label>זמן מאגר כללי (דקות)</Label>
-                  <Input type="number" min="0" step="5" value={form.bufferMinutes} onChange={e => setForm(p => ({ ...p, bufferMinutes: e.target.value }))} />
-                  <p className="text-xs text-muted-foreground">זמן ברירת מחדל בין תורים</p>
+                  <Label>אימייל</Label>
+                  <Input type="email" dir="ltr" value={form.email} onChange={e => setForm(p => ({ ...p, email: e.target.value }))} />
                 </div>
                 <div className="space-y-2">
                   <Label>לינק לקביעת תור</Label>
                   <CopyLinkButton slug={profile.slug} />
                 </div>
               </div>
-            </div>
-
-            <div className="space-y-4">
-              <h3 className="font-medium text-base border-b pb-2">הודעת כניסה ללקוחות</h3>
-              <div className="flex items-center gap-3">
-                <Switch checked={form.notificationEnabled} onCheckedChange={v => setForm(p => ({ ...p, notificationEnabled: v }))} />
-                <Label>הצג הודעת פתיחה ללקוחות</Label>
-              </div>
-              {form.notificationEnabled && (
-                <div className="space-y-2">
-                  <Label>תוכן ההודעה</Label>
-                  <textarea
-                    value={form.notificationMessage}
-                    onChange={e => setForm(p => ({ ...p, notificationMessage: e.target.value }))}
-                    rows={3}
-                    className="w-full rounded-xl border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary resize-none"
-                    placeholder="שלום! נא לקבוע תור לפחות 24 שעות מראש..."
-                  />
-                </div>
-              )}
             </div>
 
             <div className="space-y-4">
@@ -2643,245 +2673,6 @@ function SettingsTab() {
         </CardContent>
       </Card>
 
-      {/* Reminders Card */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <span className="text-xl">🔔</span> התראות ותזכורות ללקוחות
-          </CardTitle>
-          <CardDescription>הגדר מתי ואיך לשלוח תזכורות ללקוחות לפני התור</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-5">
-          {/* Toggles */}
-          <div className="space-y-3">
-            <div className="flex items-center justify-between p-4 border rounded-xl bg-muted/20">
-              <div>
-                <div className="font-medium text-sm">שליחת תזכורות</div>
-                <div className="text-xs text-muted-foreground mt-0.5">במידה ודלוק, תזכורות ישלחו ללקוחות לפני מועד התור</div>
-              </div>
-              <Switch checked={form.sendReminders} onCheckedChange={v => setForm(p => ({ ...p, sendReminders: v }))} />
-            </div>
-            <div className="flex items-center justify-between p-4 border rounded-xl bg-muted/20">
-              <div>
-                <div className="font-medium text-sm">דרישת אישור הגעה בתזכורת</div>
-                <div className="text-xs text-muted-foreground mt-0.5">במידה ודלוק, ידרש אישור הגעה בהודעת התזכורת שתישלח</div>
-              </div>
-              <Switch checked={form.requireArrivalConfirmation} onCheckedChange={v => setForm(p => ({ ...p, requireArrivalConfirmation: v }))} />
-            </div>
-            <div className="flex items-center justify-between p-4 border rounded-xl bg-muted/20">
-              <div>
-                <div className="font-medium text-sm">שליחת הודעות תזכורת ב-WhatsApp</div>
-                <div className="text-xs text-muted-foreground mt-0.5">במידה ודלוק, הודעות תזכורת לפני התור ישלחו ב-WhatsApp. כשיכולת זאת כבויה, הודעות תזכורת ישלחו ב-SMS</div>
-              </div>
-              <Switch checked={form.sendWhatsAppReminders} onCheckedChange={v => setForm(p => ({ ...p, sendWhatsAppReminders: v }))} />
-            </div>
-          </div>
-
-          {/* Reminder triggers */}
-          {form.sendReminders && (
-            <div className="p-4 border rounded-xl bg-muted/20 space-y-4">
-              <div className="flex items-center justify-between border-b pb-2">
-                <span className="font-medium text-sm">מתי לשלוח התראות?</span>
-                <span className="text-xs text-muted-foreground">{reminderTriggers.length} / 3 התראות</span>
-              </div>
-              {/* Current saved summary */}
-              {reminderTriggers.length > 0 && (
-                <div className="flex flex-wrap gap-2">
-                  {reminderTriggers.map((t, i) => {
-                    if (t.unit === "morning") {
-                      return (
-                        <span key={i} className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-semibold bg-amber-100 text-amber-700 border border-amber-200">
-                          🌅 בוקר יום התור (08:00)
-                        </span>
-                      );
-                    }
-                    const unitLabel = t.unit === "minutes" ? "דקות" : t.unit === "hours" ? "שעות" : "ימים";
-                    return (
-                      <span key={i} className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-semibold bg-primary/10 text-primary border border-primary/20">
-                        🔔 {t.amount} {unitLabel} לפני
-                      </span>
-                    );
-                  })}
-                </div>
-              )}
-
-              <div className="space-y-3">
-                {reminderTriggers.map((trigger, idx) => (
-                  <div key={idx} className="flex items-center gap-2 p-3 border rounded-xl bg-background">
-                    <span className="text-xs font-bold text-muted-foreground w-5 text-center">{idx + 1}</span>
-
-                    {/* Hide number input for "morning" trigger */}
-                    {trigger.unit !== "morning" && (
-                      <input
-                        type="number"
-                        min="1"
-                        max="999"
-                        value={trigger.amount}
-                        onChange={e => setReminderTriggers(prev => prev.map((t, i) => i === idx ? { ...t, amount: e.target.value } : t))}
-                        className="rounded-lg border bg-background px-2 py-1.5 text-sm text-center focus:outline-none focus:ring-2 focus:ring-primary w-20"
-                      />
-                    )}
-
-                    <select
-                      value={trigger.unit}
-                      onChange={e => setReminderTriggers(prev => prev.map((t, i) => i === idx ? { ...t, unit: e.target.value } : t))}
-                      className="rounded-lg border bg-background px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary flex-1"
-                    >
-                      <option value="minutes">דקות לפני</option>
-                      <option value="hours">שעות לפני</option>
-                      <option value="days">ימים לפני</option>
-                      <option value="morning">🌅 בוקר יום התור (08:00)</option>
-                    </select>
-
-                    {reminderTriggers.length > 1 && (
-                      <button
-                        type="button"
-                        onClick={() => setReminderTriggers(prev => prev.filter((_, i) => i !== idx))}
-                        className="text-muted-foreground hover:text-destructive transition-colors text-lg leading-none"
-                      >
-                        ✕
-                      </button>
-                    )}
-                  </div>
-                ))}
-
-                {reminderTriggers.length < 3 && (
-                  <button
-                    type="button"
-                    onClick={() => setReminderTriggers(prev => [...prev, { amount: "1", unit: "hours" }])}
-                    className="w-full py-2.5 border-2 border-dashed border-border rounded-xl text-sm text-muted-foreground hover:border-primary hover:text-primary transition-all"
-                  >
-                    + הוסף התראה נוספת
-                  </button>
-                )}
-              </div>
-
-              <div className="pt-2 border-t">
-                <button
-                  type="button"
-                  onClick={() => setForm(p => ({ ...p, shabbatMode: p.shabbatMode === "shabbat" ? "any" : "shabbat" }))}
-                  className={`w-full flex items-center gap-3 p-4 rounded-xl border-2 text-right transition-all ${form.shabbatMode === "shabbat" ? "border-primary bg-primary/5" : "border-border hover:border-muted-foreground"}`}
-                >
-                  <span className="text-2xl">🕍</span>
-                  <div className="flex-1">
-                    <div className={`text-sm font-semibold ${form.shabbatMode === "shabbat" ? "text-primary" : ""}`}>עסק שומר שבת</div>
-                    <div className="text-xs text-muted-foreground mt-0.5">
-                      שישי 08:00 — תזכורת לפני כניסת שבת &nbsp;|&nbsp; שבת 21:00 — תזכורת במוצאי שבת
-                    </div>
-                  </div>
-                  <div className={`w-5 h-5 rounded-md border-2 flex items-center justify-center shrink-0 transition-all ${form.shabbatMode === "shabbat" ? "bg-primary border-primary" : "border-border"}`}>
-                    {form.shabbatMode === "shabbat" && <Check className="w-3 h-3 text-white" />}
-                  </div>
-                </button>
-              </div>
-            </div>
-          )}
-
-          {/* Custom text */}
-          <div className="space-y-2">
-            <Label className="text-sm font-medium">תוספת מותאמת אישית</Label>
-            <textarea
-              value={form.reminderCustomText}
-              onChange={e => setForm(p => ({ ...p, reminderCustomText: e.target.value.slice(0, 800) }))}
-              rows={3}
-              maxLength={800}
-              className="w-full rounded-xl border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary resize-none"
-              placeholder="לדוגמא: לשלוח הודעה במידה ויש עיכוב בהגעה"
-            />
-            <div className="flex justify-between items-center">
-              <p className="text-xs text-muted-foreground">תוספת זו תופיע בסוף התזכורת שנשלחת ללקוחות לפני התור</p>
-              <span className="text-xs text-muted-foreground">{form.reminderCustomText.length} / 800</span>
-            </div>
-          </div>
-
-          <div className="flex justify-end pt-2">
-            <Button onClick={handleSave} disabled={updateMutation.isPending} size="lg">שמירה</Button>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Email change card */}
-      <Card>
-        <CardHeader>
-          <CardTitle>שינוי אימייל</CardTitle>
-          <CardDescription>
-            אימייל נוכחי: <span className="font-medium text-foreground" dir="ltr">{(profile as any)?.email ?? "—"}</span>
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          {emailStep === "idle" ? (
-            <form onSubmit={handleRequestEmailChange} className="space-y-4">
-              <div className="space-y-2">
-                <Label>אימייל חדש</Label>
-                <Input
-                  type="email"
-                  dir="ltr"
-                  placeholder="new@example.com"
-                  required
-                  value={emailForm.newEmail}
-                  onChange={e => setEmailForm(p => ({ ...p, newEmail: e.target.value }))}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label>שלח קוד אימות אל</Label>
-                <div className="flex gap-3">
-                  <button
-                    type="button"
-                    onClick={() => setEmailForm(p => ({ ...p, via: "email" }))}
-                    className={`flex-1 flex items-center justify-center gap-2 p-3 rounded-xl border-2 text-sm font-medium transition-all ${emailForm.via === "email" ? "border-primary bg-primary/5 text-primary" : "border-border hover:border-muted-foreground"}`}
-                  >
-                    ✉️ האימייל החדש
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setEmailForm(p => ({ ...p, via: "phone" }))}
-                    className={`flex-1 flex items-center justify-center gap-2 p-3 rounded-xl border-2 text-sm font-medium transition-all ${emailForm.via === "phone" ? "border-primary bg-primary/5 text-primary" : "border-border hover:border-muted-foreground"}`}
-                  >
-                    📱 ווצאפ שלי
-                  </button>
-                </div>
-              </div>
-              <div className="flex justify-end">
-                <Button type="submit" variant="outline" disabled={emailLoading} size="lg">
-                  {emailLoading ? "שולח..." : "שלח קוד אימות"}
-                </Button>
-              </div>
-            </form>
-          ) : (
-            <form onSubmit={handleConfirmEmailChange} className="space-y-4">
-              <div className="p-3 bg-primary/5 rounded-xl text-sm text-center text-muted-foreground">
-                קוד נשלח {emailForm.via === "email" ? `לאימייל ${emailForm.newEmail}` : "לווצאפ שלך"} — תקף ל-10 דקות
-              </div>
-              <div className="space-y-2">
-                <Label>קוד אימות (6 ספרות)</Label>
-                <Input
-                  type="text"
-                  dir="ltr"
-                  inputMode="numeric"
-                  maxLength={6}
-                  placeholder="123456"
-                  required
-                  value={emailForm.code}
-                  onChange={e => setEmailForm(p => ({ ...p, code: e.target.value.replace(/\D/g, "") }))}
-                  className="text-center text-xl tracking-[0.4em] font-mono"
-                />
-              </div>
-              <div className="flex justify-between items-center">
-                <button
-                  type="button"
-                  onClick={() => { setEmailStep("idle"); setEmailForm(p => ({ ...p, code: "" })); }}
-                  className="text-sm text-muted-foreground hover:text-foreground underline underline-offset-2"
-                >
-                  חזור / שנה אימייל
-                </button>
-                <Button type="submit" disabled={emailLoading} size="lg">
-                  {emailLoading ? "מאמת..." : "אמת ועדכן אימייל"}
-                </Button>
-              </div>
-            </form>
-          )}
-        </CardContent>
-      </Card>
 
       {/* Password change card */}
       <Card>

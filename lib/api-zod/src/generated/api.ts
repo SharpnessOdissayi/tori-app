@@ -182,6 +182,7 @@ export const UpdateBusinessProfileBody = zod.object({
   name: zod.string().optional(),
   ownerName: zod.string().optional(),
   phone: zod.string().nullish(),
+  email: zod.string().email().optional(),
   bufferMinutes: zod.number().optional(),
   notificationEnabled: zod.boolean().optional(),
   notificationMessage: zod.string().nullish(),
