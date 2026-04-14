@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { db, businessesTable, servicesTable, workingHoursTable, breakTimesTable, appointmentsTable, waitlistTable, timeOffTable } from "@workspace/db";
 import { eq, and, gte, sql, count } from "drizzle-orm";
-import { sendClientCancellation, sendClientReschedule } from "../lib/whatsapp";
+import { sendClientCancellation, sendClientReschedule, sendClientConfirmation } from "../lib/whatsapp";
 import {
   UpdateBusinessProfileBody,
   CreateBusinessServiceBody,
@@ -399,11 +399,23 @@ router.patch("/business/appointments/:id/approve", requireBusinessAuth, async (r
     .update(appointmentsTable)
     .set({ status: "confirmed" })
     .where(and(eq(appointmentsTable.id, id), eq(appointmentsTable.businessId, req.business!.businessId)))
-    .returning({ id: appointmentsTable.id });
+    .returning();
 
   if (!updated) {
     res.status(404).json({ error: "Appointment not found" });
     return;
+  }
+
+  // Send confirmation to client now that business owner approved
+  const [business] = await db
+    .select({ name: businessesTable.name, slug: businessesTable.slug })
+    .from(businessesTable)
+    .where(eq(businessesTable.id, req.business!.businessId));
+
+  if (business) {
+    const [, month, day] = updated.appointmentDate.split("-");
+    const formattedDate = `${day}/${month}`;
+    sendClientConfirmation(updated.phoneNumber, updated.clientName, business.name, updated.serviceName, formattedDate, updated.appointmentTime, business.slug).catch(() => {});
   }
 
   res.json({ success: true, message: "Appointment approved" });

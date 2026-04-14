@@ -371,8 +371,10 @@ router.post("/public/:businessSlug/appointments", async (req, res): Promise<void
     notifyBusinessOwner(business.phone, clientName, business.name, service.name, formattedDate, appointmentTime, business.slug).catch(() => {});
   }
 
-  // Send confirmation to client (non-blocking)
-  sendClientConfirmation(phoneNumber, clientName, business.name, service.name, formattedDate, appointmentTime, business.slug).catch(() => {});
+  // Send confirmation to client only if appointment is immediately confirmed (non-blocking)
+  if (appointmentStatus === "confirmed") {
+    sendClientConfirmation(phoneNumber, clientName, business.name, service.name, formattedDate, appointmentTime, business.slug).catch(() => {});
+  }
 
   res.status(201).json({
     ...appointment,
