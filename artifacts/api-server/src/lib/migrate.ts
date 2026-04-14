@@ -62,6 +62,7 @@ export async function runMigrations() {
       `ALTER TABLE appointments ADD COLUMN IF NOT EXISTS reminder_morning_sent BOOLEAN NOT NULL DEFAULT FALSE`,
       "ALTER TABLE businesses ADD COLUMN IF NOT EXISTS tranzila_enabled BOOLEAN NOT NULL DEFAULT FALSE",
       "ALTER TABLE businesses ADD COLUMN IF NOT EXISTS deposit_amount_agorot INTEGER",
+      "ALTER TABLE client_businesses ADD COLUMN IF NOT EXISTS facebook_id TEXT",
     ];
 
     for (const stmt of alterations) {

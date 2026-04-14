@@ -74,7 +74,10 @@ router.post("/client/google-auth", async (req, res): Promise<void> => {
   try {
     const infoRes = await fetch(`https://oauth2.googleapis.com/tokeninfo?id_token=${credential}`);
     const info = await infoRes.json();
-    if (!infoRes.ok || !info.sub) { res.status(400).json({ error: "Google token לא תקין" }); return; }
+    const googleClientId = process.env.GOOGLE_CLIENT_ID;
+    if (!infoRes.ok || !info.sub || (googleClientId && info.aud !== googleClientId)) {
+      res.status(400).json({ error: "Google token לא תקין" }); return;
+    }
 
     const googleId = info.sub as string;
     const email = (info.email ?? "") as string;
@@ -98,11 +101,27 @@ router.post("/client/facebook-auth", async (req, res): Promise<void> => {
   if (!accessToken || !userId) { res.status(400).json({ error: "token חסר" }); return; }
 
   try {
+    // Verify the token was issued for OUR app using /debug_token
+    const appId = process.env.FACEBOOK_APP_ID;
+    const appSecret = process.env.FACEBOOK_APP_SECRET;
+    if (appId && appSecret) {
+      const debugRes = await fetch(
+        `https://graph.facebook.com/debug_token?input_token=${encodeURIComponent(accessToken)}&access_token=${appId}|${appSecret}`
+      );
+      const debug = await debugRes.json();
+      if (debug.data?.error || !debug.data?.is_valid || String(debug.data?.app_id) !== String(appId)) {
+        res.status(400).json({ error: "Facebook token לא תקין" }); return;
+      }
+    }
+
     const infoRes = await fetch(
-      `https://graph.facebook.com/${userId}?fields=id,name,email&access_token=${accessToken}`
+      `https://graph.facebook.com/${encodeURIComponent(userId)}?fields=id,name,email&access_token=${encodeURIComponent(accessToken)}`
     );
     const info = await infoRes.json();
-    if (!infoRes.ok || !info.id) { res.status(400).json({ error: "Facebook token לא תקין" }); return; }
+    // Verify token belongs to the claimed userId and no error
+    if (!infoRes.ok || info.error || !info.id || info.id !== String(userId)) {
+      res.status(400).json({ error: "Facebook token לא תקין" }); return;
+    }
 
     const facebookId = info.id as string;
     const email = (info.email ?? "") as string;
@@ -144,15 +163,23 @@ router.patch("/client/me", requireClientAuth, async (req, res): Promise<void> =>
 
 // ─── Businesses ───────────────────────────────────────────────────────────────
 
-function clientIdentifier(session: any) {
-  return session.phoneNumber
-    ? { field: "phoneNumber" as const, value: session.phoneNumber as string }
-    : { field: "googleId" as const, value: session.googleId as string };
+function clientIdentifier(session: any): { field: "phoneNumber" | "googleId" | "facebookId"; value: string } | null {
+  if (session.phoneNumber) return { field: "phoneNumber", value: session.phoneNumber as string };
+  if (session.googleId) return { field: "googleId", value: session.googleId as string };
+  if (session.facebookId) return { field: "facebookId", value: session.facebookId as string };
+  return null;
+}
+
+function identCondition(ident: NonNullable<ReturnType<typeof clientIdentifier>>) {
+  if (ident.field === "phoneNumber") return eq(clientBusinessesTable.phoneNumber, ident.value);
+  if (ident.field === "googleId") return eq(clientBusinessesTable.googleId, ident.value);
+  return eq((clientBusinessesTable as any).facebookId, ident.value);
 }
 
 router.get("/client/businesses", requireClientAuth, async (req, res): Promise<void> => {
   const session = (req as any).clientSession;
   const ident = clientIdentifier(session);
+  if (!ident) { res.json([]); return; }
 
   const rows = await db
     .select({
@@ -165,11 +192,7 @@ router.get("/client/businesses", requireClientAuth, async (req, res): Promise<vo
     })
     .from(clientBusinessesTable)
     .innerJoin(businessesTable, eq(clientBusinessesTable.businessId, businessesTable.id))
-    .where(
-      ident.field === "phoneNumber"
-        ? eq(clientBusinessesTable.phoneNumber, ident.value)
-        : eq(clientBusinessesTable.googleId, ident.value)
-    );
+    .where(identCondition(ident));
 
   res.json(rows);
 });
@@ -177,19 +200,14 @@ router.get("/client/businesses", requireClientAuth, async (req, res): Promise<vo
 router.post("/client/businesses/:slug", requireClientAuth, async (req, res): Promise<void> => {
   const session = (req as any).clientSession;
   const ident = clientIdentifier(session);
+  if (!ident) { res.status(400).json({ error: "זהות לקוח לא ידועה" }); return; }
   const { slug } = req.params;
 
   const [business] = await db.select({ id: businessesTable.id }).from(businessesTable).where(eq(businessesTable.slug, slug));
   if (!business) { res.status(404).json({ error: "עסק לא נמצא" }); return; }
 
-  // Upsert — ignore if already exists
   const existing = await db.select({ id: clientBusinessesTable.id }).from(clientBusinessesTable).where(
-    and(
-      eq(clientBusinessesTable.businessId, business.id),
-      ident.field === "phoneNumber"
-        ? eq(clientBusinessesTable.phoneNumber, ident.value)
-        : eq(clientBusinessesTable.googleId, ident.value)
-    )
+    and(eq(clientBusinessesTable.businessId, business.id), identCondition(ident))
   );
 
   if (existing.length === 0) {
@@ -197,7 +215,8 @@ router.post("/client/businesses/:slug", requireClientAuth, async (req, res): Pro
       businessId: business.id,
       phoneNumber: ident.field === "phoneNumber" ? ident.value : null,
       googleId: ident.field === "googleId" ? ident.value : null,
-    });
+      facebookId: ident.field === "facebookId" ? ident.value : null,
+    } as any);
   }
 
   res.json({ success: true });
@@ -206,18 +225,14 @@ router.post("/client/businesses/:slug", requireClientAuth, async (req, res): Pro
 router.delete("/client/businesses/:slug", requireClientAuth, async (req, res): Promise<void> => {
   const session = (req as any).clientSession;
   const ident = clientIdentifier(session);
+  if (!ident) { res.status(400).json({ error: "זהות לקוח לא ידועה" }); return; }
   const { slug } = req.params;
 
   const [business] = await db.select({ id: businessesTable.id }).from(businessesTable).where(eq(businessesTable.slug, slug));
   if (!business) { res.status(404).json({ error: "עסק לא נמצא" }); return; }
 
   await db.delete(clientBusinessesTable).where(
-    and(
-      eq(clientBusinessesTable.businessId, business.id),
-      ident.field === "phoneNumber"
-        ? eq(clientBusinessesTable.phoneNumber, ident.value)
-        : eq(clientBusinessesTable.googleId, ident.value)
-    )
+    and(eq(clientBusinessesTable.businessId, business.id), identCondition(ident))
   );
 
   res.json({ success: true });

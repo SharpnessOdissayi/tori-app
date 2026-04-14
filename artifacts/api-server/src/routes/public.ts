@@ -368,12 +368,14 @@ router.post("/public/:businessSlug/appointments", async (req, res): Promise<void
 
   // Notify business owner via WhatsApp (non-blocking)
   if (business.phone) {
-    notifyBusinessOwner(business.phone, clientName, business.name, service.name, formattedDate, appointmentTime, business.slug).catch(() => {});
+    notifyBusinessOwner(business.phone, clientName, business.name, service.name, formattedDate, appointmentTime, business.slug)
+      .catch((e: any) => console.error("[WhatsApp] notifyBusinessOwner failed:", e?.response?.data ?? e?.message));
   }
 
   // Send confirmation to client only if appointment is immediately confirmed (non-blocking)
   if (appointmentStatus === "confirmed") {
-    sendClientConfirmation(phoneNumber, clientName, business.name, service.name, formattedDate, appointmentTime, business.slug).catch(() => {});
+    sendClientConfirmation(phoneNumber, clientName, business.name, service.name, formattedDate, appointmentTime, business.slug)
+      .catch((e: any) => console.error("[WhatsApp] sendClientConfirmation failed:", e?.response?.data ?? e?.message));
   }
 
   res.status(201).json({
@@ -474,7 +476,8 @@ router.post("/public/:businessSlug/appointments/:id/cancel", async (req, res): P
   // Notify client of cancellation via WhatsApp (non-blocking)
   const [, cancelMonth, cancelDay] = appt.appointmentDate.split("-");
   const cancelFormattedDate = `${cancelDay}/${cancelMonth}`;
-  sendClientCancellation(appt.phoneNumber, appt.clientName, business?.name ?? "העסק", cancelFormattedDate, appt.appointmentTime).catch(() => {});
+  sendClientCancellation(appt.phoneNumber, appt.clientName, business?.name ?? "העסק", cancelFormattedDate, appt.appointmentTime)
+    .catch((e: any) => console.error("[WhatsApp] sendClientCancellation failed:", e?.response?.data ?? e?.message));
 
   res.json({ success: true });
 });
@@ -547,7 +550,7 @@ router.patch("/public/:businessSlug/appointments/:id/reschedule", async (req, re
     appt.clientName,
     formattedDate,
     newTime,
-  ]).catch(() => {});
+  ]).catch((e: any) => console.error("[WhatsApp] appointment_rescheduled failed:", e?.response?.data ?? e?.message));
 
   res.json({ success: true, newDate, newTime });
 });
@@ -573,8 +576,11 @@ router.get("/public/:businessSlug/next-slots", async (req, res): Promise<void> =
 
   for (let dayOffset = 0; dayOffset < 60 && results.length < count; dayOffset++) {
     const d = new Date(today);
-    d.setUTCDate(today.getUTCDate() + dayOffset);
-    const dateStr = d.toISOString().slice(0, 10);
+    d.setDate(today.getDate() + dayOffset);
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, "0");
+    const day = String(d.getDate()).padStart(2, "0");
+    const dateStr = `${year}-${month}-${day}`;
 
     const slots = await computeAvailableSlots(business.id, dateStr, service.durationMinutes, bufferMinutes);
     const now = new Date();
