@@ -35,7 +35,7 @@ export function buildTranzilaUrl(params: {
     notify_url_address:  `https://kavati.net/api/tranzila/notify`,
     TranzilaTK: NOTIFY_PASSWORD,
     nologo: "1",
-    new_process: "1",
+    newprocess: "1",
   });
   return `${base}?${p.toString()}`;
 }
@@ -68,7 +68,7 @@ function buildSubscriptionUrl(params: {
     notify_url_address:  `https://kavati.net/api/tranzila/notify`,
     TranzilaTK: NOTIFY_PASSWORD,
     nologo: "1",
-    new_process: "1",
+    newprocess: "1",
   });
   return `${base}?${p.toString()}`;
 }
