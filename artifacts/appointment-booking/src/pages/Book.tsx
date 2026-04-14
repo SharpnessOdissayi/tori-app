@@ -250,6 +250,7 @@ export default function Book() {
   const businessDescription = (business as any)?.businessDescription ?? null;
   const requirePhoneVerification = (business as any)?.requirePhoneVerification ?? false;
   const bannerPosition = (business as any)?.bannerPosition ?? "center";
+  const businessNameDir = /[\u0590-\u05FF]/.test(business?.name ?? "") ? "rtl" : "ltr";
   const galleryImagesRaw = (business as any)?.galleryImages ?? null;
   let galleryImages: string[] = [];
   try { if (galleryImagesRaw) galleryImages = JSON.parse(galleryImagesRaw); } catch {}
