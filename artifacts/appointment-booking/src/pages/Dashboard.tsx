@@ -253,114 +253,136 @@ function SubscriptionBanner() {
 }
 
 // ─────────────────────────────────────────────────────────
-// Onboarding Tour
+// Onboarding Tour — floating bubble, no overlay
 // ─────────────────────────────────────────────────────────
 const TOUR_STEPS = [
   {
-    title: "ברוך הבא לקבעתי! 👋",
-    description: "בוא נכיר את לוח הבקרה בכמה שניות. אפשר לדלג בכל שלב.",
+    emoji: "👋",
+    title: "ברוכים הבאים לקבעתי!",
     tab: null,
+    sections: [
+      { icon: "📅", name: "תורים", desc: "כל התורים שלך במקום אחד" },
+      { icon: "✂️", name: "שירותים", desc: "הגדר מה אתה מציע ובאיזה מחיר" },
+      { icon: "🕐", name: "שעות עבודה", desc: "קבע מתי אתה זמין" },
+      { icon: "🔗", name: "הגדרות", desc: "עמוד ההזמנה שלך + פרטי העסק" },
+    ],
   },
   {
-    title: "פגישות",
-    description: "כאן תראה את כל התורים הקרובים והעבר, תוכל לבטל תורים ולעקוב אחרי הסטטיסטיקות.",
+    emoji: "📅",
+    title: "תורים",
     tab: "appointments",
+    desc: "כאן מופיעים כל התורים הקרובים. תוכל לאשר, לבטל ולראות היסטוריה מלאה של לקוחות.",
   },
   {
+    emoji: "✂️",
     title: "שירותים",
-    description: "הגדר את השירותים שאתה מציע — שם, מחיר, משך זמן ותמונה. זה מה שהלקוחות יראו בעת ההזמנה.",
     tab: "services",
+    desc: "הוסף את השירותים שאתה מציע — שם, משך זמן ומחיר. הלקוחות יבחרו מהרשימה הזו בעת ההזמנה.",
   },
   {
+    emoji: "🕐",
     title: "שעות עבודה",
-    description: "קבע באילו ימים ושעות אתה זמין. הלקוחות יוכלו לקבוע רק בשעות שהגדרת.",
     tab: "hours",
+    desc: "הגדר באילו ימים ושעות אתה פתוח. הלקוחות יוכלו לקבוע רק בזמנים שקבעת.",
   },
   {
+    emoji: "🔗",
     title: "הגדרות",
-    description: "עדכן את פרטי העסק, שתף את הלינק שלך עם לקוחות, והתאם את הודעת הפתיחה.",
     tab: "settings",
+    desc: "כאן תמצא את הלינק האישי שלך לשיתוף עם לקוחות, תמונת פרופיל, צבעים ועוד.",
   },
 ];
 
 function OnboardingTour({ onComplete, onTabChange }: { onComplete: () => void; onTabChange: (tab: string) => void }) {
   const [step, setStep] = useState(0);
-
   const current = TOUR_STEPS[step];
   const isLast = step === TOUR_STEPS.length - 1;
 
   const handleNext = () => {
-    if (isLast) {
-      onComplete();
-    } else {
-      const next = step + 1;
-      setStep(next);
-      const nextTab = TOUR_STEPS[next].tab;
-      if (nextTab) onTabChange(nextTab);
-    }
+    if (isLast) { onComplete(); return; }
+    const next = step + 1;
+    setStep(next);
+    const nextTab = TOUR_STEPS[next].tab;
+    if (nextTab) onTabChange(nextTab);
   };
 
   const handleBack = () => {
-    if (step > 0) {
-      const prev = step - 1;
-      setStep(prev);
-      const prevTab = TOUR_STEPS[prev].tab;
-      if (prevTab) onTabChange(prevTab);
-    }
+    if (step === 0) return;
+    const prev = step - 1;
+    setStep(prev);
+    const prevTab = TOUR_STEPS[prev].tab;
+    if (prevTab) onTabChange(prevTab);
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
-      <div className="w-full max-w-sm bg-card rounded-2xl shadow-2xl border p-6 space-y-4 animate-in slide-in-from-bottom-4 duration-300">
-        {/* Header */}
-        <div className="flex items-start justify-between gap-3">
-          <div className="space-y-1">
-            <div className="text-xs text-muted-foreground font-medium">
-              שלב {step + 1} מתוך {TOUR_STEPS.length}
+    <div className="fixed bottom-5 left-5 z-50 w-72 animate-in slide-in-from-bottom-3 duration-300" dir="rtl">
+      {/* Bubble */}
+      <div className="bg-white rounded-2xl shadow-2xl border border-border/60 overflow-hidden">
+        {/* Top gradient strip */}
+        <div className="h-1 bg-gradient-to-l from-violet-500 to-primary" />
+
+        <div className="p-4 space-y-3">
+          {/* Header */}
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <span className="text-xl">{current.emoji}</span>
+              <span className="font-bold text-sm">{current.title}</span>
             </div>
-            <h3 className="font-bold text-lg leading-tight">{current.title}</h3>
+            <button onClick={onComplete} className="text-muted-foreground hover:text-foreground transition-colors">
+              <X className="w-4 h-4" />
+            </button>
           </div>
-          <button
-            onClick={onComplete}
-            className="text-muted-foreground hover:text-foreground shrink-0 mt-0.5"
-            title="דלג על ההדרכה"
-          >
-            <X className="w-5 h-5" />
+
+          {/* Step 0 — welcome overview */}
+          {step === 0 && "sections" in current && (
+            <div className="space-y-2">
+              <p className="text-xs text-muted-foreground">פה תוכל לנהל את העסק שלך. הנה מה שיש:</p>
+              <div className="space-y-1.5">
+                {current.sections.map((s) => (
+                  <div key={s.name} className="flex items-center gap-2 bg-muted/40 rounded-lg px-3 py-1.5">
+                    <span className="text-base">{s.icon}</span>
+                    <div>
+                      <span className="text-xs font-semibold">{s.name}</span>
+                      <span className="text-xs text-muted-foreground"> — {s.desc}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Steps 1–4 — section explanation */}
+          {step > 0 && "desc" in current && (
+            <p className="text-xs text-muted-foreground leading-relaxed">{current.desc}</p>
+          )}
+
+          {/* Progress dots */}
+          <div className="flex gap-1 justify-center pt-1">
+            {TOUR_STEPS.map((_, i) => (
+              <div key={i} className={`h-1 rounded-full transition-all duration-200 ${i === step ? "w-5 bg-primary" : "w-1.5 bg-muted-foreground/25"}`} />
+            ))}
+          </div>
+
+          {/* Nav buttons */}
+          <div className="flex gap-2">
+            {step > 0 && (
+              <Button variant="outline" size="sm" onClick={handleBack} className="gap-1 text-xs h-8">
+                <ChevronRight className="w-3.5 h-3.5" /> אחורה
+              </Button>
+            )}
+            <Button size="sm" onClick={handleNext} className="flex-1 gap-1 text-xs h-8">
+              {isLast ? "התחל! 🚀" : <>הבא <ChevronLeft className="w-3.5 h-3.5" /></>}
+            </Button>
+          </div>
+
+          <button onClick={onComplete} className="w-full text-[11px] text-muted-foreground hover:text-foreground transition-colors">
+            דלג על ההדרכה
           </button>
         </div>
-
-        {/* Description */}
-        <p className="text-sm text-muted-foreground leading-relaxed">{current.description}</p>
-
-        {/* Progress dots */}
-        <div className="flex gap-1.5 justify-center">
-          {TOUR_STEPS.map((_, i) => (
-            <div
-              key={i}
-              className={`h-1.5 rounded-full transition-all ${i === step ? "w-5 bg-primary" : "w-1.5 bg-muted-foreground/30"}`}
-            />
-          ))}
-        </div>
-
-        {/* Buttons */}
-        <div className="flex gap-2">
-          {step > 0 && (
-            <Button variant="outline" size="sm" onClick={handleBack} className="gap-1">
-              <ChevronRight className="w-4 h-4" /> אחורה
-            </Button>
-          )}
-          <Button size="sm" onClick={handleNext} className="flex-1 gap-1">
-            {isLast ? "סיים הדרכה" : <>הבא <ChevronLeft className="w-4 h-4" /></>}
-          </Button>
-        </div>
-
-        <button
-          onClick={onComplete}
-          className="w-full text-xs text-muted-foreground hover:text-foreground transition-colors"
-        >
-          דלג על ההדרכה
-        </button>
       </div>
+
+      {/* Bubble tail */}
+      <div className="absolute -bottom-2 right-6 w-4 h-4 bg-white border-b border-l border-border/60 rotate-45 shadow-sm" />
     </div>
   );
 }
