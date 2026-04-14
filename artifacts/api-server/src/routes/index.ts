@@ -7,6 +7,7 @@ import publicRouter from "./public";
 import storageRouter from "./storage";
 import clientRouter from "./client";
 import tranzilaRouter from "./tranzila";
+import subscriptionRouter from "./subscription";
 
 const router: IRouter = Router();
 
@@ -18,5 +19,6 @@ router.use(publicRouter);
 router.use(storageRouter);
 router.use(clientRouter);
 router.use(tranzilaRouter);
+router.use(subscriptionRouter);
 
 export default router;

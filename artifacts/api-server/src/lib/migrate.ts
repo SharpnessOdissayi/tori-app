@@ -72,6 +72,11 @@ export async function runMigrations() {
       "ALTER TABLE businesses ADD COLUMN IF NOT EXISTS announcement_text TEXT",
       "ALTER TABLE businesses ADD COLUMN IF NOT EXISTS announcement_valid_hours INTEGER NOT NULL DEFAULT 24",
       "ALTER TABLE businesses ADD COLUMN IF NOT EXISTS announcement_created_at TIMESTAMPTZ",
+      // Subscription billing
+      "ALTER TABLE businesses ADD COLUMN IF NOT EXISTS tranzila_token TEXT",
+      "ALTER TABLE businesses ADD COLUMN IF NOT EXISTS tranzila_token_expiry TEXT",
+      "ALTER TABLE businesses ADD COLUMN IF NOT EXISTS subscription_renew_date TIMESTAMPTZ",
+      "ALTER TABLE businesses ADD COLUMN IF NOT EXISTS subscription_cancelled_at TIMESTAMPTZ",
     ];
 
     for (const stmt of alterations) {

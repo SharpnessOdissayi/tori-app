@@ -83,6 +83,11 @@ export const businessesTable = pgTable("businesses", {
   announcementText: text("announcement_text"),
   announcementValidHours: integer("announcement_valid_hours").notNull().default(24),
   announcementCreatedAt: timestamp("announcement_created_at"),
+  // Subscription billing (Tranzila token-based)
+  tranzilaToken: text("tranzila_token"),          // stored card token for monthly charge
+  tranzilaTokenExpiry: text("tranzila_token_expiry"), // MMYY format
+  subscriptionRenewDate: timestamp("subscription_renew_date", { withTimezone: true }),
+  subscriptionCancelledAt: timestamp("subscription_cancelled_at", { withTimezone: true }),
 });
 
 export const insertBusinessSchema = createInsertSchema(businessesTable).omit({ id: true, createdAt: true });

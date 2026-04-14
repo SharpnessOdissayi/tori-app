@@ -137,28 +137,50 @@ function CopyLinkButton({ slug }: { slug: string }) {
   );
 }
 
+const API_BASE_SUB = import.meta.env.VITE_API_BASE_URL ?? "/api";
+
 function SubscriptionBanner() {
   const { data: profile } = useGetBusinessProfile();
-  const [showUpgrade, setShowUpgrade] = useState(false);
   const { data: services } = useListBusinessServices();
+  const [showUpgrade, setShowUpgrade] = useState(false);
+  const [iframeUrl, setIframeUrl] = useState<string | null>(null);
+  const [iframeLoading, setIframeLoading] = useState(false);
+  const { toast } = useToast();
 
   if (!profile) return null;
 
   const isPro = profile.subscriptionPlan !== "free";
   const servicesList = Array.isArray(services) ? services : [];
   const serviceCount = servicesList.filter(s => s.isActive).length;
+  const nearLimit = serviceCount >= FREE_SERVICE_LIMIT - 1;
+
+  const openPayment = async () => {
+    setIframeLoading(true);
+    try {
+      const token = localStorage.getItem("biz_token") || sessionStorage.getItem("biz_token");
+      const res = await fetch(`${API_BASE_SUB}/tranzila/subscription-url`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "שגיאה");
+      setIframeUrl(data.url);
+      setShowUpgrade(true);
+    } catch (err: any) {
+      toast({ title: "שגיאה בטעינת עמוד התשלום", description: err.message, variant: "destructive" });
+    } finally {
+      setIframeLoading(false);
+    }
+  };
 
   if (isPro) {
     return (
       <div className="flex items-center gap-2 px-4 py-2.5 bg-gradient-to-l from-violet-50 to-indigo-50 border border-violet-200 rounded-xl mb-4 text-sm">
         <Crown className="w-4 h-4 text-violet-600 shrink-0" />
-        <span className="text-violet-800 font-medium">מנוי {profile.subscriptionPlan === "pro" ? "פרו" : "חינמי"} פעיל</span>
+        <span className="text-violet-800 font-medium">מנוי פרו פעיל</span>
         <span className="text-violet-500 text-xs mr-auto">גישה מלאה לכל התכונות</span>
       </div>
     );
   }
-
-  const nearLimit = serviceCount >= FREE_SERVICE_LIMIT - 1;
 
   return (
     <>
@@ -175,58 +197,54 @@ function SubscriptionBanner() {
             </div>
           </div>
         </div>
-        <Button size="sm" onClick={() => setShowUpgrade(true)}
+        <Button size="sm" onClick={openPayment} disabled={iframeLoading}
           className="bg-gradient-to-l from-violet-600 to-indigo-600 hover:from-violet-700 hover:to-indigo-700 text-white gap-1.5 shrink-0">
-          <Crown className="w-3.5 h-3.5" /> שדרג לפרו — ₪100/חודש
+          <Crown className="w-3.5 h-3.5" />
+          {iframeLoading ? "טוען..." : "שדרג לפרו — ₪50 לחודש הראשון"}
         </Button>
       </div>
 
-      <Dialog open={showUpgrade} onOpenChange={setShowUpgrade}>
-        <DialogContent dir="rtl" className="max-w-md">
-          <DialogHeader>
+      {/* Payment iframe dialog */}
+      <Dialog open={showUpgrade} onOpenChange={v => { setShowUpgrade(v); if (!v) setIframeUrl(null); }}>
+        <DialogContent dir="rtl" className="max-w-lg p-0 overflow-hidden">
+          <DialogHeader className="p-5 pb-3 border-b">
             <DialogTitle className="flex items-center gap-2 text-xl">
-              <Crown className="w-6 h-6 text-violet-600" /> שדרג למנוי פרו
+              <Crown className="w-5 h-5 text-violet-600" /> שדרג למנוי פרו
             </DialogTitle>
-            <DialogDescription>הרחב את העסק שלך ללא מגבלות</DialogDescription>
+            <DialogDescription>
+              <span className="font-semibold text-violet-700">₪50</span> לחודש הראשון,
+              אחר כך <span className="font-semibold">₪100/חודש</span> — ביטול בכל עת
+            </DialogDescription>
           </DialogHeader>
 
-          <div className="space-y-5 pt-2">
-            <div className="grid grid-cols-2 gap-3">
-              <div className="border rounded-xl p-4 bg-muted/30">
-                <div className="font-bold text-lg mb-1">חינמי</div>
-                <div className="text-2xl font-bold text-muted-foreground mb-3">₪0<span className="text-sm font-normal">/חודש</span></div>
-                <ul className="text-sm space-y-1.5 text-muted-foreground">
-                  <li className="flex items-center gap-1.5"><X className="w-3.5 h-3.5 text-red-400 shrink-0" /> עד 3 שירותים</li>
-                  <li className="flex items-center gap-1.5"><X className="w-3.5 h-3.5 text-red-400 shrink-0" /> עד 20 לקוחות/חודש</li>
-                  <li className="flex items-center gap-1.5"><CheckCircle className="w-3.5 h-3.5 text-green-500 shrink-0" /> עמוד הזמנות</li>
-                  <li className="flex items-center gap-1.5"><CheckCircle className="w-3.5 h-3.5 text-green-500 shrink-0" /> לוח בקרה</li>
-                </ul>
-              </div>
-              <div className="border-2 border-violet-300 rounded-xl p-4 bg-violet-50 relative">
-                <div className="absolute -top-3 right-3">
-                  <Badge className="bg-violet-600 text-white text-xs">מומלץ</Badge>
+          <div className="px-5 py-3 bg-violet-50/50 border-b">
+            <div className="grid grid-cols-2 gap-2 text-sm">
+              {[
+                "שירותים ללא הגבלה",
+                "לקוחות ללא הגבלה",
+                "עיצוב מותאם אישית",
+                "אינטגרציות WhatsApp",
+              ].map(f => (
+                <div key={f} className="flex items-center gap-1.5 text-violet-800">
+                  <CheckCircle className="w-3.5 h-3.5 text-green-500 shrink-0" /> {f}
                 </div>
-                <div className="font-bold text-lg mb-1 text-violet-800">פרו</div>
-                <div className="text-2xl font-bold text-violet-700 mb-3">₪100<span className="text-sm font-normal">/חודש</span></div>
-                <ul className="text-sm space-y-1.5 text-violet-700">
-                  <li className="flex items-center gap-1.5"><CheckCircle className="w-3.5 h-3.5 text-green-500 shrink-0" /> שירותים ללא הגבלה</li>
-                  <li className="flex items-center gap-1.5"><CheckCircle className="w-3.5 h-3.5 text-green-500 shrink-0" /> לקוחות ללא הגבלה</li>
-                  <li className="flex items-center gap-1.5"><CheckCircle className="w-3.5 h-3.5 text-green-500 shrink-0" /> עיצוב מותאם אישית</li>
-                  <li className="flex items-center gap-1.5"><CheckCircle className="w-3.5 h-3.5 text-green-500 shrink-0" /> אינטגרציות WhatsApp</li>
-                  <li className="flex items-center gap-1.5"><CheckCircle className="w-3.5 h-3.5 text-green-500 shrink-0" /> תמיכה מועדפת</li>
-                </ul>
-              </div>
+              ))}
             </div>
+          </div>
 
-            <div className="bg-muted rounded-xl p-4 text-sm text-center text-muted-foreground">
-              לרכישת מנוי צור איתנו קשר בוואטסאפ
+          {iframeUrl && (
+            <div className="p-3">
+              <iframe
+                src={iframeUrl}
+                allow="payment"
+                style={{ width: "100%", height: 400, border: "none", borderRadius: 8 }}
+                title="תשלום מאובטח — Tranzila"
+              />
             </div>
+          )}
 
-            <a href="https://wa.me/972500000000?text=שלום%2C%20אני%20מעוניין%20לשדרג%20למנוי%20פרו%20של%20קבעתי" target="_blank" rel="noopener noreferrer">
-              <Button className="w-full gap-2 bg-green-600 hover:bg-green-700 text-white h-11 text-base">
-                <Phone className="w-5 h-5" /> צור קשר בוואטסאפ לשדרוג
-              </Button>
-            </a>
+          <div className="px-5 pb-4 text-center text-xs text-muted-foreground">
+            התשלום מאובטח ומוצפן — מופעל על ידי Tranzila
           </div>
         </DialogContent>
       </Dialog>
@@ -3002,7 +3020,126 @@ function SettingsTab() {
           </form>
         </CardContent>
       </Card>
+
+      {/* Subscription Management Card — shown only for Pro */}
+      {profile && profile.subscriptionPlan === "pro" && (
+        <SubscriptionManagementCard />
+      )}
     </div>
+  );
+}
+
+function SubscriptionManagementCard() {
+  const { data: profile } = useGetBusinessProfile();
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+  const [cancelling, setCancelling] = useState(false);
+  const [showConfirm, setShowConfirm] = useState(false);
+
+  const renewDate: Date | null = (profile as any)?.subscriptionRenewDate
+    ? new Date((profile as any).subscriptionRenewDate)
+    : null;
+  const cancelledAt: Date | null = (profile as any)?.subscriptionCancelledAt
+    ? new Date((profile as any).subscriptionCancelledAt)
+    : null;
+
+  const handleCancel = async () => {
+    setCancelling(true);
+    try {
+      const token = localStorage.getItem("biz_token") || sessionStorage.getItem("biz_token");
+      const res = await fetch(`${API_BASE_DASH}/subscription/cancel`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "שגיאה בביטול");
+      toast({ title: "המנוי בוטל", description: data.message });
+      queryClient.invalidateQueries({ queryKey: getGetBusinessProfileQueryKey() });
+      setShowConfirm(false);
+    } catch (err: any) {
+      toast({ title: "שגיאה", description: err.message, variant: "destructive" });
+    } finally {
+      setCancelling(false);
+    }
+  };
+
+  return (
+    <>
+      <Card className="border-violet-200">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Crown className="w-5 h-5 text-violet-600" /> ניהול מנוי פרו
+          </CardTitle>
+          <CardDescription>הגדרות חיוב חודשי אוטומטי</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="flex items-center justify-between p-4 border rounded-xl bg-violet-50/50">
+            <div>
+              <div className="font-medium text-sm text-violet-900">מנוי פרו פעיל</div>
+              {renewDate && !cancelledAt && (
+                <div className="text-xs text-muted-foreground mt-0.5">
+                  חידוש אוטומטי ב-{format(renewDate, "d בMMM yyyy", { locale: he })} — ₪100
+                </div>
+              )}
+              {cancelledAt && renewDate && (
+                <div className="text-xs text-amber-600 mt-0.5">
+                  מבוטל — גישה לפרו בתוקף עד {format(renewDate, "d בMMM yyyy", { locale: he })}
+                </div>
+              )}
+            </div>
+            <Badge className={cancelledAt ? "bg-amber-100 text-amber-700 border-amber-200" : "bg-violet-100 text-violet-700 border-violet-200"}>
+              {cancelledAt ? "מבוטל" : "פעיל"}
+            </Badge>
+          </div>
+
+          {!cancelledAt && (
+            <Button
+              variant="outline"
+              size="sm"
+              className="text-red-600 border-red-200 hover:bg-red-50 hover:border-red-300"
+              onClick={() => setShowConfirm(true)}
+            >
+              <X className="w-4 h-4 ml-1" /> בטל מנוי
+            </Button>
+          )}
+
+          {cancelledAt && (
+            <p className="text-xs text-muted-foreground">
+              לחידוש המנוי לאחר הפקיעה, פתח שדרוג חדש מהבאנר למעלה.
+            </p>
+          )}
+        </CardContent>
+      </Card>
+
+      <Dialog open={showConfirm} onOpenChange={setShowConfirm}>
+        <DialogContent dir="rtl" className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>לבטל את המנוי?</DialogTitle>
+            <DialogDescription>
+              לא תחויב יותר. גישה לפרו תישמר עד תאריך החידוש הקרוב
+              {renewDate ? ` (${format(renewDate, "d בMMM", { locale: he })})` : ""}.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex gap-2 pt-2">
+            <Button
+              variant="outline"
+              className="flex-1"
+              onClick={() => setShowConfirm(false)}
+              disabled={cancelling}
+            >
+              לא, המשך
+            </Button>
+            <Button
+              className="flex-1 bg-red-600 hover:bg-red-700 text-white"
+              onClick={handleCancel}
+              disabled={cancelling}
+            >
+              {cancelling ? "מבטל..." : "כן, בטל"}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }
 
