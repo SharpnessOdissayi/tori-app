@@ -46,11 +46,11 @@ export async function sendTemplate(
   if (parameters.length) {
     components.push({
       type: "body",
-      parameters: parameters.map((text) => ({ type: "text", text })),
+      parameters: parameters.map((text) => ({ type: "text", text: text || "-" })),
     });
   }
 
-  if (buttonUrlSuffix !== undefined) {
+  if (buttonUrlSuffix) {
     components.push({
       type: "button",
       sub_type: "url",

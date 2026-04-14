@@ -5,3 +5,5 @@ export * from "./break-times";
 export * from "./appointments";
 export * from "./waitlist";
 export * from "./time-off";
+export * from "./client-sessions";
+export * from "./client-businesses";

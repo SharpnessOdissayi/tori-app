@@ -1,38 +1,24 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useLocation } from "wouter";
-import { motion, AnimatePresence } from "framer-motion";
-import { Home, CalendarDays, Plus, Bell, Menu, X, ChevronRight, Clock, MapPin, Phone, LogOut, Calendar } from "lucide-react";
+import { Home, CalendarDays, Plus, LogOut, Trash2, Edit2, X, ChevronLeft, User } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
-const STORAGE_KEY = "kavati_client_phone";
-const PRIMARY = "#7C3AED";
+const API = import.meta.env.VITE_API_BASE_URL ?? "/api";
+const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID ?? "";
+const TOKEN_KEY = "kavati_client_token";
 
-function formatDuration(minutes: number): string {
-  if (minutes < 60) return `${minutes} דקות`;
-  const h = Math.floor(minutes / 60);
-  const m = minutes % 60;
-  if (h === 1 && m === 0) return "שעה";
-  if (h === 1 && m > 0) return `שעה ו-${m} דקות`;
-  if (m === 0) return `${h} שעות`;
-  return `${h} שעות ו-${m} דקות`;
-}
+// ─── Types ────────────────────────────────────────────────────────────────────
 
+type ClientSession = { clientName: string; phone: string | null; email: string | null };
 
-function formatDate(dateStr: string): string {
-  const [year, month, day] = dateStr.split("-");
-  return `${day}/${month}/${year}`;
-}
-
-function formatDateShort(dateStr: string): string {
-  const [, month, day] = dateStr.split("-");
-  return `${day}/${month}`;
-}
-
-function isUpcoming(dateStr: string, timeStr: string): boolean {
-  const now = new Date();
-  const apptDate = new Date(`${dateStr}T${timeStr}:00`);
-  return apptDate > now;
-}
+type Business = {
+  businessId: number;
+  name: string;
+  slug: string;
+  logoUrl?: string | null;
+  primaryColor?: string | null;
+  address?: string | null;
+};
 
 type Appointment = {
   id: number;
@@ -42,355 +28,482 @@ type Appointment = {
   appointmentTime: string;
   durationMinutes: number;
   status: string;
-  notes?: string;
-  businessId: number;
   businessName: string;
   businessSlug: string;
-  businessLogoUrl?: string;
-  businessPrimaryColor?: string;
+  businessLogoUrl?: string | null;
+  businessPrimaryColor?: string | null;
 };
 
-const API_BASE = (import.meta as any).env?.VITE_API_BASE_URL ?? "/api";
+// ─── Helpers ──────────────────────────────────────────────────────────────────
 
-export default function ClientPortal() {
-  const [phone, setPhone] = useState(() => localStorage.getItem(STORAGE_KEY) ?? "");
-  const [inputPhone, setInputPhone] = useState("");
-  const [isLoggedIn, setIsLoggedIn] = useState(() => !!localStorage.getItem(STORAGE_KEY));
-  const [activeTab, setActiveTab] = useState<"home" | "appointments">("home");
-  const [appointmentTab, setAppointmentTab] = useState<"upcoming" | "history" | "cancelled">("upcoming");
-  const [appointments, setAppointments] = useState<Appointment[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [menuOpen, setMenuOpen] = useState(false);
-  const [, navigate] = useLocation();
-  const { toast } = useToast();
+function authHeaders() {
+  const token = localStorage.getItem(TOKEN_KEY);
+  return token ? { "x-client-token": token } : {};
+}
 
-  // Fetch appointments when logged in
-  useEffect(() => {
-    if (!isLoggedIn || !phone) return;
-    setLoading(true);
-    fetch(`${API_BASE}/client/appointments?phone=${encodeURIComponent(phone)}`)
-      .then(r => r.json())
-      .then(data => {
-        if (Array.isArray(data)) setAppointments(data);
-      })
-      .catch(() => toast({ title: "שגיאה", description: "לא ניתן לטעון תורים", variant: "destructive" }))
-      .finally(() => setLoading(false));
-  }, [isLoggedIn, phone]);
+function formatDate(d: string) {
+  const [y, m, day] = d.split("-");
+  const date = new Date(Number(y), Number(m) - 1, Number(day));
+  const days = ["ראשון", "שני", "שלישי", "רביעי", "חמישי", "שישי", "שבת"];
+  return `${days[date.getDay()]}, ${day}/${m}/${y}`;
+}
 
-  const handleLogin = () => {
-    const cleaned = inputPhone.trim().replace(/\D/g, "");
-    if (!cleaned || cleaned.length < 9) {
-      toast({ title: "מספר טלפון לא תקין", variant: "destructive" });
-      return;
-    }
-    const formatted = cleaned.startsWith("972") ? `0${cleaned.slice(3)}` : cleaned.startsWith("0") ? cleaned : `0${cleaned}`;
-    localStorage.setItem(STORAGE_KEY, formatted);
-    setPhone(formatted);
-    setIsLoggedIn(true);
-  };
+function isUpcoming(date: string, time: string) {
+  return new Date(`${date}T${time}:00`) > new Date();
+}
 
-  const handleLogout = () => {
-    localStorage.removeItem(STORAGE_KEY);
-    setPhone("");
-    setIsLoggedIn(false);
-    setAppointments([]);
-    setMenuOpen(false);
-  };
-
-  // Derived data
-  const upcoming = useMemo(() => appointments.filter(a => a.status !== "cancelled" && isUpcoming(a.appointmentDate, a.appointmentTime)), [appointments]);
-  const history = useMemo(() => appointments.filter(a => a.status !== "cancelled" && !isUpcoming(a.appointmentDate, a.appointmentTime)), [appointments]);
-  const cancelled = useMemo(() => appointments.filter(a => a.status === "cancelled"), [appointments]);
-
-  const businesses = useMemo(() => {
-    const seen = new Set<number>();
-    return appointments.filter(a => {
-      if (seen.has(a.businessId)) return false;
-      seen.add(a.businessId);
-      return true;
-    });
-  }, [appointments]);
-
-  const nextAppt = upcoming[0];
-
-  // ── Login screen ────────────────────────────────────────────────────────────
-  if (!isLoggedIn) {
-    return (
-      <div dir="rtl" className="min-h-screen flex flex-col items-center justify-center bg-gray-50 px-6" style={{ fontFamily: "Heebo, sans-serif" }}>
-        <div className="w-full max-w-sm space-y-8">
-          {/* Logo */}
-          <div className="text-center space-y-2">
-            <div className="w-16 h-16 rounded-2xl mx-auto flex items-center justify-center" style={{ backgroundColor: PRIMARY }}>
-              <Calendar className="w-8 h-8 text-white" />
-            </div>
-            <h1 className="text-2xl font-bold text-gray-900">ברוכים הבאים</h1>
-            <p className="text-gray-500 text-sm">הזן את מספר הטלפון שלך לצפייה בתורים</p>
-          </div>
-
-          {/* Phone input */}
-          <div className="space-y-3">
-            <div className="relative">
-              <Phone className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-              <input
-                type="tel"
-                value={inputPhone}
-                onChange={e => setInputPhone(e.target.value)}
-                onKeyDown={e => e.key === "Enter" && handleLogin()}
-                placeholder="05X-XXXXXXX"
-                dir="ltr"
-                className="w-full h-14 rounded-2xl border border-gray-200 bg-white pr-10 pl-4 text-base text-center focus:outline-none focus:ring-2 focus:border-transparent"
-                style={{ "--tw-ring-color": PRIMARY } as any}
-              />
-            </div>
-            <button
-              onClick={handleLogin}
-              className="w-full h-14 rounded-2xl text-white font-bold text-base transition-opacity hover:opacity-90"
-              style={{ backgroundColor: PRIMARY }}
-            >
-              כניסה
-            </button>
-          </div>
-
-          <p className="text-center text-xs text-gray-400">
-            מנהל עסק?{" "}
-            <button onClick={() => navigate("/dashboard")} className="underline" style={{ color: PRIMARY }}>
-              כנס לפאנל הניהול
-            </button>
-          </p>
-        </div>
-      </div>
-    );
-  }
-
-  // ── Appointment card ─────────────────────────────────────────────────────────
-  const AppointmentCard = ({ appt }: { appt: Appointment }) => {
-    const upcoming = isUpcoming(appt.appointmentDate, appt.appointmentTime);
-    return (
-      <div className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100 space-y-3">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <div className="w-9 h-9 rounded-xl flex items-center justify-center text-white text-sm font-bold" style={{ backgroundColor: appt.businessPrimaryColor ?? PRIMARY }}>
-              {appt.businessName.charAt(0)}
-            </div>
-            <div>
-              <div className="font-semibold text-sm text-gray-900" dir="ltr">{renderBizName(appt.businessName)}</div>
-              <div className="text-xs text-gray-500">{appt.serviceName}</div>
-            </div>
-          </div>
-          <span className={`text-xs px-2 py-1 rounded-full font-medium ${appt.status === "cancelled" ? "bg-red-50 text-red-600" : upcoming ? "bg-green-50 text-green-700" : "bg-gray-100 text-gray-500"}`}>
-            {appt.status === "cancelled" ? "בוטל" : upcoming ? "קרוב" : "עבר"}
-          </span>
-        </div>
-        <div className="flex items-center gap-4 text-sm text-gray-600">
-          <div className="flex items-center gap-1">
-            <CalendarDays className="w-4 h-4" />
-            <span>{formatDate(appt.appointmentDate)}</span>
-          </div>
-          <div className="flex items-center gap-1">
-            <Clock className="w-4 h-4" />
-            <span dir="ltr">{appt.appointmentTime}</span>
-          </div>
-          <div className="text-xs text-gray-400">{formatDuration(appt.durationMinutes)}</div>
-        </div>
-        {upcoming && appt.status !== "cancelled" && (
-          <button
-            onClick={() => navigate(`/book/${appt.businessSlug}`)}
-            className="w-full text-center text-xs py-2 rounded-xl border font-medium transition-colors hover:bg-gray-50"
-            style={{ borderColor: PRIMARY, color: PRIMARY }}
-          >
-            קביעה מחדש / ביטול
-          </button>
-        )}
-      </div>
-    );
-  };
-
-  // ── Main app ─────────────────────────────────────────────────────────────────
+function BusinessAvatar({ biz, size = 56 }: { biz: { name: string; logoUrl?: string | null; primaryColor?: string | null }; size?: number }) {
+  if (biz.logoUrl) return (
+    <img src={biz.logoUrl} alt={biz.name} className="rounded-full object-cover border-2 border-white shadow"
+      style={{ width: size, height: size }} />
+  );
+  const initials = biz.name.slice(0, 2);
+  const color = biz.primaryColor ?? "#7C3AED";
   return (
-    <div dir="rtl" className="min-h-screen bg-gray-50 flex flex-col" style={{ fontFamily: "Heebo, sans-serif", maxWidth: 480, margin: "0 auto" }}>
-      {/* Header */}
-      <div className="flex items-center justify-between px-5 pt-12 pb-4 bg-white border-b border-gray-100">
-        <button onClick={() => setMenuOpen(true)}>
-          <Menu className="w-6 h-6 text-gray-700" />
-        </button>
-        <h1 className="font-bold text-lg text-gray-900">
-          {activeTab === "home" ? "דף הבית" : "כל התורים"}
-        </h1>
-        <button className="relative">
-          <Bell className="w-6 h-6 text-gray-700" />
-        </button>
-      </div>
-
-      {/* Content */}
-      <div className="flex-1 overflow-y-auto pb-24">
-        <AnimatePresence mode="wait">
-          {/* ── HOME TAB ── */}
-          {activeTab === "home" && (
-            <motion.div key="home" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="space-y-6 px-5 pt-5">
-
-              {/* Next appointment hero */}
-              {nextAppt && (
-                <div className="rounded-3xl p-5 text-white space-y-3" style={{ background: `linear-gradient(135deg, ${PRIMARY}, #9F67FF)` }}>
-                  <div className="text-xs opacity-80">התור הקרוב שלך</div>
-                  <div className="font-bold text-xl" dir="ltr">{renderBizName(nextAppt.businessName)}</div>
-                  <div className="text-sm opacity-90">{nextAppt.serviceName}</div>
-                  <div className="flex items-center gap-4 text-sm">
-                    <div className="flex items-center gap-1">
-                      <CalendarDays className="w-4 h-4" />
-                      {formatDateShort(nextAppt.appointmentDate)}
-                    </div>
-                    <div className="flex items-center gap-1">
-                      <Clock className="w-4 h-4" />
-                      <span dir="ltr">{nextAppt.appointmentTime}</span>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {!nextAppt && !loading && (
-                <div className="rounded-3xl p-5 text-center text-gray-400 bg-white border border-gray-100 space-y-2">
-                  <CalendarDays className="w-8 h-8 mx-auto opacity-40" />
-                  <div className="text-sm">אין תורים קרובים</div>
-                </div>
-              )}
-
-              {/* My businesses */}
-              {businesses.length > 0 && (
-                <div className="space-y-3">
-                  <h2 className="font-bold text-gray-900">מעגל העסקים שלך</h2>
-                  <div className="flex gap-4 overflow-x-auto pb-2 no-scrollbar">
-                    {businesses.map(b => (
-                      <button key={b.businessId} onClick={() => navigate(`/book/${b.businessSlug}`)} className="flex flex-col items-center gap-1 flex-shrink-0">
-                        <div className="w-14 h-14 rounded-2xl flex items-center justify-center text-white font-bold text-lg shadow-sm" style={{ backgroundColor: b.businessPrimaryColor ?? PRIMARY }}>
-                          {b.businessName.charAt(0)}
-                        </div>
-                        <span className="text-xs text-gray-600 max-w-[56px] truncate" dir="ltr">{renderBizName(b.businessName)}</span>
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* Upcoming list */}
-              {upcoming.length > 0 && (
-                <div className="space-y-3">
-                  <div className="flex items-center justify-between">
-                    <h2 className="font-bold text-gray-900">הפגישות הבאות</h2>
-                    <button onClick={() => setActiveTab("appointments")} className="text-xs flex items-center gap-0.5" style={{ color: PRIMARY }}>
-                      הכל <ChevronRight className="w-3 h-3" />
-                    </button>
-                  </div>
-                  <div className="space-y-3">
-                    {upcoming.slice(0, 3).map(a => <AppointmentCard key={a.id} appt={a} />)}
-                  </div>
-                </div>
-              )}
-
-              {loading && (
-                <div className="flex justify-center py-8">
-                  <div className="w-8 h-8 rounded-full border-2 border-t-transparent animate-spin" style={{ borderColor: PRIMARY, borderTopColor: "transparent" }} />
-                </div>
-              )}
-            </motion.div>
-          )}
-
-          {/* ── APPOINTMENTS TAB ── */}
-          {activeTab === "appointments" && (
-            <motion.div key="appointments" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="space-y-4 pt-5">
-              {/* Tabs */}
-              <div className="flex px-5 gap-2">
-                {(["upcoming", "history", "cancelled"] as const).map(tab => (
-                  <button
-                    key={tab}
-                    onClick={() => setAppointmentTab(tab)}
-                    className={`flex-1 py-2 rounded-xl text-sm font-medium transition-colors ${appointmentTab === tab ? "text-white" : "bg-white text-gray-500 border border-gray-200"}`}
-                    style={appointmentTab === tab ? { backgroundColor: PRIMARY } : {}}
-                  >
-                    {tab === "upcoming" ? "הבאות" : tab === "history" ? "היסטוריה" : "מבוטלים"}
-                  </button>
-                ))}
-              </div>
-
-              <div className="px-5 space-y-3">
-                {appointmentTab === "upcoming" && (upcoming.length === 0 ? <Empty text="אין פגישות עתידיות" /> : upcoming.map(a => <AppointmentCard key={a.id} appt={a} />))}
-                {appointmentTab === "history" && (history.length === 0 ? <Empty text="אין היסטוריית פגישות" /> : history.map(a => <AppointmentCard key={a.id} appt={a} />))}
-                {appointmentTab === "cancelled" && (cancelled.length === 0 ? <Empty text="אין פגישות מבוטלות" /> : cancelled.map(a => <AppointmentCard key={a.id} appt={a} />))}
-              </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
-      </div>
-
-      {/* Bottom navigation */}
-      <div className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-[480px] bg-white border-t border-gray-100 flex items-center justify-around px-4 py-3 z-10">
-        <NavBtn icon={<Home className="w-5 h-5" />} label="בית" active={activeTab === "home"} onClick={() => setActiveTab("home")} color={PRIMARY} />
-        <NavBtn icon={<CalendarDays className="w-5 h-5" />} label="כל התורים" active={activeTab === "appointments"} onClick={() => setActiveTab("appointments")} color={PRIMARY} />
-        <button
-          onClick={() => businesses[0] && navigate(`/book/${businesses[0].businessSlug}`)}
-          className="w-14 h-14 -mt-6 rounded-2xl flex items-center justify-center text-white shadow-lg"
-          style={{ backgroundColor: PRIMARY }}
-        >
-          <Plus className="w-6 h-6" />
-        </button>
-        <div className="w-14" />
-        <div className="w-14" />
-      </div>
-
-      {/* Side menu */}
-      <AnimatePresence>
-        {menuOpen && (
-          <>
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 0.4 }} exit={{ opacity: 0 }} className="fixed inset-0 bg-black z-20" onClick={() => setMenuOpen(false)} />
-            <motion.div initial={{ x: 300 }} animate={{ x: 0 }} exit={{ x: 300 }} transition={{ type: "spring", damping: 25 }} className="fixed top-0 right-0 h-full w-72 bg-white z-30 shadow-2xl flex flex-col">
-              <div className="flex items-center justify-between px-5 pt-12 pb-6 border-b border-gray-100">
-                <div>
-                  <div className="font-bold text-gray-900">{appointments[0]?.clientName ?? "הפרופיל שלי"}</div>
-                  <div className="text-sm text-gray-500 mt-0.5" dir="ltr">{phone}</div>
-                </div>
-                <button onClick={() => setMenuOpen(false)}>
-                  <X className="w-5 h-5 text-gray-500" />
-                </button>
-              </div>
-              <div className="flex-1 py-4">
-                <MenuItem icon="🏠" label="בית" onClick={() => { setActiveTab("home"); setMenuOpen(false); }} />
-                <MenuItem icon="📅" label="כל התורים" onClick={() => { setActiveTab("appointments"); setMenuOpen(false); }} />
-              </div>
-              <div className="border-t border-gray-100 p-4">
-                <button onClick={handleLogout} className="flex items-center gap-3 text-red-500 text-sm font-medium w-full px-3 py-3">
-                  <LogOut className="w-4 h-4" /> התנתק
-                </button>
-              </div>
-            </motion.div>
-          </>
-        )}
-      </AnimatePresence>
+    <div className="rounded-full flex items-center justify-center font-bold text-white shadow border-2 border-white"
+      style={{ width: size, height: size, background: color, fontSize: size * 0.32 }}>
+      {initials}
     </div>
   );
 }
 
-function NavBtn({ icon, label, active, onClick, color }: { icon: React.ReactNode; label: string; active: boolean; onClick: () => void; color: string }) {
+// ─── Login Screen ─────────────────────────────────────────────────────────────
+
+function LoginScreen({ onLogin }: { onLogin: (token: string, name: string) => void }) {
+  const [phone, setPhone] = useState("");
+  const [code, setCode] = useState("");
+  const [step, setStep] = useState<"phone" | "otp">("phone");
+  const [loading, setLoading] = useState(false);
+  const { toast } = useToast();
+
+  const sendOtp = async () => {
+    if (!phone.trim()) { toast({ title: "הכנס מספר טלפון", variant: "destructive" }); return; }
+    setLoading(true);
+    try {
+      const res = await fetch(`${API}/client/send-otp`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ phone: phone.trim() }),
+      });
+      if (!res.ok) throw new Error();
+      setStep("otp");
+      toast({ title: "קוד נשלח לווצאפ שלך" });
+    } catch { toast({ title: "שגיאה בשליחת קוד", variant: "destructive" }); }
+    finally { setLoading(false); }
+  };
+
+  const verifyOtp = async () => {
+    if (!code.trim()) return;
+    setLoading(true);
+    try {
+      const res = await fetch(`${API}/client/verify-otp`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ phone: phone.trim(), code: code.trim() }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+      localStorage.setItem(TOKEN_KEY, data.token);
+      onLogin(data.token, data.clientName);
+    } catch (e: any) { toast({ title: e?.message ?? "קוד שגוי", variant: "destructive" }); }
+    finally { setLoading(false); }
+  };
+
+  const handleGoogle = useCallback(() => {
+    if (!GOOGLE_CLIENT_ID) {
+      toast({ title: "Google OAuth לא מוגדר", description: "יש להגדיר VITE_GOOGLE_CLIENT_ID", variant: "destructive" });
+      return;
+    }
+    (window as any).google?.accounts?.id?.prompt?.();
+  }, []);
+
+  useEffect(() => {
+    if (!GOOGLE_CLIENT_ID) return;
+    const handleCredential = async (response: any) => {
+      setLoading(true);
+      try {
+        const res = await fetch(`${API}/client/google-auth`, {
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ credential: response.credential }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error);
+        localStorage.setItem(TOKEN_KEY, data.token);
+        onLogin(data.token, data.clientName);
+      } catch (e: any) { toast({ title: e?.message ?? "שגיאת Google", variant: "destructive" }); }
+      finally { setLoading(false); }
+    };
+
+    const init = () => {
+      (window as any).google?.accounts?.id?.initialize({
+        client_id: GOOGLE_CLIENT_ID,
+        callback: handleCredential,
+      });
+    };
+
+    if ((window as any).google?.accounts?.id) { init(); }
+    else {
+      const script = document.createElement("script");
+      script.src = "https://accounts.google.com/gsi/client";
+      script.onload = init;
+      document.head.appendChild(script);
+    }
+  }, [onLogin]);
+
   return (
-    <button onClick={onClick} className="flex flex-col items-center gap-0.5 w-14">
-      <span style={{ color: active ? color : "#9CA3AF" }}>{icon}</span>
-      <span className="text-[10px]" style={{ color: active ? color : "#9CA3AF" }}>{label}</span>
-    </button>
+    <div className="min-h-screen flex flex-col items-center justify-center bg-gradient-to-br from-violet-50 to-indigo-100 p-6" dir="rtl">
+      <div className="w-full max-w-sm bg-white rounded-3xl shadow-xl p-8 space-y-6">
+        <div className="text-center space-y-1">
+          <div className="text-4xl mb-3">📅</div>
+          <h1 className="text-2xl font-bold text-gray-900">ברוכים הבאים</h1>
+          <p className="text-sm text-gray-500">התחברו לניהול התורים שלכם</p>
+        </div>
+
+        {step === "phone" ? (
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-gray-700">מספר טלפון</label>
+              <input
+                type="tel" dir="ltr" value={phone}
+                onChange={e => setPhone(e.target.value)}
+                onKeyDown={e => e.key === "Enter" && sendOtp()}
+                placeholder="050-0000000"
+                className="w-full rounded-xl border border-gray-200 px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500 text-center"
+              />
+            </div>
+            <button onClick={sendOtp} disabled={loading}
+              className="w-full py-3 rounded-xl bg-violet-600 text-white font-semibold text-sm hover:bg-violet-700 disabled:opacity-50 transition-all">
+              {loading ? "שולח..." : "שלח קוד WhatsApp"}
+            </button>
+          </div>
+        ) : (
+          <div className="space-y-4">
+            <div className="p-3 bg-violet-50 rounded-xl text-center text-sm text-violet-700">
+              קוד נשלח לווצאפ {phone}
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-gray-700">קוד אימות</label>
+              <input
+                type="text" dir="ltr" inputMode="numeric" maxLength={6} value={code}
+                onChange={e => setCode(e.target.value.replace(/\D/g, ""))}
+                onKeyDown={e => e.key === "Enter" && verifyOtp()}
+                placeholder="123456"
+                className="w-full rounded-xl border border-gray-200 px-4 py-3 text-xl font-mono text-center tracking-widest focus:outline-none focus:ring-2 focus:ring-violet-500"
+                autoFocus
+              />
+            </div>
+            <button onClick={verifyOtp} disabled={loading}
+              className="w-full py-3 rounded-xl bg-violet-600 text-white font-semibold text-sm hover:bg-violet-700 disabled:opacity-50 transition-all">
+              {loading ? "מאמת..." : "כניסה"}
+            </button>
+            <button onClick={() => { setStep("phone"); setCode(""); }}
+              className="w-full text-sm text-gray-500 hover:text-gray-700 underline">
+              חזור
+            </button>
+          </div>
+        )}
+
+        <div className="relative flex items-center">
+          <div className="flex-1 border-t border-gray-200" />
+          <span className="px-3 text-xs text-gray-400">או</span>
+          <div className="flex-1 border-t border-gray-200" />
+        </div>
+
+        <button onClick={handleGoogle} disabled={loading}
+          className="w-full flex items-center justify-center gap-3 py-3 rounded-xl border-2 border-gray-200 hover:border-gray-300 bg-white text-sm font-medium text-gray-700 transition-all hover:bg-gray-50">
+          <svg width="18" height="18" viewBox="0 0 48 48">
+            <path fill="#FFC107" d="M43.6 20H24v8h11.3C33.6 33.1 29.3 36 24 36c-6.6 0-12-5.4-12-12s5.4-12 12-12c3 0 5.7 1.1 7.8 2.9l5.7-5.7C34.1 6.5 29.3 4 24 4 12.9 4 4 12.9 4 24s8.9 20 20 20c11 0 20-9 20-20 0-1.3-.1-2.7-.4-4z" />
+            <path fill="#FF3D00" d="M6.3 14.7l6.6 4.8C14.5 15.1 18.9 12 24 12c3 0 5.7 1.1 7.8 2.9l5.7-5.7C34.1 6.5 29.3 4 24 4 16.3 4 9.7 8.3 6.3 14.7z" />
+            <path fill="#4CAF50" d="M24 44c5.2 0 9.9-1.9 13.5-5l-6.2-5.2C29.3 35.3 26.8 36 24 36c-5.2 0-9.5-2.9-11.3-7H6.2C9.6 38.6 16.3 44 24 44z" />
+            <path fill="#1976D2" d="M43.6 20H24v8h11.3c-.8 2.3-2.3 4.3-4.3 5.8l6.2 5.2C40.9 35.7 44 30.3 44 24c0-1.3-.1-2.7-.4-4z" />
+          </svg>
+          כניסה עם Google
+        </button>
+      </div>
+    </div>
   );
 }
 
-function MenuItem({ icon, label, onClick }: { icon: string; label: string; onClick: () => void }) {
-  return (
-    <button onClick={onClick} className="flex items-center gap-3 w-full px-5 py-3 text-gray-700 hover:bg-gray-50 text-sm font-medium">
-      <span className="text-lg">{icon}</span>
-      {label}
-    </button>
-  );
-}
+// ─── Portal ───────────────────────────────────────────────────────────────────
 
-function Empty({ text }: { text: string }) {
+type Tab = "home" | "appointments";
+
+export default function ClientPortal() {
+  const [, navigate] = useLocation();
+  const { toast } = useToast();
+  const [token, setToken] = useState<string | null>(localStorage.getItem(TOKEN_KEY));
+  const [session, setSession] = useState<ClientSession | null>(null);
+  const [businesses, setBusinesses] = useState<Business[]>([]);
+  const [appointments, setAppointments] = useState<Appointment[]>([]);
+  const [tab, setTab] = useState<Tab>("home");
+  const [editMode, setEditMode] = useState(false);
+  const [profileOpen, setProfileOpen] = useState(false);
+  const [profileName, setProfileName] = useState("");
+  const [profilePhone, setProfilePhone] = useState("");
+  const [loading, setLoading] = useState(false);
+
+  const logout = () => {
+    localStorage.removeItem(TOKEN_KEY);
+    setToken(null);
+    setSession(null);
+  };
+
+  const handleLogin = (newToken: string, name: string) => {
+    setToken(newToken);
+    setSession({ clientName: name, phone: null, email: null });
+  };
+
+  // Load session data
+  useEffect(() => {
+    if (!token) return;
+    fetch(`${API}/client/me`, { headers: { ...authHeaders() } })
+      .then(r => r.ok ? r.json() : Promise.reject())
+      .then(data => {
+        setSession(data);
+        setProfileName(data.clientName ?? "");
+        setProfilePhone(data.phone ?? "");
+      })
+      .catch(logout);
+  }, [token]);
+
+  // Load businesses
+  const loadBusinesses = useCallback(() => {
+    if (!token) return;
+    fetch(`${API}/client/businesses`, { headers: { ...authHeaders() } })
+      .then(r => r.json()).then(setBusinesses).catch(() => {});
+  }, [token]);
+
+  // Load appointments
+  const loadAppointments = useCallback(() => {
+    if (!token) return;
+    fetch(`${API}/client/appointments`, { headers: { ...authHeaders() } })
+      .then(r => r.json()).then(setAppointments).catch(() => {});
+  }, [token]);
+
+  useEffect(() => { loadBusinesses(); }, [loadBusinesses]);
+  useEffect(() => { if (tab === "appointments") loadAppointments(); }, [tab, loadAppointments]);
+
+  const removeBusiness = async (slug: string) => {
+    await fetch(`${API}/client/businesses/${slug}`, { method: "DELETE", headers: { ...authHeaders() } });
+    loadBusinesses();
+  };
+
+  const cancelAppointment = async (id: number) => {
+    if (!confirm("לבטל את התור?")) return;
+    const res = await fetch(`${API}/client/appointments/${id}/cancel`, { method: "PATCH", headers: { ...authHeaders() } });
+    if (res.ok) { toast({ title: "התור בוטל" }); loadAppointments(); }
+    else toast({ title: "שגיאה בביטול", variant: "destructive" });
+  };
+
+  const saveProfile = async () => {
+    setLoading(true);
+    const res = await fetch(`${API}/client/me`, {
+      method: "PATCH", headers: { "Content-Type": "application/json", ...authHeaders() },
+      body: JSON.stringify({ clientName: profileName, phone: profilePhone }),
+    });
+    setLoading(false);
+    if (res.ok) { toast({ title: "פרטים עודכנו" }); setProfileOpen(false); setSession(s => s ? { ...s, clientName: profileName, phone: profilePhone } : s); }
+    else toast({ title: "שגיאה", variant: "destructive" });
+  };
+
+  if (!token) return <LoginScreen onLogin={handleLogin} />;
+  if (!session) return <div className="min-h-screen flex items-center justify-center" dir="rtl"><div className="text-gray-400">טוען...</div></div>;
+
+  const upcoming = appointments.filter(a => a.status !== "cancelled" && isUpcoming(a.appointmentDate, a.appointmentTime));
+  const past = appointments.filter(a => !isUpcoming(a.appointmentDate, a.appointmentTime) || a.status === "cancelled");
+
   return (
-    <div className="flex flex-col items-center py-12 gap-3 text-gray-400">
-      <CalendarDays className="w-10 h-10 opacity-30" />
-      <span className="text-sm">{text}</span>
+    <div className="min-h-screen bg-gray-50 flex flex-col max-w-md mx-auto relative" dir="rtl">
+
+      {/* Header */}
+      <div className="bg-white border-b px-4 py-3 flex items-center justify-between sticky top-0 z-10">
+        <div>
+          <p className="font-bold text-base text-gray-900">
+            {session.clientName ? `שלום, ${session.clientName.split(" ")[0]}!` : "פורטל לקוח"}
+          </p>
+          <p className="text-xs text-gray-400">{session.phone ?? session.email ?? ""}</p>
+        </div>
+        <div className="flex gap-2">
+          <button onClick={() => { setProfileOpen(true); }}
+            className="w-9 h-9 rounded-full bg-violet-50 flex items-center justify-center text-violet-600 hover:bg-violet-100 transition">
+            <User className="w-4 h-4" />
+          </button>
+          <button onClick={logout}
+            className="w-9 h-9 rounded-full bg-gray-100 flex items-center justify-center text-gray-500 hover:bg-gray-200 transition">
+            <LogOut className="w-4 h-4" />
+          </button>
+        </div>
+      </div>
+
+      {/* Content */}
+      <div className="flex-1 overflow-y-auto pb-24">
+
+        {/* ── HOME TAB ── */}
+        {tab === "home" && (
+          <div className="p-4 space-y-4">
+            <div className="flex items-center justify-between">
+              <h2 className="font-bold text-lg text-gray-900">העסקים שלי</h2>
+              {businesses.length > 0 && (
+                <button onClick={() => setEditMode(v => !v)}
+                  className={`flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-medium transition ${editMode ? "bg-violet-100 text-violet-700" : "bg-gray-100 text-gray-600 hover:bg-gray-200"}`}>
+                  <Edit2 className="w-3 h-3" />
+                  {editMode ? "סיום עריכה" : "עריכה"}
+                </button>
+              )}
+            </div>
+
+            {businesses.length === 0 ? (
+              <div className="text-center py-16 space-y-3">
+                <div className="text-5xl">🏪</div>
+                <p className="text-gray-500 text-sm">עוד אין עסקים ברשימה</p>
+                <p className="text-gray-400 text-xs">היכנסי לקישור של עסק כדי להוסיפו</p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-2 gap-3">
+                {businesses.map(biz => (
+                  <div key={biz.businessId}
+                    className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 flex flex-col items-center gap-3 relative">
+                    {editMode && (
+                      <button onClick={() => removeBusiness(biz.slug)}
+                        className="absolute top-2 left-2 w-6 h-6 rounded-full bg-red-100 text-red-500 flex items-center justify-center hover:bg-red-200 transition">
+                        <X className="w-3 h-3" />
+                      </button>
+                    )}
+                    <BusinessAvatar biz={biz} size={60} />
+                    <p className="font-semibold text-sm text-center text-gray-900 leading-tight" dir="auto">{biz.name}</p>
+                    {biz.address && <p className="text-xs text-gray-400 text-center">{biz.address}</p>}
+                    {!editMode && (
+                      <button onClick={() => navigate(`/book/${biz.slug}`)}
+                        className="w-full py-2 rounded-xl text-xs font-bold text-white transition-all"
+                        style={{ background: biz.primaryColor ?? "#7C3AED" }}>
+                        קבעי תור
+                      </button>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ── APPOINTMENTS TAB ── */}
+        {tab === "appointments" && (
+          <div className="p-4 space-y-5">
+            {/* Upcoming */}
+            <div>
+              <h3 className="font-bold text-base text-gray-900 mb-3">תורים קרובים</h3>
+              {upcoming.length === 0 ? (
+                <div className="text-center py-8 text-gray-400 text-sm bg-white rounded-2xl border border-dashed">אין תורים קרובים</div>
+              ) : (
+                <div className="space-y-3">
+                  {upcoming.map(a => (
+                    <div key={a.id} className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4">
+                      <div className="flex items-start gap-3">
+                        <BusinessAvatar biz={{ name: a.businessName, logoUrl: a.businessLogoUrl, primaryColor: a.businessPrimaryColor }} size={44} />
+                        <div className="flex-1 min-w-0">
+                          <p className="font-bold text-sm text-gray-900" dir="auto">{a.businessName}</p>
+                          <p className="text-sm text-gray-600">{a.serviceName}</p>
+                          <p className="text-xs text-gray-400 mt-1">{formatDate(a.appointmentDate)} · {a.appointmentTime}</p>
+                        </div>
+                      </div>
+                      <div className="flex gap-2 mt-3">
+                        <button onClick={() => navigate(`/book/${a.businessSlug}`)}
+                          className="flex-1 py-2 rounded-xl text-xs font-semibold border-2 border-gray-200 text-gray-600 hover:border-gray-300 transition">
+                          עדכון תור
+                        </button>
+                        <button onClick={() => cancelAppointment(a.id)}
+                          className="flex-1 py-2 rounded-xl text-xs font-semibold bg-red-50 text-red-600 hover:bg-red-100 transition">
+                          ביטול
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* History */}
+            {past.length > 0 && (
+              <div>
+                <h3 className="font-bold text-base text-gray-900 mb-3">היסטוריה</h3>
+                <div className="space-y-2">
+                  {past.map(a => (
+                    <div key={a.id} className="bg-white rounded-2xl border border-gray-100 p-4 opacity-80">
+                      <div className="flex items-center gap-3">
+                        <BusinessAvatar biz={{ name: a.businessName, logoUrl: a.businessLogoUrl, primaryColor: a.businessPrimaryColor }} size={36} />
+                        <div className="flex-1 min-w-0">
+                          <p className="font-semibold text-sm text-gray-700" dir="auto">{a.businessName}</p>
+                          <p className="text-xs text-gray-500">{a.serviceName} · {formatDate(a.appointmentDate)}</p>
+                        </div>
+                        {a.status === "cancelled" && (
+                          <span className="text-xs font-bold text-red-500 bg-red-50 px-2 py-0.5 rounded-full shrink-0">בוטל</span>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* ── BOTTOM NAV ── */}
+      <div className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-md bg-white border-t border-gray-100 px-4 pt-2 pb-safe z-20">
+        <div className="flex items-end justify-between gap-2 pb-2">
+          {/* Home */}
+          <button onClick={() => { setTab("home"); setEditMode(false); }}
+            className={`flex flex-col items-center gap-1 py-2 px-4 rounded-2xl transition-all flex-1 ${tab === "home" ? "text-violet-600 bg-violet-50" : "text-gray-400 hover:text-gray-600"}`}>
+            <Home className="w-5 h-5" />
+            <span className="text-[10px] font-medium">בית</span>
+          </button>
+
+          {/* Book — prominent center */}
+          <button
+            onClick={() => {
+              if (businesses.length === 1) { navigate(`/book/${businesses[0].slug}`); }
+              else if (businesses.length > 1) { setTab("home"); }
+              else { toast({ title: "הוסיפי עסק תחילה", description: "הכנסי לקישור של עסק כדי להתחיל" }); }
+            }}
+            className="flex flex-col items-center gap-1 py-3 px-6 rounded-2xl bg-violet-600 text-white shadow-lg shadow-violet-200 active:scale-95 transition-all -translate-y-2">
+            <Plus className="w-6 h-6" />
+            <span className="text-[10px] font-bold">קבעי תור</span>
+          </button>
+
+          {/* Appointments */}
+          <button onClick={() => setTab("appointments")}
+            className={`flex flex-col items-center gap-1 py-2 px-4 rounded-2xl transition-all flex-1 ${tab === "appointments" ? "text-violet-600 bg-violet-50" : "text-gray-400 hover:text-gray-600"}`}>
+            <CalendarDays className="w-5 h-5" />
+            <span className="text-[10px] font-medium">התורים שלי</span>
+          </button>
+        </div>
+      </div>
+
+      {/* ── PROFILE SHEET ── */}
+      {profileOpen && (
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/30" onClick={() => setProfileOpen(false)}>
+          <div className="w-full max-w-md bg-white rounded-t-3xl p-6 space-y-5" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between">
+              <h3 className="font-bold text-lg">פרופיל</h3>
+              <button onClick={() => setProfileOpen(false)} className="text-gray-400 hover:text-gray-600"><X className="w-5 h-5" /></button>
+            </div>
+            <div className="space-y-3">
+              <div className="space-y-1.5">
+                <label className="text-sm font-medium text-gray-700">שם מלא</label>
+                <input value={profileName} onChange={e => setProfileName(e.target.value)}
+                  className="w-full rounded-xl border border-gray-200 px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500" />
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-sm font-medium text-gray-700">טלפון</label>
+                <input type="tel" dir="ltr" value={profilePhone} onChange={e => setProfilePhone(e.target.value)}
+                  className="w-full rounded-xl border border-gray-200 px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500 text-right" />
+              </div>
+            </div>
+            <button onClick={saveProfile} disabled={loading}
+              className="w-full py-3 rounded-xl bg-violet-600 text-white font-semibold text-sm hover:bg-violet-700 disabled:opacity-50 transition">
+              {loading ? "שומר..." : "שמור"}
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

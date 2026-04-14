@@ -25,6 +25,7 @@ export function buildTranzilaUrl(params: {
     cred_type: "1",
     pdesc: params.description,
     contact: params.clientName,
+    myid: String(params.appointmentId),
     success_url: successUrl,
     fail_url: failUrl,
     notify_url: notifyUrl,
@@ -56,16 +57,27 @@ router.post("/tranzila/notify", async (req, res): Promise<void> => {
 
     console.log("[Tranzila] Notify received:", { responsecode, apptId, body });
 
-    // Response code "000" = success
-    if (responsecode === "000" && apptId) {
-      await db
-        .update(appointmentsTable)
-        .set({ status: "confirmed" })
-        .where(and(
-          eq(appointmentsTable.id, apptId),
-          eq(appointmentsTable.status, "pending_payment")
-        ));
-      console.log(`[Tranzila] Appointment ${apptId} confirmed after payment`);
+    // Response code "000" = success; anything else = payment failed → cancel
+    if (apptId) {
+      if (responsecode === "000") {
+        await db
+          .update(appointmentsTable)
+          .set({ status: "confirmed" })
+          .where(and(
+            eq(appointmentsTable.id, apptId),
+            eq(appointmentsTable.status, "pending_payment")
+          ));
+        console.log(`[Tranzila] Appointment ${apptId} confirmed after payment`);
+      } else {
+        await db
+          .update(appointmentsTable)
+          .set({ status: "cancelled" })
+          .where(and(
+            eq(appointmentsTable.id, apptId),
+            eq(appointmentsTable.status, "pending_payment")
+          ));
+        console.log(`[Tranzila] Appointment ${apptId} cancelled — payment rejected (code: ${responsecode})`);
+      }
     }
 
     res.status(200).send("OK");

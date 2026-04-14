@@ -552,4 +552,48 @@ router.patch("/public/:businessSlug/appointments/:id/reschedule", async (req, re
   res.json({ success: true, newDate, newTime });
 });
 
+// GET /public/:businessSlug/next-slots?serviceId=X&count=5
+// Returns the next N available slot times starting from today
+router.get("/public/:businessSlug/next-slots", async (req, res): Promise<void> => {
+  const { businessSlug } = req.params;
+  const serviceId = Number(req.query.serviceId);
+  const count = Math.min(Number(req.query.count) || 5, 20);
+
+  if (!serviceId || isNaN(serviceId)) { res.status(400).json({ error: "serviceId נדרש" }); return; }
+
+  const [business] = await db.select().from(businessesTable).where(eq(businessesTable.slug, businessSlug));
+  if (!business) { res.status(404).json({ error: "עסק לא נמצא" }); return; }
+
+  const [service] = await db.select().from(servicesTable).where(and(eq(servicesTable.id, serviceId), eq(servicesTable.businessId, business.id)));
+  if (!service) { res.status(404).json({ error: "שירות לא נמצא" }); return; }
+
+  const bufferMinutes = service.bufferMinutes > 0 ? service.bufferMinutes : (business.bufferMinutes ?? 0);
+  const results: { date: string; time: string }[] = [];
+  const today = new Date();
+
+  for (let dayOffset = 0; dayOffset < 60 && results.length < count; dayOffset++) {
+    const d = new Date(today);
+    d.setUTCDate(today.getUTCDate() + dayOffset);
+    const dateStr = d.toISOString().slice(0, 10);
+
+    const slots = await computeAvailableSlots(business.id, dateStr, service.durationMinutes, bufferMinutes);
+    const now = new Date();
+
+    for (const slot of slots) {
+      if (!slot.available) continue;
+      // Skip past slots on today
+      if (dayOffset === 0) {
+        const [h, m] = slot.time.split(":").map(Number);
+        const slotDate = new Date(today);
+        slotDate.setHours(h, m, 0, 0);
+        if (slotDate <= now) continue;
+      }
+      results.push({ date: dateStr, time: slot.time });
+      if (results.length >= count) break;
+    }
+  }
+
+  res.json(results);
+});
+
 export default router;

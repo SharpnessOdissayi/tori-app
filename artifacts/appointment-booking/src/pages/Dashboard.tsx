@@ -718,8 +718,8 @@ function AppointmentsTab() {
   const now = new Date().toISOString().split("T")[0];
   const aptList = Array.isArray(appointments) ? appointments : [];
   const pending = aptList.filter(a => a.status === "pending");
-  const upcoming = aptList.filter(a => a.appointmentDate >= now && a.status !== "pending");
-  const past = aptList.filter(a => a.appointmentDate < now);
+  const upcoming = aptList.filter(a => a.appointmentDate >= now && a.status !== "pending" && a.status !== "cancelled" && a.status !== "pending_payment");
+  const past = aptList.filter(a => a.appointmentDate < now && a.status !== "cancelled" && a.status !== "pending_payment");
 
   return (
     <div className="space-y-6">
