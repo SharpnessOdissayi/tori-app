@@ -185,14 +185,15 @@ function renderBizName(name: string): React.ReactNode {
   const SEP = [" - ", " – ", " | "].find((s) => name.includes(s));
   if (SEP && /^[a-zA-Z\d]/.test(name)) {
     const idx = name.indexOf(SEP);
-    const eng = name.slice(0, idx);
-    const heb = name.slice(idx + SEP.length);
-    // In RTL context flex-direction:row places first child on the RIGHT.
+    const eng = name.slice(0, idx);   // e.g. "Lilash"
+    const heb = name.slice(idx + SEP.length); // e.g. "הלחמת ריסים באשדוד"
+    // DOM order [heb, sep, eng] + explicit direction:ltr + flex-row
+    // → Hebrew on LEFT, English (Lilash) on RIGHT — reliable in any context.
     return (
-      <span style={{ display: "inline-flex", flexDirection: "row", alignItems: "baseline" }}>
-        <span dir="ltr">{eng}</span>
-        <span>{SEP}</span>
+      <span style={{ display: "inline-flex", flexDirection: "row", alignItems: "baseline", direction: "ltr" }}>
         <span dir="rtl">{heb}</span>
+        <span>{SEP}</span>
+        <span dir="ltr">{eng}</span>
       </span>
     );
   }
