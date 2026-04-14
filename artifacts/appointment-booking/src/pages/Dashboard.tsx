@@ -92,23 +92,9 @@ function formatDuration(minutes: number): string {
   return `${h} שעות ו-${m} דקות`;
 }
 
-// Hebrew on LEFT, English on RIGHT — works for both orderings.
-function renderBizName(name: string): React.ReactNode {
-  const SEP = [" - ", " – ", " | "].find((s) => name.includes(s));
-  if (SEP) {
-    const idx = name.indexOf(SEP);
-    const part1 = name.slice(0, idx);
-    const part2 = name.slice(idx + SEP.length);
-    const part1IsLatin = /[a-zA-Z]/.test(part1);
-    const part2IsLatin = /[a-zA-Z]/.test(part2);
-    if (part1IsLatin || part2IsLatin) {
-      const heb = part1IsLatin ? part2 : part1;
-      const eng = part1IsLatin ? part1 : part2;
-      return <bdi dir="ltr">{heb}{SEP}{eng}</bdi>;
-    }
-  }
-  return <span dir="rtl">{name}</span>;
-}
+// Containers use dir="ltr" so Hebrew forms a readable RTL run on LEFT
+// and English appears on the RIGHT naturally — no BiDi tricks needed.
+function renderBizName(name: string): string { return name; }
 
 function CopyLinkButton({ slug }: { slug: string }) {
   const [copied, setCopied] = useState(false);
@@ -425,7 +411,7 @@ export default function Dashboard() {
               </button>
             )}
             {headerProfile?.name && (
-              <span className="hidden sm:block text-sm font-medium px-3 py-1.5 rounded-lg"
+              <span className="hidden sm:block text-sm font-medium px-3 py-1.5 rounded-lg" dir="ltr"
                 style={{ color: "#d4af37", border: "1px solid #d4af3740" }}>
                 {renderBizName(headerProfile.name)}
               </span>
@@ -449,7 +435,7 @@ export default function Dashboard() {
         <div className="sm:hidden flex items-center justify-between mb-4">
           <div>
             <p className="text-xs text-muted-foreground">{(() => { const h = new Date().getHours(); return h < 12 ? "בוקר טוב," : h < 17 ? "צהריים טובים," : h < 21 ? "ערב טוב," : "לילה טוב,"; })()}</p>
-            <p className="font-bold text-lg leading-tight" dir="rtl" style={{ color: "#d4af37" }}>
+            <p className="font-bold text-lg leading-tight" dir="ltr" style={{ color: "#d4af37", textAlign: "right" }}>
               {renderBizName(headerProfile?.name ?? "")}!
             </p>
           </div>

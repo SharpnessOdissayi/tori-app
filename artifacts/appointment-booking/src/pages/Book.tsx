@@ -178,24 +178,8 @@ function formatDuration(minutes: number): string {
   return `${h} שעות ו-${m} דקות`;
 }
 
-// Hebrew on LEFT, English on RIGHT — works for both orderings.
-// <bdi dir="ltr"> provides built-in BiDi isolation (browser UA).
-function renderBizName(name: string): React.ReactNode {
-  const SEP = [" - ", " – ", " | "].find((s) => name.includes(s));
-  if (SEP) {
-    const idx = name.indexOf(SEP);
-    const part1 = name.slice(0, idx);
-    const part2 = name.slice(idx + SEP.length);
-    const part1IsLatin = /[a-zA-Z]/.test(part1);
-    const part2IsLatin = /[a-zA-Z]/.test(part2);
-    if (part1IsLatin || part2IsLatin) {
-      const heb = part1IsLatin ? part2 : part1;
-      const eng = part1IsLatin ? part1 : part2;
-      return <bdi dir="ltr">{heb}{SEP}{eng}</bdi>;
-    }
-  }
-  return <span dir="rtl">{name}</span>;
-}
+// Containers use dir="ltr" so BiDi places Hebrew on LEFT, English on RIGHT.
+function renderBizName(name: string): string { return name; }
 
 export default function Book() {
   const { businessSlug } = useParams<{ businessSlug: string }>();
@@ -642,7 +626,7 @@ export default function Book() {
         <div className={`pb-28 px-4 max-w-2xl mx-auto ${showLogo && logoUrl ? "pt-14" : "pt-6"}`}>
           {/* Business name */}
           {showBusinessName && (
-            <h1 className="text-2xl font-bold text-center mb-1">{renderBizName(business.name)}</h1>
+            <h1 className="text-2xl font-bold text-center mb-1" dir="ltr">{renderBizName(business.name)}</h1>
           )}
           {/* Description */}
           {businessDescription && (
@@ -918,7 +902,7 @@ export default function Book() {
             <img src={bannerUrl} alt={business.name} className="w-full h-32 rounded-2xl object-cover mb-4 shadow-md" style={{ objectPosition: bannerPosition }} />
           )}
           {showBusinessName && (
-            <h1 className="text-3xl font-extrabold mb-2" style={{ color: primaryColor }}>{renderBizName(business.name)}</h1>
+            <h1 className="text-3xl font-extrabold mb-2" dir="ltr" style={{ color: primaryColor }}>{renderBizName(business.name)}</h1>
           )}
           <p className="text-muted-foreground">קביעת תור אונליין</p>
         </header>

@@ -17,23 +17,8 @@ function formatDuration(minutes: number): string {
   return `${h} שעות ו-${m} דקות`;
 }
 
-// Hebrew on LEFT, English on RIGHT — works for both orderings.
-function renderBizName(name: string): React.ReactNode {
-  const SEP = [" - ", " – ", " | "].find((s) => name.includes(s));
-  if (SEP) {
-    const idx = name.indexOf(SEP);
-    const part1 = name.slice(0, idx);
-    const part2 = name.slice(idx + SEP.length);
-    const part1IsLatin = /[a-zA-Z]/.test(part1);
-    const part2IsLatin = /[a-zA-Z]/.test(part2);
-    if (part1IsLatin || part2IsLatin) {
-      const heb = part1IsLatin ? part2 : part1;
-      const eng = part1IsLatin ? part1 : part2;
-      return <bdi dir="ltr">{heb}{SEP}{eng}</bdi>;
-    }
-  }
-  return <span dir="rtl">{name}</span>;
-}
+// Containers use dir="ltr" so BiDi places Hebrew on LEFT, English on RIGHT.
+function renderBizName(name: string): string { return name; }
 
 function formatDate(dateStr: string): string {
   const [year, month, day] = dateStr.split("-");
@@ -190,7 +175,7 @@ export default function ClientPortal() {
               {appt.businessName.charAt(0)}
             </div>
             <div>
-              <div className="font-semibold text-sm text-gray-900">{renderBizName(appt.businessName)}</div>
+              <div className="font-semibold text-sm text-gray-900" dir="ltr">{renderBizName(appt.businessName)}</div>
               <div className="text-xs text-gray-500">{appt.serviceName}</div>
             </div>
           </div>
@@ -249,7 +234,7 @@ export default function ClientPortal() {
               {nextAppt && (
                 <div className="rounded-3xl p-5 text-white space-y-3" style={{ background: `linear-gradient(135deg, ${PRIMARY}, #9F67FF)` }}>
                   <div className="text-xs opacity-80">התור הקרוב שלך</div>
-                  <div className="font-bold text-xl">{renderBizName(nextAppt.businessName)}</div>
+                  <div className="font-bold text-xl" dir="ltr">{renderBizName(nextAppt.businessName)}</div>
                   <div className="text-sm opacity-90">{nextAppt.serviceName}</div>
                   <div className="flex items-center gap-4 text-sm">
                     <div className="flex items-center gap-1">
@@ -281,7 +266,7 @@ export default function ClientPortal() {
                         <div className="w-14 h-14 rounded-2xl flex items-center justify-center text-white font-bold text-lg shadow-sm" style={{ backgroundColor: b.businessPrimaryColor ?? PRIMARY }}>
                           {b.businessName.charAt(0)}
                         </div>
-                        <span className="text-xs text-gray-600 max-w-[56px] truncate">{renderBizName(b.businessName)}</span>
+                        <span className="text-xs text-gray-600 max-w-[56px] truncate" dir="ltr">{renderBizName(b.businessName)}</span>
                       </button>
                     ))}
                   </div>
