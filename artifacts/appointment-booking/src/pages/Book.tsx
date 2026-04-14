@@ -178,24 +178,25 @@ function formatDuration(minutes: number): string {
   return `${h} שעות ו-${m} דקות`;
 }
 
-// Container must be dir="ltr". Three explicit flex items keep the separator
-// between the Hebrew and English parts regardless of BiDi neutral resolution.
 function renderBizName(name: string): React.ReactNode {
-  const SEP = [" - ", " – ", " | "].find(s => name.includes(s));
-  if (SEP && /[a-zA-Z]/.test(name)) {
-    const idx = name.indexOf(SEP);
-    const p1 = name.slice(0, idx), p2 = name.slice(idx + SEP.length);
-    const heb = /[a-zA-Z]/.test(p1) ? p2 : p1;
-    const eng = /[a-zA-Z]/.test(p1) ? p1 : p2;
-    return (
-      <span dir="ltr" style={{ display: "inline-flex", alignItems: "baseline" }}>
-        <span dir="rtl">{heb}</span>
-        <span>{SEP}</span>
-        <span dir="ltr">{eng}</span>
-      </span>
-    );
-  }
-  return name;
+  if (!/[a-zA-Z]/.test(name) || !/[\u0590-\u05FF]/.test(name)) return name;
+  const m = name.match(/^(.+?)\s*([-–—|\/])\s*(.+)$/);
+  if (!m) return name;
+  const [, p1, rawSep, p2] = m;
+  const heb = /[\u0590-\u05FF]/.test(p1) ? p1 : p2;
+  const eng = /[a-zA-Z]/.test(p1) ? p1 : p2;
+  return (
+    <span dir="ltr" style={{ display: "inline-flex", alignItems: "baseline" }}>
+      <span dir="rtl">{heb}</span>
+      <span>{` ${rawSep} `}</span>
+      <span dir="ltr">{eng}</span>
+    </span>
+  );
+}
+
+function timeGreeting() {
+  const h = new Date().getHours();
+  return h < 12 ? "בוקר טוב! ☀️" : h < 17 ? "צהריים טובים! 🌤️" : h < 21 ? "ערב טוב! 🌆" : "לילה טוב! 🌙";
 }
 
 export default function Book() {
@@ -643,7 +644,11 @@ export default function Book() {
         <div className={`pb-28 px-4 max-w-2xl mx-auto ${showLogo && logoUrl ? "pt-14" : "pt-6"}`}>
           {/* Business name */}
           {showBusinessName && (
-            <h1 className="text-2xl font-bold text-center mb-1" dir="ltr">{renderBizName(business.name)}</h1>
+            <>
+              <p className="text-center text-sm font-semibold mb-0.5">{timeGreeting()}</p>
+              <p className="text-center text-xs text-muted-foreground mb-0.5">ל:</p>
+              <h1 className="text-2xl font-bold text-center mb-1" dir="ltr">{renderBizName(business.name)}</h1>
+            </>
           )}
           {/* Description */}
           {businessDescription && (
@@ -919,7 +924,11 @@ export default function Book() {
             <img src={bannerUrl} alt={business.name} className="w-full h-32 rounded-2xl object-cover mb-4 shadow-md" style={{ objectPosition: bannerPosition }} />
           )}
           {showBusinessName && (
-            <h1 className="text-3xl font-extrabold mb-2" dir="ltr" style={{ color: primaryColor }}>{renderBizName(business.name)}</h1>
+            <>
+              <p className="text-center text-sm font-semibold mb-0.5">{timeGreeting()}</p>
+              <p className="text-center text-xs text-muted-foreground mb-0.5">ל:</p>
+              <h1 className="text-3xl font-extrabold mb-2" dir="ltr" style={{ color: primaryColor }}>{renderBizName(business.name)}</h1>
+            </>
           )}
           <p className="text-muted-foreground">קביעת תור אונליין</p>
         </header>

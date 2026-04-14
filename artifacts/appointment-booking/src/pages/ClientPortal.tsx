@@ -17,23 +17,20 @@ function formatDuration(minutes: number): string {
   return `${h} שעות ו-${m} דקות`;
 }
 
-// Container must be dir="ltr". Explicit flex items keep separator in place.
 function renderBizName(name: string): React.ReactNode {
-  const SEP = [" - ", " – ", " | "].find(s => name.includes(s));
-  if (SEP && /[a-zA-Z]/.test(name)) {
-    const idx = name.indexOf(SEP);
-    const p1 = name.slice(0, idx), p2 = name.slice(idx + SEP.length);
-    const heb = /[a-zA-Z]/.test(p1) ? p2 : p1;
-    const eng = /[a-zA-Z]/.test(p1) ? p1 : p2;
-    return (
-      <span dir="ltr" style={{ display: "inline-flex", alignItems: "baseline" }}>
-        <span dir="rtl">{heb}</span>
-        <span>{SEP}</span>
-        <span dir="ltr">{eng}</span>
-      </span>
-    );
-  }
-  return name;
+  if (!/[a-zA-Z]/.test(name) || !/[\u0590-\u05FF]/.test(name)) return name;
+  const m = name.match(/^(.+?)\s*([-–—|\/])\s*(.+)$/);
+  if (!m) return name;
+  const [, p1, rawSep, p2] = m;
+  const heb = /[\u0590-\u05FF]/.test(p1) ? p1 : p2;
+  const eng = /[a-zA-Z]/.test(p1) ? p1 : p2;
+  return (
+    <span dir="ltr" style={{ display: "inline-flex", alignItems: "baseline" }}>
+      <span dir="rtl">{heb}</span>
+      <span>{` ${rawSep} `}</span>
+      <span dir="ltr">{eng}</span>
+    </span>
+  );
 }
 
 function formatDate(dateStr: string): string {

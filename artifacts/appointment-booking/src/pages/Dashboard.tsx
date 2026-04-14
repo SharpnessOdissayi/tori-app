@@ -92,23 +92,22 @@ function formatDuration(minutes: number): string {
   return `${h} שעות ו-${m} דקות`;
 }
 
-// Container must be dir="ltr". Explicit flex items keep separator in place.
+// Splits a mixed Hebrew+English business name at any separator character.
+// Always renders: [Hebrew] [sep] [English] in an LTR flex so English appears on the right.
 function renderBizName(name: string): React.ReactNode {
-  const SEP = [" - ", " – ", " | "].find(s => name.includes(s));
-  if (SEP && /[a-zA-Z]/.test(name)) {
-    const idx = name.indexOf(SEP);
-    const p1 = name.slice(0, idx), p2 = name.slice(idx + SEP.length);
-    const heb = /[a-zA-Z]/.test(p1) ? p2 : p1;
-    const eng = /[a-zA-Z]/.test(p1) ? p1 : p2;
-    return (
-      <span dir="ltr" style={{ display: "inline-flex", alignItems: "baseline" }}>
-        <span dir="rtl">{heb}</span>
-        <span>{SEP}</span>
-        <span dir="ltr">{eng}</span>
-      </span>
-    );
-  }
-  return name;
+  if (!/[a-zA-Z]/.test(name) || !/[\u0590-\u05FF]/.test(name)) return name;
+  const m = name.match(/^(.+?)\s*([-–—|\/])\s*(.+)$/);
+  if (!m) return name;
+  const [, p1, rawSep, p2] = m;
+  const heb = /[\u0590-\u05FF]/.test(p1) ? p1 : p2;
+  const eng = /[a-zA-Z]/.test(p1) ? p1 : p2;
+  return (
+    <span dir="ltr" style={{ display: "inline-flex", alignItems: "baseline" }}>
+      <span dir="rtl">{heb}</span>
+      <span>{` ${rawSep} `}</span>
+      <span dir="ltr">{eng}</span>
+    </span>
+  );
 }
 
 function CopyLinkButton({ slug }: { slug: string }) {
@@ -452,9 +451,8 @@ export default function Dashboard() {
             <p className="font-bold text-lg" style={{ color: "#d4af37" }}>
               {(() => { const h = new Date().getHours(); return h < 12 ? "בוקר טוב! ☀️" : h < 17 ? "צהריים טובים! 🌤️" : h < 21 ? "ערב טוב! 🌆" : "לילה טוב! 🌙"; })()}
             </p>
-            <p className="text-xs text-muted-foreground">ברוך הבא ל:</p>
-            <p className="font-bold text-base leading-tight" dir="ltr" style={{ color: "#d4af37", textAlign: "right" }}>
-              {renderBizName(headerProfile?.name ?? "")}
+            <p className="font-semibold text-sm" style={{ color: "#d4af37" }}>
+              ברוך הבא, {(headerProfile as any)?.ownerName?.split(" ")[0] ?? ""}!
             </p>
           </div>
           <button
