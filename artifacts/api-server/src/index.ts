@@ -6,7 +6,6 @@ import { sendReminders } from "./lib/reminders";
 import { seedAdminUser } from "./lib/seedAdmin";
 import { seedDemoBusiness } from "./lib/seedDemo";
 import { runMigrations } from "./lib/migrate";
-import { runSubscriptionBilling } from "./lib/subscriptionCron";
 
 const rawPort = process.env["PORT"];
 
@@ -45,10 +44,5 @@ app.listen(port, (err) => {
   });
   logger.info("Reminders cron started (every 15 minutes)");
 
-  // Run subscription billing once a day at 08:00 Israel time (UTC+3)
-  cron.schedule("0 5 * * *", () => {
-    runSubscriptionBilling().catch(e => logger.error(e, "Subscription billing job failed"));
-  });
-  logger.info("Subscription billing cron started (daily at 08:00 IL)");
 });
 

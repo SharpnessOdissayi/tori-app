@@ -6,9 +6,11 @@ import jwt from "jsonwebtoken";
 const router = Router();
 
 const SUPPLIER = process.env.TRANZILA_SUPPLIER ?? "";
-const SUPPLIER_TOK = process.env.TRANZILA_SUPPLIER_TOK ?? SUPPLIER;
 const NOTIFY_PASSWORD = process.env.TRANZILA_NOTIFY_PASSWORD ?? "";
 const JWT_SECRET = process.env.JWT_SECRET ?? "dev-secret";
+
+const SUBSCRIPTION_FIRST_ILS = 50;   // first month promo
+const SUBSCRIPTION_MONTHLY_ILS = 100; // all months after
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -43,31 +45,31 @@ export function buildTranzilaUrl(params: {
   return `${base}?${p.toString()}`;
 }
 
-/** Build Tranzila iframe URL for subscription (tok terminal, tranmode=AK → charge + token) */
+/**
+ * Build Tranzila iframe URL for subscription.
+ * Uses lilash2 (SUPPLIER) which has recurring billing configured.
+ * recur_transaction=4_approved → Tranzila auto-charges monthly without asking the customer.
+ * First charge = 50 NIS, every month after = 100 NIS.
+ */
 function buildSubscriptionUrl(params: {
   businessId: number;
   ownerName: string;
   email: string;
-  firstChargeILS: number;
 }): string {
-  const base = `https://direct.tranzila.com/${SUPPLIER_TOK}/iframenew.php`;
-  const successUrl = `https://kavati.net/payment/success?type=subscription`;
-  const failUrl = `https://kavati.net/payment/fail?type=subscription`;
-  const notifyUrl = `https://kavati.net/api/tranzila/notify`;
+  const base = `https://direct.tranzila.com/${SUPPLIER}/iframenew.php`;
 
   const p = new URLSearchParams({
-    sum: params.firstChargeILS.toFixed(2),
+    sum: SUBSCRIPTION_FIRST_ILS.toFixed(2),
     currency: "1",
     cred_type: "1",
-    tranmode: "AK",           // charge + tokenize card
     lang: "il",
-    buttonLabel: "שלם ופעל מנוי",
+    buttonLabel: "שלם והפעל מנוי",
     contact: params.ownerName,
     email: params.email,
     pdesc: `מנוי פרו קבעתי - ${params.businessId}`,
-    success_url_address: successUrl,
-    fail_url_address: failUrl,
-    notify_url_address: notifyUrl,
+    // Recurring: Tranzila charges 100 NIS monthly automatically
+    recur_transaction: "4_approved",
+    recur_sum: SUBSCRIPTION_MONTHLY_ILS.toFixed(2),
     TranzilaTK: NOTIFY_PASSWORD,
     nologo: "1",
     new_process: "1",
@@ -95,46 +97,52 @@ router.post("/tranzila/notify", async (req, res): Promise<void> => {
 
     console.log("[Tranzila] Notify received:", { responsecode, pdesc, body });
 
-    // ── Subscription payment ──────────────────────────────────────────────
+    // ── Subscription payment / monthly recurring charge ───────────────────
+    // Tranzila sends this for BOTH the first payment and every monthly auto-charge.
     const subscriptionMatch = pdesc.match(/מנוי פרו קבעתי - (\d+)/);
     if (subscriptionMatch) {
       const businessId = parseInt(subscriptionMatch[1]);
 
       if (responsecode === "000") {
-        // Extract token + expiry from notify body
-        const token: string = String(body.token ?? body.Token ?? "");
-        const expdate: string = String(body.expdate ?? body.ExpDate ?? "");
-
-        const renewDate = new Date();
-        renewDate.setDate(renewDate.getDate() + 30);
-
-        await db
-          .update(businessesTable)
-          .set({
-            subscriptionPlan: "pro",
-            maxServicesAllowed: 999,
-            maxAppointmentsPerMonth: 9999,
-            subscriptionStartDate: new Date(),
-            subscriptionRenewDate: renewDate,
-            subscriptionCancelledAt: null,
-            tranzilaToken: token || null,
-            tranzilaTokenExpiry: expdate || null,
-          } as any)
+        // Fetch current business state to check cancellation
+        const [biz] = await db
+          .select({
+            subscriptionPlan: businessesTable.subscriptionPlan,
+            subscriptionCancelledAt: (businessesTable as any).subscriptionCancelledAt,
+            subscriptionRenewDate: (businessesTable as any).subscriptionRenewDate,
+          })
+          .from(businessesTable)
           .where(eq(businessesTable.id, businessId));
 
-        console.log(`[Tranzila] Business ${businessId} subscribed to Pro, renews ${renewDate.toISOString()}`);
+        const isCancelled = !!biz?.subscriptionCancelledAt;
+
+        if (isCancelled) {
+          // Business cancelled — this is a post-cancellation charge from Tranzila's recurring.
+          // Do NOT extend. Log it. (Manual refund may be needed — future: auto-refund via API)
+          console.log(`[Tranzila] Post-cancellation charge for business ${businessId} — ignoring renewal`);
+        } else {
+          // Activate or extend Pro by 30 days
+          const renewDate = new Date();
+          renewDate.setDate(renewDate.getDate() + 30);
+
+          const isFirstTime = !biz || biz.subscriptionPlan !== "pro";
+          await db
+            .update(businessesTable)
+            .set({
+              subscriptionPlan: "pro",
+              maxServicesAllowed: 999,
+              maxAppointmentsPerMonth: 9999,
+              ...(isFirstTime ? { subscriptionStartDate: new Date() } : {}),
+              subscriptionRenewDate: renewDate,
+            } as any)
+            .where(eq(businessesTable.id, businessId));
+
+          console.log(`[Tranzila] Business ${businessId} ${isFirstTime ? "subscribed" : "renewed"} Pro until ${renewDate.toISOString()}`);
+        }
       } else {
-        console.log(`[Tranzila] Subscription payment failed for business ${businessId} (code: ${responsecode})`);
+        console.log(`[Tranzila] Subscription charge failed for business ${businessId} (code: ${responsecode})`);
       }
 
-      res.status(200).send("OK");
-      return;
-    }
-
-    // ── Subscription renewal (charged by cron, pdesc = חידוש מנוי פרו קבעתי - ID) ──
-    const renewalMatch = pdesc.match(/חידוש מנוי פרו קבעתי - (\d+)/);
-    if (renewalMatch) {
-      // Handled by subscriptionCron result — nothing to do here
       res.status(200).send("OK");
       return;
     }
@@ -238,15 +246,13 @@ router.get("/tranzila/subscription-url", async (req, res): Promise<void> => {
 
   if (!biz) { res.status(404).json({ error: "Business not found" }); return; }
 
-  const FIRST_MONTH_ILS = 50;
   const url = buildSubscriptionUrl({
     businessId: biz.id,
     ownerName: biz.ownerName,
     email: biz.email,
-    firstChargeILS: FIRST_MONTH_ILS,
   });
 
-  res.json({ url, firstCharge: FIRST_MONTH_ILS, monthlyCharge: 100 });
+  res.json({ url, firstCharge: SUBSCRIPTION_FIRST_ILS, monthlyCharge: SUBSCRIPTION_MONTHLY_ILS });
 });
 
 export default router;
