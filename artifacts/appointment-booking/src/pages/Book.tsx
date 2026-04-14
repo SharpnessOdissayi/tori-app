@@ -185,7 +185,7 @@ function renderBizName(name: string): React.ReactNode {
   const [, p1, rawSep, p2] = m;
   const heb = /[\u0590-\u05FF]/.test(p1) ? p1 : p2;
   const eng = /[a-zA-Z]/.test(p1) ? p1 : p2;
-  return <span dir="ltr">{`${heb} ${rawSep} ${eng}`}</span>;
+  return <><bdi>{heb}</bdi>{` ${rawSep} `}<bdi>{eng}</bdi></>;
 }
 
 function timeGreeting() {

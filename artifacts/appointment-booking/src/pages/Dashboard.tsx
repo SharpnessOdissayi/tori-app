@@ -92,8 +92,8 @@ function formatDuration(minutes: number): string {
   return `${h} שעות ו-${m} דקות`;
 }
 
-// In dir="ltr": Hebrew RTL-run sits on the LEFT, English sits on the RIGHT.
-// Render order: heb + sep + eng so BiDi places English (Lilash) on the right.
+// Uses <bdi> to isolate each script from BiDi interference.
+// Parent must have dir="ltr" so DOM order [heb, sep, eng] = Hebrew LEFT, English RIGHT.
 function renderBizName(name: string): React.ReactNode {
   if (!/[a-zA-Z]/.test(name) || !/[\u0590-\u05FF]/.test(name)) return name;
   const m = name.match(/^(.+?)\s*([-–—|\/])\s*(.+)$/);
@@ -101,7 +101,7 @@ function renderBizName(name: string): React.ReactNode {
   const [, p1, rawSep, p2] = m;
   const heb = /[\u0590-\u05FF]/.test(p1) ? p1 : p2;
   const eng = /[a-zA-Z]/.test(p1) ? p1 : p2;
-  return <span dir="ltr">{`${heb} ${rawSep} ${eng}`}</span>;
+  return <><bdi>{heb}</bdi>{` ${rawSep} `}<bdi>{eng}</bdi></>;
 }
 
 function CopyLinkButton({ slug }: { slug: string }) {
