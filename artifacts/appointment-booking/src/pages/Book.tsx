@@ -1044,7 +1044,7 @@ export default function Book() {
 
           {/* Back to portal button (only when logged in) */}
           {clientToken && (
-            <div className="mb-3 flex justify-end">
+            <div className="mb-3 flex justify-center">
               <button
                 onClick={() => navigate("/client")}
                 className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
