@@ -40,3 +40,4 @@ app.listen(port, (err) => {
   });
   logger.info("Reminders cron started (every 15 minutes)");
 });
+
