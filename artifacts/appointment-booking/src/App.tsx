@@ -14,6 +14,8 @@ import Details from "@/pages/Details";
 import Contact from "@/pages/Contact";
 import Privacy from "@/pages/Privacy";
 import Terms from "@/pages/Terms";
+import PaymentSuccess from "@/pages/PaymentSuccess";
+import PaymentFail from "@/pages/PaymentFail";
 
 class ErrorBoundary extends Component<{ children: ReactNode }, { hasError: boolean; error: Error | null }> {
   constructor(props: { children: ReactNode }) {
@@ -61,6 +63,8 @@ function Router() {
       <Route path="/portal" component={ClientPortal} />
       <Route path="/privacy" component={Privacy} />
       <Route path="/terms" component={Terms} />
+      <Route path="/payment/success" component={PaymentSuccess} />
+      <Route path="/payment/fail" component={PaymentFail} />
       <Route component={NotFound} />
     </Switch>
   );

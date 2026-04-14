@@ -1,65 +1,140 @@
 import { Router } from "express";
 import { db, appointmentsTable, businessesTable } from "@workspace/db";
 import { eq, and } from "drizzle-orm";
+import jwt from "jsonwebtoken";
 
 const router = Router();
 
-const SUPPLIER = process.env.TRANZILA_SUPPLIER ?? "";
+const SUPPLIER     = process.env.TRANZILA_SUPPLIER ?? "";       // lilash2  — for appointment deposits
+const SUPPLIER_TOK = process.env.TRANZILA_SUPPLIER_TOK ?? "";   // lilash2tok — for subscription (token service)
 const NOTIFY_PASSWORD = process.env.TRANZILA_NOTIFY_PASSWORD ?? "";
+const JWT_SECRET   = process.env.JWT_SECRET ?? "dev-secret";
 
-// Build Tranzila payment redirect URL
+const SUBSCRIPTION_FIRST_ILS   = 50;   // promo first month
+const SUBSCRIPTION_MONTHLY_ILS = 100;  // every month after
+
+// ─── Appointment deposit iframe URL ──────────────────────────────────────────
+
 export function buildTranzilaUrl(params: {
   appointmentId: number;
-  sum: number; // in ILS (not agorot)
+  sum: number;
   description: string;
   clientName: string;
 }): string {
   const base = `https://direct.tranzila.com/${SUPPLIER}/iframenew.php`;
-  const successUrl = `https://kavati.net/payment/success?appt=${params.appointmentId}`;
-  const failUrl = `https://kavati.net/payment/fail?appt=${params.appointmentId}`;
-  const notifyUrl = `https://kavati.net/api/tranzila/notify`;
-
   const p = new URLSearchParams({
     sum: params.sum.toFixed(2),
     currency: "1",
     cred_type: "1",
+    lang: "il",
     pdesc: params.description,
     contact: params.clientName,
     myid: String(params.appointmentId),
-    success_url: successUrl,
-    fail_url: failUrl,
-    notify_url: notifyUrl,
+    success_url_address: `https://kavati.net/payment/success?appt=${params.appointmentId}`,
+    fail_url_address:    `https://kavati.net/payment/fail?appt=${params.appointmentId}`,
+    notify_url_address:  `https://kavati.net/api/tranzila/notify`,
     TranzilaTK: NOTIFY_PASSWORD,
+    nologo: "1",
+    newprocess: "1",
   });
-
   return `${base}?${p.toString()}`;
 }
 
-// POST /api/tranzila/notify — Tranzila calls this after payment
+// ─── Subscription iframe URL ─────────────────────────────────────────────────
+//
+// Uses lilash2tok (SUPPLIER_TOK) which has the token service.
+// tranmode=AK → charges 50 NIS AND tokenizes the card.
+// The token is returned in the notify callback so we can charge 100 NIS monthly.
+// Cancel = set subscriptionCancelledAt → cron stops charging. Period.
+
+function buildSubscriptionUrl(params: {
+  businessId: number;
+  ownerName: string;
+  email: string;
+}): string {
+  const base = `https://direct.tranzila.com/${SUPPLIER_TOK}/iframenew.php`;
+  const p = new URLSearchParams({
+    sum: SUBSCRIPTION_FIRST_ILS.toFixed(2),
+    currency: "1",
+    cred_type: "1",
+    tranmode: "AK",              // charge + tokenize card for future monthly charges
+    lang: "il",
+    buttonLabel: "שלם והפעל מנוי",
+    contact: params.ownerName,
+    email: params.email,
+    pdesc: `מנוי פרו קבעתי - ${params.businessId}`,
+    success_url_address: `https://kavati.net/payment/success?type=subscription`,
+    fail_url_address:    `https://kavati.net/payment/fail?type=subscription`,
+    notify_url_address:  `https://kavati.net/api/tranzila/notify`,
+    TranzilaTK: NOTIFY_PASSWORD,
+    nologo: "1",
+    newprocess: "1",
+  });
+  return `${base}?${p.toString()}`;
+}
+
+// ─── POST /api/tranzila/notify ────────────────────────────────────────────────
+
 router.post("/tranzila/notify", async (req, res): Promise<void> => {
   try {
     const body = req.body ?? {};
 
-    // Verify notify password
     const receivedPw = body.TranzilaTK ?? body.tranzilatk ?? "";
     if (NOTIFY_PASSWORD && receivedPw !== NOTIFY_PASSWORD) {
       console.warn("[Tranzila] Notify password mismatch");
-      res.status(200).send("OK"); // Always return 200 to Tranzila
+      res.status(200).send("OK");
       return;
     }
 
     const responsecode = String(body.Response ?? body.responsecode ?? "");
+    const pdesc        = String(body.pdesc ?? "");
 
-    // Tranzila sends back pdesc: "שם שירות - תור מספר 9"
-    // myid is NOT returned in notify — parse from pdesc
-    const pdesc = String(body.pdesc ?? "");
+    console.log("[Tranzila] Notify received:", { responsecode, pdesc, body });
+
+    // ── Subscription first payment ────────────────────────────────────────
+    // pdesc = "מנוי פרו קבעתי - {businessId}"
+    // tranmode=AK → body.token + body.expdate are populated
+    const subscriptionMatch = pdesc.match(/מנוי פרו קבעתי - (\d+)/);
+    if (subscriptionMatch) {
+      const businessId = parseInt(subscriptionMatch[1]);
+
+      if (responsecode === "000") {
+        const token   = String(body.token   ?? body.Token   ?? "").trim();
+        const expdate = String(body.expdate ?? body.ExpDate ?? "").trim();
+
+        const renewDate = new Date();
+        renewDate.setDate(renewDate.getDate() + 30);
+
+        await db
+          .update(businessesTable)
+          .set({
+            subscriptionPlan:        "pro",
+            maxServicesAllowed:      999,
+            maxAppointmentsPerMonth: 9999,
+            subscriptionStartDate:   new Date(),
+            subscriptionRenewDate:   renewDate,
+            subscriptionCancelledAt: null,
+            tranzilaToken:           token   || null,
+            tranzilaTokenExpiry:     expdate || null,
+          } as any)
+          .where(eq(businessesTable.id, businessId));
+
+        console.log(`[Tranzila] Business ${businessId} subscribed to Pro, token saved, renews ${renewDate.toISOString()}`);
+      } else {
+        console.log(`[Tranzila] Subscription payment failed for business ${businessId} (code: ${responsecode})`);
+      }
+
+      res.status(200).send("OK");
+      return;
+    }
+
+    // ── Appointment deposit ───────────────────────────────────────────────
+    // pdesc = "{serviceName} - תור מספר {id}"
     const pdescMatch = pdesc.match(/תור מספר (\d+)/);
-    const apptId = pdescMatch ? parseInt(pdescMatch[1]) :
-      body.myid ? parseInt(String(body.myid)) : null;
+    const apptId = pdescMatch
+      ? parseInt(pdescMatch[1])
+      : body.myid ? parseInt(String(body.myid)) : null;
 
-    console.log("[Tranzila] Notify received:", { responsecode, apptId, body });
-
-    // Response code "000" = success; anything else = payment failed → cancel
     if (apptId) {
       if (responsecode === "000") {
         await db
@@ -69,7 +144,7 @@ router.post("/tranzila/notify", async (req, res): Promise<void> => {
             eq(appointmentsTable.id, apptId),
             eq(appointmentsTable.status, "pending_payment")
           ));
-        console.log(`[Tranzila] Appointment ${apptId} confirmed after payment`);
+        console.log(`[Tranzila] Appointment ${apptId} confirmed`);
       } else {
         await db
           .update(appointmentsTable)
@@ -85,23 +160,18 @@ router.post("/tranzila/notify", async (req, res): Promise<void> => {
     res.status(200).send("OK");
   } catch (e) {
     console.error("[Tranzila] Notify error:", e);
-    res.status(200).send("OK"); // Always 200
+    res.status(200).send("OK");
   }
 });
 
-// GET /api/tranzila/payment-url/:appointmentId — get payment URL for an appointment
+// ─── GET /api/tranzila/payment-url/:appointmentId ────────────────────────────
+
 router.get("/tranzila/payment-url/:appointmentId", async (req, res): Promise<void> => {
   const apptId = parseInt(req.params.appointmentId);
   if (isNaN(apptId)) { res.status(400).json({ error: "Invalid appointment ID" }); return; }
 
   const [appt] = await db
-    .select({
-      id: appointmentsTable.id,
-      clientName: appointmentsTable.clientName,
-      serviceName: appointmentsTable.serviceName,
-      status: appointmentsTable.status,
-      businessId: appointmentsTable.businessId,
-    })
+    .select({ id: appointmentsTable.id, clientName: appointmentsTable.clientName, serviceName: appointmentsTable.serviceName, status: appointmentsTable.status, businessId: appointmentsTable.businessId })
     .from(appointmentsTable)
     .where(eq(appointmentsTable.id, apptId));
 
@@ -112,10 +182,7 @@ router.get("/tranzila/payment-url/:appointmentId", async (req, res): Promise<voi
     .from(businessesTable)
     .where(eq(businessesTable.id, appt.businessId));
 
-  if (!business || !business.depositAmountAgorot) {
-    res.status(400).json({ error: "No deposit required" });
-    return;
-  }
+  if (!business?.depositAmountAgorot) { res.status(400).json({ error: "No deposit required" }); return; }
 
   const sumILS = business.depositAmountAgorot / 100;
   const url = buildTranzilaUrl({
@@ -126,6 +193,34 @@ router.get("/tranzila/payment-url/:appointmentId", async (req, res): Promise<voi
   });
 
   res.json({ url, sum: sumILS, appointmentId: appt.id });
+});
+
+// ─── GET /api/tranzila/subscription-url — authenticated ──────────────────────
+
+router.get("/tranzila/subscription-url", async (req, res): Promise<void> => {
+  const authHeader = req.headers.authorization ?? "";
+  const rawToken   = authHeader.startsWith("Bearer ") ? authHeader.slice(7) : "";
+
+  if (!rawToken) { res.status(401).json({ error: "Unauthorized" }); return; }
+
+  let businessId: number;
+  try {
+    const payload = jwt.verify(rawToken, JWT_SECRET) as { businessId?: number; id?: number };
+    businessId = payload.businessId ?? payload.id ?? 0;
+    if (!businessId) throw new Error("No businessId");
+  } catch {
+    res.status(401).json({ error: "Unauthorized" }); return;
+  }
+
+  const [biz] = await db
+    .select({ id: businessesTable.id, ownerName: businessesTable.ownerName, email: businessesTable.email })
+    .from(businessesTable)
+    .where(eq(businessesTable.id, businessId));
+
+  if (!biz) { res.status(404).json({ error: "Business not found" }); return; }
+
+  const url = buildSubscriptionUrl({ businessId: biz.id, ownerName: biz.ownerName, email: biz.email });
+  res.json({ url, firstCharge: SUBSCRIPTION_FIRST_ILS, monthlyCharge: SUBSCRIPTION_MONTHLY_ILS });
 });
 
 export default router;
