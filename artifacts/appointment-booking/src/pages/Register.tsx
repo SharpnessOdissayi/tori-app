@@ -121,8 +121,6 @@ function StepPlan({ onNext }: { onNext: (plan: Plan) => void }) {
             <li className="flex items-center gap-2"><CheckCircle className="w-4 h-4 text-green-500 shrink-0" /> עד 20 לקוחות בחודש</li>
             <li className="flex items-center gap-2"><CheckCircle className="w-4 h-4 text-green-500 shrink-0" /> עמוד הזמנות</li>
             <li className="flex items-center gap-2"><CheckCircle className="w-4 h-4 text-green-500 shrink-0" /> לוח בקרה מלא</li>
-            <li className="flex items-center gap-2 text-amber-600"><Phone className="w-4 h-4 shrink-0" /> דורש אימות WhatsApp</li>
-            <li className="flex items-center gap-2 text-amber-600"><CheckCircle className="w-4 h-4 shrink-0" /> עסק אחד לכל מספר טלפון</li>
           </ul>
           <div className="mt-5 w-full py-2 rounded-xl border-2 border-slate-400 text-slate-600 font-semibold text-sm group-hover:bg-slate-500 group-hover:text-white transition-colors">
             התחל חינם
