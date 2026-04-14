@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { FaWheelchair } from "react-icons/fa";
-import { useParams } from "wouter";
+import { useParams, useLocation } from "wouter";
 import {
   useGetPublicBusiness,
   useGetPublicServices,
@@ -181,6 +181,7 @@ function formatDuration(minutes: number): string {
 
 export default function Book() {
   const { businessSlug } = useParams<{ businessSlug: string }>();
+  const [, navigate] = useLocation();
   // step 0 = profile page, 1-5 = booking wizard
   const [step, setStep] = useState(0);
   const [showNotification, setShowNotification] = useState(true);
@@ -188,6 +189,7 @@ export default function Book() {
   const [showExistingBooking, setShowExistingBooking] = useState(false);
   const [activeTab, setActiveTab] = useState<"services" | "hours" | "gallery">("services");
   const [existingBooking, setExistingBooking] = useState<any>(null);
+  const [portalBookingExists, setPortalBookingExists] = useState(false);
   const [workingHours, setWorkingHours] = useState<any[]>([]);
   const [rescheduleStep, setRescheduleStep] = useState<"idle" | "picking">("idle");
   const [rescheduleDate, setRescheduleDate] = useState<Date | undefined>(undefined);
@@ -322,6 +324,22 @@ export default function Book() {
       try { setExistingBooking(JSON.parse(saved)); } catch {}
     }
   }, [businessSlug]);
+
+  // When logged in, check if client has an upcoming appointment for this business in the portal
+  useEffect(() => {
+    if (!clientToken || !businessSlug) { setPortalBookingExists(false); return; }
+    fetch("/api/client/appointments", { headers: { "x-client-token": clientToken } })
+      .then(r => r.ok ? r.json() : [])
+      .then((data: any[]) => {
+        const has = Array.isArray(data) && data.some(
+          a => a.businessSlug === businessSlug &&
+               a.status !== "cancelled" &&
+               new Date(`${a.appointmentDate}T${a.appointmentTime}:00`) > new Date()
+        );
+        setPortalBookingExists(has);
+      })
+      .catch(() => setPortalBookingExists(false));
+  }, [clientToken, businessSlug]);
 
   useEffect(() => {
     if (!business) return;
@@ -1010,15 +1028,28 @@ export default function Book() {
             </div>
           )}
 
-          {/* Existing appointment banner */}
-          {existingBooking && (
+          {/* Back to portal button (only when logged in) */}
+          {clientToken && (
+            <div className="mb-3 flex justify-end">
+              <button
+                onClick={() => navigate("/client")}
+                className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
+              >
+                <ChevronRight className="w-3.5 h-3.5" />
+                חזרה לפורטל הלקוח
+              </button>
+            </div>
+          )}
+
+          {/* Existing appointment banner – only for logged-in clients */}
+          {clientToken && (existingBooking || portalBookingExists) && (
             <div
               className="mb-4 p-3 rounded-xl border text-sm text-center"
               style={{ backgroundColor: primaryColor + "0d", borderColor: primaryColor + "33" }}
             >
               יש לכם תור!{" "}
               <button
-                onClick={() => setShowExistingBooking(true)}
+                onClick={() => navigate("/client?tab=appointments")}
                 className="font-bold underline"
                 style={{ color: primaryColor }}
               >
@@ -1063,8 +1094,8 @@ export default function Book() {
                       <p className="text-sm text-muted-foreground mt-1">{(service as any).description}</p>
                     )}
                     <div className="flex justify-between items-center mt-3">
-                      <span className="text-xs text-muted-foreground flex items-center gap-1">
-                        <Clock className="w-3.5 h-3.5" /> {formatDuration(service.durationMinutes)}
+                      <span className="text-xs text-muted-foreground flex items-center gap-1" dir="rtl">
+                        <Clock className="w-3.5 h-3.5" /> <bdi>{formatDuration(service.durationMinutes)}</bdi>
                       </span>
                       <button
                         onClick={() => { setSelectedServiceId(service.id); setStep(2); }}
@@ -1327,8 +1358,8 @@ export default function Book() {
                             {(service as any).description && (
                               <p className="text-sm text-muted-foreground mt-1">{(service as any).description}</p>
                             )}
-                            <div className="text-muted-foreground text-sm flex items-center gap-1 mt-1">
-                              <Clock className="w-4 h-4" />{formatDuration(service.durationMinutes)}
+                            <div className="text-muted-foreground text-sm flex items-center gap-1 mt-1" dir="rtl">
+                              <Clock className="w-4 h-4" /><bdi>{formatDuration(service.durationMinutes)}</bdi>
                             </div>
                           </div>
                         </div>
@@ -1573,7 +1604,7 @@ export default function Book() {
                           window.open(url, "_blank");
                         }}
                       >
-                        <CalendarIcon className="w-4 h-4" /> הוסף ל-Google Calendar
+                        <CalendarIcon className="w-4 h-4" /> הוסף ל-<span dir="ltr">Google Calendar</span>
                       </Button>
                       <Button
                         variant="outline"

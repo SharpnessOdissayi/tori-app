@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import { useLocation } from "wouter";
+import { useLocation, useSearch } from "wouter";
 import { Home, CalendarDays, Plus, LogOut, Trash2, Edit2, X, ChevronLeft, User } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
@@ -208,7 +208,7 @@ function LoginScreen({ onLogin }: { onLogin: (token: string, name: string) => vo
             </div>
             <button onClick={sendOtp} disabled={loading}
               className="w-full py-3 rounded-xl bg-violet-600 text-white font-semibold text-sm hover:bg-violet-700 disabled:opacity-50 transition-all">
-              {loading ? "שולח..." : "שלח קוד WhatsApp"}
+              {loading ? "שולח..." : <span dir="rtl">שלח קוד <span dir="ltr">WhatsApp</span></span>}
             </button>
           </div>
         ) : (
@@ -256,7 +256,7 @@ function LoginScreen({ onLogin }: { onLogin: (token: string, name: string) => vo
               style={{ background: "#1877F2", color: "#fff" }}
             >
               <svg width="20" height="20" viewBox="0 0 24 24" fill="white"><path d="M24 12.073C24 5.405 18.627 0 12 0S0 5.405 0 12.073C0 18.1 4.388 23.094 10.125 24v-8.437H7.078v-3.49h3.047V9.41c0-3.025 1.792-4.697 4.533-4.697 1.312 0 2.686.236 2.686.236v2.97h-1.513c-1.491 0-1.956.93-1.956 1.874v2.25h3.328l-.532 3.49h-2.796V24C19.612 23.094 24 18.1 24 12.073z"/></svg>
-              {loading ? "מתחבר..." : "המשך עם Facebook"}
+              {loading ? "מתחבר..." : <span dir="rtl">המשך עם <span dir="ltr">Facebook</span></span>}
             </button>
           )}
         </div>
@@ -271,12 +271,16 @@ type Tab = "home" | "appointments";
 
 export default function ClientPortal() {
   const [, navigate] = useLocation();
+  const search = useSearch();
   const { toast } = useToast();
   const [token, setToken] = useState<string | null>(localStorage.getItem(TOKEN_KEY));
   const [session, setSession] = useState<ClientSession | null>(null);
   const [businesses, setBusinesses] = useState<Business[]>([]);
   const [appointments, setAppointments] = useState<Appointment[]>([]);
-  const [tab, setTab] = useState<Tab>("home");
+  const [tab, setTab] = useState<Tab>(() => {
+    const t = new URLSearchParams(search).get("tab");
+    return t === "appointments" ? "appointments" : "home";
+  });
   const [editMode, setEditMode] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
   const [profileName, setProfileName] = useState("");
