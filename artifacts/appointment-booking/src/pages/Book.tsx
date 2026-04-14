@@ -185,6 +185,8 @@ export default function Book() {
   // step 0 = profile page, 1-5 = booking wizard
   const [step, setStep] = useState(0);
   const [showNotification, setShowNotification] = useState(true);
+  const [showAnnouncement, setShowAnnouncement] = useState(false);
+  const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
   const [showWaitlist, setShowWaitlist] = useState(false);
   const [showExistingBooking, setShowExistingBooking] = useState(false);
   const [activeTab, setActiveTab] = useState<"services" | "hours" | "gallery">("services");
@@ -235,6 +237,21 @@ export default function Book() {
   const { data: business, isLoading: businessLoading, error: businessError } = useGetPublicBusiness(businessSlug || "");
   const { data: services, isLoading: servicesLoading } = useGetPublicServices(businessSlug || "");
 
+  // Show announcement popup if active and not dismissed
+  useEffect(() => {
+    if (!business) return;
+    const text = (business as any).announcementText;
+    const createdAt = (business as any).announcementCreatedAt;
+    const validHours = (business as any).announcementValidHours ?? 24;
+    if (!text || !createdAt) return;
+    const expiresAt = new Date(createdAt).getTime() + validHours * 60 * 60 * 1000;
+    if (Date.now() > expiresAt) return;
+    // Key: slug + createdAt — so a new announcement resets dismiss state
+    const dismissKey = `ann_dismissed_${businessSlug}_${createdAt}`;
+    if (localStorage.getItem(dismissKey)) return;
+    setShowAnnouncement(true);
+  }, [business, businessSlug]);
+
   const dateStr = selectedDate ? format(selectedDate, "yyyy-MM-dd") : "";
   const { data: availability, isLoading: availabilityLoading } = useGetPublicAvailability(
     businessSlug || "",
@@ -270,7 +287,7 @@ export default function Book() {
   const address = (business as any)?.address ?? null;
   const websiteUrl = (business as any)?.websiteUrl ?? null;
   const instagramUrl = (business as any)?.instagramUrl ?? null;
-  const wazeUrl = (business as any)?.wazeUrl ?? null;
+  const wazeUrl = (business as any)?.wazeUrl ?? (address ? `https://waze.com/ul?q=${encodeURIComponent(address)}&navigate=yes` : null);
   const businessDescription = (business as any)?.businessDescription ?? null;
   const requirePhoneVerification = (business as any)?.requirePhoneVerification ?? false;
   const bannerPosition = (business as any)?.bannerPosition ?? "center";
@@ -807,16 +824,33 @@ export default function Book() {
     return (
       <div dir="rtl" style={{ fontFamily: `'${fontFamily}', sans-serif`, backgroundColor }} className="min-h-screen overflow-x-hidden">
 
-        {/* Notification Dialog */}
-        <Dialog open={business.notificationEnabled && showNotification} onOpenChange={setShowNotification}>
+        {/* Announcement popup — dismissable per-message via localStorage */}
+        <Dialog open={showAnnouncement} onOpenChange={setShowAnnouncement}>
           <DialogContent className="sm:max-w-md text-center" dir="rtl">
             <DialogHeader>
-              <DialogTitle className="text-xl">הודעה מבית העסק</DialogTitle>
+              <DialogTitle className="text-xl">📢 הודעה מבית העסק</DialogTitle>
             </DialogHeader>
             <DialogDescription className="text-base py-4 whitespace-pre-wrap text-foreground">
-              {business.notificationMessage}
+              {(business as any).announcementText}
             </DialogDescription>
-            <Button onClick={() => setShowNotification(false)} style={{ backgroundColor: primaryColor }}>הבנתי, תודה</Button>
+            <div className="flex flex-col gap-2">
+              <Button
+                onClick={() => {
+                  const createdAt = (business as any).announcementCreatedAt;
+                  localStorage.setItem(`ann_dismissed_${businessSlug}_${createdAt}`, "1");
+                  setShowAnnouncement(false);
+                }}
+                style={{ backgroundColor: primaryColor }}
+              >
+                הבנתי, לא להציג שוב ✓
+              </Button>
+              <button
+                className="text-sm text-muted-foreground underline"
+                onClick={() => setShowAnnouncement(false)}
+              >
+                סגור (יוצג שוב בביקור הבא)
+              </button>
+            </div>
           </DialogContent>
         </Dialog>
 
@@ -1155,11 +1189,29 @@ export default function Book() {
           {/* Gallery tab */}
           {activeTab === "gallery" && (
             galleryImages.length > 0 ? (
-              <div className="grid grid-cols-3 gap-1">
-                {galleryImages.map((url, i) => (
-                  <img key={i} src={url} alt={`gallery-${i}`} className="w-full aspect-square object-cover rounded-lg" />
-                ))}
-              </div>
+              <>
+                <div className="grid grid-cols-3 gap-1">
+                  {galleryImages.map((url, i) => (
+                    <img key={i} src={url} alt={`gallery-${i}`}
+                      className="w-full aspect-square object-cover rounded-lg cursor-pointer hover:opacity-90 transition-opacity active:scale-95"
+                      onClick={() => setLightboxUrl(url)}
+                    />
+                  ))}
+                </div>
+                {/* Lightbox */}
+                {lightboxUrl && (
+                  <div
+                    className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 p-4"
+                    onClick={() => setLightboxUrl(null)}
+                  >
+                    <img src={lightboxUrl} alt="gallery-full" className="max-w-full max-h-full rounded-xl object-contain shadow-2xl" />
+                    <button
+                      className="absolute top-4 left-4 text-white bg-black/50 rounded-full w-9 h-9 flex items-center justify-center text-xl"
+                      onClick={() => setLightboxUrl(null)}
+                    >×</button>
+                  </div>
+                )}
+              </>
             ) : (
               <div className="text-center py-8 text-muted-foreground">אין תמונות בגלריה עדיין</div>
             )

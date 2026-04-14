@@ -27,6 +27,7 @@ const PLANS = [
 interface EditFormData {
   name: string;
   slug: string;
+  username: string;
   ownerName: string;
   email: string;
   password: string;
@@ -43,7 +44,7 @@ export default function SuperAdmin() {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [newBusiness, setNewBusiness] = useState({ name: "", slug: "", ownerName: "", email: "", password: "", phone: "" });
   const [editDialogBusiness, setEditDialogBusiness] = useState<AdminBusinessSummary | null>(null);
-  const [editForm, setEditForm] = useState<EditFormData>({ name: "", slug: "", ownerName: "", email: "", password: "", phone: "" });
+  const [editForm, setEditForm] = useState<EditFormData>({ name: "", slug: "", username: "", ownerName: "", email: "", password: "", phone: "" });
   const [showEditPassword, setShowEditPassword] = useState(false);
 
   const [loginAttempted, setLoginAttempted] = useState(false);
@@ -134,6 +135,7 @@ export default function SuperAdmin() {
     setEditForm({
       name: business.name,
       slug: business.slug,
+      username: (business as any).username ?? "",
       ownerName: business.ownerName,
       email: business.email,
       password: "",
@@ -149,6 +151,7 @@ export default function SuperAdmin() {
     const data: AdminUpdateBusinessBody = {};
     if (editForm.name !== editDialogBusiness.name) data.name = editForm.name;
     if (editForm.slug !== editDialogBusiness.slug) data.slug = editForm.slug;
+    if (editForm.username !== ((editDialogBusiness as any).username ?? "")) (data as any).username = editForm.username || null;
     if (editForm.ownerName !== editDialogBusiness.ownerName) data.ownerName = editForm.ownerName;
     if (editForm.email !== editDialogBusiness.email) data.email = editForm.email;
     if (editForm.password) data.password = editForm.password;
@@ -298,6 +301,10 @@ export default function SuperAdmin() {
               <Label>כתובת URL (Slug)</Label>
               <Input required value={editForm.slug} onChange={e => setEditForm(p => ({ ...p, slug: e.target.value.toLowerCase().replace(/\s+/g, "-") }))} dir="ltr" placeholder="yosi-barber" />
               {editForm.slug && <p className="text-xs text-muted-foreground" dir="ltr">/book/{editForm.slug}</p>}
+            </div>
+            <div className="space-y-2">
+              <Label>שם משתמש</Label>
+              <Input value={editForm.username} onChange={e => setEditForm(p => ({ ...p, username: e.target.value.toLowerCase().replace(/\s+/g, "") }))} dir="ltr" placeholder="yosi-barber (אופציונלי)" />
             </div>
             <div className="space-y-2">
               <Label>שם הבעלים</Label>

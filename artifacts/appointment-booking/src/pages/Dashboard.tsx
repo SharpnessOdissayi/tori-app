@@ -595,12 +595,12 @@ function Login({ onLogin }: { onLogin: (t: string) => void }) {
               <img src="/logo.png" alt="קבעתי" className="h-16 w-16 rounded-2xl object-cover mx-auto mb-2" />
             </a>
             <CardTitle className="text-2xl">כניסה לקבעתי</CardTitle>
-            <CardDescription>הזן אימייל או מספר טלפון וסיסמה</CardDescription>
+            <CardDescription>הזן אימייל, מספר טלפון או שם משתמש</CardDescription>
           </CardHeader>
           <CardContent>
             <form onSubmit={handleSubmit} className="space-y-4" noValidate>
               <div className="space-y-2">
-                <Label>אימייל / מספר טלפון</Label>
+                <Label>אימייל / טלפון / שם משתמש</Label>
                 <Input
                   required
                   value={identifier}
@@ -2175,7 +2175,8 @@ function BrandingTab() {
                 <Input dir="ltr" value={form.instagramUrl} onChange={e => setForm(p => ({ ...p, instagramUrl: e.target.value }))} placeholder="https://instagram.com/mybusiness" />
               </div>
               <div className="space-y-2">
-                <Label>קישור לוויז</Label>
+                <Label>קישור לוויז (אופציונלי)</Label>
+                <p className="text-xs text-muted-foreground">אם ריק — ניווט יופעל אוטומטית לפי הכתובת שהוזנה</p>
                 <Input dir="ltr" value={form.wazeUrl} onChange={e => setForm(p => ({ ...p, wazeUrl: e.target.value }))} placeholder="https://waze.com/ul/..." />
               </div>
             </div>
@@ -2276,6 +2277,9 @@ function IntegrationsTab() {
 
   const [notificationEnabled, setNotificationEnabled] = useState(true);
   const [notificationMessage, setNotificationMessage] = useState("");
+  const [sendBookingConfirmation, setSendBookingConfirmation] = useState(true);
+  const [announcementText, setAnnouncementText] = useState("");
+  const [announcementValidHours, setAnnouncementValidHours] = useState(24);
   const [sendReminders, setSendReminders] = useState(true);
   const [requireArrivalConfirmation, setRequireArrivalConfirmation] = useState(true);
   const [sendWhatsAppReminders, setSendWhatsAppReminders] = useState(true);
@@ -2289,7 +2293,10 @@ function IntegrationsTab() {
     if (profile) {
       setNotificationEnabled(profile.notificationEnabled ?? true);
       setNotificationMessage(profile.notificationMessage ?? "");
+      setSendBookingConfirmation((profile as any).sendBookingConfirmation ?? true);
       setSendReminders((profile as any).sendReminders ?? true);
+      setAnnouncementText((profile as any).announcementText ?? "");
+      setAnnouncementValidHours((profile as any).announcementValidHours ?? 24);
       setRequireArrivalConfirmation((profile as any).requireArrivalConfirmation ?? true);
       setSendWhatsAppReminders((profile as any).sendWhatsAppReminders ?? true);
       setShabbatMode(((profile as any).shabbatMode ?? "any") as "any" | "shabbat");
@@ -2304,7 +2311,10 @@ function IntegrationsTab() {
       data: {
         notificationEnabled,
         notificationMessage: notificationMessage || null,
+        sendBookingConfirmation,
         sendReminders,
+        announcementText: announcementText || null,
+        announcementValidHours,
         requireArrivalConfirmation,
         sendWhatsAppReminders,
         reminderTriggers: JSON.stringify(reminderTriggers),
@@ -2345,6 +2355,14 @@ function IntegrationsTab() {
             <Switch checked={notificationEnabled} onCheckedChange={setNotificationEnabled} />
           </div>
           <Separator />
+          <div className="flex items-center justify-between">
+            <div>
+              <div className="font-medium text-sm">שלח אישור תור ללקוח</div>
+              <div className="text-xs text-muted-foreground" dir="rtl">הודעת <span dir="ltr">WhatsApp</span> נשלחת ללקוח מיד עם קביעת התור</div>
+            </div>
+            <Switch checked={sendBookingConfirmation} onCheckedChange={setSendBookingConfirmation} />
+          </div>
+          <Separator />
           <div className="space-y-2">
             <Label>הודעה מותאמת אישית ללקוחות (אופציונלי)</Label>
             <p className="text-xs text-muted-foreground">תוסף לאישור שנשלח ללקוחות בעת קביעת תור</p>
@@ -2354,6 +2372,52 @@ function IntegrationsTab() {
               onChange={e => setNotificationMessage(e.target.value)}
             />
           </div>
+        </CardContent>
+      </Card>
+
+      {/* Announcement popup card */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <span className="text-xl">📢</span> הודעת פתיחה לפרופיל העסק
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="space-y-2">
+            <Label>תוכן ההודעה</Label>
+            <p className="text-xs text-muted-foreground">תוצג ללקוח כחלון קופץ בכניסה לפרופיל שלך. ריק = ללא הודעה</p>
+            <textarea
+              rows={3}
+              maxLength={500}
+              className="w-full rounded-xl border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary resize-none"
+              placeholder="לדוגמא: חנוכה שמח! כל הטיפולים השבוע ב-20% הנחה 🎉"
+              value={announcementText}
+              onChange={e => setAnnouncementText(e.target.value.slice(0, 500))}
+            />
+            <div className="flex justify-between items-center">
+              <span className="text-xs text-muted-foreground">{announcementText.length} / 500</span>
+              {announcementText && (
+                <button type="button" onClick={() => setAnnouncementText("")}
+                  className="text-xs text-destructive hover:underline">מחק הודעה</button>
+              )}
+            </div>
+          </div>
+          {announcementText && (
+            <div className="space-y-2">
+              <Label>תוקף ההודעה</Label>
+              <p className="text-xs text-muted-foreground">לקוח שסגר את ההודעה לא יראה אותה שוב עד שתוקפה פג</p>
+              <div className="flex items-center gap-3">
+                <input
+                  type="number" min={1} max={720}
+                  className="w-24 rounded-xl border bg-background px-3 py-2 text-sm text-center focus:outline-none focus:ring-2 focus:ring-primary"
+                  value={announcementValidHours}
+                  onChange={e => setAnnouncementValidHours(Number(e.target.value) || 24)}
+                />
+                <span className="text-sm text-muted-foreground">שעות</span>
+                <span className="text-xs text-muted-foreground">(24 = יום, 168 = שבוע)</span>
+              </div>
+            </div>
+          )}
         </CardContent>
       </Card>
 
@@ -2380,13 +2444,6 @@ function IntegrationsTab() {
                 <div className="text-xs text-muted-foreground mt-0.5">הלקוח יצטרך לאשר הגעה בהודעת התזכורת</div>
               </div>
               <Switch checked={requireArrivalConfirmation} onCheckedChange={setRequireArrivalConfirmation} />
-            </div>
-            <div className="flex items-center justify-between p-4 border rounded-xl bg-muted/20">
-              <div>
-                <div className="font-medium text-sm" dir="rtl">שליחת תזכורות ב-<span dir="ltr">WhatsApp</span></div>
-                <div className="text-xs text-muted-foreground mt-0.5" dir="rtl">כשכבוי — תזכורות יישלחו ב-<span dir="ltr">SMS</span></div>
-              </div>
-              <Switch checked={sendWhatsAppReminders} onCheckedChange={setSendWhatsAppReminders} />
             </div>
           </div>
 

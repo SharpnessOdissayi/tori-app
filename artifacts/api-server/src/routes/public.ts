@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { db, businessesTable, servicesTable, appointmentsTable, waitlistTable, workingHoursTable } from "@workspace/db";
+import { db, businessesTable, servicesTable, appointmentsTable, waitlistTable, workingHoursTable, clientSessionsTable } from "@workspace/db";
 import { eq, and, gte, sql, countDistinct, count, ilike, or } from "drizzle-orm";
 import {
   GetPublicBusinessParams,
@@ -99,6 +99,9 @@ router.get("/public/:businessSlug", async (req, res): Promise<void> => {
     showBanner: (business as any).showBanner ?? true,
     contactPhone: (business as any).contactPhone ?? null,
     address: (business as any).address ?? null,
+    announcementText: (business as any).announcementText ?? null,
+    announcementValidHours: (business as any).announcementValidHours ?? 24,
+    announcementCreatedAt: (business as any).announcementCreatedAt ? (business as any).announcementCreatedAt.toISOString() : null,
   });
 });
 
@@ -407,10 +410,18 @@ router.post("/public/:businessSlug/appointments", async (req, res): Promise<void
       .catch((e: any) => console.error("[WhatsApp] notifyBusinessOwner failed:", e?.response?.data ?? e?.message));
   }
 
-  // Send confirmation to client only if appointment is immediately confirmed (non-blocking)
-  if (appointmentStatus === "confirmed") {
-    sendClientConfirmation(phoneNumber, clientName, business.name, service.name, formattedDate, appointmentTime, business.slug)
-      .catch((e: any) => console.error("[WhatsApp] sendClientConfirmation failed:", e?.response?.data ?? e?.message));
+  // Send confirmation to client only if business enabled it and appointment is immediately confirmed (non-blocking)
+  if (appointmentStatus === "confirmed" && (business as any).sendBookingConfirmation !== false) {
+    // Check if client has opted out of notifications
+    const [clientPref] = await db
+      .select({ receiveNotifications: clientSessionsTable.receiveNotifications })
+      .from(clientSessionsTable)
+      .where(eq(clientSessionsTable.phoneNumber, phoneNumber))
+      .limit(1);
+    if (!clientPref || clientPref.receiveNotifications !== false) {
+      sendClientConfirmation(phoneNumber, clientName, business.name, service.name, formattedDate, appointmentTime, business.slug)
+        .catch((e: any) => console.error("[WhatsApp] sendClientConfirmation failed:", e?.response?.data ?? e?.message));
+    }
   }
 
   res.status(201).json({

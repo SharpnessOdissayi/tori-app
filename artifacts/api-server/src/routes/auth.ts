@@ -36,7 +36,7 @@ function buildLoginResponse(business: typeof businessesTable.$inferSelect, token
   };
 }
 
-// POST /auth/business/login — supports email OR phone
+// POST /auth/business/login — supports email, phone, or username
 router.post("/auth/business/login", async (req, res): Promise<void> => {
   const parsed = BusinessLoginBody.safeParse(req.body);
   if (!parsed.success) {
@@ -47,13 +47,14 @@ router.post("/auth/business/login", async (req, res): Promise<void> => {
   const { email: identifier, password } = parsed.data;
   const identifierNormalized = identifier.toLowerCase().trim();
 
-  // Try email (case-insensitive) first, then phone
+  // Try email (case-insensitive), phone, or username
   const [business] = await db
     .select()
     .from(businessesTable)
     .where(or(
       eq(sql`lower(${businessesTable.email})`, identifierNormalized),
-      eq(businessesTable.phone, identifier.trim())
+      eq(businessesTable.phone, identifier.trim()),
+      eq(sql`lower(${(businessesTable as any).username})`, identifierNormalized)
     ));
 
   if (!business) {
@@ -84,7 +85,7 @@ router.post("/auth/business/register", async (req, res): Promise<void> => {
     return;
   }
 
-  const { name, slug, ownerName, phone, email, password, subscriptionPlan, businessCategories } = parsed.data;
+  const { name, slug, username, ownerName, phone, email, password, subscriptionPlan, businessCategories } = parsed.data;
 
   // Check uniqueness
   const [existingEmail] = await db.select({ id: businessesTable.id }).from(businessesTable).where(eq(businessesTable.email, email));
@@ -103,6 +104,14 @@ router.post("/auth/business/register", async (req, res): Promise<void> => {
   if (existingSlug) {
     res.status(409).json({ error: "slug_taken", message: "כתובת העסק כבר תפוסה, בחר כתובת אחרת" });
     return;
+  }
+
+  if (username) {
+    const [existingUsername] = await db.select({ id: businessesTable.id }).from(businessesTable).where(eq(sql`lower(${(businessesTable as any).username})`, username.toLowerCase().trim()));
+    if (existingUsername) {
+      res.status(409).json({ error: "username_taken", message: "שם המשתמש כבר תפוס, בחר שם אחר" });
+      return;
+    }
   }
 
   const passwordHash = await bcrypt.hash(password, 10);
@@ -124,7 +133,8 @@ router.post("/auth/business/register", async (req, res): Promise<void> => {
       maxAppointmentsPerMonth,
       subscriptionStartDate: new Date(),
       businessCategories: businessCategories ? JSON.stringify(businessCategories) : null,
-    })
+      ...(username ? { username: username.toLowerCase().trim() } : {}),
+    } as any)
     .returning();
 
   // Default working hours: Sun–Thu 09:00–18:00

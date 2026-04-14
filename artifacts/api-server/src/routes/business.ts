@@ -64,6 +64,7 @@ function mapBusiness(b: typeof businessesTable.$inferSelect) {
     maxAppointmentsPerDay: b.maxAppointmentsPerDay ?? null,
     // Reminders
     buttonRadius: b.buttonRadius ?? null,
+    sendBookingConfirmation: b.sendBookingConfirmation ?? true,
     sendReminders: b.sendReminders,
     requireArrivalConfirmation: b.requireArrivalConfirmation,
     sendWhatsAppReminders: b.sendWhatsAppReminders,
@@ -87,6 +88,9 @@ function mapBusiness(b: typeof businessesTable.$inferSelect) {
     address: (b as any).address ?? null,
     city: (b as any).city ?? null,
     businessCategories: (b as any).businessCategories ?? null,
+    announcementText: (b as any).announcementText ?? null,
+    announcementValidHours: (b as any).announcementValidHours ?? 24,
+    announcementCreatedAt: (b as any).announcementCreatedAt ? (b as any).announcementCreatedAt.toISOString() : null,
     // Tranzila
     tranzilaEnabled: (b as any).tranzilaEnabled ?? false,
     depositAmountAgorot: (b as any).depositAmountAgorot ?? null,
@@ -144,6 +148,7 @@ router.patch("/business/profile", requireBusinessAuth, async (req, res): Promise
   if (d.maxAppointmentsPerDay !== undefined) updates.maxAppointmentsPerDay = d.maxAppointmentsPerDay ?? undefined;
   // Reminders
   if (d.buttonRadius !== undefined) updates.buttonRadius = d.buttonRadius ?? undefined;
+  if (d.sendBookingConfirmation !== undefined) updates.sendBookingConfirmation = d.sendBookingConfirmation ?? true;
   if (d.sendReminders !== undefined) updates.sendReminders = d.sendReminders ?? true;
   if (d.requireArrivalConfirmation !== undefined) updates.requireArrivalConfirmation = d.requireArrivalConfirmation ?? false;
   if (d.sendWhatsAppReminders !== undefined) updates.sendWhatsAppReminders = d.sendWhatsAppReminders ?? true;
@@ -197,6 +202,12 @@ router.patch("/business/branding", requireBusinessAuth, async (req, res): Promis
   if (bd.address !== undefined) (updates as any).address = bd.address ?? null;
   if (bd.city !== undefined) (updates as any).city = bd.city ?? null;
   if (bd.businessCategories !== undefined) (updates as any).businessCategories = bd.businessCategories ?? null;
+  if ((bd as any).announcementText !== undefined) {
+    (updates as any).announcementText = (bd as any).announcementText || null;
+    if ((bd as any).announcementText) (updates as any).announcementCreatedAt = new Date();
+    else (updates as any).announcementCreatedAt = null;
+  }
+  if ((bd as any).announcementValidHours !== undefined) (updates as any).announcementValidHours = Number((bd as any).announcementValidHours) || 24;
 
   const [updated] = await db
     .update(businessesTable)

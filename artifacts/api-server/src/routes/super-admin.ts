@@ -118,6 +118,7 @@ router.patch("/super-admin/businesses/:id", async (req, res): Promise<void> => {
   if (bodyParsed.data.maxServicesAllowed !== undefined) updates.maxServicesAllowed = bodyParsed.data.maxServicesAllowed;
   if (bodyParsed.data.name !== undefined) updates.name = bodyParsed.data.name;
   if (bodyParsed.data.slug !== undefined) updates.slug = bodyParsed.data.slug;
+  if ((bodyParsed.data as any).username !== undefined) (updates as any).username = (bodyParsed.data as any).username || null;
   if (bodyParsed.data.ownerName !== undefined) updates.ownerName = bodyParsed.data.ownerName;
   if (bodyParsed.data.email !== undefined) updates.email = bodyParsed.data.email;
   if (bodyParsed.data.password !== undefined) {

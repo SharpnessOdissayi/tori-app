@@ -65,6 +65,13 @@ export async function runMigrations() {
       "ALTER TABLE client_businesses ADD COLUMN IF NOT EXISTS facebook_id TEXT",
       "ALTER TABLE businesses ADD COLUMN IF NOT EXISTS business_categories TEXT",
       "ALTER TABLE businesses ADD COLUMN IF NOT EXISTS city TEXT",
+      "ALTER TABLE businesses ADD COLUMN IF NOT EXISTS username TEXT",
+      "ALTER TABLE businesses ADD COLUMN IF NOT EXISTS send_booking_confirmation BOOLEAN NOT NULL DEFAULT TRUE",
+      "ALTER TABLE client_sessions ADD COLUMN IF NOT EXISTS receive_notifications BOOLEAN NOT NULL DEFAULT TRUE",
+      "ALTER TABLE client_sessions ADD COLUMN IF NOT EXISTS gender TEXT",
+      "ALTER TABLE businesses ADD COLUMN IF NOT EXISTS announcement_text TEXT",
+      "ALTER TABLE businesses ADD COLUMN IF NOT EXISTS announcement_valid_hours INTEGER NOT NULL DEFAULT 24",
+      "ALTER TABLE businesses ADD COLUMN IF NOT EXISTS announcement_created_at TIMESTAMPTZ",
     ];
 
     for (const stmt of alterations) {

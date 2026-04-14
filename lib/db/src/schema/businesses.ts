@@ -5,6 +5,7 @@ import { z } from "zod/v4";
 export const businessesTable = pgTable("businesses", {
   id: serial("id").primaryKey(),
   slug: text("slug").notNull().unique(),
+  username: text("username").unique(),
   name: text("name").notNull(),
   ownerName: text("owner_name").notNull(),
   email: text("email").notNull().unique(),
@@ -47,6 +48,7 @@ export const businessesTable = pgTable("businesses", {
   maxAppointmentsPerDay: integer("max_appointments_per_day"),
   // Reminders
   buttonRadius: text("button_radius"),
+  sendBookingConfirmation: boolean("send_booking_confirmation").notNull().default(true),
   sendReminders: boolean("send_reminders").notNull().default(true),
   requireArrivalConfirmation: boolean("require_arrival_confirmation").notNull().default(false),
   sendWhatsAppReminders: boolean("send_whatsapp_reminders").notNull().default(true),
@@ -77,6 +79,10 @@ export const businessesTable = pgTable("businesses", {
   broadcastMonthKey: text("broadcast_month_key"), // "YYYY-MM"
   businessCategories: text("business_categories"), // JSON array of category strings
   city: text("city"), // populated separately for directory filtering
+  // Profile page announcement popup
+  announcementText: text("announcement_text"),
+  announcementValidHours: integer("announcement_valid_hours").notNull().default(24),
+  announcementCreatedAt: timestamp("announcement_created_at"),
 });
 
 export const insertBusinessSchema = createInsertSchema(businessesTable).omit({ id: true, createdAt: true });

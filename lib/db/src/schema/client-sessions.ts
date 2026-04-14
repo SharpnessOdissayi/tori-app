@@ -1,4 +1,4 @@
-import { pgTable, serial, text, timestamp } from "drizzle-orm/pg-core";
+import { pgTable, serial, text, timestamp, boolean } from "drizzle-orm/pg-core";
 
 export const clientSessionsTable = pgTable("client_sessions", {
   id: serial("id").primaryKey(),
@@ -10,4 +10,6 @@ export const clientSessionsTable = pgTable("client_sessions", {
   clientName: text("client_name").notNull().default(""),
   expiresAt: timestamp("expires_at").notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
+  receiveNotifications: boolean("receive_notifications").notNull().default(true),
+  gender: text("gender"),
 });

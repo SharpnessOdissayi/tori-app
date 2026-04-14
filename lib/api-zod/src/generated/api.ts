@@ -100,6 +100,7 @@ export const BusinessLoginBody = zod.object({
 export const BusinessRegisterBody = zod.object({
   name: zod.string(),
   slug: zod.string(),
+  username: zod.string().min(3).optional(),
   ownerName: zod.string(),
   phone: zod.string(),
   email: zod.string().email(),

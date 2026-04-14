@@ -146,15 +146,19 @@ router.get("/client/me", requireClientAuth, async (req, res): Promise<void> => {
     clientName: session.clientName,
     phone: session.phoneNumber ?? null,
     email: session.email ?? null,
+    receiveNotifications: session.receiveNotifications ?? true,
+    gender: session.gender ?? null,
   });
 });
 
 router.patch("/client/me", requireClientAuth, async (req, res): Promise<void> => {
   const session = (req as any).clientSession;
-  const { clientName, phone } = req.body;
+  const { clientName, phone, receiveNotifications, gender } = req.body;
   const updates: any = {};
   if (clientName && typeof clientName === "string") updates.clientName = clientName.trim();
   if (phone && typeof phone === "string") updates.phoneNumber = phone.trim();
+  if (typeof receiveNotifications === "boolean") updates.receiveNotifications = receiveNotifications;
+  if (gender && ["male", "female", "other"].includes(gender)) updates.gender = gender;
   if (Object.keys(updates).length === 0) { res.status(400).json({ error: "אין שינויים" }); return; }
 
   await db.update(clientSessionsTable).set(updates).where(eq(clientSessionsTable.token, session.token));

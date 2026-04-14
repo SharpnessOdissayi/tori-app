@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { useLocation, useSearch } from "wouter";
-import { Home, CalendarDays, Plus, LogOut, Trash2, Edit2, X, ChevronLeft, User, Search, MapPin, Tag } from "lucide-react";
+import { Home, CalendarDays, Plus, LogOut, Trash2, Edit2, X, ChevronLeft, Settings, Search, MapPin, Tag } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 const API = import.meta.env.VITE_API_BASE_URL ?? "/api";
@@ -10,7 +10,7 @@ const TOKEN_KEY = "kavati_client_token";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-type ClientSession = { clientName: string; phone: string | null; email: string | null };
+type ClientSession = { clientName: string; phone: string | null; email: string | null; receiveNotifications: boolean; gender: string | null };
 
 type Business = {
   businessId: number;
@@ -311,6 +311,8 @@ export default function ClientPortal() {
   const [profileOpen, setProfileOpen] = useState(false);
   const [profileName, setProfileName] = useState("");
   const [profilePhone, setProfilePhone] = useState("");
+  const [profileReceiveNotifications, setProfileReceiveNotifications] = useState(true);
+  const [profileGender, setProfileGender] = useState<string>("other");
   const [loading, setLoading] = useState(false);
 
   // Discover
@@ -330,7 +332,7 @@ export default function ClientPortal() {
 
   const handleLogin = (newToken: string, name: string) => {
     setToken(newToken);
-    setSession({ clientName: name, phone: null, email: null });
+    setSession({ clientName: name, phone: null, email: null, receiveNotifications: true, gender: null });
   };
 
   // Load session data
@@ -342,6 +344,8 @@ export default function ClientPortal() {
         setSession(data);
         setProfileName(data.clientName ?? "");
         setProfilePhone(data.phone ?? "");
+        setProfileReceiveNotifications(data.receiveNotifications ?? true);
+        setProfileGender(data.gender ?? "other");
       })
       .catch(logout);
   }, [token]);
@@ -389,10 +393,10 @@ export default function ClientPortal() {
     setLoading(true);
     const res = await fetch(`${API}/client/me`, {
       method: "PATCH", headers: { "Content-Type": "application/json", ...authHeaders() },
-      body: JSON.stringify({ clientName: profileName, phone: profilePhone }),
+      body: JSON.stringify({ clientName: profileName, phone: profilePhone, receiveNotifications: profileReceiveNotifications, gender: profileGender }),
     });
     setLoading(false);
-    if (res.ok) { toast({ title: "פרטים עודכנו" }); setProfileOpen(false); setSession(s => s ? { ...s, clientName: profileName, phone: profilePhone } : s); }
+    if (res.ok) { toast({ title: "פרטים עודכנו" }); setProfileOpen(false); setSession(s => s ? { ...s, clientName: profileName, phone: profilePhone, receiveNotifications: profileReceiveNotifications, gender: profileGender } : s); }
     else toast({ title: "שגיאה", variant: "destructive" });
   };
 
@@ -416,7 +420,7 @@ export default function ClientPortal() {
         <div className="flex gap-2">
           <button onClick={() => { setProfileOpen(true); }}
             className="w-9 h-9 rounded-full bg-violet-50 flex items-center justify-center text-violet-600 hover:bg-violet-100 transition">
-            <User className="w-4 h-4" />
+            <Settings className="w-4 h-4" />
           </button>
           <button onClick={logout}
             className="w-9 h-9 rounded-full bg-gray-100 flex items-center justify-center text-gray-500 hover:bg-gray-200 transition">
@@ -473,7 +477,7 @@ export default function ClientPortal() {
                       <button onClick={() => navigate(`/book/${biz.slug}`)}
                         className="w-full py-2 rounded-xl text-xs font-bold text-white transition-all"
                         style={{ background: biz.primaryColor ?? "#7C3AED" }}>
-                        קבעי תור
+                        לפרופיל העסק
                       </button>
                     )}
                   </div>
@@ -581,7 +585,7 @@ export default function ClientPortal() {
         <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/30" onClick={() => setProfileOpen(false)}>
           <div className="w-full max-w-md bg-white rounded-t-3xl p-6 space-y-5" onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between">
-              <h3 className="font-bold text-lg">פרופיל</h3>
+              <h3 className="font-bold text-lg">הגדרות</h3>
               <button onClick={() => setProfileOpen(false)} className="text-gray-400 hover:text-gray-600"><X className="w-5 h-5" /></button>
             </div>
             <div className="space-y-3">
@@ -594,6 +598,38 @@ export default function ClientPortal() {
                 <label className="text-sm font-medium text-gray-700">טלפון</label>
                 <input type="tel" dir="ltr" value={profilePhone} onChange={e => setProfilePhone(e.target.value)}
                   className="w-full rounded-xl border border-gray-200 px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500 text-right" />
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-sm font-medium text-gray-700">מין</label>
+                <div className="flex gap-2">
+                  {[{ v: "male", l: "זכר" }, { v: "female", l: "נקבה" }, { v: "other", l: "אחר" }].map(({ v, l }) => (
+                    <button key={v} type="button" onClick={() => setProfileGender(v)}
+                      className="flex-1 py-2 rounded-xl text-sm font-medium border transition-all"
+                      style={{
+                        background: profileGender === v ? "#7c3aed" : "transparent",
+                        color: profileGender === v ? "#fff" : "#6b7280",
+                        borderColor: profileGender === v ? "#7c3aed" : "#e5e7eb",
+                      }}>
+                      {l}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div className="flex items-center justify-between py-2 border-t border-gray-100">
+                <div>
+                  <div className="text-sm font-medium text-gray-700">קבל/י התראות מעסקים</div>
+                  <div className="text-xs text-gray-400">הודעות אישור ותזכורות תורים</div>
+                </div>
+                <div
+                  onClick={() => setProfileReceiveNotifications(v => !v)}
+                  className="relative w-10 h-5 rounded-full transition-colors duration-200 cursor-pointer flex-shrink-0"
+                  style={{ background: profileReceiveNotifications ? "#7c3aed" : "#d1d5db" }}
+                >
+                  <div
+                    className="absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-all duration-200"
+                    style={{ right: profileReceiveNotifications ? "2px" : "auto", left: profileReceiveNotifications ? "auto" : "2px" }}
+                  />
+                </div>
               </div>
             </div>
             <button onClick={saveProfile} disabled={loading}
@@ -701,7 +737,7 @@ export default function ClientPortal() {
                         onClick={() => navigate(`/book/${biz.slug}`)}
                         className="w-full py-2 rounded-xl text-xs font-bold text-white transition-all mt-1"
                         style={{ background: biz.primaryColor ?? "#7C3AED" }}>
-                        קבעי תור
+                        לפרופיל העסק
                       </button>
                     </div>
                   ))}

@@ -220,6 +220,7 @@ function StepPayment({ onNext, onBack }: { onNext: () => void; onBack: () => voi
 interface DetailsForm {
   businessName: string;
   slug: string;
+  username: string;
   ownerName: string;
   phone: string;
   email: string;
@@ -244,6 +245,7 @@ function StepDetails({
   const [form, setForm] = useState<DetailsForm>({
     businessName: "",
     slug: "",
+    username: "",
     ownerName: "",
     phone: "",
     email: "",
@@ -300,6 +302,7 @@ function StepDetails({
         body: JSON.stringify({
           name: form.businessName,
           slug: form.slug,
+          username: form.username.trim() || undefined,
           ownerName: form.ownerName,
           phone: form.phone,
           email: form.email,
@@ -317,6 +320,7 @@ function StepDetails({
           (data.error === "email_taken" ? "האימייל כבר רשום במערכת" :
            data.error === "phone_taken" ? "מספר הטלפון כבר רשום" :
            data.error === "slug_taken" ? "כתובת העסק כבר תפוסה" :
+           data.error === "username_taken" ? "שם המשתמש כבר תפוס" :
            "שגיאה ברישום, נסה שוב");
         toast({ title: "שגיאה", description: msg, variant: "destructive" });
         return;
@@ -425,6 +429,16 @@ function StepDetails({
             />
           </div>
           <p className="text-xs text-muted-foreground">רק אותיות באנגלית, מספרים ומקפים. לא ניתן לשנות לאחר מכן.</p>
+        </div>
+
+        {/* Username */}
+        <div className="space-y-2">
+          <Label className="flex items-center gap-1.5">
+            <User className="w-4 h-4 text-muted-foreground" /> שם משתמש לכניסה
+            <span className="text-xs text-muted-foreground font-normal">(אופציונלי)</span>
+          </Label>
+          <Input dir="ltr" placeholder="my-username" value={form.username} onChange={set("username")} />
+          <p className="text-xs text-muted-foreground">ניתן להתחבר עם שם משתמש במקום אימייל</p>
         </div>
 
         {/* Owner name */}
