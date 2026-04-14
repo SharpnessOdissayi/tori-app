@@ -92,6 +92,25 @@ function formatDuration(minutes: number): string {
   return `${h} שעות ו-${m} דקות`;
 }
 
+// In RTL context flex-direction:row places first child on the RIGHT.
+// Splits "Lilash - הלחמת ריסים" so English appears on the right side.
+function renderBizName(name: string): React.ReactNode {
+  const SEP = [" - ", " – ", " | "].find((s) => name.includes(s));
+  if (SEP && /^[a-zA-Z\d]/.test(name)) {
+    const idx = name.indexOf(SEP);
+    const eng = name.slice(0, idx);
+    const heb = name.slice(idx + SEP.length);
+    return (
+      <span style={{ display: "inline-flex", flexDirection: "row", alignItems: "baseline" }}>
+        <span dir="ltr">{eng}</span>
+        <span>{SEP}</span>
+        <span dir="rtl">{heb}</span>
+      </span>
+    );
+  }
+  return <span dir="rtl">{name}</span>;
+}
+
 function CopyLinkButton({ slug }: { slug: string }) {
   const [copied, setCopied] = useState(false);
   const fullUrl = `${window.location.origin}/book/${slug}`;
@@ -409,7 +428,7 @@ export default function Dashboard() {
             {headerProfile?.name && (
               <span className="hidden sm:block text-sm font-medium px-3 py-1.5 rounded-lg"
                 style={{ color: "#d4af37", border: "1px solid #d4af3740" }}>
-                {headerProfile.name}
+                {renderBizName(headerProfile.name)}
               </span>
             )}
             <button
@@ -432,7 +451,7 @@ export default function Dashboard() {
           <div>
             <p className="text-xs text-muted-foreground">ברוך הבא,</p>
             <p className="font-bold text-lg leading-tight" dir="rtl" style={{ color: "#d4af37" }}>
-              {headerProfile?.name ?? ""}!
+              {renderBizName(headerProfile?.name ?? "")}!
             </p>
           </div>
           <button

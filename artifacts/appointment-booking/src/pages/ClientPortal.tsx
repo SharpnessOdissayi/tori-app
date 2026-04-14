@@ -17,6 +17,24 @@ function formatDuration(minutes: number): string {
   return `${h} שעות ו-${m} דקות`;
 }
 
+// In RTL context flex-direction:row places the first child on the RIGHT.
+function renderBizName(name: string): React.ReactNode {
+  const SEP = [" - ", " – ", " | "].find((s) => name.includes(s));
+  if (SEP && /^[a-zA-Z\d]/.test(name)) {
+    const idx = name.indexOf(SEP);
+    const eng = name.slice(0, idx);
+    const heb = name.slice(idx + SEP.length);
+    return (
+      <span style={{ display: "inline-flex", flexDirection: "row", alignItems: "baseline" }}>
+        <span dir="ltr">{eng}</span>
+        <span>{SEP}</span>
+        <span dir="rtl">{heb}</span>
+      </span>
+    );
+  }
+  return <span dir="rtl">{name}</span>;
+}
+
 function formatDate(dateStr: string): string {
   const [year, month, day] = dateStr.split("-");
   return `${day}/${month}/${year}`;
@@ -172,7 +190,7 @@ export default function ClientPortal() {
               {appt.businessName.charAt(0)}
             </div>
             <div>
-              <div className="font-semibold text-sm text-gray-900">{appt.businessName}</div>
+              <div className="font-semibold text-sm text-gray-900">{renderBizName(appt.businessName)}</div>
               <div className="text-xs text-gray-500">{appt.serviceName}</div>
             </div>
           </div>
@@ -231,7 +249,7 @@ export default function ClientPortal() {
               {nextAppt && (
                 <div className="rounded-3xl p-5 text-white space-y-3" style={{ background: `linear-gradient(135deg, ${PRIMARY}, #9F67FF)` }}>
                   <div className="text-xs opacity-80">התור הקרוב שלך</div>
-                  <div className="font-bold text-xl">{nextAppt.businessName}</div>
+                  <div className="font-bold text-xl">{renderBizName(nextAppt.businessName)}</div>
                   <div className="text-sm opacity-90">{nextAppt.serviceName}</div>
                   <div className="flex items-center gap-4 text-sm">
                     <div className="flex items-center gap-1">
@@ -263,7 +281,7 @@ export default function ClientPortal() {
                         <div className="w-14 h-14 rounded-2xl flex items-center justify-center text-white font-bold text-lg shadow-sm" style={{ backgroundColor: b.businessPrimaryColor ?? PRIMARY }}>
                           {b.businessName.charAt(0)}
                         </div>
-                        <span className="text-xs text-gray-600 max-w-[56px] truncate">{b.businessName}</span>
+                        <span className="text-xs text-gray-600 max-w-[56px] truncate">{renderBizName(b.businessName)}</span>
                       </button>
                     ))}
                   </div>

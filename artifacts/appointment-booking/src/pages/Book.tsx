@@ -187,15 +187,16 @@ function renderBizName(name: string): React.ReactNode {
     const idx = name.indexOf(SEP);
     const eng = name.slice(0, idx);
     const heb = name.slice(idx + SEP.length);
+    // In RTL context flex-direction:row places first child on the RIGHT.
     return (
-      <span style={{ display: "inline-flex", flexDirection: "row-reverse", alignItems: "baseline", gap: "0" }}>
+      <span style={{ display: "inline-flex", flexDirection: "row", alignItems: "baseline" }}>
         <span dir="ltr">{eng}</span>
         <span>{SEP}</span>
         <span dir="rtl">{heb}</span>
       </span>
     );
   }
-  return <span dir="auto">{name}</span>;
+  return <span dir="rtl">{name}</span>;
 }
 
 export default function Book() {
