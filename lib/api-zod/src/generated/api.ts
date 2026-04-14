@@ -105,6 +105,7 @@ export const BusinessRegisterBody = zod.object({
   email: zod.string().email(),
   password: zod.string().min(6),
   subscriptionPlan: zod.enum(["basic", "pro"]),
+  businessCategories: zod.array(zod.string()).optional(),
 });
 
 export const ChangePasswordBody = zod.object({

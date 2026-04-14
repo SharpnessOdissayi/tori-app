@@ -1768,6 +1768,7 @@ function BrandingTab() {
     bannerPosition: "center" as string,
     contactPhone: "",
     address: "",
+    city: "",
   });
   const galleryUpload = useImageUpload();
   const galleryRef = useRef<HTMLInputElement>(null);
@@ -1800,6 +1801,7 @@ function BrandingTab() {
         bannerPosition: (profile as any).bannerPosition ?? "center",
         contactPhone: (profile as any).contactPhone ?? "",
         address: (profile as any).address ?? "",
+        city: (profile as any).city ?? "",
       });
     }
   }, [profile]);
@@ -1843,6 +1845,7 @@ function BrandingTab() {
         bannerPosition: form.bannerPosition || "center",
         contactPhone: form.contactPhone || null,
         address: form.address || null,
+        city: (form as any).city || null,
       } as any
     }, {
       onSuccess: () => { toast({ title: "עיצוב נשמר" }); queryClient.invalidateQueries({ queryKey: getGetBusinessProfileQueryKey() }); },
@@ -2158,6 +2161,10 @@ function BrandingTab() {
               <div className="space-y-2">
                 <Label>כתובת העסק (תוצג בפרופיל)</Label>
                 <Input value={form.address} onChange={e => setForm(p => ({ ...p, address: e.target.value }))} placeholder="רחוב הרצל 1, תל אביב" />
+              </div>
+              <div className="space-y-2">
+                <Label>עיר (לחיפוש בספריית קבעתי)</Label>
+                <Input value={(form as any).city ?? ""} onChange={e => setForm(p => ({ ...p, city: e.target.value }))} placeholder="תל אביב" />
               </div>
               <div className="space-y-2">
                 <Label>קישור לאתר</Label>

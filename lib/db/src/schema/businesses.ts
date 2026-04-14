@@ -75,6 +75,8 @@ export const businessesTable = pgTable("businesses", {
   // Broadcast messaging quota ($10/month cap, ~150 messages @ $0.06 each)
   broadcastSentThisMonth: integer("broadcast_sent_this_month").notNull().default(0),
   broadcastMonthKey: text("broadcast_month_key"), // "YYYY-MM"
+  businessCategories: text("business_categories"), // JSON array of category strings
+  city: text("city"), // populated separately for directory filtering
 });
 
 export const insertBusinessSchema = createInsertSchema(businessesTable).omit({ id: true, createdAt: true });

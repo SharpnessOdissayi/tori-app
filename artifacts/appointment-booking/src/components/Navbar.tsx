@@ -78,8 +78,8 @@ export default function Navbar({ leftContent }: { leftContent?: ReactNode }) {
 
         <div className="relative w-full px-4 sm:px-6 h-16 flex items-center justify-between">
 
-          {/* RIGHT: logo + nav links tight together */}
-          <div className="flex items-center">
+          {/* RIGHT: logo + nav links + CTAs all on the right side */}
+          <div className="flex items-center flex-1">
             <Link href="/">
               <img
                 src="/logo.png"
@@ -107,38 +107,46 @@ export default function Navbar({ leftContent }: { leftContent?: ReactNode }) {
                   </Link>
                 );
               })}
+
+              {/* CTAs pinned right after nav links */}
+              {!leftContent && (
+                <>
+                  <Link href="/portal">
+                    <span
+                      className="px-3 py-2 text-sm font-medium cursor-pointer transition-all whitespace-nowrap"
+                      style={{
+                        color: location === "/portal" ? "#d4af37" : "#c0c0c0",
+                        borderBottom: location === "/portal" ? "2px solid #d4af37" : "2px solid transparent",
+                      }}
+                      onMouseEnter={e => (e.currentTarget.style.color = "#d4af37")}
+                      onMouseLeave={e => (e.currentTarget.style.color = location === "/portal" ? "#d4af37" : "#c0c0c0")}
+                    >
+                      כניסה ללקוחות
+                    </span>
+                  </Link>
+                  <Link href="/register">
+                    <span
+                      className="mr-2 px-5 py-2.5 rounded-xl text-sm font-bold cursor-pointer transition-all whitespace-nowrap"
+                      style={{
+                        background: "linear-gradient(135deg, #d4af37, #f0c040)",
+                        color: "#0a0a0a",
+                        boxShadow: "0 0 14px rgba(212,175,55,0.35)",
+                      }}
+                    >
+                      הצטרפות למערכת קבעתי
+                    </span>
+                  </Link>
+                </>
+              )}
             </nav>
           </div>
 
-          {/* LEFT: custom content (dashboard logout etc.) OR CTAs */}
-          <div className="hidden md:flex items-center gap-2">
-            {leftContent ?? (
-              <>
-                <Link href="/portal">
-                  <span
-                    className="px-4 py-2 rounded-xl text-sm font-medium cursor-pointer transition-all whitespace-nowrap border"
-                    style={{ color: "#d4af37", borderColor: "#d4af3750" }}
-                    onMouseEnter={e => (e.currentTarget.style.borderColor = "#d4af37")}
-                    onMouseLeave={e => (e.currentTarget.style.borderColor = "#d4af3750")}
-                  >
-                    כניסה ללקוחות
-                  </span>
-                </Link>
-                <Link href="/register">
-                  <span
-                    className="px-5 py-2.5 rounded-xl text-sm font-bold cursor-pointer transition-all whitespace-nowrap"
-                    style={{
-                      background: "linear-gradient(135deg, #d4af37, #f0c040)",
-                      color: "#0a0a0a",
-                      boxShadow: "0 0 14px rgba(212,175,55,0.35)",
-                    }}
-                  >
-                    הצטרפות למערכת קבעתי
-                  </span>
-                </Link>
-              </>
-            )}
-          </div>
+          {/* LEFT: custom content (dashboard logout etc.) */}
+          {leftContent && (
+            <div className="hidden md:flex items-center gap-2">
+              {leftContent}
+            </div>
+          )}
 
           {/* Mobile hamburger */}
           <button

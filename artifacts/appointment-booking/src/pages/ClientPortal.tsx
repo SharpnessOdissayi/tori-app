@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { useLocation, useSearch } from "wouter";
-import { Home, CalendarDays, Plus, LogOut, Trash2, Edit2, X, ChevronLeft, User } from "lucide-react";
+import { Home, CalendarDays, Plus, LogOut, Trash2, Edit2, X, ChevronLeft, User, Search, MapPin, Tag } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 const API = import.meta.env.VITE_API_BASE_URL ?? "/api";
@@ -19,6 +19,17 @@ type Business = {
   logoUrl?: string | null;
   primaryColor?: string | null;
   address?: string | null;
+};
+
+type DirectoryBusiness = {
+  slug: string;
+  name: string;
+  logoUrl?: string | null;
+  primaryColor?: string | null;
+  address?: string | null;
+  city?: string | null;
+  businessCategories?: string | null;
+  businessDescription?: string | null;
 };
 
 type Appointment = {
@@ -295,6 +306,14 @@ export default function ClientPortal() {
   const [profilePhone, setProfilePhone] = useState("");
   const [loading, setLoading] = useState(false);
 
+  // Discover
+  const [discoverOpen, setDiscoverOpen] = useState(false);
+  const [discoverList, setDiscoverList] = useState<DirectoryBusiness[]>([]);
+  const [discoverLoading, setDiscoverLoading] = useState(false);
+  const [discoverSearch, setDiscoverSearch] = useState("");
+  const [discoverCategory, setDiscoverCategory] = useState("");
+  const [discoverCity, setDiscoverCity] = useState("");
+
   const logout = () => {
     localStorage.removeItem(TOKEN_KEY);
     setToken(null);
@@ -335,6 +354,16 @@ export default function ClientPortal() {
 
   useEffect(() => { loadBusinesses(); }, [loadBusinesses]);
   useEffect(() => { if (tab === "appointments") loadAppointments(); }, [tab, loadAppointments]);
+
+  const openDiscover = () => {
+    setDiscoverOpen(true);
+    setDiscoverLoading(true);
+    fetch(`${API}/public/directory`)
+      .then(r => r.json())
+      .then(setDiscoverList)
+      .catch(() => {})
+      .finally(() => setDiscoverLoading(false));
+  };
 
   const removeBusiness = async (slug: string) => {
     await fetch(`${API}/client/businesses/${slug}`, { method: "DELETE", headers: { ...authHeaders() } });
@@ -396,13 +425,20 @@ export default function ClientPortal() {
           <div className="p-4 space-y-4">
             <div className="flex items-center justify-between">
               <h2 className="font-bold text-lg text-gray-900">העסקים שלי</h2>
-              {businesses.length > 0 && (
-                <button onClick={() => setEditMode(v => !v)}
-                  className={`flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-medium transition ${editMode ? "bg-violet-100 text-violet-700" : "bg-gray-100 text-gray-600 hover:bg-gray-200"}`}>
-                  <Edit2 className="w-3 h-3" />
-                  {editMode ? "סיום עריכה" : "עריכה"}
+              <div className="flex items-center gap-2">
+                <button onClick={openDiscover}
+                  className="flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-medium bg-violet-600 text-white hover:bg-violet-700 transition">
+                  <Plus className="w-3 h-3" />
+                  גלה עסקים
                 </button>
-              )}
+                {businesses.length > 0 && (
+                  <button onClick={() => setEditMode(v => !v)}
+                    className={`flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-medium transition ${editMode ? "bg-violet-100 text-violet-700" : "bg-gray-100 text-gray-600 hover:bg-gray-200"}`}>
+                    <Edit2 className="w-3 h-3" />
+                    {editMode ? "סיום עריכה" : "עריכה"}
+                  </button>
+                )}
+              </div>
             </div>
 
             {businesses.length === 0 ? (
@@ -559,6 +595,112 @@ export default function ClientPortal() {
           </div>
         </div>
       )}
+
+      {/* ── DISCOVER MODAL ── */}
+      {discoverOpen && (() => {
+        const allCategories = Array.from(new Set(
+          discoverList.flatMap(b => {
+            try { return b.businessCategories ? JSON.parse(b.businessCategories) as string[] : []; }
+            catch { return []; }
+          })
+        )).sort();
+
+        const allCities = Array.from(new Set(
+          discoverList.map(b => b.city).filter(Boolean)
+        )).sort() as string[];
+
+        const filtered = discoverList.filter(b => {
+          if (discoverSearch && !b.name.includes(discoverSearch) && !(b.address ?? "").includes(discoverSearch)) return false;
+          if (discoverCity && b.city !== discoverCity) return false;
+          if (discoverCategory) {
+            try {
+              const cats: string[] = b.businessCategories ? JSON.parse(b.businessCategories) : [];
+              if (!cats.includes(discoverCategory)) return false;
+            } catch { return false; }
+          }
+          return true;
+        });
+
+        return (
+          <div className="fixed inset-0 z-50 flex flex-col bg-gray-50" dir="rtl">
+            <div className="bg-white border-b px-4 py-3 flex items-center gap-3">
+              <button onClick={() => { setDiscoverOpen(false); setDiscoverSearch(""); setDiscoverCategory(""); setDiscoverCity(""); }}
+                className="text-gray-500 hover:text-gray-800 transition">
+                <X className="w-5 h-5" />
+              </button>
+              <h2 className="font-bold text-base text-gray-900 flex-1">גלה עסקים בקבעתי</h2>
+            </div>
+
+            <div className="bg-white border-b px-4 py-3 space-y-2">
+              <div className="relative">
+                <Search className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+                <input
+                  type="text"
+                  placeholder="חפש שם עסק..."
+                  value={discoverSearch}
+                  onChange={e => setDiscoverSearch(e.target.value)}
+                  className="w-full pr-9 pl-4 py-2 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500 bg-gray-50"
+                />
+              </div>
+              <div className="flex gap-2">
+                {allCategories.length > 0 && (
+                  <div className="relative flex-1">
+                    <Tag className="absolute right-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400 pointer-events-none" />
+                    <select
+                      value={discoverCategory}
+                      onChange={e => setDiscoverCategory(e.target.value)}
+                      className="w-full appearance-none pr-8 pl-3 py-2 rounded-xl border border-gray-200 text-sm bg-gray-50 focus:outline-none focus:ring-2 focus:ring-violet-500"
+                    >
+                      <option value="">כל הסוגים</option>
+                      {allCategories.map(c => <option key={c} value={c}>{c}</option>)}
+                    </select>
+                  </div>
+                )}
+                {allCities.length > 0 && (
+                  <div className="relative flex-1">
+                    <MapPin className="absolute right-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400 pointer-events-none" />
+                    <select
+                      value={discoverCity}
+                      onChange={e => setDiscoverCity(e.target.value)}
+                      className="w-full appearance-none pr-8 pl-3 py-2 rounded-xl border border-gray-200 text-sm bg-gray-50 focus:outline-none focus:ring-2 focus:ring-violet-500"
+                    >
+                      <option value="">כל הערים</option>
+                      {allCities.map(c => <option key={c} value={c}>{c}</option>)}
+                    </select>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className="flex-1 overflow-y-auto p-4">
+              {discoverLoading ? (
+                <div className="text-center py-16 text-gray-400 text-sm">טוען עסקים...</div>
+              ) : filtered.length === 0 ? (
+                <div className="text-center py-16 text-gray-400 text-sm">לא נמצאו עסקים</div>
+              ) : (
+                <div className="grid grid-cols-2 gap-3">
+                  {filtered.map(biz => (
+                    <div key={biz.slug} className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 flex flex-col items-center gap-2">
+                      <BusinessAvatar biz={{ name: biz.name, logoUrl: biz.logoUrl, primaryColor: biz.primaryColor }} size={56} />
+                      <p className="font-semibold text-sm text-center text-gray-900 leading-tight" dir="auto">{biz.name}</p>
+                      {(biz.city || biz.address) && (
+                        <p className="text-xs text-gray-400 text-center">{biz.city ?? biz.address}</p>
+                      )}
+                      <button
+                        onClick={() => navigate(`/book/${biz.slug}`)}
+                        className="w-full py-2 rounded-xl text-xs font-bold text-white transition-all mt-1"
+                        style={{ background: biz.primaryColor ?? "#7C3AED" }}>
+                        קבעי תור
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        );
+      })()}
+
     </div>
   );
 }

@@ -640,7 +640,7 @@ export default function Book() {
   }
 
   const handleNext = () => setStep(s => s + 1);
-  const handleBack = () => setStep(s => s - 1);
+  const handleBack = () => setStep(s => s === 2 ? 0 : s - 1);
   const servicesList = Array.isArray(services) ? services : [];
   const selectedService = servicesList.find(s => s.id === selectedServiceId);
 
@@ -1180,7 +1180,7 @@ export default function Book() {
       {/* Floating book button */}
       <div className="fixed bottom-0 left-0 right-0 p-4 bg-white/90 dark:bg-black/90 backdrop-blur border-t z-40">
         <button
-          onClick={() => setStep(1)}
+          onClick={() => setStep(2)}
           className="w-full h-12 rounded-2xl text-white font-bold text-base shadow-lg"
           style={{ backgroundColor: primaryColor }}
         >
@@ -1316,75 +1316,27 @@ export default function Book() {
 
         <Card className="shadow-lg overflow-hidden" style={{ borderRadius: cardRadius }}>
           <div className="px-6 py-4 flex gap-2 border-b" style={{ backgroundColor: primaryColor + "10" }}>
-            {[1, 2, 3, 4].map(num => (
-              <div key={num} className="flex items-center gap-2">
-                <div
-                  className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm transition-all ${step < num ? "bg-muted text-muted-foreground" : ""}`}
-                  style={
-                    step === num ? { backgroundColor: primaryColor, color: "white" } :
-                    step > num ? { backgroundColor: primaryColor + "30", color: primaryColor } :
-                    {}
-                  }>
-                  {step > num ? <Check className="w-4 h-4" /> : num}
+            {[2, 3, 4].map((stepNum, idx) => {
+              const displayNum = idx + 1;
+              return (
+                <div key={stepNum} className="flex items-center gap-2">
+                  <div
+                    className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm transition-all ${step < stepNum ? "bg-muted text-muted-foreground" : ""}`}
+                    style={
+                      step === stepNum ? { backgroundColor: primaryColor, color: "white" } :
+                      step > stepNum ? { backgroundColor: primaryColor + "30", color: primaryColor } :
+                      {}
+                    }>
+                    {step > stepNum ? <Check className="w-4 h-4" /> : displayNum}
+                  </div>
+                  {idx < 2 && <div className={`w-4 h-0.5 ${step <= stepNum ? "bg-border" : ""}`} style={step > stepNum ? { backgroundColor: primaryColor + "60" } : {}} />}
                 </div>
-                {num < 4 && <div className={`w-4 h-0.5 ${step <= num ? "bg-border" : ""}`} style={step > num ? { backgroundColor: primaryColor + "60" } : {}} />}
-              </div>
-            ))}
+              );
+            })}
           </div>
 
           <CardContent className="p-6 min-h-[380px]">
             <AnimatePresence mode="wait" initial={false}>
-
-              {step === 1 && (
-                <motion.div key="s1" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} className="space-y-4">
-                  <h2 className="text-xl font-bold">בחר שירות</h2>
-                  {!clientToken && (
-                    <button
-                      onClick={() => { setPortalLoginStep("phone"); setPortalPhone(""); setPortalOtpCode(""); setShowPortalLogin(true); }}
-                      className="w-full flex items-center justify-between gap-2 px-4 py-2.5 rounded-xl border border-dashed text-sm text-muted-foreground hover:bg-muted/30 transition-all"
-                    >
-                      <span>🔑 כניסה לפורטל לקוחות לניהול התורים שלך</span>
-                      <span className="text-xs font-medium" style={{ color: primaryColor }}>כניסה ←</span>
-                    </button>
-                  )}
-                  {clientToken && (
-                    <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-green-50 border border-green-200 text-sm text-green-700">
-                      <span>✓</span> <span>מחובר/ת לפורטל הלקוחות</span>
-                    </div>
-                  )}
-                  {servicesLoading ? <div className="text-center py-8 text-muted-foreground">טוען שירותים...</div> : (
-                    <div className="grid gap-3">
-                      {servicesList.filter(s => s.isActive).map(service => (
-                        <div key={service.id}
-                          onClick={() => { setSelectedServiceId(service.id); }}
-                          className={`border-2 rounded-xl cursor-pointer transition-all overflow-hidden ${selectedServiceId === service.id ? "border-primary" : "border-transparent bg-muted/40 hover:bg-muted"}`}
-                          style={{ borderColor: selectedServiceId === service.id ? primaryColor : undefined, backgroundColor: selectedServiceId === service.id ? primaryColor + "0d" : undefined }}>
-                          {service.imageUrl && (
-                            <div className="h-28 overflow-hidden">
-                              <img src={service.imageUrl} alt={service.name} className="w-full h-full object-cover" />
-                            </div>
-                          )}
-                          <div className="p-4">
-                            <div className="flex justify-between items-center">
-                              <div className="font-semibold text-lg">{service.name}</div>
-                              <div className="font-bold text-lg" style={{ color: primaryColor }}>₪{(service.price / 100).toFixed(0)}</div>
-                            </div>
-                            {(service as any).description && (
-                              <p className="text-sm text-muted-foreground mt-1">{(service as any).description}</p>
-                            )}
-                            <div className="text-muted-foreground text-sm flex items-center gap-1 mt-1" dir="rtl">
-                              <Clock className="w-4 h-4" /><bdi>{formatDuration(service.durationMinutes)}</bdi>
-                            </div>
-                          </div>
-                        </div>
-                      ))}
-                      {!servicesList.filter(s => s.isActive).length && (
-                        <div className="text-center py-8 text-muted-foreground">אין שירותים זמינים כרגע</div>
-                      )}
-                    </div>
-                  )}
-                </motion.div>
-              )}
 
               {step === 2 && (
                 <motion.div key="s2" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} className="space-y-4">
@@ -1658,11 +1610,11 @@ export default function Book() {
 
           {step < 5 && (
             <CardFooter className="border-t p-6 flex justify-between bg-muted/10">
-              {step > 1 ? (
+              {step > 2 ? (
                 <Button variant="outline" onClick={handleBack} className="gap-2">
                   <ChevronRight className="w-4 h-4" /> חזור
                 </Button>
-              ) : step === 1 ? (
+              ) : step === 2 ? (
                 <Button variant="outline" onClick={() => setStep(0)} className="gap-2">
                   <ChevronRight className="w-4 h-4" /> פרופיל
                 </Button>
@@ -1674,8 +1626,6 @@ export default function Book() {
               ) : step === 3 && selectedTime ? (
                 <Button onClick={handleNext} size="lg" style={{ backgroundColor: primaryColor }}>המשך</Button>
               ) : step === 2 && useCalendar && selectedDate ? (
-                <Button onClick={handleNext} size="lg" style={{ backgroundColor: primaryColor }}>המשך</Button>
-              ) : step === 1 && selectedServiceId ? (
                 <Button onClick={handleNext} size="lg" style={{ backgroundColor: primaryColor }}>המשך</Button>
               ) : <div />}
             </CardFooter>

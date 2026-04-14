@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { db, businessesTable, servicesTable, appointmentsTable, waitlistTable, workingHoursTable } from "@workspace/db";
-import { eq, and, gte, sql, countDistinct, count } from "drizzle-orm";
+import { eq, and, gte, sql, countDistinct, count, ilike, or } from "drizzle-orm";
 import {
   GetPublicBusinessParams,
   GetPublicServicesParams,
@@ -600,6 +600,41 @@ router.get("/public/:businessSlug/next-slots", async (req, res): Promise<void> =
   }
 
   res.json(results);
+});
+
+// GET /public/directory — list all active businesses for discover page
+router.get("/public/directory", async (req, res): Promise<void> => {
+  const category = typeof req.query.category === "string" ? req.query.category : undefined;
+  const city = typeof req.query.city === "string" ? req.query.city : undefined;
+
+  const rows = await db
+    .select({
+      slug: businessesTable.slug,
+      name: businessesTable.name,
+      logoUrl: businessesTable.logoUrl,
+      primaryColor: businessesTable.primaryColor,
+      address: businessesTable.address,
+      city: businessesTable.city,
+      businessCategories: businessesTable.businessCategories,
+      businessDescription: businessesTable.businessDescription,
+    })
+    .from(businessesTable)
+    .where(eq(businessesTable.isActive, true));
+
+  let filtered = rows.filter(b => {
+    if (city && b.city && !b.city.includes(city)) return false;
+    if (category && b.businessCategories) {
+      try {
+        const cats: string[] = JSON.parse(b.businessCategories);
+        if (!cats.includes(category)) return false;
+      } catch { return false; }
+    } else if (category) {
+      return false;
+    }
+    return true;
+  });
+
+  res.json(filtered);
 });
 
 export default router;

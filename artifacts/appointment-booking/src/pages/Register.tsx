@@ -9,8 +9,72 @@ import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import {
   Calendar, Crown, Zap, CheckCircle, ArrowRight, ArrowLeft,
-  Building2, User, Phone, Mail, Lock, Globe, PartyPopper
+  Building2, User, Phone, Mail, Lock, Globe, PartyPopper, Search, X
 } from "lucide-react";
+
+const BUSINESS_CATEGORIES = [
+  // מספרות ועיצוב שיער
+  "ספרות גברים",
+  "מספרת נשים",
+  "מספרה כללית",
+  "החלקות שיער",
+  "צביעת שיער",
+  "עיצוב שיער ופאות",
+  // יופי וטיפוח
+  "מלחימת ריסים",
+  "מלחימת גבות",
+  "עיצוב גבות",
+  "טיפולי פנים",
+  "מניקור ופדיקור",
+  "ציפורניים ג'ל / אקריליק",
+  "מסאז'",
+  "הסרת שיער בלייזר",
+  "שעוות / הסרת שיער",
+  "ספא וטיפולי גוף",
+  "איפור ועיצוב",
+  "סולריום",
+  // קישוטי גוף
+  "קעקוע",
+  "פירסינג",
+  "תכשיטי שיניים",
+  // רפואה ובריאות
+  "רפואה כללית",
+  "רפואת שיניים",
+  "פסיכולוגיה / טיפול רגשי",
+  "פיזיותרפיה",
+  "רפואה טבעית / אלטרנטיבית",
+  "תזונה ודיאטה",
+  "אופטומטריה",
+  "נטורופתיה",
+  "רפלקסולוגיה",
+  // ספורט וכושר
+  "אימון אישי",
+  "יוגה / פילאטיס",
+  "אומנויות לחימה",
+  "שחייה",
+  "ריקוד",
+  // חינוך וייעוץ
+  "שיעורים פרטיים",
+  "ייעוץ עסקי",
+  "ייעוץ משכנתאות",
+  "ייעוץ משפטי",
+  "אימון אישי (קואצ'ינג)",
+  // שירותים מקצועיים
+  "תיקון מחשבים ונייד",
+  "תיקון רכב",
+  "שיפוצים ובנייה",
+  "חשמלאי",
+  "שרברב",
+  // יצירה ואמנות
+  "צילום",
+  "עיצוב גרפי",
+  "שיעורי נגינה",
+  // אחרים
+  "וטרינר",
+  "קייטרינג ואירועים",
+  "אחר",
+  "העסק שלי לא נמצא ברשימה",
+];
 
 type Plan = "free" | "pro";
 
@@ -175,6 +239,8 @@ function StepDetails({
   const { toast } = useToast();
   const [loading, setLoading] = useState(false);
   const [slugManuallyEdited, setSlugManuallyEdited] = useState(false);
+  const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
+  const [categorySearch, setCategorySearch] = useState("");
   const [form, setForm] = useState<DetailsForm>({
     businessName: "",
     slug: "",
@@ -184,6 +250,16 @@ function StepDetails({
     password: "",
     confirmPassword: "",
   });
+
+  const filteredCategories = BUSINESS_CATEGORIES.filter(c =>
+    c.includes(categorySearch)
+  );
+
+  const toggleCategory = (cat: string) => {
+    setSelectedCategories(prev =>
+      prev.includes(cat) ? prev.filter(c => c !== cat) : [...prev, cat]
+    );
+  };
 
   const set = (k: keyof DetailsForm) => (e: React.ChangeEvent<HTMLInputElement>) => {
     const val = e.target.value;
@@ -229,6 +305,7 @@ function StepDetails({
           email: form.email,
           password: form.password,
           subscriptionPlan: plan,
+          businessCategories: selectedCategories.length > 0 ? selectedCategories : undefined,
         }),
       });
 
@@ -283,6 +360,50 @@ function StepDetails({
             value={form.businessName}
             onChange={set("businessName")}
           />
+        </div>
+
+        {/* Business categories */}
+        <div className="space-y-2">
+          <Label className="flex items-center gap-1.5">
+            <Building2 className="w-4 h-4 text-muted-foreground" /> סוג העסק
+            <span className="text-xs text-muted-foreground font-normal">(אפשר לבחור כמה)</span>
+          </Label>
+          {selectedCategories.length > 0 && (
+            <div className="flex flex-wrap gap-1.5 mb-2">
+              {selectedCategories.map(cat => (
+                <span key={cat} className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-primary/10 text-primary text-xs font-medium">
+                  {cat}
+                  <button type="button" onClick={() => toggleCategory(cat)}>
+                    <X className="w-3 h-3" />
+                  </button>
+                </span>
+              ))}
+            </div>
+          )}
+          <div className="relative">
+            <Search className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
+            <Input
+              type="text"
+              placeholder="חפש סוג עסק..."
+              value={categorySearch}
+              onChange={e => setCategorySearch(e.target.value)}
+              className="pr-9"
+            />
+          </div>
+          <div className="max-h-48 overflow-y-auto border rounded-xl p-2 space-y-0.5 bg-background">
+            {filteredCategories.length === 0 ? (
+              <p className="text-center text-sm text-muted-foreground py-3">לא נמצאו תוצאות</p>
+            ) : filteredCategories.map(cat => (
+              <button
+                key={cat}
+                type="button"
+                onClick={() => toggleCategory(cat)}
+                className={`w-full text-right px-3 py-2 rounded-lg text-sm transition-colors ${selectedCategories.includes(cat) ? "bg-primary text-primary-foreground font-medium" : "hover:bg-muted"}`}
+              >
+                {cat}
+              </button>
+            ))}
+          </div>
         </div>
 
         {/* Subdomain / slug */}
