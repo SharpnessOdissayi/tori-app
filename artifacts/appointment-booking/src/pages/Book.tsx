@@ -630,7 +630,7 @@ export default function Book() {
                 {(() => { const h = new Date().getHours(); return h < 12 ? "בוקר טוב! ☀️" : h < 17 ? "צהריים טובים! 🌤️" : h < 21 ? "ערב טוב! 🌆" : "לילה טוב! 🌙"; })()}
               </p>
               <p className="text-center text-xs text-muted-foreground mb-0.5">ברוכ/ה הבא/ה ל:</p>
-              <h1 className="text-2xl font-bold text-center mb-1" dir={businessNameDir} style={{ unicodeBidi: "plaintext" }}>{business.name}</h1>
+              <h1 className="text-2xl font-bold text-center mb-1" dir="rtl" style={{ unicodeBidi: "isolate" }}>{business.name}</h1>
             </>
           )}
           {/* Description */}
@@ -912,7 +912,7 @@ export default function Book() {
                 {(() => { const h = new Date().getHours(); return h < 12 ? "בוקר טוב! ☀️" : h < 17 ? "צהריים טובים! 🌤️" : h < 21 ? "ערב טוב! 🌆" : "לילה טוב! 🌙"; })()}
               </p>
               <p className="text-center text-xs text-muted-foreground mb-1">ברוכ/ה הבא/ה ל:</p>
-              <h1 className="text-3xl font-extrabold mb-2" dir={businessNameDir} style={{ color: primaryColor, unicodeBidi: "plaintext" }}>{business.name}</h1>
+              <h1 className="text-3xl font-extrabold mb-2" dir="rtl" style={{ color: primaryColor, unicodeBidi: "isolate" }}>{business.name}</h1>
             </>
           )}
           <p className="text-muted-foreground">קביעת תור אונליין</p>
