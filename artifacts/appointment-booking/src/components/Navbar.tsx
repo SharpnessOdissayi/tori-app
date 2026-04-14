@@ -7,7 +7,6 @@ const NAV_LINKS = [
   { label: "פרטים", href: "/details" },
   { label: "יצירת קשר", href: "/contact" },
   { label: "כניסה לבעלי עסקים", href: "/dashboard" },
-  { label: "הצטרפות למנוי חדש", href: "/register", highlight: true },
 ];
 
 // 8 stars: top%, left%, size, delay, duration, drift (horizontal drift px)
@@ -111,11 +110,21 @@ export default function Navbar({ leftContent }: { leftContent?: ReactNode }) {
             </nav>
           </div>
 
-          {/* LEFT: custom content (dashboard logout etc.) OR gold CTA */}
-          <div className="hidden md:block">
+          {/* LEFT: custom content (dashboard logout etc.) OR CTAs */}
+          <div className="hidden md:flex items-center gap-2">
             {leftContent ?? (
-              NAV_LINKS.filter(l => l.highlight).map((link) => (
-                <Link key={link.href} href={link.href}>
+              <>
+                <Link href="/portal">
+                  <span
+                    className="px-4 py-2 rounded-xl text-sm font-medium cursor-pointer transition-all whitespace-nowrap border"
+                    style={{ color: "#d4af37", borderColor: "#d4af3750" }}
+                    onMouseEnter={e => (e.currentTarget.style.borderColor = "#d4af37")}
+                    onMouseLeave={e => (e.currentTarget.style.borderColor = "#d4af3750")}
+                  >
+                    כניסה ללקוחות
+                  </span>
+                </Link>
+                <Link href="/register">
                   <span
                     className="px-5 py-2.5 rounded-xl text-sm font-bold cursor-pointer transition-all whitespace-nowrap"
                     style={{
@@ -124,10 +133,10 @@ export default function Navbar({ leftContent }: { leftContent?: ReactNode }) {
                       boxShadow: "0 0 14px rgba(212,175,55,0.35)",
                     }}
                   >
-                    {link.label}
+                    הצטרפות למערכת קבעתי
                   </span>
                 </Link>
-              ))
+              </>
             )}
           </div>
 
@@ -150,17 +159,31 @@ export default function Navbar({ leftContent }: { leftContent?: ReactNode }) {
                 <Link key={link.href} href={link.href}>
                   <span
                     className="block px-4 py-3 rounded-xl text-sm font-medium cursor-pointer"
-                    style={
-                      link.highlight
-                        ? { background: "linear-gradient(135deg, #d4af37, #f0c040)", color: "#0a0a0a", fontWeight: 700 }
-                        : { color: "#c0c0c0" }
-                    }
+                    style={{ color: "#c0c0c0" }}
                     onClick={() => setMenuOpen(false)}
                   >
                     {link.label}
                   </span>
                 </Link>
               ))}
+              <Link href="/portal">
+                <span
+                  className="block px-4 py-3 rounded-xl text-sm font-medium cursor-pointer"
+                  style={{ color: "#d4af37" }}
+                  onClick={() => setMenuOpen(false)}
+                >
+                  כניסה ללקוחות
+                </span>
+              </Link>
+              <Link href="/register">
+                <span
+                  className="block px-4 py-3 rounded-xl text-sm font-bold cursor-pointer"
+                  style={{ background: "linear-gradient(135deg, #d4af37, #f0c040)", color: "#0a0a0a" }}
+                  onClick={() => setMenuOpen(false)}
+                >
+                  הצטרפות למערכת קבעתי
+                </span>
+              </Link>
             </nav>
           </div>
         )}
