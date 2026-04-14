@@ -1044,6 +1044,19 @@ export default function Book() {
             </div>
           )}
 
+          {/* Login prompt for guests */}
+          {!clientToken && (
+            <div className="mb-3 flex justify-center">
+              <button
+                onClick={() => setShowLoginGate(true)}
+                className="text-xs font-medium underline underline-offset-2"
+                style={{ color: primaryColor }}
+              >
+                התחבר/י לפורטל הלקוחות
+              </button>
+            </div>
+          )}
+
           {/* Existing appointment banner – only for logged-in clients with a confirmed upcoming appointment */}
           {clientToken && portalBookingExists && (
             <div
