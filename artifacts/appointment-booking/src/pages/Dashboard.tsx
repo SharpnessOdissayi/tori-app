@@ -92,23 +92,6 @@ function formatDuration(minutes: number): string {
   return `${h} שעות ו-${m} דקות`;
 }
 
-// Flex layout (direction:ltr) so Hebrew is LEFT and English is RIGHT.
-// CSS direction bypasses HTML BiDi which was causing visual doubling.
-function renderBizName(name: string): React.ReactNode {
-  if (!/[a-zA-Z]/.test(name) || !/[\u0590-\u05FF]/.test(name)) return name;
-  const m = name.match(/^(.+?)\s*([-–—|\/])\s*(.+)$/);
-  if (!m) return name;
-  const [, p1, rawSep, p2] = m;
-  const heb = /[\u0590-\u05FF]/.test(p1) ? p1 : p2;
-  const eng = /[a-zA-Z]/.test(p1) ? p1 : p2;
-  return (
-    <span style={{ display: "inline-flex", alignItems: "baseline", direction: "ltr" }}>
-      <span dir="rtl">{heb}</span>
-      <span>{` ${rawSep} `}</span>
-      <span>{eng}</span>
-    </span>
-  );
-}
 
 function CopyLinkButton({ slug }: { slug: string }) {
   const [copied, setCopied] = useState(false);
@@ -425,9 +408,9 @@ export default function Dashboard() {
               </button>
             )}
             {headerProfile?.name && (
-              <span className="hidden sm:block text-sm font-medium px-3 py-1.5 rounded-lg" dir="ltr"
+              <span className="hidden sm:block text-sm font-medium px-3 py-1.5 rounded-lg"
                 style={{ color: "#d4af37", border: "1px solid #d4af3740" }}>
-                {renderBizName(headerProfile.name)}
+                {headerProfile.name}
               </span>
             )}
             <button
@@ -448,11 +431,9 @@ export default function Dashboard() {
         {/* Mobile-only welcome header */}
         <div className="sm:hidden flex items-center justify-between mb-4">
           <div>
-            <p className="font-bold text-lg" style={{ color: "#d4af37" }}>
-              {(() => { const h = new Date().getHours(); return h < 12 ? "בוקר טוב! ☀️" : h < 17 ? "צהריים טובים! 🌤️" : h < 21 ? "ערב טוב! 🌆" : "לילה טוב! 🌙"; })()}
-            </p>
-            <p className="font-semibold text-sm" style={{ color: "#d4af37" }}>
-              ברוך הבא, {(headerProfile as any)?.ownerName?.split(" ")[0] ?? ""}!
+            <p className="text-xs text-muted-foreground">ברוך הבא,</p>
+            <p className="font-bold text-lg leading-tight" dir="rtl" style={{ color: "#d4af37" }}>
+              {headerProfile?.name ?? ""}!
             </p>
           </div>
           <button

@@ -178,26 +178,6 @@ function formatDuration(minutes: number): string {
   return `${h} שעות ו-${m} דקות`;
 }
 
-function renderBizName(name: string): React.ReactNode {
-  if (!/[a-zA-Z]/.test(name) || !/[\u0590-\u05FF]/.test(name)) return name;
-  const m = name.match(/^(.+?)\s*([-–—|\/])\s*(.+)$/);
-  if (!m) return name;
-  const [, p1, rawSep, p2] = m;
-  const heb = /[\u0590-\u05FF]/.test(p1) ? p1 : p2;
-  const eng = /[a-zA-Z]/.test(p1) ? p1 : p2;
-  return (
-    <span style={{ display: "inline-flex", alignItems: "baseline", direction: "ltr" }}>
-      <span dir="rtl">{heb}</span>
-      <span>{` ${rawSep} `}</span>
-      <span>{eng}</span>
-    </span>
-  );
-}
-
-function timeGreeting() {
-  const h = new Date().getHours();
-  return h < 12 ? "בוקר טוב! ☀️" : h < 17 ? "צהריים טובים! 🌤️" : h < 21 ? "ערב טוב! 🌆" : "לילה טוב! 🌙";
-}
 
 export default function Book() {
   const { businessSlug } = useParams<{ businessSlug: string }>();
@@ -644,11 +624,7 @@ export default function Book() {
         <div className={`pb-28 px-4 max-w-2xl mx-auto ${showLogo && logoUrl ? "pt-14" : "pt-6"}`}>
           {/* Business name */}
           {showBusinessName && (
-            <>
-              <p className="text-center text-sm font-semibold mb-0.5">{timeGreeting()}</p>
-              <p className="text-center text-xs text-muted-foreground mb-0.5">ברוך הבא ל:</p>
-              <h1 className="text-2xl font-bold text-center mb-1">{renderBizName(business.name)}</h1>
-            </>
+            <h1 className="text-2xl font-bold text-center mb-1" dir="auto">{business.name}</h1>
           )}
           {/* Description */}
           {businessDescription && (
@@ -924,11 +900,7 @@ export default function Book() {
             <img src={bannerUrl} alt={business.name} className="w-full h-32 rounded-2xl object-cover mb-4 shadow-md" style={{ objectPosition: bannerPosition }} />
           )}
           {showBusinessName && (
-            <>
-              <p className="text-center text-sm font-semibold mb-0.5">{timeGreeting()}</p>
-              <p className="text-center text-xs text-muted-foreground mb-0.5">ברוך הבא ל:</p>
-              <h1 className="text-3xl font-extrabold mb-2" style={{ color: primaryColor }}>{renderBizName(business.name)}</h1>
-            </>
+            <h1 className="text-3xl font-extrabold mb-2" dir="auto" style={{ color: primaryColor }}>{business.name}</h1>
           )}
           <p className="text-muted-foreground">קביעת תור אונליין</p>
         </header>
