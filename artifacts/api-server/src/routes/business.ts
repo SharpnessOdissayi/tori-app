@@ -85,6 +85,9 @@ function mapBusiness(b: typeof businessesTable.$inferSelect) {
     bannerPosition: (b as any).bannerPosition ?? "center",
     contactPhone: (b as any).contactPhone ?? null,
     address: (b as any).address ?? null,
+    // Tranzila
+    tranzilaEnabled: (b as any).tranzilaEnabled ?? false,
+    depositAmountAgorot: (b as any).depositAmountAgorot ?? null,
   };
 }
 
@@ -137,6 +140,9 @@ router.patch("/business/profile", requireBusinessAuth, async (req, res): Promise
   if (d.reminderCustomText !== undefined) updates.reminderCustomText = d.reminderCustomText ?? undefined;
   if (d.shabbatMode !== undefined) updates.shabbatMode = d.shabbatMode ?? "any";
   if (d.reminderSendTime !== undefined) updates.reminderSendTime = d.reminderSendTime ?? "20:00";
+  // Tranzila
+  if (d.tranzilaEnabled !== undefined) (updates as any).tranzilaEnabled = d.tranzilaEnabled;
+  if (d.depositAmountAgorot !== undefined) (updates as any).depositAmountAgorot = d.depositAmountAgorot ?? null;
 
   const [updated] = await db
     .update(businessesTable)

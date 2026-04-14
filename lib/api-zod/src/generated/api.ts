@@ -205,6 +205,9 @@ export const UpdateBusinessProfileBody = zod.object({
   reminderCustomText: zod.string().nullish(),
   shabbatMode: zod.string().optional(),
   reminderSendTime: zod.string().optional(),
+  // Tranzila payment deposit
+  tranzilaEnabled: zod.boolean().optional(),
+  depositAmountAgorot: zod.number().nullish(),
 });
 
 export const UpdateBusinessProfileResponse = zod.object({
