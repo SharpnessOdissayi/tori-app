@@ -208,7 +208,14 @@ export default function Book() {
   const [otpLoading, setOtpLoading] = useState(false);
 
   // Portal auth
-  const [clientToken, setClientToken] = useState<string | null>(() => localStorage.getItem("kavati_client_token"));
+  const [clientToken, setClientToken] = useState<string | null>(
+    () => localStorage.getItem("kavati_client_token") ?? sessionStorage.getItem("kavati_client_token")
+  );
+  // Login gate: show full-screen login if no token (user can skip)
+  const [showLoginGate, setShowLoginGate] = useState(
+    () => !localStorage.getItem("kavati_client_token") && !sessionStorage.getItem("kavati_client_token")
+  );
+  const [rememberMe, setRememberMe] = useState(true);
   const [showPortalLogin, setShowPortalLogin] = useState(false);
   const [portalLoginStep, setPortalLoginStep] = useState<"phone" | "otp">("phone");
   const [portalPhone, setPortalPhone] = useState("");
@@ -366,6 +373,94 @@ export default function Book() {
     </div>
   );
 
+  // ─── Login gate (full-screen, shown before booking page if no token) ────────
+  if (showLoginGate && !businessLoading && business) {
+    return (
+      <div dir="rtl" className="min-h-screen flex flex-col items-center justify-center bg-gradient-to-br from-violet-50 to-indigo-50 px-4 py-8"
+        style={{ fontFamily: `'${business.fontFamily ?? "Heebo"}', sans-serif` }}>
+        <div className="w-full max-w-sm">
+          {/* Logo / business name */}
+          <div className="text-center mb-8">
+            {business.logoUrl && (
+              <img src={business.logoUrl} alt={business.name} className="w-20 h-20 rounded-full object-cover mx-auto mb-3 border-4 border-white shadow-lg" />
+            )}
+            <p className="text-sm text-muted-foreground mb-1">ברוכ/ה הבא/ה ל:</p>
+            <h1 className="text-2xl font-extrabold" style={{ color: primaryColor }}>{business.name}</h1>
+          </div>
+
+          <div className="bg-white rounded-2xl shadow-lg p-6 space-y-5">
+            <div>
+              <h2 className="text-lg font-bold">כניסה לפורטל לקוחות</h2>
+              <p className="text-sm text-muted-foreground mt-0.5">נהל/י את התורים שלך בקלות</p>
+            </div>
+
+            {portalLoginStep === "phone" ? (
+              <div className="space-y-3">
+                <div>
+                  <Label className="text-sm mb-1.5 block">מספר טלפון</Label>
+                  <Input
+                    type="tel" dir="ltr" placeholder="05X-XXXXXXX"
+                    value={portalPhone}
+                    onChange={e => setPortalPhone(e.target.value)}
+                    onKeyDown={e => e.key === "Enter" && handlePortalSendOtp()}
+                    className="h-11"
+                  />
+                </div>
+                <Button className="w-full h-11" style={{ backgroundColor: primaryColor }}
+                  onClick={handlePortalSendOtp} disabled={portalLoading || !portalPhone.trim()}>
+                  {portalLoading ? "שולח..." : "שלח קוד לווצאפ"}
+                </Button>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                <div>
+                  <Label className="text-sm mb-1.5 block">קוד אימות</Label>
+                  <Input
+                    dir="ltr" placeholder="123456" maxLength={6}
+                    value={portalOtpCode}
+                    onChange={e => setPortalOtpCode(e.target.value)}
+                    onKeyDown={e => e.key === "Enter" && handlePortalVerifyOtp(rememberMe)}
+                    className="h-11 text-center tracking-[0.4em] font-bold text-xl"
+                  />
+                  <p className="text-xs text-muted-foreground mt-1">שלחנו קוד לווצאפ שלך</p>
+                </div>
+                {/* Remember me */}
+                <label className="flex items-center gap-2 cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    checked={rememberMe}
+                    onChange={e => setRememberMe(e.target.checked)}
+                    className="w-4 h-4 rounded accent-primary"
+                  />
+                  <span className="text-sm">זכור/י אותי (נשאר מחובר/ת)</span>
+                </label>
+                <Button className="w-full h-11" style={{ backgroundColor: primaryColor }}
+                  onClick={() => handlePortalVerifyOtp(rememberMe)}
+                  disabled={portalLoading || portalOtpCode.length < 6}>
+                  {portalLoading ? "מאמת..." : "כניסה"}
+                </Button>
+                <button className="text-xs text-muted-foreground hover:text-foreground w-full text-center"
+                  onClick={() => { setPortalLoginStep("phone"); setPortalOtpCode(""); }}>
+                  ← שינוי מספר
+                </button>
+              </div>
+            )}
+
+            <div className="relative flex items-center gap-3 py-1">
+              <div className="flex-1 h-px bg-border" />
+              <span className="text-xs text-muted-foreground">או</span>
+              <div className="flex-1 h-px bg-border" />
+            </div>
+
+            <Button variant="outline" className="w-full h-11" onClick={() => setShowLoginGate(false)}>
+              המשך ללא התחברות
+            </Button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   const handleNext = () => setStep(s => s + 1);
   const handleBack = () => setStep(s => s - 1);
   const servicesList = Array.isArray(services) ? services : [];
@@ -482,9 +577,10 @@ export default function Book() {
     finally { setPortalLoading(false); }
   };
 
-  const handlePortalVerifyOtp = async () => {
+  const handlePortalVerifyOtp = async (gateRememberMe?: boolean) => {
     if (!portalOtpCode.trim()) return;
     setPortalLoading(true);
+    const shouldRemember = gateRememberMe ?? rememberMe;
     try {
       const res = await fetch(`${API_BASE}/client/verify-otp`, {
         method: "POST", headers: { "Content-Type": "application/json" },
@@ -492,7 +588,12 @@ export default function Book() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error);
-      localStorage.setItem("kavati_client_token", data.token);
+      // Save token: localStorage if "remember me", sessionStorage if not
+      if (shouldRemember) {
+        localStorage.setItem("kavati_client_token", data.token);
+      } else {
+        sessionStorage.setItem("kavati_client_token", data.token);
+      }
       setClientToken(data.token);
       // Auto-add this business to the client's portal
       if (businessSlug) {
@@ -501,6 +602,7 @@ export default function Book() {
         }).catch(() => {});
       }
       setShowPortalLogin(false);
+      setShowLoginGate(false);
       toast({ title: `ברוכ/ה הבא/ה${data.clientName ? `, ${data.clientName}` : ""}!` });
     } catch (e: any) { toast({ title: e?.message ?? "קוד שגוי", variant: "destructive" }); }
     finally { setPortalLoading(false); }
