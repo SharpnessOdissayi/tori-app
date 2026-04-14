@@ -91,6 +91,34 @@ router.post("/client/google-auth", async (req, res): Promise<void> => {
   }
 });
 
+// ─── Facebook OAuth ───────────────────────────────────────────────────────────
+
+router.post("/client/facebook-auth", async (req, res): Promise<void> => {
+  const { accessToken, userId } = req.body;
+  if (!accessToken || !userId) { res.status(400).json({ error: "token חסר" }); return; }
+
+  try {
+    const infoRes = await fetch(
+      `https://graph.facebook.com/${userId}?fields=id,name,email&access_token=${accessToken}`
+    );
+    const info = await infoRes.json();
+    if (!infoRes.ok || !info.id) { res.status(400).json({ error: "Facebook token לא תקין" }); return; }
+
+    const facebookId = info.id as string;
+    const email = (info.email ?? "") as string;
+    const clientName = (info.name ?? "") as string;
+
+    const token = randomUUID();
+    const expiresAt = new Date(Date.now() + SESSION_DAYS * 24 * 60 * 60 * 1000);
+
+    await db.insert(clientSessionsTable).values({ token, facebookId, email, clientName, expiresAt });
+
+    res.json({ token, clientName, email });
+  } catch {
+    res.status(500).json({ error: "שגיאת Facebook" });
+  }
+});
+
 // ─── Me ───────────────────────────────────────────────────────────────────────
 
 router.get("/client/me", requireClientAuth, async (req, res): Promise<void> => {

@@ -373,6 +373,52 @@ export default function Book() {
     </div>
   );
 
+  const API_BASE = import.meta.env.VITE_API_BASE_URL ?? "/api";
+
+  const handlePortalSendOtp = async () => {
+    if (!portalPhone.trim()) return;
+    setPortalLoading(true);
+    try {
+      const res = await fetch(`${API_BASE}/client/send-otp`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ phone: portalPhone.trim() }),
+      });
+      if (!res.ok) throw new Error();
+      setPortalLoginStep("otp");
+      toast({ title: "קוד נשלח לווצאפ שלך" });
+    } catch { toast({ title: "שגיאה בשליחת קוד", variant: "destructive" }); }
+    finally { setPortalLoading(false); }
+  };
+
+  const handlePortalVerifyOtp = async (gateRememberMe?: boolean) => {
+    if (!portalOtpCode.trim()) return;
+    setPortalLoading(true);
+    const shouldRemember = gateRememberMe ?? rememberMe;
+    try {
+      const res = await fetch(`${API_BASE}/client/verify-otp`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ phone: portalPhone.trim(), code: portalOtpCode.trim() }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+      if (shouldRemember) {
+        localStorage.setItem("kavati_client_token", data.token);
+      } else {
+        sessionStorage.setItem("kavati_client_token", data.token);
+      }
+      setClientToken(data.token);
+      if (businessSlug) {
+        fetch(`${API_BASE}/client/businesses/${businessSlug}`, {
+          method: "POST", headers: { "x-client-token": data.token },
+        }).catch(() => {});
+      }
+      setShowPortalLogin(false);
+      setShowLoginGate(false);
+      toast({ title: `ברוכ/ה הבא/ה${data.clientName ? `, ${data.clientName}` : ""}!` });
+    } catch (e: any) { toast({ title: e?.message ?? "קוד שגוי", variant: "destructive" }); }
+    finally { setPortalLoading(false); }
+  };
+
   // ─── Login gate (full-screen, shown before booking page if no token) ────────
   if (showLoginGate && !businessLoading && business) {
     return (
@@ -545,8 +591,6 @@ export default function Book() {
     );
   };
 
-  const API_BASE = import.meta.env.VITE_API_BASE_URL ?? "/api";
-
   // Format quick slot date for display: "ד׳ 18/04 14:30"
   const formatQuickSlot = (slot: { date: string; time: string }) => {
     const [y, m, d] = slot.date.split("-").map(Number);
@@ -560,52 +604,6 @@ export default function Book() {
     setSelectedDate(new Date(y, m - 1, d));
     setSelectedTime(slot.time);
     setStep(4);
-  };
-
-  const handlePortalSendOtp = async () => {
-    if (!portalPhone.trim()) return;
-    setPortalLoading(true);
-    try {
-      const res = await fetch(`${API_BASE}/client/send-otp`, {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ phone: portalPhone.trim() }),
-      });
-      if (!res.ok) throw new Error();
-      setPortalLoginStep("otp");
-      toast({ title: "קוד נשלח לווצאפ שלך" });
-    } catch { toast({ title: "שגיאה בשליחת קוד", variant: "destructive" }); }
-    finally { setPortalLoading(false); }
-  };
-
-  const handlePortalVerifyOtp = async (gateRememberMe?: boolean) => {
-    if (!portalOtpCode.trim()) return;
-    setPortalLoading(true);
-    const shouldRemember = gateRememberMe ?? rememberMe;
-    try {
-      const res = await fetch(`${API_BASE}/client/verify-otp`, {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ phone: portalPhone.trim(), code: portalOtpCode.trim() }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error);
-      // Save token: localStorage if "remember me", sessionStorage if not
-      if (shouldRemember) {
-        localStorage.setItem("kavati_client_token", data.token);
-      } else {
-        sessionStorage.setItem("kavati_client_token", data.token);
-      }
-      setClientToken(data.token);
-      // Auto-add this business to the client's portal
-      if (businessSlug) {
-        fetch(`${API_BASE}/client/businesses/${businessSlug}`, {
-          method: "POST", headers: { "x-client-token": data.token },
-        }).catch(() => {});
-      }
-      setShowPortalLogin(false);
-      setShowLoginGate(false);
-      toast({ title: `ברוכ/ה הבא/ה${data.clientName ? `, ${data.clientName}` : ""}!` });
-    } catch (e: any) { toast({ title: e?.message ?? "קוד שגוי", variant: "destructive" }); }
-    finally { setPortalLoading(false); }
   };
 
   const handleCancelAppointment = async () => {

@@ -5,6 +5,7 @@ export const clientSessionsTable = pgTable("client_sessions", {
   token: text("token").notNull().unique(),
   phoneNumber: text("phone_number"),
   googleId: text("google_id"),
+  facebookId: text("facebook_id"),
   email: text("email"),
   clientName: text("client_name").notNull().default(""),
   expiresAt: timestamp("expires_at").notNull(),
