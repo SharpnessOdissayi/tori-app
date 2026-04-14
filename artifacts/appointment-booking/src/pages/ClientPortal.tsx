@@ -5,6 +5,7 @@ import { useToast } from "@/hooks/use-toast";
 
 const API = import.meta.env.VITE_API_BASE_URL ?? "/api";
 const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID ?? "";
+const FACEBOOK_APP_ID = import.meta.env.VITE_FACEBOOK_APP_ID ?? "";
 const TOKEN_KEY = "kavati_client_token";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -105,6 +106,36 @@ function LoginScreen({ onLogin }: { onLogin: (token: string, name: string) => vo
       onLogin(data.token, data.clientName);
     } catch (e: any) { toast({ title: e?.message ?? "קוד שגוי", variant: "destructive" }); }
     finally { setLoading(false); }
+  };
+
+  // Load Facebook SDK
+  useEffect(() => {
+    if (!FACEBOOK_APP_ID || (window as any).FB) return;
+    (window as any).fbAsyncInit = () => {
+      (window as any).FB.init({ appId: FACEBOOK_APP_ID, cookie: true, xfbml: false, version: "v19.0" });
+    };
+    const s = document.createElement("script");
+    s.src = "https://connect.facebook.net/he_IL/sdk.js";
+    document.head.appendChild(s);
+  }, []);
+
+  const handleFacebookLogin = () => {
+    const FB = (window as any).FB;
+    if (!FB) return;
+    setLoading(true);
+    FB.login((response: any) => {
+      if (!response.authResponse) { setLoading(false); return; }
+      const { accessToken, userID } = response.authResponse;
+      fetch(`${API}/client/facebook-auth`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ accessToken, userId: userID }),
+      }).then(r => r.json()).then(data => {
+        if (!data.token) throw new Error();
+        localStorage.setItem(TOKEN_KEY, data.token);
+        onLogin(data.token, data.clientName);
+      }).catch(() => toast({ title: "שגיאת Facebook", variant: "destructive" }))
+        .finally(() => setLoading(false));
+    }, { scope: "public_profile,email" });
   };
 
   useEffect(() => {
@@ -213,13 +244,22 @@ function LoginScreen({ onLogin }: { onLogin: (token: string, name: string) => vo
           <div className="flex-1 border-t border-gray-200" />
         </div>
 
-        {GOOGLE_CLIENT_ID ? (
-          <div id="google-signin-btn" className="w-full flex justify-center" />
-        ) : (
-          <div className="w-full py-3 rounded-xl border-2 border-dashed border-gray-200 text-center text-xs text-gray-400">
-            Google OAuth לא מוגדר
-          </div>
-        )}
+        <div className="space-y-2">
+          {GOOGLE_CLIENT_ID && (
+            <div id="google-signin-btn" className="w-full flex justify-center" style={{ minHeight: 44 }} />
+          )}
+          {FACEBOOK_APP_ID && (
+            <button
+              onClick={handleFacebookLogin}
+              disabled={loading}
+              className="w-full py-3 rounded-xl flex items-center justify-center gap-2 text-sm font-semibold transition-all disabled:opacity-50"
+              style={{ background: "#1877F2", color: "#fff" }}
+            >
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="white"><path d="M24 12.073C24 5.405 18.627 0 12 0S0 5.405 0 12.073C0 18.1 4.388 23.094 10.125 24v-8.437H7.078v-3.49h3.047V9.41c0-3.025 1.792-4.697 4.533-4.697 1.312 0 2.686.236 2.686.236v2.97h-1.513c-1.491 0-1.956.93-1.956 1.874v2.25h3.328l-.532 3.49h-2.796V24C19.612 23.094 24 18.1 24 12.073z"/></svg>
+              {loading ? "מתחבר..." : "המשך עם Facebook"}
+            </button>
+          )}
+        </div>
       </div>
     </div>
   );
