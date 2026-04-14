@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { db, businessesTable, servicesTable, workingHoursTable, breakTimesTable, appointmentsTable, waitlistTable, timeOffTable } from "@workspace/db";
 import { eq, and, gte, sql, count } from "drizzle-orm";
-import { sendClientCancellation } from "../lib/whatsapp";
+import { sendClientCancellation, sendClientReschedule } from "../lib/whatsapp";
 import {
   UpdateBusinessProfileBody,
   CreateBusinessServiceBody,
@@ -401,6 +401,48 @@ router.patch("/business/appointments/:id/approve", requireBusinessAuth, async (r
   }
 
   res.json({ success: true, message: "Appointment approved" });
+});
+
+router.patch("/business/appointments/:id/reschedule", requireBusinessAuth, async (req, res): Promise<void> => {
+  const rawId = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+  const id = Number(rawId);
+  if (!id || isNaN(id)) {
+    res.status(400).json({ error: "Invalid id" });
+    return;
+  }
+
+  const { newDate, newTime } = req.body ?? {};
+  if (!newDate || !newTime) {
+    res.status(400).json({ error: "newDate and newTime are required" });
+    return;
+  }
+
+  const [appt] = await db
+    .select({
+      id: appointmentsTable.id,
+      phoneNumber: appointmentsTable.phoneNumber,
+      clientName: appointmentsTable.clientName,
+    })
+    .from(appointmentsTable)
+    .where(and(eq(appointmentsTable.id, id), eq(appointmentsTable.businessId, req.business!.businessId)));
+
+  if (!appt) {
+    res.status(404).json({ error: "Appointment not found" });
+    return;
+  }
+
+  const [updated] = await db
+    .update(appointmentsTable)
+    .set({ appointmentDate: newDate, appointmentTime: newTime, reminder24hSent: false, reminder1hSent: false, reminderMorningSent: false })
+    .where(eq(appointmentsTable.id, appt.id))
+    .returning();
+
+  // Notify client via WhatsApp (non-blocking)
+  const [, month, day] = newDate.split("-");
+  const formattedDate = `${day}/${month}`;
+  sendClientReschedule(appt.phoneNumber, appt.clientName, formattedDate, newTime).catch(() => {});
+
+  res.json({ ...updated, createdAt: updated.createdAt.toISOString() });
 });
 
 router.delete("/business/appointments/:id", requireBusinessAuth, async (req, res): Promise<void> => {

@@ -178,6 +178,26 @@ function formatDuration(minutes: number): string {
   return `${h} שעות ו-${m} דקות`;
 }
 
+// Render a business name correctly in RTL context.
+// If the name starts with Latin chars (e.g. "Lilash - הלחמת ריסים"),
+// we split at the separator and use row-reverse so the English appears on the RIGHT.
+function renderBizName(name: string): React.ReactNode {
+  const SEP = [" - ", " – ", " | "].find((s) => name.includes(s));
+  if (SEP && /^[a-zA-Z\d]/.test(name)) {
+    const idx = name.indexOf(SEP);
+    const eng = name.slice(0, idx);
+    const heb = name.slice(idx + SEP.length);
+    return (
+      <span style={{ display: "inline-flex", flexDirection: "row-reverse", alignItems: "baseline", gap: "0" }}>
+        <span dir="ltr">{eng}</span>
+        <span>{SEP}</span>
+        <span dir="rtl">{heb}</span>
+      </span>
+    );
+  }
+  return <span dir="auto">{name}</span>;
+}
+
 export default function Book() {
   const { businessSlug } = useParams<{ businessSlug: string }>();
   // step 0 = profile page, 1-5 = booking wizard
@@ -623,7 +643,7 @@ export default function Book() {
         <div className={`pb-28 px-4 max-w-2xl mx-auto ${showLogo && logoUrl ? "pt-14" : "pt-6"}`}>
           {/* Business name */}
           {showBusinessName && (
-            <h1 className="text-2xl font-bold text-center mb-1" dir="auto">{business.name}</h1>
+            <h1 className="text-2xl font-bold text-center mb-1">{renderBizName(business.name)}</h1>
           )}
           {/* Description */}
           {businessDescription && (
@@ -899,7 +919,7 @@ export default function Book() {
             <img src={bannerUrl} alt={business.name} className="w-full h-32 rounded-2xl object-cover mb-4 shadow-md" style={{ objectPosition: bannerPosition }} />
           )}
           {showBusinessName && (
-            <h1 className="text-3xl font-extrabold mb-2" dir="auto" style={{ color: primaryColor }}>{business.name}</h1>
+            <h1 className="text-3xl font-extrabold mb-2" style={{ color: primaryColor }}>{renderBizName(business.name)}</h1>
           )}
           <p className="text-muted-foreground">קביעת תור אונליין</p>
         </header>

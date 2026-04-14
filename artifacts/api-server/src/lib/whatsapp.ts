@@ -177,6 +177,18 @@ export async function sendClientConfirmation(
   ], businessSlug);
 }
 
+// ── Reschedule notification to client ──────────────────────────────────────
+// Pre-approved template: appointment_rescheduled — 3 params: clientName, date, time
+// "שלום {{1}}, התור שלך שונה לתאריך {{2}} בשעה {{3}}."
+export async function sendClientReschedule(
+  phone: string,
+  clientName: string,
+  date: string,
+  time: string
+): Promise<void> {
+  await sendTemplate(phone, "appointment_rescheduled", [clientName, date, time]);
+}
+
 // ── Cancellation notification to client ────────────────────────────────────
 // Pre-approved template: appointment_cancelled
 // "שלום {{1}}, התור שלך עם {{2}} ב{{3}} בשעה {{4}} בוטל."
