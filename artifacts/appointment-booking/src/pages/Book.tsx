@@ -188,7 +188,7 @@ function renderBizName(name: string): React.ReactNode {
     const heb = /[a-zA-Z]/.test(p1) ? p2 : p1;
     const eng = /[a-zA-Z]/.test(p1) ? p1 : p2;
     return (
-      <span style={{ display: "inline-flex", alignItems: "baseline" }}>
+      <span dir="ltr" style={{ display: "inline-flex", alignItems: "baseline" }}>
         <span dir="rtl">{heb}</span>
         <span>{SEP}</span>
         <span dir="ltr">{eng}</span>
