@@ -24,7 +24,13 @@ function renderBizName(name: string): React.ReactNode {
   const [, p1, rawSep, p2] = m;
   const heb = /[\u0590-\u05FF]/.test(p1) ? p1 : p2;
   const eng = /[a-zA-Z]/.test(p1) ? p1 : p2;
-  return <><bdi>{heb}</bdi>{` ${rawSep} `}<bdi>{eng}</bdi></>;
+  return (
+    <span style={{ display: "inline-flex", alignItems: "baseline", direction: "ltr" }}>
+      <span dir="rtl">{heb}</span>
+      <span>{` ${rawSep} `}</span>
+      <span>{eng}</span>
+    </span>
+  );
 }
 
 function formatDate(dateStr: string): string {

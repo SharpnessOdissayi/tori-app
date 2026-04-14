@@ -92,8 +92,8 @@ function formatDuration(minutes: number): string {
   return `${h} שעות ו-${m} דקות`;
 }
 
-// Uses <bdi> to isolate each script from BiDi interference.
-// Parent must have dir="ltr" so DOM order [heb, sep, eng] = Hebrew LEFT, English RIGHT.
+// Flex layout (direction:ltr) so Hebrew is LEFT and English is RIGHT.
+// CSS direction bypasses HTML BiDi which was causing visual doubling.
 function renderBizName(name: string): React.ReactNode {
   if (!/[a-zA-Z]/.test(name) || !/[\u0590-\u05FF]/.test(name)) return name;
   const m = name.match(/^(.+?)\s*([-–—|\/])\s*(.+)$/);
@@ -101,7 +101,13 @@ function renderBizName(name: string): React.ReactNode {
   const [, p1, rawSep, p2] = m;
   const heb = /[\u0590-\u05FF]/.test(p1) ? p1 : p2;
   const eng = /[a-zA-Z]/.test(p1) ? p1 : p2;
-  return <><bdi>{heb}</bdi>{` ${rawSep} `}<bdi>{eng}</bdi></>;
+  return (
+    <span style={{ display: "inline-flex", alignItems: "baseline", direction: "ltr" }}>
+      <span dir="rtl">{heb}</span>
+      <span>{` ${rawSep} `}</span>
+      <span>{eng}</span>
+    </span>
+  );
 }
 
 function CopyLinkButton({ slug }: { slug: string }) {

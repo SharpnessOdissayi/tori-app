@@ -185,7 +185,13 @@ function renderBizName(name: string): React.ReactNode {
   const [, p1, rawSep, p2] = m;
   const heb = /[\u0590-\u05FF]/.test(p1) ? p1 : p2;
   const eng = /[a-zA-Z]/.test(p1) ? p1 : p2;
-  return <><bdi>{heb}</bdi>{` ${rawSep} `}<bdi>{eng}</bdi></>;
+  return (
+    <span style={{ display: "inline-flex", alignItems: "baseline", direction: "ltr" }}>
+      <span dir="rtl">{heb}</span>
+      <span>{` ${rawSep} `}</span>
+      <span>{eng}</span>
+    </span>
+  );
 }
 
 function timeGreeting() {
@@ -641,7 +647,7 @@ export default function Book() {
             <>
               <p className="text-center text-sm font-semibold mb-0.5">{timeGreeting()}</p>
               <p className="text-center text-xs text-muted-foreground mb-0.5">ברוך הבא ל:</p>
-              <h1 className="text-2xl font-bold text-center mb-1" dir="ltr">{renderBizName(business.name)}</h1>
+              <h1 className="text-2xl font-bold text-center mb-1">{renderBizName(business.name)}</h1>
             </>
           )}
           {/* Description */}
@@ -921,7 +927,7 @@ export default function Book() {
             <>
               <p className="text-center text-sm font-semibold mb-0.5">{timeGreeting()}</p>
               <p className="text-center text-xs text-muted-foreground mb-0.5">ברוך הבא ל:</p>
-              <h1 className="text-3xl font-extrabold mb-2" dir="ltr" style={{ color: primaryColor }}>{renderBizName(business.name)}</h1>
+              <h1 className="text-3xl font-extrabold mb-2" style={{ color: primaryColor }}>{renderBizName(business.name)}</h1>
             </>
           )}
           <p className="text-muted-foreground">קביעת תור אונליין</p>
