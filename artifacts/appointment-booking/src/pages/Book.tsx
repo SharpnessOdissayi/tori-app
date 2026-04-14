@@ -357,6 +357,59 @@ export default function Book() {
     return () => { root.classList.remove("dark"); };
   }, [business, fontFamily, themeMode]);
 
+  const API_BASE = import.meta.env.VITE_API_BASE_URL ?? "/api";
+
+  // Google sign-in for login gate
+  useEffect(() => {
+    if (!showLoginGate) return;
+    const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
+    if (!clientId) return;
+    const apiBase = import.meta.env.VITE_API_BASE_URL ?? "/api";
+    const init = () => {
+      (window as any).google?.accounts?.id?.initialize({
+        client_id: clientId,
+        callback: async (response: any) => {
+          setGateGoogleLoading(true);
+          try {
+            const res = await fetch(`${apiBase}/client/google-auth`, {
+              method: "POST", headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ credential: response.credential }),
+            });
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.error);
+            localStorage.setItem("kavati_client_token", data.token);
+            setClientToken(data.token);
+            if (businessSlug) fetch(`${apiBase}/client/businesses/${businessSlug}`, { method: "POST", headers: { "x-client-token": data.token } }).catch(() => {});
+            setShowLoginGate(false);
+            toast({ title: `ברוכ/ה הבא/ה${data.clientName ? `, ${data.clientName}` : ""}!` });
+          } catch { toast({ title: "שגיאת Google", variant: "destructive" }); }
+          finally { setGateGoogleLoading(false); }
+        },
+      });
+      const btn = document.getElementById("google-signin-btn-gate");
+      if (btn) (window as any).google?.accounts?.id?.renderButton(btn, { theme: "outline", size: "large", width: btn.offsetWidth || 300, locale: "he" });
+    };
+    if ((window as any).google?.accounts?.id) { init(); }
+    else {
+      const s = document.createElement("script");
+      s.src = "https://accounts.google.com/gsi/client";
+      s.onload = init;
+      document.head.appendChild(s);
+    }
+  }, [showLoginGate]);
+
+  // Facebook login for gate
+  useEffect(() => {
+    const appId = import.meta.env.VITE_FACEBOOK_APP_ID;
+    if (!appId || (window as any).FB) return;
+    (window as any).fbAsyncInit = () => {
+      (window as any).FB.init({ appId, cookie: true, xfbml: false, version: "v19.0" });
+    };
+    const s = document.createElement("script");
+    s.src = "https://connect.facebook.net/he_IL/sdk.js";
+    document.head.appendChild(s);
+  }, []);
+
   if (businessLoading) return (
     <div className="min-h-screen flex items-center justify-center">
       <div className="text-center space-y-3">
@@ -374,8 +427,6 @@ export default function Book() {
       </div>
     </div>
   );
-
-  const API_BASE = import.meta.env.VITE_API_BASE_URL ?? "/api";
 
   const handlePortalSendOtp = async () => {
     if (!portalPhone.trim()) return;
@@ -420,56 +471,6 @@ export default function Book() {
     } catch (e: any) { toast({ title: e?.message ?? "קוד שגוי", variant: "destructive" }); }
     finally { setPortalLoading(false); }
   };
-
-  // Google sign-in for login gate
-  useEffect(() => {
-    if (!showLoginGate) return;
-    const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
-    if (!clientId) return;
-    const init = () => {
-      (window as any).google?.accounts?.id?.initialize({
-        client_id: clientId,
-        callback: async (response: any) => {
-          setGateGoogleLoading(true);
-          try {
-            const res = await fetch(`${API_BASE}/client/google-auth`, {
-              method: "POST", headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ credential: response.credential }),
-            });
-            const data = await res.json();
-            if (!res.ok) throw new Error(data.error);
-            localStorage.setItem("kavati_client_token", data.token);
-            setClientToken(data.token);
-            if (businessSlug) fetch(`${API_BASE}/client/businesses/${businessSlug}`, { method: "POST", headers: { "x-client-token": data.token } }).catch(() => {});
-            setShowLoginGate(false);
-            toast({ title: `ברוכ/ה הבא/ה${data.clientName ? `, ${data.clientName}` : ""}!` });
-          } catch { toast({ title: "שגיאת Google", variant: "destructive" }); }
-          finally { setGateGoogleLoading(false); }
-        },
-      });
-      const btn = document.getElementById("google-signin-btn-gate");
-      if (btn) (window as any).google?.accounts?.id?.renderButton(btn, { theme: "outline", size: "large", width: btn.offsetWidth || 300, locale: "he" });
-    };
-    if ((window as any).google?.accounts?.id) { init(); }
-    else {
-      const s = document.createElement("script");
-      s.src = "https://accounts.google.com/gsi/client";
-      s.onload = init;
-      document.head.appendChild(s);
-    }
-  }, [showLoginGate]);
-
-  // Facebook login for gate
-  useEffect(() => {
-    const appId = import.meta.env.VITE_FACEBOOK_APP_ID;
-    if (!appId || (window as any).FB) return;
-    (window as any).fbAsyncInit = () => {
-      (window as any).FB.init({ appId, cookie: true, xfbml: false, version: "v19.0" });
-    };
-    const s = document.createElement("script");
-    s.src = "https://connect.facebook.net/he_IL/sdk.js";
-    document.head.appendChild(s);
-  }, []);
 
   const handleGateFacebookLogin = () => {
     const FB = (window as any).FB;
