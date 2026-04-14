@@ -1,7 +1,7 @@
 import { Router } from "express";
 import bcrypt from "bcryptjs";
 import { db, businessesTable, workingHoursTable } from "@workspace/db";
-import { eq } from "drizzle-orm";
+import { eq, ne } from "drizzle-orm";
 import {
   SuperAdminListBusinessesQueryParams,
   SuperAdminCreateBusinessBody,
@@ -53,6 +53,7 @@ router.get("/super-admin/businesses", async (req, res): Promise<void> => {
   const businesses = await db
     .select()
     .from(businessesTable)
+    .where(ne(businessesTable.slug, "admin"))
     .orderBy(businessesTable.createdAt);
 
   res.json(businesses.map(mapAdminBusiness));
