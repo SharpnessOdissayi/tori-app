@@ -178,8 +178,25 @@ function formatDuration(minutes: number): string {
   return `${h} שעות ו-${m} דקות`;
 }
 
-// Containers use dir="ltr" so BiDi places Hebrew on LEFT, English on RIGHT.
-function renderBizName(name: string): string { return name; }
+// Container must be dir="ltr". Three explicit flex items keep the separator
+// between the Hebrew and English parts regardless of BiDi neutral resolution.
+function renderBizName(name: string): React.ReactNode {
+  const SEP = [" - ", " – ", " | "].find(s => name.includes(s));
+  if (SEP && /[a-zA-Z]/.test(name)) {
+    const idx = name.indexOf(SEP);
+    const p1 = name.slice(0, idx), p2 = name.slice(idx + SEP.length);
+    const heb = /[a-zA-Z]/.test(p1) ? p2 : p1;
+    const eng = /[a-zA-Z]/.test(p1) ? p1 : p2;
+    return (
+      <span style={{ display: "inline-flex", alignItems: "baseline" }}>
+        <span dir="rtl">{heb}</span>
+        <span>{SEP}</span>
+        <span dir="ltr">{eng}</span>
+      </span>
+    );
+  }
+  return name;
+}
 
 export default function Book() {
   const { businessSlug } = useParams<{ businessSlug: string }>();

@@ -92,9 +92,24 @@ function formatDuration(minutes: number): string {
   return `${h} שעות ו-${m} דקות`;
 }
 
-// Containers use dir="ltr" so Hebrew forms a readable RTL run on LEFT
-// and English appears on the RIGHT naturally — no BiDi tricks needed.
-function renderBizName(name: string): string { return name; }
+// Container must be dir="ltr". Explicit flex items keep separator in place.
+function renderBizName(name: string): React.ReactNode {
+  const SEP = [" - ", " – ", " | "].find(s => name.includes(s));
+  if (SEP && /[a-zA-Z]/.test(name)) {
+    const idx = name.indexOf(SEP);
+    const p1 = name.slice(0, idx), p2 = name.slice(idx + SEP.length);
+    const heb = /[a-zA-Z]/.test(p1) ? p2 : p1;
+    const eng = /[a-zA-Z]/.test(p1) ? p1 : p2;
+    return (
+      <span style={{ display: "inline-flex", alignItems: "baseline" }}>
+        <span dir="rtl">{heb}</span>
+        <span>{SEP}</span>
+        <span dir="ltr">{eng}</span>
+      </span>
+    );
+  }
+  return name;
+}
 
 function CopyLinkButton({ slug }: { slug: string }) {
   const [copied, setCopied] = useState(false);
@@ -434,9 +449,12 @@ export default function Dashboard() {
         {/* Mobile-only welcome header */}
         <div className="sm:hidden flex items-center justify-between mb-4">
           <div>
-            <p className="text-xs text-muted-foreground">{(() => { const h = new Date().getHours(); return h < 12 ? "בוקר טוב," : h < 17 ? "צהריים טובים," : h < 21 ? "ערב טוב," : "לילה טוב,"; })()}</p>
-            <p className="font-bold text-lg leading-tight" dir="ltr" style={{ color: "#d4af37", textAlign: "right" }}>
-              {renderBizName(headerProfile?.name ?? "")}!
+            <p className="font-bold text-lg" style={{ color: "#d4af37" }}>
+              {(() => { const h = new Date().getHours(); return h < 12 ? "בוקר טוב! ☀️" : h < 17 ? "צהריים טובים! 🌤️" : h < 21 ? "ערב טוב! 🌆" : "לילה טוב! 🌙"; })()}
+            </p>
+            <p className="text-xs text-muted-foreground">ברוך הבא ל:</p>
+            <p className="font-bold text-base leading-tight" dir="ltr" style={{ color: "#d4af37", textAlign: "right" }}>
+              {renderBizName(headerProfile?.name ?? "")}
             </p>
           </div>
           <button
