@@ -4,6 +4,7 @@ import { logger } from "./lib/logger";
 import cron from "node-cron";
 import { sendReminders } from "./lib/reminders";
 import { seedAdminUser } from "./lib/seedAdmin";
+import { seedDemoBusiness } from "./lib/seedDemo";
 import { runMigrations } from "./lib/migrate";
 
 const rawPort = process.env["PORT"];
@@ -33,6 +34,9 @@ app.listen(port, (err) => {
 
   // Seed admin account (creates or syncs password from SUPER_ADMIN_PASSWORD)
   seedAdminUser();
+
+  // Seed demo business for homepage "how it looks" button
+  seedDemoBusiness();
 
   // Run reminders every 15 minutes
   cron.schedule("*/15 * * * *", () => {
