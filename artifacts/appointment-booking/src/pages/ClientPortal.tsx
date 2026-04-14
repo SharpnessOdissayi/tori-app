@@ -86,7 +86,11 @@ function LoginScreen({ onLogin }: { onLogin: (token: string, name: string) => vo
   const [code, setCode] = useState("");
   const [step, setStep] = useState<"phone" | "otp">("phone");
   const [loading, setLoading] = useState(false);
+  const [remember, setRemember] = useState(true);
   const { toast } = useToast();
+
+  const storeToken = (token: string) =>
+    (remember ? localStorage : sessionStorage).setItem(TOKEN_KEY, token);
 
   const sendOtp = async () => {
     if (!phone.trim()) { toast({ title: "הכנס מספר טלפון", variant: "destructive" }); return; }
@@ -113,7 +117,7 @@ function LoginScreen({ onLogin }: { onLogin: (token: string, name: string) => vo
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error);
-      localStorage.setItem(TOKEN_KEY, data.token);
+      storeToken(data.token);
       onLogin(data.token, data.clientName);
     } catch (e: any) { toast({ title: e?.message ?? "קוד שגוי", variant: "destructive" }); }
     finally { setLoading(false); }
@@ -142,7 +146,7 @@ function LoginScreen({ onLogin }: { onLogin: (token: string, name: string) => vo
         body: JSON.stringify({ accessToken, userId: userID }),
       }).then(r => r.json()).then(data => {
         if (!data.token) throw new Error();
-        localStorage.setItem(TOKEN_KEY, data.token);
+        storeToken(data.token);
         onLogin(data.token, data.clientName);
       }).catch(() => toast({ title: "שגיאת Facebook", variant: "destructive" }))
         .finally(() => setLoading(false));
@@ -159,7 +163,7 @@ function LoginScreen({ onLogin }: { onLogin: (token: string, name: string) => vo
         });
         const data = await res.json();
         if (!res.ok) throw new Error(data.error);
-        localStorage.setItem(TOKEN_KEY, data.token);
+        storeToken(data.token);
         onLogin(data.token, data.clientName);
       } catch (e: any) { toast({ title: e?.message ?? "שגיאת Google", variant: "destructive" }); }
       finally { setLoading(false); }
@@ -212,6 +216,19 @@ function LoginScreen({ onLogin }: { onLogin: (token: string, name: string) => vo
               className="w-full py-3 rounded-xl bg-violet-600 text-white font-semibold text-sm hover:bg-violet-700 disabled:opacity-50 transition-all">
               {loading ? "שולח..." : <span dir="rtl">שלח קוד <span dir="ltr">WhatsApp</span></span>}
             </button>
+            <label className="flex items-center gap-2 cursor-pointer select-none justify-end mt-1">
+              <span className="text-sm text-gray-500">זכור אותי</span>
+              <div
+                onClick={() => setRemember(v => !v)}
+                className="relative w-10 h-5 rounded-full transition-colors duration-200 flex-shrink-0"
+                style={{ background: remember ? "#7c3aed" : "#d1d5db" }}
+              >
+                <div
+                  className="absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-all duration-200"
+                  style={{ right: remember ? "2px" : "auto", left: remember ? "auto" : "2px" }}
+                />
+              </div>
+            </label>
           </div>
         ) : (
           <div className="space-y-4">
@@ -282,7 +299,7 @@ export default function ClientPortal() {
   const [, navigate] = useLocation();
   const search = useSearch();
   const { toast } = useToast();
-  const [token, setToken] = useState<string | null>(localStorage.getItem(TOKEN_KEY));
+  const [token, setToken] = useState<string | null>(localStorage.getItem(TOKEN_KEY) || sessionStorage.getItem(TOKEN_KEY));
   const [session, setSession] = useState<ClientSession | null>(null);
   const [businesses, setBusinesses] = useState<Business[]>([]);
   const [appointments, setAppointments] = useState<Appointment[]>([]);
@@ -306,6 +323,7 @@ export default function ClientPortal() {
 
   const logout = () => {
     localStorage.removeItem(TOKEN_KEY);
+    sessionStorage.removeItem(TOKEN_KEY);
     setToken(null);
     setSession(null);
   };
