@@ -179,21 +179,18 @@ function formatDuration(minutes: number): string {
 }
 
 // Render a business name correctly in RTL context.
-// If the name starts with Latin chars (e.g. "Lilash - הלחמת ריסים"),
-// we split at the separator and use row-reverse so the English appears on the RIGHT.
+// "Lilash - הלחמת ריסים" → Hebrew on LEFT, Lilash on RIGHT.
+// Uses unicode-bidi:isolate + direction:ltr so the BiDi algorithm
+// keeps Hebrew readable (RTL run) while placing Lilash at the right end.
 function renderBizName(name: string): React.ReactNode {
   const SEP = [" - ", " – ", " | "].find((s) => name.includes(s));
   if (SEP && /^[a-zA-Z\d]/.test(name)) {
     const idx = name.indexOf(SEP);
-    const eng = name.slice(0, idx);   // e.g. "Lilash"
-    const heb = name.slice(idx + SEP.length); // e.g. "הלחמת ריסים באשדוד"
-    // DOM order [heb, sep, eng] + explicit direction:ltr + flex-row
-    // → Hebrew on LEFT, English (Lilash) on RIGHT — reliable in any context.
+    const eng = name.slice(0, idx);
+    const heb = name.slice(idx + SEP.length);
     return (
-      <span style={{ display: "inline-flex", flexDirection: "row", alignItems: "baseline", direction: "ltr" }}>
-        <span dir="rtl">{heb}</span>
-        <span>{SEP}</span>
-        <span dir="ltr">{eng}</span>
+      <span style={{ direction: "ltr", unicodeBidi: "isolate" }}>
+        {heb}{SEP}{eng}
       </span>
     );
   }

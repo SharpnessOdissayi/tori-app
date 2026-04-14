@@ -92,8 +92,7 @@ function formatDuration(minutes: number): string {
   return `${h} שעות ו-${m} דקות`;
 }
 
-// DOM order [heb, sep, eng] + explicit direction:ltr + flex-row
-// → Hebrew on LEFT, English on RIGHT — works regardless of parent direction.
+// "Lilash - הלחמת ריסים" → Hebrew on LEFT, Lilash on RIGHT.
 function renderBizName(name: string): React.ReactNode {
   const SEP = [" - ", " – ", " | "].find((s) => name.includes(s));
   if (SEP && /^[a-zA-Z\d]/.test(name)) {
@@ -101,10 +100,8 @@ function renderBizName(name: string): React.ReactNode {
     const eng = name.slice(0, idx);
     const heb = name.slice(idx + SEP.length);
     return (
-      <span style={{ display: "inline-flex", flexDirection: "row", alignItems: "baseline", direction: "ltr" }}>
-        <span dir="rtl">{heb}</span>
-        <span>{SEP}</span>
-        <span dir="ltr">{eng}</span>
+      <span style={{ direction: "ltr", unicodeBidi: "isolate" }}>
+        {heb}{SEP}{eng}
       </span>
     );
   }
