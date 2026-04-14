@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { db, businessesTable, servicesTable, workingHoursTable, breakTimesTable, appointmentsTable, waitlistTable, timeOffTable } from "@workspace/db";
 import { eq, and, gte, sql, count } from "drizzle-orm";
-import { sendClientCancellation, sendClientReschedule, sendClientConfirmation } from "../lib/whatsapp";
+import { sendClientCancellation, sendClientReschedule, sendClientConfirmation, sendWhatsApp } from "../lib/whatsapp";
 import {
   UpdateBusinessProfileBody,
   CreateBusinessServiceBody,
@@ -539,6 +539,7 @@ router.get("/business/customers", requireBusinessAuth, async (req, res): Promise
       clientName: appointmentsTable.clientName,
       phoneNumber: appointmentsTable.phoneNumber,
       appointmentDate: appointmentsTable.appointmentDate,
+      status: appointmentsTable.status,
       price: sql<number>`COALESCE(${servicesTable.price}, 0)`.as("price"),
     })
     .from(appointmentsTable)
@@ -556,6 +557,8 @@ router.get("/business/customers", requireBusinessAuth, async (req, res): Promise
   }>();
 
   for (const a of appointments) {
+    // Skip cancelled / unpaid appointments from visit counts
+    if (a.status === "cancelled" || a.status === "pending_payment") continue;
     const key = a.phoneNumber;
     if (!customerMap.has(key)) {
       customerMap.set(key, {
@@ -575,6 +578,98 @@ router.get("/business/customers", requireBusinessAuth, async (req, res): Promise
   }
 
   res.json(Array.from(customerMap.values()).sort((a, b) => b.totalRevenue - a.totalRevenue));
+});
+
+// POST /business/broadcast — send WhatsApp message to all customers
+// Monthly cap: 150 messages (~$10 at ~$0.06/msg)
+const BROADCAST_MONTHLY_LIMIT = 150;
+
+router.post("/business/broadcast", requireBusinessAuth, async (req, res): Promise<void> => {
+  const businessId = req.business!.businessId;
+  const { message } = req.body ?? {};
+  if (!message || typeof message !== "string" || !message.trim()) {
+    res.status(400).json({ error: "הודעה נדרשת" }); return;
+  }
+
+  // Check / reset monthly quota
+  const [biz] = await db
+    .select({ broadcastSentThisMonth: businessesTable.broadcastSentThisMonth, broadcastMonthKey: businessesTable.broadcastMonthKey })
+    .from(businessesTable)
+    .where(eq(businessesTable.id, businessId));
+
+  if (!biz) { res.status(404).json({ error: "עסק לא נמצא" }); return; }
+
+  const currentMonth = new Date().toISOString().slice(0, 7); // "YYYY-MM"
+  const sentThisMonth = biz.broadcastMonthKey === currentMonth ? (biz.broadcastSentThisMonth ?? 0) : 0;
+
+  if (sentThisMonth >= BROADCAST_MONTHLY_LIMIT) {
+    res.status(429).json({
+      error: "quota_exceeded",
+      message: `הגעת למגבלת ההודעות החודשית (${BROADCAST_MONTHLY_LIMIT} הודעות). תוכל לשלוח שוב בחודש הבא.`,
+      sent: sentThisMonth,
+      limit: BROADCAST_MONTHLY_LIMIT,
+    });
+    return;
+  }
+
+  // Get unique phone numbers with at least one non-cancelled appointment
+  const rows = await db
+    .select({ phoneNumber: appointmentsTable.phoneNumber })
+    .from(appointmentsTable)
+    .where(and(
+      eq(appointmentsTable.businessId, businessId),
+      sql`${appointmentsTable.status} != 'cancelled'`,
+      sql`${appointmentsTable.status} != 'pending_payment'`
+    ));
+
+  const phones = [...new Set(rows.map(r => r.phoneNumber).filter(Boolean))];
+
+  // Cap at remaining quota
+  const remaining = BROADCAST_MONTHLY_LIMIT - sentThisMonth;
+  const batch = phones.slice(0, remaining);
+
+  let successCount = 0;
+  let failCount = 0;
+
+  for (const phone of batch) {
+    try {
+      await sendWhatsApp(phone, message.trim());
+      successCount++;
+    } catch {
+      failCount++;
+    }
+  }
+
+  // Update monthly counter
+  await db
+    .update(businessesTable)
+    .set({
+      broadcastSentThisMonth: sentThisMonth + successCount,
+      broadcastMonthKey: currentMonth,
+    })
+    .where(eq(businessesTable.id, businessId));
+
+  res.json({
+    success: true,
+    sent: successCount,
+    failed: failCount,
+    total: batch.length,
+    remainingThisMonth: BROADCAST_MONTHLY_LIMIT - sentThisMonth - successCount,
+  });
+});
+
+router.get("/business/broadcast/quota", requireBusinessAuth, async (req, res): Promise<void> => {
+  const businessId = req.business!.businessId;
+  const [biz] = await db
+    .select({ broadcastSentThisMonth: businessesTable.broadcastSentThisMonth, broadcastMonthKey: businessesTable.broadcastMonthKey })
+    .from(businessesTable)
+    .where(eq(businessesTable.id, businessId));
+
+  if (!biz) { res.status(404).json({ error: "עסק לא נמצא" }); return; }
+
+  const currentMonth = new Date().toISOString().slice(0, 7);
+  const sent = biz.broadcastMonthKey === currentMonth ? (biz.broadcastSentThisMonth ?? 0) : 0;
+  res.json({ sent, limit: BROADCAST_MONTHLY_LIMIT, remaining: BROADCAST_MONTHLY_LIMIT - sent });
 });
 
 router.get("/business/waitlist", requireBusinessAuth, async (req, res): Promise<void> => {

@@ -72,6 +72,9 @@ export const businessesTable = pgTable("businesses", {
   // Tranzila deposit payment
   tranzilaEnabled: boolean("tranzila_enabled").notNull().default(false),
   depositAmountAgorot: integer("deposit_amount_agorot"), // deposit in agorot (100 = 1 ILS), null = no deposit
+  // Broadcast messaging quota ($10/month cap, ~150 messages @ $0.06 each)
+  broadcastSentThisMonth: integer("broadcast_sent_this_month").notNull().default(0),
+  broadcastMonthKey: text("broadcast_month_key"), // "YYYY-MM"
 });
 
 export const insertBusinessSchema = createInsertSchema(businessesTable).omit({ id: true, createdAt: true });

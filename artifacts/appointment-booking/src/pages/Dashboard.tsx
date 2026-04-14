@@ -43,7 +43,8 @@ import {
   Calendar, Clock, Settings, Briefcase, LogOut, Plus, Trash2, Edit,
   Users, ListOrdered, Palette, Puzzle, Phone, TrendingUp, CheckCircle,
   ExternalLink, Info, Upload, Image as ImageIcon, Crown, Zap, X, Copy, Check, Link,
-  ChevronLeft, ChevronRight, HelpCircle, Eye, EyeOff, Umbrella, DollarSign
+  ChevronLeft, ChevronRight, HelpCircle, Eye, EyeOff, Umbrella, DollarSign,
+  MessageSquare, Send
 } from "lucide-react";
 import { useLocation } from "wouter";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
@@ -1435,6 +1436,52 @@ function RevenueTab() {
 
 function CustomersTab() {
   const { data: customers, isLoading } = useListBusinessCustomers();
+  const { toast } = useToast();
+  const token = localStorage.getItem("biz_token") || sessionStorage.getItem("biz_token");
+
+  const [showBroadcast, setShowBroadcast] = useState(false);
+  const [broadcastMessage, setBroadcastMessage] = useState("");
+  const [broadcastLoading, setBroadcastLoading] = useState(false);
+  const [quota, setQuota] = useState<{ sent: number; limit: number; remaining: number } | null>(null);
+
+  useEffect(() => {
+    if (!token) return;
+    fetch("/api/business/broadcast/quota", { headers: { Authorization: `Bearer ${token}` } })
+      .then(r => r.ok ? r.json() : null)
+      .then(data => { if (data) setQuota(data); })
+      .catch(() => {});
+  }, [token]);
+
+  const handleBroadcast = async () => {
+    if (!broadcastMessage.trim()) return;
+    setBroadcastLoading(true);
+    try {
+      const res = await fetch("/api/business/broadcast", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ message: broadcastMessage.trim() }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        toast({ title: "שגיאה", description: data.message ?? "לא ניתן לשלוח", variant: "destructive" });
+        return;
+      }
+      toast({ title: `✅ נשלח ל-${data.sent} לקוחות${data.failed > 0 ? ` (${data.failed} נכשלו)` : ""}` });
+      setShowBroadcast(false);
+      setBroadcastMessage("");
+      setQuota(q => q ? { ...q, sent: q.sent + data.sent, remaining: q.remaining - data.sent } : q);
+    } catch {
+      toast({ title: "שגיאת רשת", variant: "destructive" });
+    } finally {
+      setBroadcastLoading(false);
+    }
+  };
+
+  const waLink = (phone: string, name: string) => {
+    const e164 = phone.replace(/\D/g, "").replace(/^0/, "972");
+    const msg = encodeURIComponent(`שלום ${name}, `);
+    return `https://wa.me/${e164}?text=${msg}`;
+  };
 
   if (isLoading) return <div className="p-8 text-center text-muted-foreground">טוען...</div>;
 
@@ -1444,6 +1491,49 @@ function CustomersTab() {
 
   return (
     <div className="space-y-6">
+      {/* Broadcast dialog */}
+      {showBroadcast && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4" onClick={() => setShowBroadcast(false)}>
+          <div className="bg-background rounded-2xl shadow-2xl p-6 w-full max-w-md space-y-4" dir="rtl" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between">
+              <h3 className="text-lg font-bold flex items-center gap-2">
+                <Send className="w-5 h-5 text-primary" /> הודעה לכל הלקוחות
+              </h3>
+              <button onClick={() => setShowBroadcast(false)} className="text-muted-foreground hover:text-foreground"><X className="w-5 h-5" /></button>
+            </div>
+            {quota && (
+              <div className="flex items-center justify-between text-xs text-muted-foreground bg-muted/30 px-3 py-2 rounded-lg">
+                <span>נשלחו החודש: {quota.sent}/{quota.limit}</span>
+                <span className={quota.remaining < 20 ? "text-red-500 font-medium" : ""}>{quota.remaining} נותרו</span>
+              </div>
+            )}
+            <div>
+              <p className="text-sm text-muted-foreground mb-2">ההודעה תישלח ל-{customerList.length} לקוחות דרך WhatsApp</p>
+              <textarea
+                className="w-full border rounded-xl p-3 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-primary/30"
+                rows={4}
+                placeholder="כתוב/י את ההודעה כאן..."
+                value={broadcastMessage}
+                onChange={e => setBroadcastMessage(e.target.value)}
+                maxLength={1000}
+              />
+              <div className="text-xs text-muted-foreground text-left mt-1">{broadcastMessage.length}/1000</div>
+            </div>
+            <div className="flex gap-2">
+              <Button variant="outline" className="flex-1" onClick={() => setShowBroadcast(false)}>ביטול</Button>
+              <Button
+                className="flex-1 gap-2"
+                disabled={!broadcastMessage.trim() || broadcastLoading || (quota?.remaining ?? 1) <= 0}
+                onClick={handleBroadcast}
+              >
+                {broadcastLoading ? "שולח..." : <><Send className="w-4 h-4" /> שלח לכולם</>}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Stats */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <Card className="bg-primary/5 border-primary/10">
           <CardContent className="p-5">
@@ -1466,28 +1556,55 @@ function CustomersTab() {
       </div>
 
       <Card>
-        <CardHeader>
-          <CardTitle>מאגר לקוחות</CardTitle>
-          <CardDescription>כל הלקוחות שהזמינו תורים עם היסטוריית ביקורים והכנסות</CardDescription>
+        <CardHeader className="flex flex-row items-center justify-between">
+          <div>
+            <CardTitle>מאגר לקוחות</CardTitle>
+            <CardDescription>כל הלקוחות שהזמינו תורים עם היסטוריית ביקורים והכנסות</CardDescription>
+          </div>
+          {customerList.length > 0 && (
+            <Button
+              size="sm"
+              className="gap-2 shrink-0"
+              onClick={() => setShowBroadcast(true)}
+            >
+              <MessageSquare className="w-4 h-4" /> הודעה לכולם
+            </Button>
+          )}
         </CardHeader>
         <CardContent>
           {customerList.length ? (
             <div className="space-y-3">
               {customerList.map((c, i) => (
-                <div key={i} className="flex flex-col sm:flex-row justify-between items-start sm:items-center p-4 border rounded-xl hover:border-primary/40 transition-colors">
-                  <div>
-                    <div className="font-semibold flex items-center gap-2">
+                <div key={i} className="flex flex-col sm:flex-row justify-between items-start sm:items-center p-4 border rounded-xl hover:border-primary/40 transition-colors gap-3">
+                  <div className="flex-1 min-w-0">
+                    <div className="font-semibold flex items-center gap-2 flex-wrap">
                       {c.clientName}
-                      {c.totalVisits >= 5 && <Badge className="text-xs bg-amber-100 text-amber-700 border-amber-200">לקוח נאמן</Badge>}
+                      {c.totalVisits >= 5 && <Badge className="text-xs bg-amber-100 text-amber-700 border-amber-200">לקוחה נאמנה</Badge>}
                     </div>
                     <div className="text-sm text-muted-foreground mt-0.5" dir="ltr">{c.phoneNumber}</div>
                     <div className="text-xs text-muted-foreground mt-1">
                       ביקור ראשון: {c.firstVisitDate} • אחרון: {c.lastVisitDate}
                     </div>
                   </div>
-                  <div className="text-left sm:text-right mt-2 sm:mt-0">
-                    <div className="font-bold text-primary text-lg">₪{(c.totalRevenue / 100).toFixed(0)}</div>
-                    <div className="text-sm text-muted-foreground">{c.totalVisits} ביקורים</div>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    {/* Phone call */}
+                    <a href={`tel:${c.phoneNumber}`} aria-label="חייג">
+                      <Button size="sm" variant="outline" className="gap-1.5">
+                        <Phone className="w-3.5 h-3.5" /> חייג
+                      </Button>
+                    </a>
+                    {/* WhatsApp */}
+                    <a href={waLink(c.phoneNumber, c.clientName)} target="_blank" rel="noopener noreferrer" aria-label="WhatsApp">
+                      <Button size="sm" variant="outline" className="gap-1.5 border-green-300 hover:bg-green-50 text-green-700">
+                        <svg viewBox="0 0 24 24" className="w-3.5 h-3.5" fill="currentColor"><path d="M12 2C6.477 2 2 6.477 2 12c0 1.89.525 3.66 1.438 5.168L2 22l4.978-1.38A9.953 9.953 0 0012 22c5.523 0 10-4.477 10-10S17.523 2 12 2zm0 18a7.946 7.946 0 01-4.073-1.117l-.29-.174-3.007.834.847-3.087-.189-.301A8 8 0 1112 20zm4.472-5.618c-.247-.124-1.458-.72-1.685-.802-.226-.082-.39-.124-.554.124-.165.247-.638.802-.782.966-.143.165-.288.186-.534.062-.247-.124-1.044-.385-1.988-1.228-.735-.655-1.232-1.464-1.376-1.711-.143-.247-.015-.38.108-.503.11-.11.247-.288.37-.432.124-.144.165-.247.247-.41.082-.164.041-.308-.021-.432-.062-.124-.554-1.337-.76-1.83-.2-.48-.404-.415-.554-.422l-.473-.009c-.165 0-.432.062-.658.308-.226.247-.864.844-.864 2.06 0 1.215.885 2.39 1.008 2.554.124.165 1.741 2.658 4.218 3.727.59.254 1.05.406 1.409.52.592.188 1.131.161 1.557.098.475-.071 1.458-.596 1.664-1.172.206-.576.206-1.07.144-1.172-.062-.103-.226-.165-.473-.288z"/></svg>
+                        WhatsApp
+                      </Button>
+                    </a>
+                    {/* Revenue */}
+                    <div className="text-right">
+                      <div className="font-bold text-primary text-base">₪{(c.totalRevenue / 100).toFixed(0)}</div>
+                      <div className="text-xs text-muted-foreground">{c.totalVisits} ביקורים</div>
+                    </div>
                   </div>
                 </div>
               ))}
