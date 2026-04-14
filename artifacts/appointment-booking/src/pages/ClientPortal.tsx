@@ -628,7 +628,10 @@ export default function ClientPortal() {
                 className="text-gray-500 hover:text-gray-800 transition">
                 <X className="w-5 h-5" />
               </button>
-              <h2 className="font-bold text-base text-gray-900 flex-1">גלה עסקים בקבעתי</h2>
+              <div className="flex-1">
+                <h2 className="font-bold text-base text-gray-900">גלה עסקים בקבעתי</h2>
+                <p className="text-xs text-gray-400">עסקים שעובדים עם קבעתי בלבד</p>
+              </div>
             </div>
 
             <div className="bg-white border-b px-4 py-3 space-y-2">

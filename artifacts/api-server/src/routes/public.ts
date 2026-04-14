@@ -17,6 +17,41 @@ import { isPhoneVerified, consumeVerification, markPhoneVerified } from "../lib/
 
 const router = Router();
 
+// GET /public/directory — must be before /:businessSlug to avoid slug capture
+router.get("/public/directory", async (req, res): Promise<void> => {
+  const category = typeof req.query.category === "string" ? req.query.category : undefined;
+  const city = typeof req.query.city === "string" ? req.query.city : undefined;
+
+  const rows = await db
+    .select({
+      slug: businessesTable.slug,
+      name: businessesTable.name,
+      logoUrl: businessesTable.logoUrl,
+      primaryColor: businessesTable.primaryColor,
+      address: businessesTable.address,
+      city: (businessesTable as any).city,
+      businessCategories: (businessesTable as any).businessCategories,
+      businessDescription: (businessesTable as any).businessDescription,
+    })
+    .from(businessesTable)
+    .where(eq(businessesTable.isActive, true));
+
+  const filtered = rows.filter(b => {
+    if (city && (b as any).city && !(b as any).city.includes(city)) return false;
+    if (category && (b as any).businessCategories) {
+      try {
+        const cats: string[] = JSON.parse((b as any).businessCategories);
+        if (!cats.includes(category)) return false;
+      } catch { return false; }
+    } else if (category) {
+      return false;
+    }
+    return true;
+  });
+
+  res.json(filtered);
+});
+
 router.get("/public/:businessSlug", async (req, res): Promise<void> => {
   const paramsParsed = GetPublicBusinessParams.safeParse(req.params);
   if (!paramsParsed.success) {
@@ -600,41 +635,6 @@ router.get("/public/:businessSlug/next-slots", async (req, res): Promise<void> =
   }
 
   res.json(results);
-});
-
-// GET /public/directory — list all active businesses for discover page
-router.get("/public/directory", async (req, res): Promise<void> => {
-  const category = typeof req.query.category === "string" ? req.query.category : undefined;
-  const city = typeof req.query.city === "string" ? req.query.city : undefined;
-
-  const rows = await db
-    .select({
-      slug: businessesTable.slug,
-      name: businessesTable.name,
-      logoUrl: businessesTable.logoUrl,
-      primaryColor: businessesTable.primaryColor,
-      address: businessesTable.address,
-      city: businessesTable.city,
-      businessCategories: businessesTable.businessCategories,
-      businessDescription: businessesTable.businessDescription,
-    })
-    .from(businessesTable)
-    .where(eq(businessesTable.isActive, true));
-
-  let filtered = rows.filter(b => {
-    if (city && b.city && !b.city.includes(city)) return false;
-    if (category && b.businessCategories) {
-      try {
-        const cats: string[] = JSON.parse(b.businessCategories);
-        if (!cats.includes(category)) return false;
-      } catch { return false; }
-    } else if (category) {
-      return false;
-    }
-    return true;
-  });
-
-  res.json(filtered);
 });
 
 export default router;
