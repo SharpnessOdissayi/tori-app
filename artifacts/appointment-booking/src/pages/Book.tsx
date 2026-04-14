@@ -221,6 +221,8 @@ export default function Book() {
   const [portalPhone, setPortalPhone] = useState("");
   const [portalOtpCode, setPortalOtpCode] = useState("");
   const [portalLoading, setPortalLoading] = useState(false);
+  const [gateGoogleLoading, setGateGoogleLoading] = useState(false);
+  const [gateFbLoading, setGateFbLoading] = useState(false);
 
   // Next available slots
   const [nextSlots, setNextSlots] = useState<Array<{ date: string; time: string }>>([]);
@@ -419,6 +421,78 @@ export default function Book() {
     finally { setPortalLoading(false); }
   };
 
+  // Google sign-in for login gate
+  useEffect(() => {
+    if (!showLoginGate) return;
+    const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
+    if (!clientId) return;
+    const init = () => {
+      (window as any).google?.accounts?.id?.initialize({
+        client_id: clientId,
+        callback: async (response: any) => {
+          setGateGoogleLoading(true);
+          try {
+            const res = await fetch(`${API_BASE}/client/google-auth`, {
+              method: "POST", headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ credential: response.credential }),
+            });
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.error);
+            localStorage.setItem("kavati_client_token", data.token);
+            setClientToken(data.token);
+            if (businessSlug) fetch(`${API_BASE}/client/businesses/${businessSlug}`, { method: "POST", headers: { "x-client-token": data.token } }).catch(() => {});
+            setShowLoginGate(false);
+            toast({ title: `ברוכ/ה הבא/ה${data.clientName ? `, ${data.clientName}` : ""}!` });
+          } catch { toast({ title: "שגיאת Google", variant: "destructive" }); }
+          finally { setGateGoogleLoading(false); }
+        },
+      });
+      const btn = document.getElementById("google-signin-btn-gate");
+      if (btn) (window as any).google?.accounts?.id?.renderButton(btn, { theme: "outline", size: "large", width: btn.offsetWidth || 300, locale: "he" });
+    };
+    if ((window as any).google?.accounts?.id) { init(); }
+    else {
+      const s = document.createElement("script");
+      s.src = "https://accounts.google.com/gsi/client";
+      s.onload = init;
+      document.head.appendChild(s);
+    }
+  }, [showLoginGate]);
+
+  // Facebook login for gate
+  useEffect(() => {
+    const appId = import.meta.env.VITE_FACEBOOK_APP_ID;
+    if (!appId || (window as any).FB) return;
+    (window as any).fbAsyncInit = () => {
+      (window as any).FB.init({ appId, cookie: true, xfbml: false, version: "v19.0" });
+    };
+    const s = document.createElement("script");
+    s.src = "https://connect.facebook.net/he_IL/sdk.js";
+    document.head.appendChild(s);
+  }, []);
+
+  const handleGateFacebookLogin = () => {
+    const FB = (window as any).FB;
+    if (!FB) return;
+    setGateFbLoading(true);
+    FB.login((response: any) => {
+      if (!response.authResponse) { setGateFbLoading(false); return; }
+      const { accessToken, userID } = response.authResponse;
+      fetch(`${API_BASE}/client/facebook-auth`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ accessToken, userId: userID }),
+      }).then(r => r.json()).then(data => {
+        if (!data.token) throw new Error();
+        localStorage.setItem("kavati_client_token", data.token);
+        setClientToken(data.token);
+        if (businessSlug) fetch(`${API_BASE}/client/businesses/${businessSlug}`, { method: "POST", headers: { "x-client-token": data.token } }).catch(() => {});
+        setShowLoginGate(false);
+        toast({ title: `ברוכ/ה הבא/ה${data.clientName ? `, ${data.clientName}` : ""}!` });
+      }).catch(() => toast({ title: "שגיאת Facebook", variant: "destructive" }))
+        .finally(() => setGateFbLoading(false));
+    }, { scope: "public_profile,email" });
+  };
+
   // ─── Login gate (full-screen, shown before booking page if no token) ────────
   if (showLoginGate && !businessLoading && business) {
     return (
@@ -494,13 +568,38 @@ export default function Book() {
 
             <div className="relative flex items-center gap-3 py-1">
               <div className="flex-1 h-px bg-border" />
-              <span className="text-xs text-muted-foreground">או</span>
+              <span className="text-xs text-muted-foreground">או התחבר/י עם</span>
               <div className="flex-1 h-px bg-border" />
             </div>
 
-            <Button variant="outline" className="w-full h-11" onClick={() => setShowLoginGate(false)}>
-              המשך ללא התחברות
-            </Button>
+            <div className="space-y-2">
+              {/* Google */}
+              {import.meta.env.VITE_GOOGLE_CLIENT_ID && (
+                <div id="google-signin-btn-gate" className="w-full flex justify-center" style={{ minHeight: 44 }} />
+              )}
+              {gateGoogleLoading && <p className="text-xs text-center text-muted-foreground">מתחבר...</p>}
+
+              {/* Facebook */}
+              {import.meta.env.VITE_FACEBOOK_APP_ID && (
+                <button
+                  onClick={handleGateFacebookLogin}
+                  disabled={gateFbLoading}
+                  className="w-full h-11 rounded-lg border flex items-center justify-center gap-2 text-sm font-medium transition-colors hover:bg-blue-50"
+                  style={{ borderColor: "#1877F2", color: "#1877F2" }}
+                >
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="#1877F2"><path d="M24 12.073C24 5.405 18.627 0 12 0S0 5.405 0 12.073C0 18.1 4.388 23.094 10.125 24v-8.437H7.078v-3.49h3.047V9.41c0-3.025 1.792-4.697 4.533-4.697 1.312 0 2.686.236 2.686.236v2.97h-1.513c-1.491 0-1.956.93-1.956 1.874v2.25h3.328l-.532 3.49h-2.796V24C19.612 23.094 24 18.1 24 12.073z"/></svg>
+                  {gateFbLoading ? "מתחבר..." : "המשך עם Facebook"}
+                </button>
+              )}
+
+              <button
+                className="w-full h-11 rounded-lg border text-sm font-medium transition-colors hover:bg-gray-50"
+                style={{ borderColor: "#e5e7eb", color: "#6b7280" }}
+                onClick={() => setShowLoginGate(false)}
+              >
+                המשך ללא התחברות
+              </button>
+            </div>
           </div>
         </div>
       </div>
