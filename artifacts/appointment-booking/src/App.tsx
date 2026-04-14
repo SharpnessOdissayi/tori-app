@@ -55,7 +55,7 @@ function Router() {
       <Route path="/" component={Home} />
       <Route path="/details" component={Details} />
       <Route path="/contact" component={Contact} />
-      <Route path="/super-admin" component={SuperAdmin} />
+      <Route path={import.meta.env.VITE_ADMIN_PATH ?? "/superadmin"} component={SuperAdmin} />
       <Route path="/register" component={Register} />
       <Route path="/dashboard" component={Dashboard} />
       <Route path="/book/:businessSlug" component={Book} />

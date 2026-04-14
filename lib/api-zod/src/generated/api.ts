@@ -105,7 +105,7 @@ export const BusinessRegisterBody = zod.object({
   phone: zod.string(),
   email: zod.string().email(),
   password: zod.string().min(6),
-  subscriptionPlan: zod.enum(["basic", "pro"]),
+  subscriptionPlan: zod.enum(["free", "pro"]),
   businessCategories: zod.array(zod.string()).optional(),
   address: zod.string().optional(),
   websiteUrl: zod.string().optional(),

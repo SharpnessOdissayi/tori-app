@@ -27,7 +27,10 @@
       "Bash(grep -rn \"שעה\\\\|שעות\\\\|דקה\\\\|דקות\" /c/Users/ofek3/OneDrive/Desktop/schedule-manager-main/.claude/worktrees/tender-bell/artifacts/appointment-booking/src/pages/*.tsx)",
       "Bash(grep -E \"\\\\$\\\\{|template|[0-9]\")",
       "Skill(update-config)",
-      "Skill(update-config:*)"
+      "Skill(update-config:*)",
+      "WebFetch(domain:raw.githubusercontent.com)",
+      "Bash(git add:*)",
+      "Bash(git push:*)"
     ]
   }
 }

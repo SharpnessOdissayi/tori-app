@@ -55,7 +55,7 @@ router.get("/super-admin/businesses", async (req, res): Promise<void> => {
     .from(businessesTable)
     .orderBy(businessesTable.createdAt);
 
-  res.json(businesses.map(mapAdminBusiness));
+  res.json(businesses.filter(b => b.slug !== "admin").map(mapAdminBusiness));
 });
 
 router.post("/super-admin/businesses", async (req, res): Promise<void> => {
