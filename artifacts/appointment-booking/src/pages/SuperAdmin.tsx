@@ -32,6 +32,12 @@ interface EditFormData {
   email: string;
   password: string;
   phone: string;
+  address: string;
+  city: string;
+  websiteUrl: string;
+  instagramHandle: string;
+  businessDescription: string;
+  subscriptionPlan: string;
 }
 
 export default function SuperAdmin() {
@@ -42,9 +48,9 @@ export default function SuperAdmin() {
   const queryClient = useQueryClient();
 
   const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const [newBusiness, setNewBusiness] = useState({ name: "", slug: "", ownerName: "", email: "", password: "", phone: "" });
+  const [newBusiness, setNewBusiness] = useState({ name: "", slug: "", ownerName: "", email: "", password: "", phone: "", subscriptionPlan: "free", address: "", websiteUrl: "", instagramHandle: "" });
   const [editDialogBusiness, setEditDialogBusiness] = useState<AdminBusinessSummary | null>(null);
-  const [editForm, setEditForm] = useState<EditFormData>({ name: "", slug: "", username: "", ownerName: "", email: "", password: "", phone: "" });
+  const [editForm, setEditForm] = useState<EditFormData>({ name: "", slug: "", username: "", ownerName: "", email: "", password: "", phone: "", address: "", city: "", websiteUrl: "", instagramHandle: "", businessDescription: "", subscriptionPlan: "free" });
   const [showEditPassword, setShowEditPassword] = useState(false);
 
   const [loginAttempted, setLoginAttempted] = useState(false);
@@ -82,11 +88,23 @@ export default function SuperAdmin() {
 
   const handleCreate = (e: React.FormEvent) => {
     e.preventDefault();
-    createMutation.mutate({ params: { adminPassword: password }, data: { ...newBusiness, phone: newBusiness.phone || undefined } }, {
+    const createData: any = {
+      name: newBusiness.name,
+      slug: newBusiness.slug,
+      ownerName: newBusiness.ownerName,
+      email: newBusiness.email,
+      password: newBusiness.password,
+      phone: newBusiness.phone || undefined,
+      subscriptionPlan: newBusiness.subscriptionPlan,
+      address: newBusiness.address || undefined,
+      websiteUrl: newBusiness.websiteUrl || undefined,
+      instagramUrl: newBusiness.instagramHandle ? `https://www.instagram.com/${newBusiness.instagramHandle.replace(/^@/, "")}` : undefined,
+    };
+    createMutation.mutate({ params: { adminPassword: password }, data: createData }, {
       onSuccess: () => {
         toast({ title: "עסק נוצר בהצלחה" });
         setIsDialogOpen(false);
-        setNewBusiness({ name: "", slug: "", ownerName: "", email: "", password: "", phone: "" });
+        setNewBusiness({ name: "", slug: "", ownerName: "", email: "", password: "", phone: "", subscriptionPlan: "free", address: "", websiteUrl: "", instagramHandle: "" });
         invalidate();
       },
       onError: () => toast({ title: "שגיאה ביצירת עסק", variant: "destructive" }),
@@ -140,6 +158,12 @@ export default function SuperAdmin() {
       email: business.email,
       password: "",
       phone: business.phone ?? "",
+      address: (business as any).address ?? "",
+      city: (business as any).city ?? "",
+      websiteUrl: (business as any).websiteUrl ?? "",
+      instagramHandle: ((business as any).instagramUrl ?? "").replace(/^https?:\/\/(www\.)?instagram\.com\//, "").replace(/\/$/, ""),
+      businessDescription: (business as any).businessDescription ?? "",
+      subscriptionPlan: business.subscriptionPlan ?? "free",
     });
     setShowEditPassword(false);
   };
@@ -156,6 +180,16 @@ export default function SuperAdmin() {
     if (editForm.email !== editDialogBusiness.email) data.email = editForm.email;
     if (editForm.password) data.password = editForm.password;
     if (editForm.phone !== (editDialogBusiness.phone ?? "")) data.phone = editForm.phone || "";
+    (data as any).address = editForm.address || null;
+    (data as any).city = editForm.city || null;
+    (data as any).websiteUrl = editForm.websiteUrl || null;
+    (data as any).instagramUrl = editForm.instagramHandle ? `https://www.instagram.com/${editForm.instagramHandle.replace(/^@/, "")}` : null;
+    (data as any).businessDescription = editForm.businessDescription || null;
+    if (editForm.subscriptionPlan !== editDialogBusiness.subscriptionPlan) {
+      data.subscriptionPlan = editForm.subscriptionPlan as any;
+      data.maxServicesAllowed = editForm.subscriptionPlan === "pro" ? 999 : 3;
+      data.maxAppointmentsPerMonth = editForm.subscriptionPlan === "pro" ? 9999 : 20;
+    }
 
     if (Object.keys(data).length === 0) {
       toast({ title: "לא בוצעו שינויים" });
@@ -225,7 +259,7 @@ export default function SuperAdmin() {
             <DialogTrigger asChild>
               <Button className="gap-2"><Plus className="w-4 h-4" /> הוסף עסק חדש</Button>
             </DialogTrigger>
-            <DialogContent dir="rtl" className="max-w-md">
+            <DialogContent dir="rtl" className="max-w-md max-h-[90vh] overflow-y-auto">
               <DialogHeader>
                 <DialogTitle>יצירת עסק חדש</DialogTitle>
               </DialogHeader>
@@ -250,6 +284,33 @@ export default function SuperAdmin() {
                 <div className="space-y-2">
                   <Label>מספר טלפון</Label>
                   <Input type="tel" value={newBusiness.phone} onChange={e => setNewBusiness(p => ({ ...p, phone: e.target.value }))} dir="ltr" placeholder="050-0000000" />
+                </div>
+                <div className="space-y-2">
+                  <Label>מנוי</Label>
+                  <div className="flex gap-2">
+                    {PLANS.map(p => (
+                      <button key={p.value} type="button" onClick={() => setNewBusiness(prev => ({ ...prev, subscriptionPlan: p.value }))}
+                        className={`flex-1 py-2 text-sm rounded-lg border font-medium transition-all ${newBusiness.subscriptionPlan === p.value ? "border-primary bg-primary/5 text-primary" : "border-border hover:border-primary/40"}`}>
+                        {p.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <Label>כתובת העסק</Label>
+                  <Input value={newBusiness.address} onChange={e => setNewBusiness(p => ({ ...p, address: e.target.value }))} placeholder="רחוב הרצל 1, תל אביב" />
+                </div>
+                <div className="space-y-2">
+                  <Label>אתר העסק</Label>
+                  <Input dir="ltr" value={newBusiness.websiteUrl} onChange={e => setNewBusiness(p => ({ ...p, websiteUrl: e.target.value }))} placeholder="https://..." />
+                </div>
+                <div className="space-y-2">
+                  <Label>אינסטגרם (שם משתמש)</Label>
+                  <div className="flex items-center rounded-xl border bg-muted/40 overflow-hidden">
+                    <span className="px-3 text-sm text-muted-foreground border-l bg-muted">@</span>
+                    <input dir="ltr" className="flex-1 px-3 py-2 bg-transparent text-sm outline-none" placeholder="my_business"
+                      value={newBusiness.instagramHandle} onChange={e => setNewBusiness(p => ({ ...p, instagramHandle: e.target.value.replace(/^@/, "") }))} />
+                  </div>
                 </div>
                 <div className="space-y-2">
                   <Label>סיסמה *</Label>
@@ -288,54 +349,88 @@ export default function SuperAdmin() {
       </div>
 
       <Dialog open={!!editDialogBusiness} onOpenChange={(open) => { if (!open) setEditDialogBusiness(null); }}>
-        <DialogContent dir="rtl" className="max-w-md">
+        <DialogContent dir="rtl" className="max-w-md max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>עריכת עסק</DialogTitle>
+            <DialogTitle>עריכת עסק — {editDialogBusiness?.name}</DialogTitle>
           </DialogHeader>
           <form onSubmit={handleEditSave} className="space-y-4">
+            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">פרטי חשבון</p>
             <div className="space-y-2">
               <Label>שם העסק</Label>
-              <Input required value={editForm.name} onChange={e => setEditForm(p => ({ ...p, name: e.target.value }))} placeholder="מספרת יוסי" />
+              <Input required value={editForm.name} onChange={e => setEditForm(p => ({ ...p, name: e.target.value }))} />
             </div>
             <div className="space-y-2">
               <Label>כתובת URL (Slug)</Label>
-              <Input required value={editForm.slug} onChange={e => setEditForm(p => ({ ...p, slug: e.target.value.toLowerCase().replace(/\s+/g, "-") }))} dir="ltr" placeholder="yosi-barber" />
+              <Input required value={editForm.slug} onChange={e => setEditForm(p => ({ ...p, slug: e.target.value.toLowerCase().replace(/\s+/g, "-") }))} dir="ltr" />
               {editForm.slug && <p className="text-xs text-muted-foreground" dir="ltr">/book/{editForm.slug}</p>}
             </div>
             <div className="space-y-2">
-              <Label>שם משתמש</Label>
-              <Input value={editForm.username} onChange={e => setEditForm(p => ({ ...p, username: e.target.value.toLowerCase().replace(/\s+/g, "") }))} dir="ltr" placeholder="yosi-barber (אופציונלי)" />
+              <Label>שם משתמש לכניסה</Label>
+              <Input value={editForm.username} onChange={e => setEditForm(p => ({ ...p, username: e.target.value.toLowerCase().replace(/\s+/g, "") }))} dir="ltr" placeholder="אופציונלי" />
             </div>
             <div className="space-y-2">
               <Label>שם הבעלים</Label>
-              <Input required value={editForm.ownerName} onChange={e => setEditForm(p => ({ ...p, ownerName: e.target.value }))} placeholder="יוסי כהן" />
+              <Input required value={editForm.ownerName} onChange={e => setEditForm(p => ({ ...p, ownerName: e.target.value }))} />
             </div>
             <div className="space-y-2">
               <Label>אימייל</Label>
-              <Input required type="email" value={editForm.email} onChange={e => setEditForm(p => ({ ...p, email: e.target.value }))} dir="ltr" placeholder="yosi@example.com" />
+              <Input required type="email" value={editForm.email} onChange={e => setEditForm(p => ({ ...p, email: e.target.value }))} dir="ltr" />
             </div>
             <div className="space-y-2">
               <Label>מספר טלפון</Label>
               <Input type="tel" value={editForm.phone} onChange={e => setEditForm(p => ({ ...p, phone: e.target.value }))} dir="ltr" placeholder="050-0000000" />
             </div>
             <div className="space-y-2">
+              <Label>מנוי</Label>
+              <div className="flex gap-2">
+                {PLANS.map(p => (
+                  <button key={p.value} type="button" onClick={() => setEditForm(prev => ({ ...prev, subscriptionPlan: p.value }))}
+                    className={`flex-1 py-2 text-sm rounded-lg border font-medium transition-all ${editForm.subscriptionPlan === p.value ? "border-primary bg-primary/5 text-primary" : "border-border hover:border-primary/40"}`}>
+                    {p.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide pt-2">פרופיל העסק</p>
+            <div className="space-y-2">
+              <Label>תיאור העסק</Label>
+              <textarea value={editForm.businessDescription} onChange={e => setEditForm(p => ({ ...p, businessDescription: e.target.value }))}
+                className="flex min-h-[70px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm resize-none outline-none focus:ring-2 focus:ring-ring"
+                placeholder="כמה מילים על העסק..." />
+            </div>
+            <div className="space-y-2">
+              <Label>כתובת העסק</Label>
+              <Input value={editForm.address} onChange={e => setEditForm(p => ({ ...p, address: e.target.value }))} placeholder="רחוב הרצל 1, תל אביב" />
+            </div>
+            <div className="space-y-2">
+              <Label>עיר (לספריית גלה עסקים)</Label>
+              <Input value={editForm.city} onChange={e => setEditForm(p => ({ ...p, city: e.target.value }))} placeholder="תל אביב" />
+            </div>
+            <div className="space-y-2">
+              <Label>אתר העסק</Label>
+              <Input dir="ltr" value={editForm.websiteUrl} onChange={e => setEditForm(p => ({ ...p, websiteUrl: e.target.value }))} placeholder="https://..." />
+            </div>
+            <div className="space-y-2">
+              <Label>אינסטגרם (שם משתמש)</Label>
+              <div className="flex items-center rounded-xl border bg-muted/40 overflow-hidden">
+                <span className="px-3 text-sm text-muted-foreground border-l bg-muted">@</span>
+                <input dir="ltr" className="flex-1 px-3 py-2 bg-transparent text-sm outline-none" placeholder="my_business"
+                  value={editForm.instagramHandle} onChange={e => setEditForm(p => ({ ...p, instagramHandle: e.target.value.replace(/^@/, "") }))} />
+              </div>
+              {editForm.instagramHandle && <p className="text-xs text-muted-foreground">instagram.com/{editForm.instagramHandle}</p>}
+            </div>
+
+            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide pt-2">אבטחה</p>
+            <div className="space-y-2">
               <Label>איפוס סיסמה</Label>
-              <p className="text-xs text-muted-foreground">השאר ריק כדי לא לשנות את הסיסמה</p>
+              <p className="text-xs text-muted-foreground">השאר ריק כדי לא לשנות</p>
               <div className="flex gap-2">
                 <div className="relative flex-1">
-                  <Input
-                    value={editForm.password}
-                    onChange={e => setEditForm(p => ({ ...p, password: e.target.value }))}
-                    dir="ltr"
-                    placeholder="סיסמה חדשה"
-                    type={showEditPassword ? "text" : "password"}
-                    className="pl-10"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowEditPassword(prev => !prev)}
-                    className="absolute left-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                  >
+                  <Input value={editForm.password} onChange={e => setEditForm(p => ({ ...p, password: e.target.value }))}
+                    dir="ltr" placeholder="סיסמה חדשה" type={showEditPassword ? "text" : "password"} className="pl-10" />
+                  <button type="button" onClick={() => setShowEditPassword(prev => !prev)}
+                    className="absolute left-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
                     {showEditPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                   </button>
                 </div>

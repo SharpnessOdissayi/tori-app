@@ -44,7 +44,7 @@ import {
   Users, ListOrdered, Palette, Puzzle, Phone, TrendingUp, CheckCircle,
   ExternalLink, Info, Upload, Image as ImageIcon, Crown, Zap, X, Copy, Check, Link,
   ChevronLeft, ChevronRight, HelpCircle, Eye, EyeOff, Umbrella, DollarSign,
-  MessageSquare, Send
+  MessageSquare, Send, Search, ChevronDown, Instagram
 } from "lucide-react";
 import { useLocation } from "wouter";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
@@ -53,6 +53,20 @@ import { he } from "date-fns/locale";
 import Navbar from "@/components/Navbar";
 
 const DAYS = ["ראשון", "שני", "שלישי", "רביעי", "חמישי", "שישי", "שבת"];
+
+const BUSINESS_CATEGORIES = [
+  "ספרות גברים","מספרת נשים","מספרה כללית","החלקות שיער","צביעת שיער","עיצוב שיער ופאות",
+  "מלחימת ריסים","מלחימת גבות","עיצוב גבות","טיפולי פנים","מניקור ופדיקור","ציפורניים ג'ל / אקריליק",
+  "מסאז'","הסרת שיער בלייזר","שעוות / הסרת שיער","ספא וטיפולי גוף","איפור ועיצוב","סולריום",
+  "קעקוע","פירסינג","תכשיטי שיניים",
+  "רפואה כללית","רפואת שיניים","פסיכולוגיה / טיפול רגשי","פיזיותרפיה","רפואה טבעית / אלטרנטיבית",
+  "תזונה ודיאטה","אופטומטריה","נטורופתיה","רפלקסולוגיה",
+  "אימון אישי","יוגה / פילאטיס","אומנויות לחימה","שחייה","ריקוד",
+  "שיעורים פרטיים","ייעוץ עסקי","ייעוץ משכנתאות","ייעוץ משפטי","אימון אישי (קואצ'ינג)",
+  "תיקון מחשבים ונייד","תיקון רכב","שיפוצים ובנייה","חשמלאי","שרברב",
+  "צילום","עיצוב גרפי","שיעורי נגינה",
+  "וטרינר","קייטרינג ואירועים","אחר","העסק שלי לא נמצא ברשימה",
+];
 
 const HEBREW_FONTS = [
   { value: "Heebo", label: "Heebo" },
@@ -1761,7 +1775,7 @@ function BrandingTab() {
     headerLayout: "stacked" as "stacked" | "side",
     // Profile landing page
     websiteUrl: "",
-    instagramUrl: "",
+    instagramHandle: "",
     wazeUrl: "",
     businessDescription: "",
     galleryImages: [] as string[],
@@ -1770,6 +1784,9 @@ function BrandingTab() {
     address: "",
     city: "",
   });
+  const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
+  const [categorySearch, setCategorySearch] = useState("");
+  const [categoryOpen, setCategoryOpen] = useState(false);
   const galleryUpload = useImageUpload();
   const galleryRef = useRef<HTMLInputElement>(null);
 
@@ -1794,7 +1811,7 @@ function BrandingTab() {
         showBanner: (profile as any).showBanner ?? true,
         headerLayout: ((profile as any).headerLayout ?? "stacked") as "stacked" | "side",
         websiteUrl: (profile as any).websiteUrl ?? "",
-        instagramUrl: (profile as any).instagramUrl ?? "",
+        instagramHandle: ((profile as any).instagramUrl ?? "").replace(/^https?:\/\/(www\.)?instagram\.com\//, "").replace(/\/$/, ""),
         wazeUrl: (profile as any).wazeUrl ?? "",
         businessDescription: (profile as any).businessDescription ?? "",
         galleryImages,
@@ -1803,6 +1820,10 @@ function BrandingTab() {
         address: (profile as any).address ?? "",
         city: (profile as any).city ?? "",
       });
+      try {
+        const cats = (profile as any).businessCategories;
+        if (cats) setSelectedCategories(JSON.parse(cats));
+      } catch {}
     }
   }, [profile]);
 
@@ -1838,7 +1859,7 @@ function BrandingTab() {
         showBanner: form.showBanner,
         headerLayout: form.headerLayout,
         websiteUrl: form.websiteUrl || null,
-        instagramUrl: form.instagramUrl || null,
+        instagramUrl: form.instagramHandle ? `https://www.instagram.com/${form.instagramHandle.replace(/^@/, "")}` : null,
         wazeUrl: form.wazeUrl || null,
         businessDescription: form.businessDescription || null,
         galleryImages: form.galleryImages.length > 0 ? JSON.stringify(form.galleryImages) : null,
@@ -1846,6 +1867,7 @@ function BrandingTab() {
         contactPhone: form.contactPhone || null,
         address: form.address || null,
         city: (form as any).city || null,
+        businessCategories: selectedCategories.length > 0 ? JSON.stringify(selectedCategories) : null,
       } as any
     }, {
       onSuccess: () => { toast({ title: "עיצוב נשמר" }); queryClient.invalidateQueries({ queryKey: getGetBusinessProfileQueryKey() }); },
@@ -2144,6 +2166,60 @@ function BrandingTab() {
           <div className="space-y-4">
             <h3 className="font-semibold text-base border-b pb-2">פרטי העסק לעמוד הפרופיל</h3>
             <div className="space-y-4">
+
+              {/* Categories */}
+              <div className="space-y-2">
+                <Label className="flex items-center gap-1.5">סוג העסק <span className="text-xs text-muted-foreground font-normal">(אפשר לבחור כמה)</span></Label>
+                {selectedCategories.length > 0 && (
+                  <div className="flex flex-wrap gap-1.5">
+                    {selectedCategories.map(cat => (
+                      <span key={cat} className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-primary/10 text-primary text-xs font-medium">
+                        {cat}
+                        <button type="button" onClick={() => setSelectedCategories(p => p.filter(c => c !== cat))}>
+                          <X className="w-3 h-3" />
+                        </button>
+                      </span>
+                    ))}
+                  </div>
+                )}
+                <button
+                  type="button"
+                  onClick={() => setCategoryOpen(o => !o)}
+                  className="w-full flex items-center justify-between px-3 py-2.5 border rounded-xl text-sm hover:bg-muted/50 transition-colors"
+                >
+                  <span className="text-muted-foreground">{selectedCategories.length > 0 ? `${selectedCategories.length} נבחרו` : "בחר סוג עסק..."}</span>
+                  <ChevronDown className={`w-4 h-4 text-muted-foreground transition-transform ${categoryOpen ? "rotate-180" : ""}`} />
+                </button>
+                {categoryOpen && (
+                  <div className="border rounded-xl bg-background shadow-md">
+                    <div className="p-2 border-b">
+                      <div className="relative">
+                        <Search className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
+                        <Input
+                          type="text"
+                          placeholder="חפש סוג עסק..."
+                          value={categorySearch}
+                          onChange={e => setCategorySearch(e.target.value)}
+                          className="pr-9 h-8 text-sm"
+                        />
+                      </div>
+                    </div>
+                    <div className="max-h-48 overflow-y-auto p-1.5 space-y-0.5">
+                      {BUSINESS_CATEGORIES.filter(c => c.includes(categorySearch)).map(cat => (
+                        <button
+                          key={cat}
+                          type="button"
+                          onClick={() => setSelectedCategories(p => p.includes(cat) ? p.filter(c => c !== cat) : [...p, cat])}
+                          className={`w-full text-right px-3 py-2 rounded-lg text-sm transition-colors ${selectedCategories.includes(cat) ? "bg-primary text-primary-foreground font-medium" : "hover:bg-muted"}`}
+                        >
+                          {cat}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+
               <div className="space-y-2">
                 <Label>תיאור העסק</Label>
                 <textarea
@@ -2171,8 +2247,20 @@ function BrandingTab() {
                 <Input dir="ltr" value={form.websiteUrl} onChange={e => setForm(p => ({ ...p, websiteUrl: e.target.value }))} placeholder="https://www.mywebsite.com" />
               </div>
               <div className="space-y-2">
-                <Label>קישור לאינסטגרם</Label>
-                <Input dir="ltr" value={form.instagramUrl} onChange={e => setForm(p => ({ ...p, instagramUrl: e.target.value }))} placeholder="https://instagram.com/mybusiness" />
+                <Label className="flex items-center gap-1.5"><Instagram className="w-4 h-4 text-muted-foreground" /> שם משתמש באינסטגרם</Label>
+                <div className="flex items-center rounded-xl border bg-muted/40 overflow-hidden focus-within:ring-2 focus-within:ring-primary">
+                  <span className="px-3 text-sm text-muted-foreground border-l bg-muted">@</span>
+                  <input
+                    dir="ltr"
+                    className="flex-1 px-3 py-2 bg-transparent text-sm outline-none"
+                    placeholder="my_business"
+                    value={form.instagramHandle}
+                    onChange={e => setForm(p => ({ ...p, instagramHandle: e.target.value.replace(/^@/, "") }))}
+                  />
+                </div>
+                {form.instagramHandle && (
+                  <p className="text-xs text-muted-foreground">instagram.com/{form.instagramHandle}</p>
+                )}
               </div>
               <div className="space-y-2">
                 <Label>קישור לוויז (אופציונלי)</Label>

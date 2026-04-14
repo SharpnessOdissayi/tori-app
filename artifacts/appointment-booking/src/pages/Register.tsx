@@ -9,7 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import {
   Calendar, Crown, Zap, CheckCircle, ArrowRight, ArrowLeft,
-  Building2, User, Phone, Mail, Lock, Globe, PartyPopper, Search, X
+  Building2, User, Phone, Mail, Lock, Globe, PartyPopper, Search, X, ChevronDown, MapPin, Instagram
 } from "lucide-react";
 
 const BUSINESS_CATEGORIES = [
@@ -226,6 +226,9 @@ interface DetailsForm {
   email: string;
   password: string;
   confirmPassword: string;
+  address: string;
+  websiteUrl: string;
+  instagramHandle: string;
 }
 
 function StepDetails({
@@ -242,6 +245,7 @@ function StepDetails({
   const [slugManuallyEdited, setSlugManuallyEdited] = useState(false);
   const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
   const [categorySearch, setCategorySearch] = useState("");
+  const [categoryOpen, setCategoryOpen] = useState(false);
   const [form, setForm] = useState<DetailsForm>({
     businessName: "",
     slug: "",
@@ -251,6 +255,9 @@ function StepDetails({
     email: "",
     password: "",
     confirmPassword: "",
+    address: "",
+    websiteUrl: "",
+    instagramHandle: "",
   });
 
   const filteredCategories = BUSINESS_CATEGORIES.filter(c =>
@@ -309,6 +316,9 @@ function StepDetails({
           password: form.password,
           subscriptionPlan: plan,
           businessCategories: selectedCategories.length > 0 ? selectedCategories : undefined,
+          address: form.address.trim() || undefined,
+          websiteUrl: form.websiteUrl.trim() || undefined,
+          instagramHandle: form.instagramHandle.trim().replace(/^@/, "") || undefined,
         }),
       });
 
@@ -373,7 +383,7 @@ function StepDetails({
             <span className="text-xs text-muted-foreground font-normal">(אפשר לבחור כמה)</span>
           </Label>
           {selectedCategories.length > 0 && (
-            <div className="flex flex-wrap gap-1.5 mb-2">
+            <div className="flex flex-wrap gap-1.5">
               {selectedCategories.map(cat => (
                 <span key={cat} className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-primary/10 text-primary text-xs font-medium">
                   {cat}
@@ -384,30 +394,44 @@ function StepDetails({
               ))}
             </div>
           )}
-          <div className="relative">
-            <Search className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
-            <Input
-              type="text"
-              placeholder="חפש סוג עסק..."
-              value={categorySearch}
-              onChange={e => setCategorySearch(e.target.value)}
-              className="pr-9"
-            />
-          </div>
-          <div className="max-h-48 overflow-y-auto border rounded-xl p-2 space-y-0.5 bg-background">
-            {filteredCategories.length === 0 ? (
-              <p className="text-center text-sm text-muted-foreground py-3">לא נמצאו תוצאות</p>
-            ) : filteredCategories.map(cat => (
-              <button
-                key={cat}
-                type="button"
-                onClick={() => toggleCategory(cat)}
-                className={`w-full text-right px-3 py-2 rounded-lg text-sm transition-colors ${selectedCategories.includes(cat) ? "bg-primary text-primary-foreground font-medium" : "hover:bg-muted"}`}
-              >
-                {cat}
-              </button>
-            ))}
-          </div>
+          <button
+            type="button"
+            onClick={() => setCategoryOpen(o => !o)}
+            className="w-full flex items-center justify-between px-3 py-2.5 border rounded-xl text-sm hover:bg-muted/50 transition-colors"
+          >
+            <span className="text-muted-foreground">{selectedCategories.length > 0 ? `${selectedCategories.length} נבחרו` : "בחר סוג עסק..."}</span>
+            <ChevronDown className={`w-4 h-4 text-muted-foreground transition-transform ${categoryOpen ? "rotate-180" : ""}`} />
+          </button>
+          {categoryOpen && (
+            <div className="border rounded-xl bg-background shadow-md">
+              <div className="p-2 border-b">
+                <div className="relative">
+                  <Search className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
+                  <Input
+                    type="text"
+                    placeholder="חפש סוג עסק..."
+                    value={categorySearch}
+                    onChange={e => setCategorySearch(e.target.value)}
+                    className="pr-9 h-8 text-sm"
+                  />
+                </div>
+              </div>
+              <div className="max-h-48 overflow-y-auto p-1.5 space-y-0.5">
+                {filteredCategories.length === 0 ? (
+                  <p className="text-center text-sm text-muted-foreground py-3">לא נמצאו תוצאות</p>
+                ) : filteredCategories.map(cat => (
+                  <button
+                    key={cat}
+                    type="button"
+                    onClick={() => toggleCategory(cat)}
+                    className={`w-full text-right px-3 py-2 rounded-lg text-sm transition-colors ${selectedCategories.includes(cat) ? "bg-primary text-primary-foreground font-medium" : "hover:bg-muted"}`}
+                  >
+                    {cat}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Subdomain / slug */}
@@ -471,6 +495,45 @@ function StepDetails({
             <Mail className="w-4 h-4 text-muted-foreground" /> אימייל
           </Label>
           <Input required type="email" dir="ltr" placeholder="you@example.com" value={form.email} onChange={set("email")} />
+        </div>
+
+        {/* Address */}
+        <div className="space-y-2">
+          <Label className="flex items-center gap-1.5">
+            <MapPin className="w-4 h-4 text-muted-foreground" /> כתובת העסק
+            <span className="text-xs text-muted-foreground font-normal">(אופציונלי)</span>
+          </Label>
+          <Input placeholder="רחוב הרצל 1, תל אביב" value={form.address} onChange={set("address")} />
+        </div>
+
+        {/* Website */}
+        <div className="space-y-2">
+          <Label className="flex items-center gap-1.5">
+            <Globe className="w-4 h-4 text-muted-foreground" /> אתר העסק
+            <span className="text-xs text-muted-foreground font-normal">(אופציונלי)</span>
+          </Label>
+          <Input dir="ltr" placeholder="https://www.mysite.com" value={form.websiteUrl} onChange={set("websiteUrl")} />
+        </div>
+
+        {/* Instagram */}
+        <div className="space-y-2">
+          <Label className="flex items-center gap-1.5">
+            <Instagram className="w-4 h-4 text-muted-foreground" /> אינסטגרם
+            <span className="text-xs text-muted-foreground font-normal">(אופציונלי)</span>
+          </Label>
+          <div className="flex items-center rounded-xl border bg-muted/40 overflow-hidden focus-within:ring-2 focus-within:ring-primary">
+            <span className="px-3 text-sm text-muted-foreground border-l bg-muted">@</span>
+            <input
+              dir="ltr"
+              className="flex-1 px-3 py-2 bg-transparent text-sm outline-none"
+              placeholder="my_business"
+              value={form.instagramHandle}
+              onChange={set("instagramHandle")}
+            />
+          </div>
+          {form.instagramHandle && (
+            <p className="text-xs text-muted-foreground">instagram.com/{form.instagramHandle.replace(/^@/, "")}</p>
+          )}
         </div>
 
         {/* Password */}

@@ -24,6 +24,7 @@ function mapAdminBusiness(b: typeof businessesTable.$inferSelect) {
   return {
     id: b.id,
     slug: b.slug,
+    username: (b as any).username ?? null,
     name: b.name,
     ownerName: b.ownerName,
     email: b.email,
@@ -32,6 +33,13 @@ function mapAdminBusiness(b: typeof businessesTable.$inferSelect) {
     subscriptionPlan: b.subscriptionPlan,
     maxServicesAllowed: b.maxServicesAllowed,
     createdAt: b.createdAt.toISOString(),
+    // Profile fields
+    address: b.address ?? null,
+    city: b.city ?? null,
+    websiteUrl: b.websiteUrl ?? null,
+    instagramUrl: b.instagramUrl ?? null,
+    businessDescription: b.businessDescription ?? null,
+    businessCategories: b.businessCategories ?? null,
   };
 }
 
@@ -64,11 +72,21 @@ router.post("/super-admin/businesses", async (req, res): Promise<void> => {
   }
 
   const { name, slug, ownerName, email, password, phone } = bodyParsed.data;
+  const extra = bodyParsed.data as any;
+  const plan = extra.subscriptionPlan === "pro" ? "pro" : "free";
   const passwordHash = await bcrypt.hash(password, 10);
 
   const [business] = await db
     .insert(businessesTable)
-    .values({ slug, name, ownerName, email, passwordHash, phone: phone ?? null })
+    .values({
+      slug, name, ownerName, email, passwordHash, phone: phone ?? null,
+      subscriptionPlan: plan,
+      maxServicesAllowed: plan === "pro" ? 999 : 3,
+      maxAppointmentsPerMonth: plan === "pro" ? 9999 : 20,
+      address: extra.address || null,
+      websiteUrl: extra.websiteUrl || null,
+      instagramUrl: extra.instagramUrl || null,
+    } as any)
     .returning();
 
   await db.insert(workingHoursTable).values(
@@ -125,6 +143,12 @@ router.patch("/super-admin/businesses/:id", async (req, res): Promise<void> => {
     updates.passwordHash = await bcrypt.hash(bodyParsed.data.password, 10);
   }
   if (bodyParsed.data.phone !== undefined) updates.phone = bodyParsed.data.phone || null;
+  if ((bodyParsed.data as any).address !== undefined) (updates as any).address = (bodyParsed.data as any).address || null;
+  if ((bodyParsed.data as any).city !== undefined) (updates as any).city = (bodyParsed.data as any).city || null;
+  if ((bodyParsed.data as any).websiteUrl !== undefined) (updates as any).websiteUrl = (bodyParsed.data as any).websiteUrl || null;
+  if ((bodyParsed.data as any).instagramUrl !== undefined) (updates as any).instagramUrl = (bodyParsed.data as any).instagramUrl || null;
+  if ((bodyParsed.data as any).businessDescription !== undefined) (updates as any).businessDescription = (bodyParsed.data as any).businessDescription || null;
+  if ((bodyParsed.data as any).businessCategories !== undefined) (updates as any).businessCategories = (bodyParsed.data as any).businessCategories || null;
 
   const [updated] = await db
     .update(businessesTable)

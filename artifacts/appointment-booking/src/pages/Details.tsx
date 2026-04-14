@@ -5,6 +5,7 @@ import {
   CheckCircle, Users, Settings, Palette, Star, ArrowLeft, Phone,
   BarChart2, Briefcase, Umbrella, DollarSign, TrendingUp, LayoutDashboard,
   ExternalLink, Compass, Navigation, Image, UserCheck, Megaphone,
+  ListOrdered, Send,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -90,16 +91,28 @@ const DASHBOARD_TABS = [
     desc: "הוספת שירותים, עריכת מחירים ומשך זמן, הגדרת תיאור — הכל מתעדכן מיידית בעמוד ההזמנה של הלקוחות.",
   },
   {
-    icon: <Users className="w-6 h-6 text-green-600" />,
-    color: "bg-green-50 border-green-200",
-    title: "לקוחות",
-    desc: "צפייה בכל הלקוחות שנרשמו, היסטוריית התורים שלהם, ורשימת המתנה — כדי לא להפסיד שום בקשה.",
+    icon: <Clock className="w-6 h-6 text-cyan-600" />,
+    color: "bg-cyan-50 border-cyan-200",
+    title: "שעות עבודה",
+    desc: "הגדרת ימים ושעות פעילות לכל יום בנפרד, כולל הפסקות — המערכת תציע רק תורים בזמן שהגדרת.",
   },
   {
     icon: <Umbrella className="w-6 h-6 text-sky-600" />,
     color: "bg-sky-50 border-sky-200",
     title: "ימי חופש",
     desc: "חסימת ימים שלמים או שעות ספציפיות בתאריך מסוים — לחגים, חופשות, ימי מחלה. הלקוחות לא יוכלו לקבוע בזמן זה.",
+  },
+  {
+    icon: <Users className="w-6 h-6 text-green-600" />,
+    color: "bg-green-50 border-green-200",
+    title: "לקוחות",
+    desc: "צפייה בכל הלקוחות שנרשמו, היסטוריית התורים שלהם, ושליחת הודעות ישירות דרך WhatsApp.",
+  },
+  {
+    icon: <ListOrdered className="w-6 h-6 text-amber-600" />,
+    color: "bg-amber-50 border-amber-200",
+    title: "רשימת המתנה",
+    desc: "לקוחות שרוצים תור כשאין זמינות נכנסים לרשימת ההמתנה — תקבל התראה ותוכל לאשר אותם ידנית.",
   },
   {
     icon: <TrendingUp className="w-6 h-6 text-orange-600" />,
@@ -114,10 +127,28 @@ const DASHBOARD_TABS = [
     desc: "הכנסה החודש, תחזית לחודש הבא לפי התורים הקבועים, וסה\"כ הכנסות כל הזמנים — מבוסס על מחירי השירותים.",
   },
   {
+    icon: <Palette className="w-6 h-6 text-pink-600" />,
+    color: "bg-pink-50 border-pink-200",
+    title: "עיצוב",
+    desc: "צבע ראשי, פונט, לוגו, באנר, גלריה, תיאור, כתובת, אתר, אינסטגרם — כל מה שקשור למראה הפרופיל שלך.",
+  },
+  {
+    icon: <Send className="w-6 h-6 text-indigo-600" />,
+    color: "bg-indigo-50 border-indigo-200",
+    title: "הודעות",
+    desc: "שלח הודעת broadcast לכל הלקוחות שלך בבת אחת — עדכון, מבצע, שינוי שעות. עד 150 הודעות בחודש בתוכנית פרו.",
+  },
+  {
+    icon: <Bell className="w-6 h-6 text-rose-600" />,
+    color: "bg-rose-50 border-rose-200",
+    title: "התראות",
+    desc: "הגדרת תזכורות WhatsApp ללקוחות לפני התור, הודעת אישור תור, הודעת פתיחה לפרופיל — הכל בשליטתך.",
+  },
+  {
     icon: <Settings className="w-6 h-6 text-slate-600" />,
     color: "bg-slate-50 border-slate-200",
     title: "הגדרות",
-    desc: "שעות עבודה, תזכורות, עיצוב העמוד, הגבלות הזמנה, שומר שבת, אימות טלפון, אישור תורים, הגדרות התראות ללקוחות ועוד.",
+    desc: "פרטי חשבון, הגבלות הזמנה, אימות טלפון, אישור ידני, שומר שבת, עמוד מנוי ועוד — ניהול מלא של החשבון.",
   },
 ];
 

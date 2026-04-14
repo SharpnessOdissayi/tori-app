@@ -85,7 +85,7 @@ router.post("/auth/business/register", async (req, res): Promise<void> => {
     return;
   }
 
-  const { name, slug, username, ownerName, phone, email, password, subscriptionPlan, businessCategories } = parsed.data;
+  const { name, slug, username, ownerName, phone, email, password, subscriptionPlan, businessCategories, address, websiteUrl, instagramHandle } = parsed.data;
 
   // Check uniqueness
   const [existingEmail] = await db.select({ id: businessesTable.id }).from(businessesTable).where(eq(businessesTable.email, email));
@@ -133,6 +133,9 @@ router.post("/auth/business/register", async (req, res): Promise<void> => {
       maxAppointmentsPerMonth,
       subscriptionStartDate: new Date(),
       businessCategories: businessCategories ? JSON.stringify(businessCategories) : null,
+      address: address || null,
+      websiteUrl: websiteUrl || null,
+      instagramUrl: instagramHandle ? `https://www.instagram.com/${instagramHandle.replace(/^@/, "").trim()}` : null,
       ...(username ? { username: username.toLowerCase().trim() } : {}),
     } as any)
     .returning();
