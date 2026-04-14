@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useLocation } from "wouter";
 import { Home, CalendarDays, Plus, LogOut, Trash2, Edit2, X, ChevronLeft, User } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
