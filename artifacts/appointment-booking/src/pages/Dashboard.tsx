@@ -102,10 +102,10 @@ function renderBizName(name: string): React.ReactNode {
   const heb = /[\u0590-\u05FF]/.test(p1) ? p1 : p2;
   const eng = /[a-zA-Z]/.test(p1) ? p1 : p2;
   return (
-    <span dir="ltr" style={{ display: "inline-flex", alignItems: "baseline" }}>
-      <span dir="rtl">{heb}</span>
-      <span>{` ${rawSep} `}</span>
-      <span dir="ltr">{eng}</span>
+    <span dir="ltr" style={{ display: "inline-flex", alignItems: "baseline", whiteSpace: "nowrap" }}>
+      <span dir="rtl" style={{ whiteSpace: "nowrap" }}>{heb}</span>
+      <span style={{ whiteSpace: "nowrap" }}>{` ${rawSep} `}</span>
+      <span dir="ltr" style={{ whiteSpace: "nowrap" }}>{eng}</span>
     </span>
   );
 }

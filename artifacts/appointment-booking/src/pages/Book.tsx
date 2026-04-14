@@ -186,10 +186,10 @@ function renderBizName(name: string): React.ReactNode {
   const heb = /[\u0590-\u05FF]/.test(p1) ? p1 : p2;
   const eng = /[a-zA-Z]/.test(p1) ? p1 : p2;
   return (
-    <span dir="ltr" style={{ display: "inline-flex", alignItems: "baseline" }}>
-      <span dir="rtl">{heb}</span>
-      <span>{` ${rawSep} `}</span>
-      <span dir="ltr">{eng}</span>
+    <span dir="ltr" style={{ display: "inline-flex", alignItems: "baseline", whiteSpace: "nowrap" }}>
+      <span dir="rtl" style={{ whiteSpace: "nowrap" }}>{heb}</span>
+      <span style={{ whiteSpace: "nowrap" }}>{` ${rawSep} `}</span>
+      <span dir="ltr" style={{ whiteSpace: "nowrap" }}>{eng}</span>
     </span>
   );
 }
@@ -646,7 +646,7 @@ export default function Book() {
           {showBusinessName && (
             <>
               <p className="text-center text-sm font-semibold mb-0.5">{timeGreeting()}</p>
-              <p className="text-center text-xs text-muted-foreground mb-0.5">ל:</p>
+              <p className="text-center text-xs text-muted-foreground mb-0.5">ברוך הבא ל:</p>
               <h1 className="text-2xl font-bold text-center mb-1" dir="ltr">{renderBizName(business.name)}</h1>
             </>
           )}
@@ -926,7 +926,7 @@ export default function Book() {
           {showBusinessName && (
             <>
               <p className="text-center text-sm font-semibold mb-0.5">{timeGreeting()}</p>
-              <p className="text-center text-xs text-muted-foreground mb-0.5">ל:</p>
+              <p className="text-center text-xs text-muted-foreground mb-0.5">ברוך הבא ל:</p>
               <h1 className="text-3xl font-extrabold mb-2" dir="ltr" style={{ color: primaryColor }}>{renderBizName(business.name)}</h1>
             </>
           )}
