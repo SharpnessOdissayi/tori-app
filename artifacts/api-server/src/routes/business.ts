@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { db, businessesTable, servicesTable, workingHoursTable, breakTimesTable, appointmentsTable, waitlistTable, timeOffTable } from "@workspace/db";
 import { eq, and, gte, sql, count } from "drizzle-orm";
+import { sendClientCancellation } from "../lib/whatsapp";
 import {
   UpdateBusinessProfileBody,
   CreateBusinessServiceBody,
@@ -410,15 +411,32 @@ router.delete("/business/appointments/:id", requireBusinessAuth, async (req, res
     return;
   }
 
-  const deleted = await db
-    .delete(appointmentsTable)
-    .where(and(eq(appointmentsTable.id, paramsParsed.data.id), eq(appointmentsTable.businessId, req.business!.businessId)))
-    .returning({ id: appointmentsTable.id });
+  // Fetch appointment data before cancelling (needed for notification)
+  const [appt] = await db
+    .select({
+      id: appointmentsTable.id,
+      phoneNumber: appointmentsTable.phoneNumber,
+      clientName: appointmentsTable.clientName,
+      appointmentDate: appointmentsTable.appointmentDate,
+      appointmentTime: appointmentsTable.appointmentTime,
+    })
+    .from(appointmentsTable)
+    .where(and(eq(appointmentsTable.id, paramsParsed.data.id), eq(appointmentsTable.businessId, req.business!.businessId)));
 
-  if (deleted.length === 0) {
+  if (!appt) {
     res.status(404).json({ error: "Appointment not found" });
     return;
   }
+
+  await db
+    .update(appointmentsTable)
+    .set({ status: "cancelled" })
+    .where(eq(appointmentsTable.id, appt.id));
+
+  // Notify client via WhatsApp (non-blocking)
+  const [, month, day] = appt.appointmentDate.split("-");
+  const formattedDate = `${day}/${month}`;
+  sendClientCancellation(appt.phoneNumber, appt.clientName, req.business!.businessName, formattedDate, appt.appointmentTime).catch(() => {});
 
   res.json({ success: true, message: "Appointment cancelled" });
 });
