@@ -392,6 +392,13 @@ export default function ClientPortal() {
     setClientNotifs(prev => prev.map(n => ({ ...n, is_read: true })));
   };
 
+  const deleteAllClientNotifs = async () => {
+    if (!confirm("למחוק את כל ההתראות? לא ניתן לשחזר.")) return;
+    await fetch(`${API}/notifications/client/all`, { method: "DELETE", headers: { ...authHeaders() } });
+    setClientNotifs([]);
+    setClientUnread(0);
+  };
+
   const openDiscover = () => {
     setDiscoverOpen(true);
     setDiscoverLoading(true);
@@ -461,29 +468,39 @@ export default function ClientPortal() {
               )}
             </button>
             {notifOpen && (
-              <div className="absolute left-0 top-11 w-72 bg-white rounded-2xl shadow-2xl border z-50 overflow-hidden" dir="rtl">
-                <div className="flex items-center justify-between px-4 py-3 border-b bg-gray-50">
-                  <span className="font-bold text-sm">התראות</span>
-                  {clientUnread > 0 && <button onClick={markClientNotifsRead} className="text-xs text-violet-600 hover:underline">סמן הכל כנקרא</button>}
-                </div>
-                <div className="max-h-80 overflow-y-auto divide-y">
-                  {clientNotifs.length === 0
-                    ? <div className="py-8 text-center text-muted-foreground text-sm">אין התראות</div>
-                    : clientNotifs.map((n: any) => (
-                      <div key={n.id} className={`px-4 py-3 flex gap-3 items-start ${!n.is_read ? "bg-blue-50/60" : ""}`}>
-                        <span className="text-base mt-0.5 shrink-0">{n.type === "cancellation" ? "❌" : n.type === "reschedule" ? "🔄" : "📅"}</span>
-                        <div className="flex-1 min-w-0">
-                          <p className="text-xs text-gray-500 font-medium">{n.business_name}</p>
-                          <p className="text-sm leading-snug text-gray-800">{n.message}</p>
-                          <p className="text-[11px] text-muted-foreground mt-0.5">
-                            {new Date(n.created_at).toLocaleString("he-IL", { day: "numeric", month: "numeric", hour: "2-digit", minute: "2-digit" })}
-                          </p>
+              <>
+                <div onClick={() => setNotifOpen(false)} className="fixed inset-0 bg-black/20 z-[99] sm:hidden" />
+                <div
+                  className="fixed sm:absolute bottom-0 sm:bottom-auto sm:top-11 left-0 sm:left-auto sm:right-0 right-0 w-full sm:w-72 max-h-[80vh] sm:max-h-[440px] bg-white rounded-t-2xl sm:rounded-2xl shadow-2xl border z-[100] overflow-hidden flex flex-col"
+                  dir="rtl"
+                >
+                  <div className="flex items-center justify-between px-4 py-3 border-b bg-gray-50 shrink-0">
+                    <span className="font-bold text-sm">התראות</span>
+                    <div className="flex items-center gap-3">
+                      {clientUnread > 0 && <button onClick={markClientNotifsRead} className="text-xs text-violet-600 hover:underline">סמן הכל כנקרא</button>}
+                      {clientNotifs.length > 0 && <button onClick={deleteAllClientNotifs} className="text-xs text-red-600 hover:underline">מחק הכל</button>}
+                      <button onClick={() => setNotifOpen(false)} className="sm:hidden text-lg leading-none text-muted-foreground">×</button>
+                    </div>
+                  </div>
+                  <div className="flex-1 overflow-y-auto divide-y">
+                    {clientNotifs.length === 0
+                      ? <div className="py-8 text-center text-muted-foreground text-sm">אין התראות</div>
+                      : clientNotifs.map((n: any) => (
+                        <div key={n.id} className={`px-4 py-3 flex gap-3 items-start ${!n.is_read ? "bg-blue-50/60" : ""}`}>
+                          <span className="text-base mt-0.5 shrink-0">{n.type === "cancellation" ? "❌" : n.type === "reschedule" ? "🔄" : "📅"}</span>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-xs text-gray-500 font-medium">{n.business_name}</p>
+                            <p className="text-sm leading-snug text-gray-800">{n.message}</p>
+                            <p className="text-[11px] text-muted-foreground mt-0.5">
+                              {new Date(n.created_at).toLocaleString("he-IL", { day: "numeric", month: "numeric", hour: "2-digit", minute: "2-digit" })}
+                            </p>
+                          </div>
+                          {!n.is_read && <span className="w-2 h-2 rounded-full bg-blue-500 shrink-0 mt-1.5" />}
                         </div>
-                        {!n.is_read && <span className="w-2 h-2 rounded-full bg-blue-500 shrink-0 mt-1.5" />}
-                      </div>
-                    ))}
+                      ))}
+                  </div>
                 </div>
-              </div>
+              </>
             )}
           </div>
           <button onClick={() => { setProfileOpen(true); }}

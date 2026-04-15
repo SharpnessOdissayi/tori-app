@@ -666,6 +666,13 @@ function NotificationBell({ token }: { token: string }) {
     setNotifications(prev => prev.map(n => ({ ...n, is_read: true })));
   };
 
+  const deleteAll = async () => {
+    if (!confirm("למחוק את כל ההתראות? לא ניתן לשחזר.")) return;
+    await fetch(`${API_BASE}/notifications/business/all`, { method: "DELETE", headers: { Authorization: `Bearer ${token}` } });
+    setNotifications([]);
+    setUnread(0);
+  };
+
   const typeIcon = (type: string) => type === "new_booking" ? "📅" : type === "cancellation" ? "❌" : "🔄";
 
   return (
@@ -686,30 +693,46 @@ function NotificationBell({ token }: { token: string }) {
       </button>
 
       {open && (
-        <div className="absolute left-0 top-9 w-80 bg-white rounded-2xl shadow-2xl border border-border z-50 overflow-hidden" dir="rtl">
-          <div className="flex items-center justify-between px-4 py-3 border-b bg-muted/30">
-            <span className="font-bold text-sm">התראות</span>
-            {unread > 0 && (
-              <button onClick={markAllRead} className="text-xs text-primary hover:underline">סמן הכל כנקרא</button>
-            )}
-          </div>
-          <div className="max-h-96 overflow-y-auto divide-y">
-            {notifications.length === 0 ? (
-              <div className="py-10 text-center text-muted-foreground text-sm">אין התראות</div>
-            ) : notifications.map((n: any) => (
-              <div key={n.id} className={`px-4 py-3 flex gap-3 items-start transition-colors ${!n.is_read ? "bg-blue-50/60" : ""}`}>
-                <span className="text-lg mt-0.5 shrink-0">{typeIcon(n.type)}</span>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm leading-snug text-gray-800">{n.message}</p>
-                  <p className="text-[11px] text-muted-foreground mt-0.5">
-                    {new Date(n.created_at).toLocaleString("he-IL", { day: "numeric", month: "numeric", hour: "2-digit", minute: "2-digit" })}
-                  </p>
-                </div>
-                {!n.is_read && <span className="w-2 h-2 rounded-full bg-blue-500 shrink-0 mt-1.5" />}
+        <>
+          {/* Mobile backdrop — tap to close */}
+          <div
+            onClick={() => setOpen(false)}
+            className="fixed inset-0 bg-black/20 z-[99] sm:hidden"
+          />
+          <div
+            className="fixed sm:absolute top-auto bottom-0 sm:bottom-auto sm:top-10 left-0 sm:left-auto sm:right-0 right-0 w-full sm:w-80 max-h-[80vh] sm:max-h-[520px] bg-white rounded-t-2xl sm:rounded-2xl shadow-2xl border border-border z-[100] overflow-hidden flex flex-col"
+            dir="rtl"
+          >
+            <div className="flex items-center justify-between px-4 py-3 border-b bg-muted/30 shrink-0">
+              <span className="font-bold text-sm">התראות</span>
+              <div className="flex items-center gap-3">
+                {unread > 0 && (
+                  <button onClick={markAllRead} className="text-xs text-primary hover:underline">סמן הכל כנקרא</button>
+                )}
+                {notifications.length > 0 && (
+                  <button onClick={deleteAll} className="text-xs text-red-600 hover:underline">מחק הכל</button>
+                )}
+                <button onClick={() => setOpen(false)} className="sm:hidden text-lg leading-none text-muted-foreground">×</button>
               </div>
-            ))}
+            </div>
+            <div className="flex-1 overflow-y-auto divide-y">
+              {notifications.length === 0 ? (
+                <div className="py-10 text-center text-muted-foreground text-sm">אין התראות</div>
+              ) : notifications.map((n: any) => (
+                <div key={n.id} className={`px-4 py-3 flex gap-3 items-start transition-colors ${!n.is_read ? "bg-blue-50/60" : ""}`}>
+                  <span className="text-lg mt-0.5 shrink-0">{typeIcon(n.type)}</span>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm leading-snug text-gray-800">{n.message}</p>
+                    <p className="text-[11px] text-muted-foreground mt-0.5">
+                      {new Date(n.created_at).toLocaleString("he-IL", { day: "numeric", month: "numeric", hour: "2-digit", minute: "2-digit" })}
+                    </p>
+                  </div>
+                  {!n.is_read && <span className="w-2 h-2 rounded-full bg-blue-500 shrink-0 mt-1.5" />}
+                </div>
+              ))}
+            </div>
           </div>
-        </div>
+        </>
       )}
     </div>
   );

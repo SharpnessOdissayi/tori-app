@@ -82,6 +82,11 @@ router.post("/notifications/business/read-all", requireBusinessAuth, async (req,
   res.json({ success: true });
 });
 
+router.delete("/notifications/business/all", requireBusinessAuth, async (req, res): Promise<void> => {
+  await db.execute(sql.raw(`DELETE FROM notifications WHERE business_id = ${req.business!.businessId}`));
+  res.json({ success: true });
+});
+
 // ── Client notifications ──────────────────────────────────────────────────────
 
 router.get("/notifications/client", requireClientAuth, async (req, res): Promise<void> => {
@@ -107,6 +112,14 @@ router.post("/notifications/client/read-all", requireClientAuth, async (req, res
   if (!phone) { res.json({ success: true }); return; }
   const p = phone.replace(/'/g, "''");
   await db.execute(sql.raw(`UPDATE client_notifications SET is_read = TRUE WHERE phone_number = '${p}'`));
+  res.json({ success: true });
+});
+
+router.delete("/notifications/client/all", requireClientAuth, async (req, res): Promise<void> => {
+  const phone = (req as any).clientSession?.phoneNumber;
+  if (!phone) { res.json({ success: true }); return; }
+  const p = phone.replace(/'/g, "''");
+  await db.execute(sql.raw(`DELETE FROM client_notifications WHERE phone_number = '${p}'`));
   res.json({ success: true });
 });
 
