@@ -19,6 +19,13 @@ import { signPhoneVerificationToken, verifyPhoneVerificationToken } from "../lib
 
 const router = Router();
 
+// Israel is UTC+3 in summer (Apr–Oct) and UTC+2 in winter
+function israelTimeToUTC(dateStr: string, timeStr: string): Date {
+  const month = parseInt(dateStr.split("-")[1], 10);
+  const offset = (month >= 4 && month <= 10) ? 3 : 2;
+  return new Date(`${dateStr}T${timeStr}:00+0${offset}:00`);
+}
+
 // GET /public/directory — must be before /:businessSlug to avoid slug capture
 router.get("/public/directory", async (req, res): Promise<void> => {
   const category = typeof req.query.category === "string" ? req.query.category : undefined;
@@ -203,12 +210,7 @@ router.get("/public/:businessSlug/availability", async (req, res): Promise<void>
   const availableSlots = slots
     .filter(s => s.available)
     .map(s => s.time)
-    .filter(time => {
-      const [h, m] = time.split(":").map(Number);
-      const slotDate = new Date(`${date}T00:00:00`);
-      slotDate.setHours(h, m, 0, 0);
-      return slotDate >= minAllowed;
-    });
+    .filter(time => israelTimeToUTC(date, time) >= minAllowed);
   const isFullyBooked = availableSlots.length === 0;
 
   res.json({ date, slots: availableSlots, isFullyBooked });
@@ -674,10 +676,7 @@ router.get("/public/:businessSlug/next-slots", async (req, res): Promise<void> =
 
     for (const slot of slots) {
       if (!slot.available) continue;
-      const [h, m] = slot.time.split(":").map(Number);
-      const slotDate = new Date(`${dateStr}T00:00:00`);
-      slotDate.setHours(h, m, 0, 0);
-      if (slotDate < minAllowedNS) continue;
+      if (israelTimeToUTC(dateStr, slot.time) < minAllowedNS) continue;
       results.push({ date: dateStr, time: slot.time });
       if (results.length >= count) break;
     }
