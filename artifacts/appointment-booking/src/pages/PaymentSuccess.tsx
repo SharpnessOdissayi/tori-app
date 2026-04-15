@@ -9,7 +9,10 @@ export default function PaymentSuccess() {
   const [, setLocation] = useLocation();
   const params = new URLSearchParams(window.location.search);
   const type = params.get("type");
-  const apptId = params.get("appt");
+  // Tranzila appends its own URL-params after ours without encoding them.
+  // Only keep the leading digits of `appt`.
+  const rawAppt = params.get("appt");
+  const apptId = rawAppt ? (rawAppt.match(/^\d+/)?.[0] ?? null) : null;
   const requiresApproval = params.get("approval") === "1";
 
   const isSubscription = type === "subscription";

@@ -5,29 +5,44 @@ import { Button } from "@/components/ui/button";
 
 const REDIRECT_SECONDS = 20;
 
-// Common Tranzila response codes — explain to the client what went wrong
-function explainTranzilaCode(code: string | null): string {
-  if (!code) return "לא הצלחנו להשלים את החיוב. ייתכן שהעסקה בוטלה או שאירעה תקלה זמנית.";
+// Extract just the appointment id (digits only) — Tranzila appends many extra
+// URL fragments that can leak into the "appt" value when not URL-encoded.
+function parseApptId(raw: string | null): string | null {
+  if (!raw) return null;
+  const digits = raw.match(/^\d+/);
+  return digits ? digits[0] : null;
+}
+
+type ErrorInfo = { title: string; detail: string; actionable: boolean };
+
+// Common Tranzila response codes — explain to the client what went wrong.
+// Reference: Tranzila rejection code table.
+function explainTranzilaCode(code: string | null): ErrorInfo {
+  if (!code) return {
+    title: "התשלום לא הושלם",
+    detail: "ייתכן שסגרת את חלון התשלום לפני הסיום, או שאירעה תקלה זמנית.",
+    actionable: true,
+  };
   switch (code) {
-    case "001": return "הכרטיס נדחה על ידי הבנק. נסה כרטיס אחר או פנה לבנק שלך.";
-    case "002": return "הכרטיס חסום. פנה לבנק להסרת החסימה.";
-    case "003": return "כרטיס פג תוקף. בדוק את תאריך התפוגה ונסה שוב.";
-    case "004": return "סירוב מהבנק. נסה כרטיס אחר.";
-    case "005": return "כרטיס מזויף או חסום על ידי שב״א. פנה לבנק.";
-    case "006": case "036": return "מספר תעודת זהות שגוי. בדוק את הת״ז ונסה שוב.";
-    case "007": return "מספר ספרות שגוי בכרטיס. בדוק את מספר הכרטיס.";
-    case "008": return "אין תקשורת עם חברת האשראי. נסה שוב בעוד מספר דקות.";
-    case "009": return "ניתוק תקשורת באמצע. אם חויבת — פנה אלינו, אם לא — נסה שוב.";
-    case "010": return "תשלום הופסק על ידי המשתמש.";
-    case "014": return "הכרטיס לא נתמך. נסה כרטיס Visa/Mastercard.";
-    case "017": return "ה-CVV שגוי. בדוק את 3 הספרות בגב הכרטיס.";
-    case "026": return "מספר עסקאות לתשלומים גבוה מהמותר. נסה פחות תשלומים.";
-    case "033": case "034": case "035": return "כרטיס לא חוקי במערכת.";
-    case "039": return "מספר הכרטיס שגוי לפי ספרת ביקורת.";
-    case "041": return "סכום העסקה חורג ממסגרת האשראי.";
-    case "042": return "הכרטיס מוגבל לסוג עסקאות מסוים.";
-    case "057": return "תשלום נכשל בגלל אימות 3D Secure. נסה שוב או פנה לבנק.";
-    default: return `התשלום נכשל (קוד שגיאה: ${code}). נסה כרטיס אחר או פנה אלינו לעזרה.`;
+    case "001": return { title: "הכרטיס נדחה", detail: "הבנק שלך דחה את החיוב. נסה כרטיס אחר או פנה לבנק לבירור.", actionable: true };
+    case "002": return { title: "הכרטיס חסום", detail: "הכרטיס סומן כחסום על ידי הבנק. פנה לבנק להסרת החסימה.", actionable: false };
+    case "003": case "036": return { title: "הכרטיס פג תוקף", detail: "תאריך התוקף של הכרטיס עבר. בדוק את ה-MM/YY ונסה כרטיס פעיל.", actionable: true };
+    case "004": return { title: "סירוב מחברת האשראי", detail: "חברת האשראי דחתה את העסקה. נסה כרטיס אחר.", actionable: true };
+    case "005": return { title: "חשד לכרטיס בעייתי", detail: "הכרטיס סומן על ידי שב״א. פנה לבנק לפני שתנסה שוב.", actionable: false };
+    case "006": return { title: "שגיאה בפרטי הכרטיס", detail: "ת״ז או CVV שהוזנו אינם תואמים לכרטיס. בדוק ונסה שוב.", actionable: true };
+    case "026": return { title: "תעודת זהות שגויה", detail: "מספר הת״ז שהזנת לא תואם לזהות של בעל הכרטיס. תקן ונסה שוב.", actionable: true };
+    case "007": case "039": return { title: "מספר כרטיס לא תקין", detail: "נראה שיש טעות במספר הכרטיס. בדוק את הספרות ונסה שוב.", actionable: true };
+    case "008": return { title: "בעיית תקשורת", detail: "אין תקשורת עם חברת האשראי. נסה שוב בעוד דקה-שתיים.", actionable: true };
+    case "009": return { title: "העסקה נותקה", detail: "התשלום נקטע באמצע. אם חויבת — פנה אלינו, אחרת נסה שוב.", actionable: true };
+    case "010": return { title: "התשלום בוטל", detail: "סגרת את חלון התשלום לפני הסיום.", actionable: true };
+    case "014": return { title: "כרטיס לא נתמך", detail: "סוג הכרטיס לא נתמך במערכת. נסה Visa או Mastercard.", actionable: true };
+    case "017": return { title: "CVV שגוי", detail: "שלוש הספרות בגב הכרטיס לא נכונות. בדוק ונסה שוב.", actionable: true };
+    case "033": case "034": case "035": return { title: "כרטיס לא חוקי", detail: "הכרטיס לא מזוהה כחוקי במערכת. נסה כרטיס אחר.", actionable: true };
+    case "041": return { title: "חריגה ממסגרת", detail: "סכום העסקה חורג ממסגרת האשראי. פנה לבנק או נסה כרטיס אחר.", actionable: true };
+    case "042": return { title: "הגבלה על הכרטיס", detail: "הכרטיס מוגבל לסוג עסקאות מסוים. פנה לבנק.", actionable: false };
+    case "051": return { title: "אין יתרה מספקת", detail: "אין מספיק יתרה בכרטיס. פנה לבנק או נסה כרטיס אחר.", actionable: true };
+    case "057": return { title: "אימות 3D Secure נכשל", detail: "הבנק דרש אימות נוסף שלא הושלם. נסה שוב או פנה לבנק.", actionable: true };
+    default: return { title: "התשלום נכשל", detail: `לא הצלחנו להשלים את החיוב (קוד: ${code}). נסה כרטיס אחר או פנה אלינו.`, actionable: true };
   }
 }
 
@@ -35,15 +50,16 @@ export default function PaymentFail() {
   const [, setLocation] = useLocation();
   const params = new URLSearchParams(window.location.search);
   const type = params.get("type");
-  const apptId = params.get("appt");
-  // Tranzila sends the error code as Response= (or sometimes responsecode=)
+  // Tranzila appends its own URL-params after ours without encoding them.
+  // Only keep the leading digits of `appt` to avoid leaking the whole payload.
+  const apptId = parseApptId(params.get("appt"));
   const errorCode = params.get("Response") || params.get("responsecode");
 
   const isSubscription = type === "subscription";
   const inPopup = !!window.opener && window.opener !== window;
   const inIframe = !inPopup && window !== window.parent;
 
-  const errorExplanation = explainTranzilaCode(errorCode);
+  const err = explainTranzilaCode(errorCode);
   const [secondsLeft, setSecondsLeft] = useState(REDIRECT_SECONDS);
 
   useEffect(() => {
@@ -102,15 +118,18 @@ export default function PaymentFail() {
         </div>
 
         <div className="space-y-3">
-          <h1 className="text-3xl font-bold text-red-800">התשלום לא עבר</h1>
+          <h1 className="text-3xl font-bold text-red-800">{err.title}</h1>
           <p className="text-base text-gray-700 leading-relaxed">
-            {errorExplanation}
+            {err.detail}
           </p>
           {apptId && !isSubscription && (
-            <p className="text-sm text-muted-foreground bg-red-50 rounded-lg p-3 border border-red-100">
-              התור (#{apptId}) <strong>לא נשמר</strong> כי המקדמה לא התקבלה.
-              ניתן לנסות לקבוע אותו מחדש.
-            </p>
+            <div className="text-sm text-gray-600 bg-red-50 rounded-lg p-3 border border-red-100 text-right">
+              <div>תור מספר <strong>#{apptId}</strong> <strong className="text-red-700">לא נשמר</strong></div>
+              <div className="text-xs mt-1 text-muted-foreground">המקדמה לא התקבלה — לאחר ניסיון חוזר מוצלח התור ייקבע.</div>
+            </div>
+          )}
+          {errorCode && (
+            <p className="text-xs text-muted-foreground">קוד שגיאה: {errorCode}</p>
           )}
         </div>
 
