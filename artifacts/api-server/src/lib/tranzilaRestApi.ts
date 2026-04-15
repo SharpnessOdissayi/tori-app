@@ -5,10 +5,13 @@
  * Required env vars:
  *   TRANZILA_API_PUBLIC_KEY  — Application public key supplied by Tranzila
  *   TRANZILA_API_SECRET_KEY  — Secret used for HMAC signing
- *   TRANZILA_SUPPLIER_TOK    — Token-service terminal name (e.g. "lilash2tok")
+ *   TRANZILA_SUPPLIER        — Terminal name that processed the initial charge
+ *                              (must match the terminal used in the iframe URL).
  *
  * Auth: X-tranzila-api-access-token = HMAC-SHA256(key=secretKey, data=publicKey+requestTime+nonce)
- * Docs: https://docs.tranzila.com/docs/payments-billing/xyajxscasy205-create-a-standing-order
+ * Docs:
+ *   STO create: https://docs.tranzila.com/docs/payments-billing/xyajxscasy205-create-a-standing-order
+ *   STO API:    https://docs.tranzila.com/docs/payments-billing/wbvbx8p3i3pu4-sto-api-for-my-billing
  */
 
 import crypto from "crypto";
@@ -16,7 +19,7 @@ import { logger } from "./logger";
 
 const API_PUBLIC_KEY = process.env.TRANZILA_API_PUBLIC_KEY ?? "";
 const API_SECRET_KEY = process.env.TRANZILA_API_SECRET_KEY ?? "";
-const SUPPLIER_TOK   = process.env.TRANZILA_SUPPLIER_TOK ?? "";
+const SUPPLIER       = process.env.TRANZILA_SUPPLIER ?? "";
 
 const STO_CREATE_URL = "https://api.tranzila.com/v1/sto/create";
 

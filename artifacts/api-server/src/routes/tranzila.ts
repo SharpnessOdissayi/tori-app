@@ -58,10 +58,12 @@ function buildSubscriptionUrl(params: {
   ownerName: string;
   email: string;
 }): string {
-  // MUST be SUPPLIER_TOK (lilash2tok) — only the token-service terminal honors
-  // tranmode=AK and returns a token we can use for monthly STO charges.
-  // Using the plain SUPPLIER terminal results in a one-time charge with no token.
-  const base = `https://direct.tranzila.com/${SUPPLIER_TOK}/iframenew.php`;
+  // Use the main SUPPLIER terminal (lilash2) — the alternate "tok" path returns 404.
+  // tranmode=AK still asks for tokenization; if the terminal is configured in
+  // Tranzila admin to support tokens, notify will return token+expdate and an STO
+  // is created. Otherwise the first charge succeeds and the business is upgraded
+  // to Pro, but monthly renewal falls back to the cron job.
+  const base = `https://direct.tranzila.com/${SUPPLIER}/iframenew.php`;
   const p = new URLSearchParams({
     sum: SUBSCRIPTION_FIRST_ILS.toFixed(2),
     currency: "1",

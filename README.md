@@ -52,16 +52,22 @@ All UIs are Hebrew RTL by default. The business directory at `kavati.net` lets c
 
 | Feature | Free | Pro (₪100/mo) |
 |---|---|---|
-| Services | Up to N active | Unlimited |
-| Monthly appointments | Capped | Unlimited |
+| Services | Up to 3 active | Unlimited |
+| Monthly unique customers | Up to 20 | Unlimited |
 | Public booking page | Yes | Yes |
-| WhatsApp confirmations & reminders | Yes | Yes |
-| Deposit collection (Tranzila) | Yes | Yes |
-| Custom branding & design presets | No | Yes |
-| Custom WhatsApp message templates | No | Yes |
 | Client portal | Yes | Yes |
 | Directory listing on kavati.net | Yes | Yes |
-| Dashboard analytics | Basic | Full |
+| Deposit collection (Tranzila) | Yes | Yes |
+| **WhatsApp confirmations, reminders & cancellations to clients** | **No** | **Yes** |
+| **WhatsApp broadcast to customers** | **No** | **Yes** |
+| **Manual appointment approval mode** | **No** | **Yes** |
+| **Analytics tab (נתונים)** | **No** | **Yes** |
+| **Revenue tab (כסף)** | **No** | **Yes** |
+| **Integrations / Messages tab (הודעות)** | **No** | **Yes** |
+| Custom branding & design presets | No | Yes |
+| Custom WhatsApp message templates | No | Yes |
+
+Free-plan restrictions are enforced both in the UI (tabs hidden, toggles removed) and on the server (WhatsApp sends and approval mode are no-ops for free plans, so upgrading plan-gating cannot be bypassed by a crafted API call).
 
 ### Client-facing features
 
@@ -136,19 +142,33 @@ Clients access `kavati.net/portal` by entering their phone number. Features:
 
 Kavati monetizes via a monthly subscription (₪100/month, first month ₪50 to activate). All billing runs through **Tranzila**.
 
-### Two terminals in use
+### Terminal setup
 
-- `lilash2` (`TRANZILA_SUPPLIER`) — regular terminal, used for one-off **appointment deposits**
-- `lilash2tok` (`TRANZILA_SUPPLIER_TOK`) — token-service terminal, used for **subscriptions**. This is required because only the token terminal honors `tranmode=AK`, which charges the card AND returns a re-usable token.
+Kavati uses **one Tranzila terminal** (`TRANZILA_SUPPLIER`, e.g. `lilash2`) for both appointment deposits and Pro subscriptions. Earlier versions tried to use a separate `lilash2tok` token-service path; that route returned 404 on the production Tranzila account and was reverted.
+
+For subscriptions to tokenize the card (so monthly STO renewals can run), the terminal must be configured in Tranzila admin to support token responses. Without tokenization, the first subscription charge still succeeds and the business is upgraded to Pro — but monthly renewal falls back to the cron job (requires a saved card flow, not currently live).
 
 ### Subscription flow
 
 1. Business owner clicks "שדרג למנוי פרו" on the dashboard
-2. Backend builds a Tranzila iframe URL on the token terminal with `tranmode=AK`
+2. Backend builds a Tranzila iframe URL with `tranmode=AK` (charge + tokenize)
 3. User completes payment in a popup
-4. Tranzila POSTs to `/api/tranzila/notify` with `Response=000` + `token` + `expdate`
-5. Backend updates the business to `subscriptionPlan='pro'`, saves the token, and creates a **Standing Order (STO)** via Tranzila's REST API so Tranzila handles future monthly charges
-6. If STO creation fails, a nightly cron job falls back to charging the saved token manually
+4. Tranzila POSTs to `/api/tranzila/notify` with `Response=000` (+ optionally `token` and `expdate`)
+5. Backend updates the business to `subscriptionPlan='pro'` and saves `subscriptionRenewDate`
+6. If a token was returned, backend calls the Tranzila REST API to create a monthly **Standing Order (STO)** — Tranzila then handles the monthly charges automatically
+7. If STO creation fails or no token was returned, a nightly cron job attempts to renew (assuming a card was saved)
+
+### Required Tranzila admin configuration
+
+The business's Tranzila account must be configured per the official STO docs:
+- [STO API for My-Billing](https://docs.tranzila.com/docs/payments-billing/wbvbx8p3i3pu4-sto-api-for-my-billing)
+- [Create a Standing Order](https://docs.tranzila.com/docs/payments-billing/xyajxscasy205-create-a-standing-order)
+
+In the Tranzila dashboard (`my.tranzila.com`):
+- **Settings → Terminal → My-Billing → Transaction Notification Endpoint** → set to `https://www.kavati.net/api/tranzila/notify`
+- **Settings → Terminal → iFrame** → confirm `newprocess=1` is supported
+- **Settings → Terminal → Work method** → enable card tokenization for the terminal
+- **Main phone number** → business owner's phone (for credit-card-update notifications)
 
 ### Test mode
 
@@ -161,14 +181,24 @@ Setting `TRANZILA_TEST_MODE=true` charges 0.10 ILS (10 agorot) instead of the re
 - The monthly charge cron job skips businesses with a cancellation timestamp
 - No refunds; no hard delete — plan rolls back to `free` after the renewal window
 
-## WhatsApp Notifications (Green API)
+## WhatsApp Notifications (Meta WhatsApp Business API)
 
-All outgoing WhatsApp messages go through **Green API** per business (each business plugs in their own instance).
+All outgoing WhatsApp messages go through **Meta's WhatsApp Business Cloud API** (`META_WHATSAPP_TOKEN` + `META_PHONE_NUMBER_ID`). Templates are pre-approved by Meta — names and parameter counts must not be changed.
 
-- **Booking confirmation** — sent immediately after a successful booking (or approval, if approval mode is on)
-- **Reminders** — cron job sends reminders a configurable number of hours before each appointment; skips cancelled or non-confirmed appointments
-- **Cancellation / approval notices** — sent to the client when the business cancels or approves
-- **Templates** — pre-approved templates per business; the Pro plan allows custom message text
+**Pro-only** — the entire client-messaging stack is gated to Pro-plan businesses. Free-plan clients never receive WhatsApp messages from the system. This is enforced in:
+
+- `routes/business.ts` (approve / reschedule / cancel / broadcast)
+- `routes/public.ts` (booking confirmation, client-initiated cancellation)
+- `lib/reminders.ts` (the reminders cron skips non-Pro businesses)
+
+Message types (all Pro only):
+
+- **Booking confirmation** — sent immediately after a successful booking (or after manual approval, if approval mode is on)
+- **Reminders** — cron job sends reminders at business-configured triggers (e.g. 24h, 1h, morning-of); skips cancelled / pending-payment / non-Pro appointments
+- **Cancellation & reschedule notices** — sent to the client when the business cancels or moves their appointment
+- **Broadcast** — Pro-only bulk message to all the business's customers, capped at 150 messages/month per business (~$10)
+
+OTP codes (client phone verification during booking) are sent via the `verify_code_1` template and work regardless of plan.
 
 ## Super Admin Panel
 

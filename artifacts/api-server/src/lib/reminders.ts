@@ -115,6 +115,7 @@ export async function sendReminders(): Promise<void> {
       sendReminders: businessesTable.sendReminders,
       reminderTriggers: businessesTable.reminderTriggers,
       shabbatMode: businessesTable.shabbatMode,
+      subscriptionPlan: businessesTable.subscriptionPlan,
     })
     .from(appointmentsTable)
     .innerJoin(businessesTable, eq(appointmentsTable.businessId, businessesTable.id))
@@ -122,6 +123,8 @@ export async function sendReminders(): Promise<void> {
 
   for (const appt of appointments) {
     if (!appt.sendReminders) continue;
+    // Free plan: no reminders sent to clients.
+    if (appt.subscriptionPlan !== "pro") continue;
 
     const [, month, day] = appt.appointmentDate.split("-");
     const formattedDate = `${day}/${month}`;

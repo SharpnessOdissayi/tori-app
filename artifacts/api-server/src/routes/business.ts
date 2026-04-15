@@ -3,6 +3,7 @@ import { logBusinessNotification, logClientNotification } from "./notifications"
 import { db, businessesTable, servicesTable, workingHoursTable, breakTimesTable, appointmentsTable, waitlistTable, timeOffTable } from "@workspace/db";
 import { eq, and, gte, sql, count } from "drizzle-orm";
 import { sendClientCancellation, sendClientReschedule, sendClientConfirmation, sendWhatsApp } from "../lib/whatsapp";
+import { isBusinessPro } from "../lib/plan";
 import {
   UpdateBusinessProfileBody,
   CreateBusinessServiceBody,
@@ -465,7 +466,9 @@ router.patch("/business/appointments/:id/approve", requireBusinessAuth, async (r
   if (business) {
     const [, month, day] = updated.appointmentDate.split("-");
     const formattedDate = `${day}/${month}`;
-    sendClientConfirmation(updated.phoneNumber, updated.clientName, business.name, updated.serviceName, formattedDate, updated.appointmentTime, business.slug).catch(() => {});
+    if (await isBusinessPro(req.business!.businessId)) {
+      sendClientConfirmation(updated.phoneNumber, updated.clientName, business.name, updated.serviceName, formattedDate, updated.appointmentTime, business.slug).catch(() => {});
+    }
   }
 
   res.json({ success: true, message: "Appointment approved" });
@@ -505,10 +508,12 @@ router.patch("/business/appointments/:id/reschedule", requireBusinessAuth, async
     .where(eq(appointmentsTable.id, appt.id))
     .returning();
 
-  // Notify client via WhatsApp (non-blocking)
+  // Notify client via WhatsApp (non-blocking) — Pro only
   const [, month, day] = newDate.split("-");
   const formattedDate = `${day}/${month}`;
-  sendClientReschedule(appt.phoneNumber, appt.clientName, formattedDate, newTime).catch(() => {});
+  if (await isBusinessPro(req.business!.businessId)) {
+    sendClientReschedule(appt.phoneNumber, appt.clientName, formattedDate, newTime).catch(() => {});
+  }
 
   // Log notification for business + client
   logBusinessNotification({
@@ -562,10 +567,12 @@ router.delete("/business/appointments/:id", requireBusinessAuth, async (req, res
     .set({ status: "cancelled", ...(({ cancelledBy: "business", cancelReason }) as any) })
     .where(eq(appointmentsTable.id, appt.id));
 
-  // Notify client via WhatsApp (non-blocking)
+  // Notify client via WhatsApp (non-blocking) — Pro only
   const [, month, day] = appt.appointmentDate.split("-");
   const formattedDate = `${day}/${month}`;
-  sendClientCancellation(appt.phoneNumber, appt.clientName, req.business!.businessName, formattedDate, appt.appointmentTime).catch(() => {});
+  if (await isBusinessPro(req.business!.businessId)) {
+    sendClientCancellation(appt.phoneNumber, appt.clientName, req.business!.businessName, formattedDate, appt.appointmentTime).catch(() => {});
+  }
 
   // Log notification for client
   logClientNotification({
@@ -701,6 +708,12 @@ router.post("/business/broadcast", requireBusinessAuth, async (req, res): Promis
   const { message } = req.body ?? {};
   if (!message || typeof message !== "string" || !message.trim()) {
     res.status(400).json({ error: "הודעה נדרשת" }); return;
+  }
+
+  // Pro-only feature
+  if (!(await isBusinessPro(businessId))) {
+    res.status(402).json({ error: "pro_required", message: "שליחת הודעות WhatsApp זמינה רק במנוי פרו" });
+    return;
   }
 
   // Check / reset monthly quota

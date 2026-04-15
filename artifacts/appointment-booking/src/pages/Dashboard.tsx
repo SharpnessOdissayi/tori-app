@@ -463,6 +463,7 @@ export default function Dashboard() {
   if (!token) return <Login onLogin={handleLogin} />;
 
   const dashFont = (headerProfile as any)?.fontFamily;
+  const isProPlan = headerProfile?.subscriptionPlan === "pro";
 
   return (
     <div className="min-h-screen bg-muted/30" dir="rtl"
@@ -543,18 +544,20 @@ export default function Dashboard() {
               <TabsTrigger value="waitlist" className="gap-1.5 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground whitespace-nowrap">
                 <ListOrdered className="w-4 h-4" /> רשימת המתנה
               </TabsTrigger>
-              <TabsTrigger value="analytics" className="gap-1.5 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground whitespace-nowrap">
-                <TrendingUp className="w-4 h-4" /> נתונים
-              </TabsTrigger>
-              <TabsTrigger value="revenue" className="gap-1.5 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground whitespace-nowrap">
-                <DollarSign className="w-4 h-4" /> כסף
-              </TabsTrigger>
+              {isProPlan && <>
+                <TabsTrigger value="analytics" className="gap-1.5 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground whitespace-nowrap">
+                  <TrendingUp className="w-4 h-4" /> נתונים
+                </TabsTrigger>
+                <TabsTrigger value="revenue" className="gap-1.5 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground whitespace-nowrap">
+                  <DollarSign className="w-4 h-4" /> כסף
+                </TabsTrigger>
+              </>}
               <TabsTrigger value="branding" className="gap-1.5 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground whitespace-nowrap">
                 <Palette className="w-4 h-4" /> עיצוב
               </TabsTrigger>
-              <TabsTrigger value="integrations" className="gap-1.5 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground whitespace-nowrap">
+              {isProPlan && <TabsTrigger value="integrations" className="gap-1.5 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground whitespace-nowrap">
                 <Phone className="w-4 h-4" /> הודעות
-              </TabsTrigger>
+              </TabsTrigger>}
               <TabsTrigger value="settings" className="gap-1.5 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground whitespace-nowrap">
                 <Settings className="w-4 h-4" /> הגדרות
               </TabsTrigger>
@@ -565,18 +568,18 @@ export default function Dashboard() {
           <div className="sm:hidden">
             <div className="grid grid-cols-3 gap-2">
               {[
-                { value: "appointments", icon: <Calendar className="w-6 h-6" />, label: "פגישות" },
-                { value: "services", icon: <Briefcase className="w-6 h-6" />, label: "שירותים" },
-                { value: "hours", icon: <Clock className="w-6 h-6" />, label: "שעות" },
-                { value: "timeoff", icon: <Umbrella className="w-6 h-6" />, label: "ימי חופש" },
-                { value: "customers", icon: <Users className="w-6 h-6" />, label: "לקוחות" },
-                { value: "waitlist", icon: <ListOrdered className="w-6 h-6" />, label: "המתנה" },
-                { value: "analytics", icon: <TrendingUp className="w-6 h-6" />, label: "נתונים" },
-                { value: "revenue", icon: <DollarSign className="w-6 h-6" />, label: "כסף" },
-                { value: "branding", icon: <Palette className="w-6 h-6" />, label: "עיצוב" },
-                { value: "integrations", icon: <Phone className="w-6 h-6" />, label: "הודעות" },
-                { value: "settings", icon: <Settings className="w-6 h-6" />, label: "הגדרות" },
-              ].map(({ value, icon, label }) => (
+                { value: "appointments", icon: <Calendar className="w-6 h-6" />, label: "פגישות", proOnly: false },
+                { value: "services", icon: <Briefcase className="w-6 h-6" />, label: "שירותים", proOnly: false },
+                { value: "hours", icon: <Clock className="w-6 h-6" />, label: "שעות", proOnly: false },
+                { value: "timeoff", icon: <Umbrella className="w-6 h-6" />, label: "ימי חופש", proOnly: false },
+                { value: "customers", icon: <Users className="w-6 h-6" />, label: "לקוחות", proOnly: false },
+                { value: "waitlist", icon: <ListOrdered className="w-6 h-6" />, label: "המתנה", proOnly: false },
+                { value: "analytics", icon: <TrendingUp className="w-6 h-6" />, label: "נתונים", proOnly: true },
+                { value: "revenue", icon: <DollarSign className="w-6 h-6" />, label: "כסף", proOnly: true },
+                { value: "branding", icon: <Palette className="w-6 h-6" />, label: "עיצוב", proOnly: false },
+                { value: "integrations", icon: <Phone className="w-6 h-6" />, label: "הודעות", proOnly: true },
+                { value: "settings", icon: <Settings className="w-6 h-6" />, label: "הגדרות", proOnly: false },
+              ].filter(t => isProPlan || !t.proOnly).map(({ value, icon, label }) => (
                 <button
                   key={value}
                   onClick={() => setActiveTab(value)}
@@ -599,10 +602,10 @@ export default function Dashboard() {
           <TabsContent value="timeoff"><DayOffTab /></TabsContent>
           <TabsContent value="customers"><CustomersTab /></TabsContent>
           <TabsContent value="waitlist"><WaitlistTab /></TabsContent>
-          <TabsContent value="analytics"><AnalyticsTab /></TabsContent>
-          <TabsContent value="revenue"><RevenueTab /></TabsContent>
+          {isProPlan && <TabsContent value="analytics"><AnalyticsTab /></TabsContent>}
+          {isProPlan && <TabsContent value="revenue"><RevenueTab /></TabsContent>}
           <TabsContent value="branding"><BrandingTab /></TabsContent>
-          <TabsContent value="integrations"><IntegrationsTab /></TabsContent>
+          {isProPlan && <TabsContent value="integrations"><IntegrationsTab /></TabsContent>}
           <TabsContent value="settings"><SettingsTab /></TabsContent>
         </Tabs>
 
@@ -3449,6 +3452,7 @@ function SettingsTab() {
   const updateMutation = useUpdateBusinessProfile();
   const queryClient = useQueryClient();
   const { toast } = useToast();
+  const isPro = profile?.subscriptionPlan === "pro";
 
   const [form, setForm] = useState({
     name: "", ownerName: "", phone: "", email: "",
@@ -3601,13 +3605,15 @@ function SettingsTab() {
 
             <div className="space-y-4">
               <h3 className="font-medium text-base border-b pb-2">אישור תורים ואבטחה</h3>
-              <div className="flex items-center justify-between p-4 border rounded-xl bg-muted/30">
-                <div>
-                  <div className="font-medium text-sm">דרוש אישור ידני לתורים</div>
-                  <div className="text-xs text-muted-foreground mt-0.5">כבוי = תורים מאושרים אוטומטית | דלוק = אתה מאשר כל תור ידנית</div>
+              {isPro && (
+                <div className="flex items-center justify-between p-4 border rounded-xl bg-muted/30">
+                  <div>
+                    <div className="font-medium text-sm">דרוש אישור ידני לתורים</div>
+                    <div className="text-xs text-muted-foreground mt-0.5">כבוי = תורים מאושרים אוטומטית | דלוק = אתה מאשר כל תור ידנית</div>
+                  </div>
+                  <Switch checked={form.requireAppointmentApproval} onCheckedChange={v => setForm(p => ({ ...p, requireAppointmentApproval: v }))} />
                 </div>
-                <Switch checked={form.requireAppointmentApproval} onCheckedChange={v => setForm(p => ({ ...p, requireAppointmentApproval: v }))} />
-              </div>
+              )}
               <div className="flex items-center justify-between p-4 border rounded-xl bg-muted/30">
                 <div>
                   <div className="font-medium text-sm">אימות טלפון בקביעת תור</div>

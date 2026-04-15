@@ -434,7 +434,10 @@ router.post("/public/:businessSlug/appointments", async (req, res): Promise<void
   const tranzilaEnabled = (business as any).tranzilaEnabled ?? false;
   const depositAmountAgorot = (business as any).depositAmountAgorot ?? null;
   const requiresPayment = tranzilaEnabled && depositAmountAgorot && depositAmountAgorot > 0;
-  const appointmentStatus = requiresPayment ? "pending_payment" : business.requireAppointmentApproval ? "pending" : "confirmed";
+  // Manual approval mode is Pro-only. For free businesses, appointments confirm immediately.
+  const isPro = business.subscriptionPlan === "pro";
+  const approvalActive = isPro && business.requireAppointmentApproval;
+  const appointmentStatus = requiresPayment ? "pending_payment" : approvalActive ? "pending" : "confirmed";
 
   // Idempotency: if same client+service+date+time already exists (not cancelled), return it
   const [existing] = await db
@@ -490,8 +493,9 @@ router.post("/public/:businessSlug/appointments", async (req, res): Promise<void
       .catch((e: any) => console.error("[WhatsApp] notifyBusinessOwner failed:", e?.response?.data ?? e?.message));
   }
 
-  // Send confirmation to client only if business enabled it and appointment is immediately confirmed (non-blocking)
-  if (appointmentStatus === "confirmed" && (business as any).sendBookingConfirmation !== false) {
+  // Send confirmation to client only if business is Pro, enabled it, and appointment is immediately confirmed (non-blocking).
+  // Free plan never sends WhatsApp messages to clients.
+  if (isPro && appointmentStatus === "confirmed" && (business as any).sendBookingConfirmation !== false) {
     // Check if client has opted out of notifications
     const [clientPref] = await db
       .select({ receiveNotifications: clientSessionsTable.receiveNotifications })
@@ -584,7 +588,7 @@ router.post("/public/:businessSlug/appointments/:id/cancel", async (req, res): P
 
   // Check cancellation hours policy
   const [business] = await db
-    .select({ cancellationHours: businessesTable.cancellationHours, name: businessesTable.name })
+    .select({ cancellationHours: businessesTable.cancellationHours, name: businessesTable.name, subscriptionPlan: businessesTable.subscriptionPlan })
     .from(businessesTable)
     .where(eq(businessesTable.id, appt.businessId));
 
@@ -599,11 +603,13 @@ router.post("/public/:businessSlug/appointments/:id/cancel", async (req, res): P
 
   await db.update(appointmentsTable).set({ status: "cancelled" }).where(eq(appointmentsTable.id, appt.id));
 
-  // Notify client of cancellation via WhatsApp (non-blocking)
+  // Notify client of cancellation via WhatsApp (non-blocking) — Pro only
   const [, cancelMonth, cancelDay] = appt.appointmentDate.split("-");
   const cancelFormattedDate = `${cancelDay}/${cancelMonth}`;
-  sendClientCancellation(appt.phoneNumber, appt.clientName, business?.name ?? "העסק", cancelFormattedDate, appt.appointmentTime)
-    .catch((e: any) => console.error("[WhatsApp] sendClientCancellation failed:", e?.response?.data ?? e?.message));
+  if ((business as any)?.subscriptionPlan === "pro") {
+    sendClientCancellation(appt.phoneNumber, appt.clientName, business?.name ?? "העסק", cancelFormattedDate, appt.appointmentTime)
+      .catch((e: any) => console.error("[WhatsApp] sendClientCancellation failed:", e?.response?.data ?? e?.message));
+  }
 
   res.json({ success: true });
 });
