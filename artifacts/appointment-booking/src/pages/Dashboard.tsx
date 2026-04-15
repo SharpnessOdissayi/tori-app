@@ -146,6 +146,23 @@ function SubscriptionBanner() {
   const [iframeUrl, setIframeUrl] = useState<string | null>(null);
   const [iframeLoading, setIframeLoading] = useState(false);
   const { toast } = useToast();
+  const queryClient = useQueryClient();
+
+  useEffect(() => {
+    const handler = (e: MessageEvent) => {
+      if (e.data?.type === "kavati_payment_success" && e.data?.paymentType === "subscription") {
+        setShowUpgrade(false);
+        setIframeUrl(null);
+        queryClient.invalidateQueries({ queryKey: getGetBusinessProfileQueryKey() });
+        toast({ title: "המנוי הופעל בהצלחה! 🎉", description: "ברוך הבא לקבעתי פרו." });
+      }
+      if (e.data?.type === "kavati_payment_fail" && e.data?.paymentType === "subscription") {
+        toast({ title: "התשלום נכשל", description: "בדוק את פרטי הכרטיס ונסה שוב.", variant: "destructive" });
+      }
+    };
+    window.addEventListener("message", handler);
+    return () => window.removeEventListener("message", handler);
+  }, [queryClient]);
 
   if (!profile) return null;
 

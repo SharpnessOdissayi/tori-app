@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import { useLocation } from "wouter";
 import { XCircle, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -9,6 +10,40 @@ export default function PaymentFail() {
   const apptId = params.get("appt");
 
   const isSubscription = type === "subscription";
+  const inIframe = window !== window.parent;
+
+  useEffect(() => {
+    if (inIframe) {
+      try {
+        window.parent.postMessage(
+          { type: "kavati_payment_fail", paymentType: type, apptId },
+          "*"
+        );
+      } catch {
+        // Cross-origin — ignore
+      }
+    }
+  }, []);
+
+  const handleRetry = () => {
+    if (inIframe) {
+      window.history.back();
+    } else {
+      window.history.back();
+    }
+  };
+
+  const handleBack = () => {
+    if (inIframe) {
+      try {
+        window.parent.location.href = isSubscription ? "/dashboard" : "/";
+      } catch {
+        // Cross-origin fallback
+      }
+    } else {
+      setLocation(isSubscription ? "/dashboard" : "/");
+    }
+  };
 
   return (
     <div dir="rtl" className="min-h-screen flex items-center justify-center bg-gradient-to-br from-red-50 to-rose-50 p-4">
@@ -30,14 +65,14 @@ export default function PaymentFail() {
 
         <div className="flex flex-col gap-2">
           <Button
-            onClick={() => window.history.back()}
+            onClick={handleRetry}
             className="w-full gap-2 bg-red-600 hover:bg-red-700 text-white"
           >
             <RefreshCw className="w-4 h-4" /> נסה שוב
           </Button>
           <Button
             variant="ghost"
-            onClick={() => setLocation(isSubscription ? "/dashboard" : "/")}
+            onClick={handleBack}
             className="w-full"
           >
             חזרה

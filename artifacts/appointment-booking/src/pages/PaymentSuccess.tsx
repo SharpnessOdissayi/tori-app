@@ -10,14 +10,33 @@ export default function PaymentSuccess() {
   const apptId = params.get("appt");
 
   const isSubscription = type === "subscription";
+  const inIframe = window !== window.parent;
 
-  // Auto-redirect after 5 seconds
   useEffect(() => {
+    if (inIframe) {
+      // Notify parent window that payment succeeded, then break out
+      try {
+        window.parent.postMessage(
+          { type: "kavati_payment_success", paymentType: type, apptId },
+          "*"
+        );
+        // Break out of iframe after short delay so parent can react
+        setTimeout(() => {
+          window.parent.location.href = isSubscription ? "/dashboard" : "/";
+        }, 1500);
+      } catch {
+        // Cross-origin fallback — just redirect parent
+        window.parent.location.href = isSubscription ? "/dashboard" : "/";
+      }
+      return;
+    }
+
+    // Not in iframe — normal auto-redirect
     const t = setTimeout(() => {
       setLocation(isSubscription ? "/dashboard" : "/");
-    }, 5000);
+    }, 4000);
     return () => clearTimeout(t);
-  }, [isSubscription, setLocation]);
+  }, []);
 
   return (
     <div dir="rtl" className="min-h-screen flex items-center justify-center bg-gradient-to-br from-green-50 to-emerald-50 p-4">
@@ -30,7 +49,7 @@ export default function PaymentSuccess() {
 
         <div className="space-y-2">
           <h1 className="text-2xl font-bold text-green-800">
-            {isSubscription ? "ברוך הבא לפרו!" : "התשלום עבר בהצלחה"}
+            {isSubscription ? "ברוך הבא לפרו! 🎉" : "התשלום עבר בהצלחה"}
           </h1>
           <p className="text-muted-foreground">
             {isSubscription
@@ -41,25 +60,30 @@ export default function PaymentSuccess() {
           </p>
         </div>
 
-        <div className="flex flex-col gap-2">
-          {isSubscription ? (
-            <Button
-              onClick={() => setLocation("/dashboard")}
-              className="w-full bg-green-600 hover:bg-green-700 text-white gap-2"
-            >
-              <Crown className="w-4 h-4" /> לדשבורד הניהול
-            </Button>
-          ) : (
-            <Button
-              onClick={() => setLocation("/")}
-              className="w-full gap-2"
-            >
-              <Calendar className="w-4 h-4" /> חזרה לדף הבית
-            </Button>
-          )}
-        </div>
+        {!inIframe && (
+          <div className="flex flex-col gap-2">
+            {isSubscription ? (
+              <Button
+                onClick={() => setLocation("/dashboard")}
+                className="w-full bg-green-600 hover:bg-green-700 text-white gap-2"
+              >
+                <Crown className="w-4 h-4" /> לדשבורד הניהול
+              </Button>
+            ) : (
+              <Button
+                onClick={() => setLocation("/")}
+                className="w-full gap-2"
+              >
+                <Calendar className="w-4 h-4" /> חזרה לדף הבית
+              </Button>
+            )}
+            <p className="text-xs text-muted-foreground">מועבר אוטומטית בעוד מספר שניות…</p>
+          </div>
+        )}
 
-        <p className="text-xs text-muted-foreground">מועבר אוטומטית בעוד מספר שניות…</p>
+        {inIframe && (
+          <p className="text-xs text-muted-foreground animate-pulse">מעביר אותך לדשבורד...</p>
+        )}
       </div>
     </div>
   );
