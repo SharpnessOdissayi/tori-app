@@ -126,10 +126,10 @@ export async function createStandingOrder(params: {
       body:    JSON.stringify(body),
     });
 
-    // v2 error responses (4xx) include mismatch_info[]: per-field validation errors with
-    // keyword / data_path / sub_errors. Log it verbatim so we can diagnose which field
-    // Tranzila rejected without guessing.
-    const data = await res.json() as {
+    // Read body as text first so 401/5xx responses (which may be HTML or plain text)
+    // don't throw on res.json(). Then best-effort parse.
+    const rawText = await res.text();
+    let data: {
       error_code?: number;
       message?: string;
       sto_id?: number;
@@ -140,7 +140,11 @@ export async function createStandingOrder(params: {
         data_path?: string[];
         sub_errors?: unknown[];
       }>;
-    };
+    } = {};
+    try { data = JSON.parse(rawText); } catch { /* non-JSON — keep rawText for log */ }
+
+    // Always log the full response (raw body + parsed fields + auth headers used)
+    // so HMAC mismatches can be diagnosed against Tranzila's expectations.
     logger.info(
       {
         businessId: params.businessId,
@@ -149,6 +153,7 @@ export async function createStandingOrder(params: {
         stoId:      data.sto_id,
         msg:        data.message,
         mismatches: data.mismatch_info,
+        rawBody:    rawText.slice(0, 500),
       },
       "[TranzilaREST] STO create response"
     );
