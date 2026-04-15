@@ -1,5 +1,5 @@
 import { db, workingHoursTable, breakTimesTable, appointmentsTable } from "@workspace/db";
-import { eq, and, notInArray } from "drizzle-orm";
+import { eq, and } from "drizzle-orm";
 
 function timeToMinutes(time: string): number {
   const [h, m] = time.split(":").map(Number);
@@ -45,19 +45,23 @@ export async function computeAvailableSlots(
       )
     );
 
-  const existingAppointments = await db
+  const allAppointments = await db
     .select({
       appointmentTime: appointmentsTable.appointmentTime,
       durationMinutes: appointmentsTable.durationMinutes,
+      status: appointmentsTable.status,
     })
     .from(appointmentsTable)
     .where(
       and(
         eq(appointmentsTable.businessId, businessId),
-        eq(appointmentsTable.appointmentDate, date),
-        notInArray(appointmentsTable.status, ["cancelled", "pending_payment"])
+        eq(appointmentsTable.appointmentDate, date)
       )
     );
+
+  const existingAppointments = allAppointments.filter(
+    a => a.status !== "cancelled" && a.status !== "pending_payment"
+  );
 
   const startMinutes = timeToMinutes(workingHour.startTime);
   const endMinutes = timeToMinutes(workingHour.endTime);
