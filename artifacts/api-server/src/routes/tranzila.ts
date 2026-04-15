@@ -102,66 +102,82 @@ router.post("/tranzila/notify", async (req, res): Promise<void> => {
 
     console.log("[Tranzila] Notify received:", { responsecode, pdesc, body });
 
-    // ── Subscription first payment ────────────────────────────────────────
-    // pdesc = "מנוי פרו קבעתי - {businessId}"
-    // tranmode=AK → body.token + body.expdate are populated
+    // ── Subscription payment (initial or recurring STO monthly charge) ────
+    // pdesc = "מנוי פרו קבעתי - {businessId}" (set when building the iframe URL and the STO item name)
+    // Initial charge: body.token + body.expdate populated (tranmode=AK). No sto_external_id yet.
+    // Recurring charge: Tranzila's My-Billing webhook includes sto_external_id and TranzilaTK (token
+    //                   used for the charge). See: https://docs.tranzila.com/docs/payments-billing/wbvbx8p3i3pu4-sto-api-for-my-billing
     const subscriptionMatch = pdesc.match(/מנוי פרו קבעתי - (\d+)/);
     if (subscriptionMatch) {
-      const businessId = parseInt(subscriptionMatch[1]);
+      const businessId     = parseInt(subscriptionMatch[1]);
+      const stoExternalId  = body.sto_external_id ? parseInt(String(body.sto_external_id)) : null;
 
       if (responsecode === "000") {
-        const token   = String(body.token   ?? body.Token   ?? "").trim();
-        const expdate = String(body.expdate ?? body.ExpDate ?? "").trim();
-
         const renewDate = new Date();
         renewDate.setDate(renewDate.getDate() + 30);
 
-        await db
-          .update(businessesTable)
-          .set({
-            subscriptionPlan:        "pro",
-            maxServicesAllowed:      999,
-            maxAppointmentsPerMonth: 9999,
-            subscriptionStartDate:   new Date(),
-            subscriptionRenewDate:   renewDate,
-            subscriptionCancelledAt: null,
-            tranzilaToken:           token   || null,
-            tranzilaTokenExpiry:     expdate || null,
-          } as any)
-          .where(eq(businessesTable.id, businessId));
+        if (stoExternalId) {
+          // Recurring STO charge — extend renewal only; don't re-run first-payment setup.
+          await db
+            .update(businessesTable)
+            .set({ subscriptionRenewDate: renewDate } as any)
+            .where(eq(businessesTable.id, businessId));
+          console.log(`[Tranzila] Recurring STO charge for business ${businessId} (sto=${stoExternalId}), renew=${renewDate.toISOString()}`);
+        } else {
+          // Initial subscription payment
+          const token   = String(body.token   ?? body.Token   ?? "").trim();
+          const expdate = String(body.expdate ?? body.ExpDate ?? "").trim();
 
-        console.log(`[Tranzila] Business ${businessId} subscribed to Pro, token saved, renews ${renewDate.toISOString()}`);
-
-        // Create Standing Order via REST API so Tranzila handles future monthly charges
-        if (token && expdate) {
-          const [biz] = await db
-            .select({ ownerName: businessesTable.ownerName, email: businessesTable.email })
-            .from(businessesTable)
+          await db
+            .update(businessesTable)
+            .set({
+              subscriptionPlan:        "pro",
+              maxServicesAllowed:      999,
+              maxAppointmentsPerMonth: 9999,
+              subscriptionStartDate:   new Date(),
+              subscriptionRenewDate:   renewDate,
+              subscriptionCancelledAt: null,
+              tranzilaToken:           token   || null,
+              tranzilaTokenExpiry:     expdate || null,
+            } as any)
             .where(eq(businessesTable.id, businessId));
 
-          if (biz) {
-            const stoResult = await createStandingOrder({
-              token,
-              expiry:      expdate,
-              clientName:  biz.ownerName,
-              clientEmail: biz.email,
-              businessId,
-              amountILS:   SUBSCRIPTION_MONTHLY_ILS,
-            });
+          console.log(`[Tranzila] Business ${businessId} upgraded to Pro, renews ${renewDate.toISOString()}`);
 
-            if (stoResult.success && stoResult.stoId) {
-              await db
-                .update(businessesTable)
-                .set({ tranzilaStorId: stoResult.stoId } as any)
-                .where(eq(businessesTable.id, businessId));
-              console.log(`[Tranzila] STO created for business ${businessId}, stoId=${stoResult.stoId}`);
-            } else {
-              console.warn(`[Tranzila] STO creation failed for business ${businessId}: ${stoResult.error} — cron fallback active`);
+          // Create Standing Order via REST API so Tranzila handles future monthly charges.
+          // Skip if the business already has an STO (re-subscribing after cancel).
+          if (token && expdate) {
+            const [biz] = await db
+              .select({ ownerName: businessesTable.ownerName, email: businessesTable.email, existingStoId: (businessesTable as any).tranzilaStorId })
+              .from(businessesTable)
+              .where(eq(businessesTable.id, businessId));
+
+            if (biz && !biz.existingStoId) {
+              const stoResult = await createStandingOrder({
+                token,
+                expiry:      expdate,
+                clientName:  biz.ownerName,
+                clientEmail: biz.email,
+                businessId,
+                amountILS:   SUBSCRIPTION_MONTHLY_ILS,
+              });
+
+              if (stoResult.success && stoResult.stoId) {
+                await db
+                  .update(businessesTable)
+                  .set({ tranzilaStorId: stoResult.stoId } as any)
+                  .where(eq(businessesTable.id, businessId));
+                console.log(`[Tranzila] STO created for business ${businessId}, stoId=${stoResult.stoId}`);
+              } else {
+                console.warn(`[Tranzila] STO creation failed for business ${businessId}: ${stoResult.error} — cron fallback active`);
+              }
             }
           }
         }
       } else {
-        console.log(`[Tranzila] Subscription payment failed for business ${businessId} (code: ${responsecode})`);
+        // Charge failure — Tranzila sends a "Token Correction" email to the customer automatically
+        // (enabled by default in My-Billing settings). We just log it; on card update they'll retry.
+        console.log(`[Tranzila] Subscription payment failed for business ${businessId} (code: ${responsecode}, sto=${stoExternalId ?? "n/a"})`);
       }
 
       res.status(200).send("OK");

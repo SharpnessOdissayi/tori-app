@@ -158,17 +158,39 @@ For subscriptions to tokenize the card (so monthly STO renewals can run), the te
 6. If a token was returned, backend calls the Tranzila REST API to create a monthly **Standing Order (STO)** — Tranzila then handles the monthly charges automatically
 7. If STO creation fails or no token was returned, a nightly cron job attempts to renew (assuming a card was saved)
 
+### My-Billing webhook payload
+
+Per the [STO API for My-Billing](https://docs.tranzila.com/docs/payments-billing/wbvbx8p3i3pu4-sto-api-for-my-billing) docs, every recurring STO charge POSTs a JSON payload to our notify endpoint containing:
+
+| Field | Meaning |
+|---|---|
+| `supplier` | Terminal name |
+| `sto_external_id` | STO ID (present on **recurring** charges only, absent on the initial payment) |
+| `sum`, `currency` | Charged amount |
+| `Response` | Transaction result code (`000` = success) |
+| `ConfirmationCode` | Authorization number |
+| `TranzilaTK` | Token used for the charge |
+| `pdesc` | Purchase description — we set this to `"מנוי פרו קבעתי - {businessId}"` |
+| `expdate` | Card expiry MMYY |
+
+`/api/tranzila/notify` uses `sto_external_id` to distinguish the initial payment from recurring charges:
+- **Initial charge** — no `sto_external_id` → upgrade plan to Pro, save token, create Standing Order via REST API.
+- **Recurring STO charge** — `sto_external_id` present → extend `subscriptionRenewDate` by 30 days only. Do not re-run setup.
+- **Failed charge** — Tranzila automatically emails the customer a card-update link (My-Billing "Token Correction" feature, enabled by default).
+
 ### Required Tranzila admin configuration
 
-The business's Tranzila account must be configured per the official STO docs:
+In the Tranzila dashboard (`my.tranzila.com`), per terminal:
+- **Settings → Terminal → My-Billing → Transaction Notification Endpoint** → `https://www.kavati.net/api/tranzila/notify`
+- **Settings → Terminal → My-Billing → Main phone number** → owner's phone (shown in the auto-email on failed charges)
+- **Settings → Terminal → iFrame** → confirm `newprocess=1` is supported
+- **Settings → Terminal → Work method** → enable card tokenization
+- **Whitelist the domain** — `www.kavati.net` and `kavati.net` must be allowed referrers on the terminal (contact Tranzila support if this is not self-serve)
+
+Docs references:
 - [STO API for My-Billing](https://docs.tranzila.com/docs/payments-billing/wbvbx8p3i3pu4-sto-api-for-my-billing)
 - [Create a Standing Order](https://docs.tranzila.com/docs/payments-billing/xyajxscasy205-create-a-standing-order)
-
-In the Tranzila dashboard (`my.tranzila.com`):
-- **Settings → Terminal → My-Billing → Transaction Notification Endpoint** → set to `https://www.kavati.net/api/tranzila/notify`
-- **Settings → Terminal → iFrame** → confirm `newprocess=1` is supported
-- **Settings → Terminal → Work method** → enable card tokenization for the terminal
-- **Main phone number** → business owner's phone (for credit-card-update notifications)
+- [Authentication (HMAC-SHA256)](https://docs.tranzila.com/docs/payments-billing/k2r0jnp2cb4j4-authentication)
 
 ### Test mode
 
