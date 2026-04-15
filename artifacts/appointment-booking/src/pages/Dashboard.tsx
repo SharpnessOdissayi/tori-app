@@ -2390,39 +2390,90 @@ function BrandingTab() {
       {/* Preset chooser — one-click professional looks */}
       <Card>
         <CardHeader>
-          <CardTitle>עיצובים מוכנים</CardTitle>
-          <CardDescription>לחץ על תבנית כדי להחיל עיצוב מקצועי מוכן — ואז שמור</CardDescription>
+          <CardTitle className="flex items-center gap-2">
+            <span className="w-8 h-8 rounded-lg bg-gradient-to-br from-violet-500 to-fuchsia-500 flex items-center justify-center text-white text-sm">✨</span>
+            עיצובים מוכנים
+          </CardTitle>
+          <CardDescription>בחר תבנית — כל אחת מחילה צבעים, פונט, פריסה ואפקטים יחד. אפשר לערוך אחר-כך.</CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
             {DESIGN_PRESETS.map(preset => {
               const active = form.designPreset === preset.id;
+              const v = preset.values;
+              const buttonPx = v.buttonRadius === "none" || v.buttonRadius === "small" ? "6px"
+                : v.buttonRadius === "full" || v.buttonRadius === "large" ? "9999px" : "12px";
+              const cardPx = v.borderRadius === "none" || v.borderRadius === "small" ? "6px"
+                : v.borderRadius === "full" || v.borderRadius === "large" ? "20px" : "12px";
               return (
                 <button
                   key={preset.id}
                   onClick={() => applyPreset(preset.id)}
-                  className={`relative rounded-2xl overflow-hidden border-2 transition-all text-right ${active ? "border-primary scale-[1.02] shadow-lg" : "border-border hover:border-primary/50"}`}
+                  className={`relative rounded-2xl overflow-hidden transition-all text-right group ${active ? "ring-2 ring-primary shadow-xl scale-[1.02]" : "ring-1 ring-border hover:ring-primary/40 hover:shadow-lg hover:-translate-y-0.5"}`}
                 >
+                  {/* Mini mockup preview */}
                   <div
-                    className="h-20 flex items-end p-2"
-                    style={{ background: preset.preview.bg }}
+                    className="h-32 p-3 flex flex-col justify-between relative overflow-hidden"
+                    style={{
+                      background: v.gradientEnabled && v.gradientFrom && v.gradientTo
+                        ? `linear-gradient(${v.gradientAngle}deg, ${v.gradientFrom}, ${v.gradientTo})`
+                        : (v.backgroundColor || preset.preview.bg),
+                      fontFamily: `'${v.fontFamily}', sans-serif`,
+                    }}
                   >
+                    {/* Decorative pattern dots */}
+                    {v.backgroundPattern === "dots" && (
+                      <div className="absolute inset-0 opacity-30"
+                        style={{ backgroundImage: "radial-gradient(rgba(0,0,0,0.2) 1px, transparent 1px)", backgroundSize: "8px 8px" }} />
+                    )}
+
+                    {/* Faux logo + title */}
+                    <div className="flex items-center gap-2 relative z-10">
+                      <div
+                        className="w-6 h-6 shadow"
+                        style={{
+                          background: v.primaryColor,
+                          borderRadius: cardPx,
+                        }}
+                      />
+                      <div
+                        className="h-2 w-14 rounded-full"
+                        style={{ background: v.themeMode === "dark" ? "rgba(255,255,255,0.6)" : "rgba(0,0,0,0.5)" }}
+                      />
+                    </div>
+
+                    {/* Faux service card */}
                     <div
-                      className="text-xs font-bold px-2 py-1 rounded-md backdrop-blur-sm"
+                      className="relative z-10 px-2 py-1.5 flex items-center justify-between shadow-sm"
                       style={{
-                        background: "rgba(255,255,255,0.85)",
-                        color: preset.preview.accent,
+                        background: v.themeMode === "dark" ? "rgba(255,255,255,0.1)" : "rgba(255,255,255,0.85)",
+                        borderRadius: cardPx,
+                        backdropFilter: "blur(4px)",
                       }}
                     >
-                      Aa
+                      <div
+                        className="h-1.5 w-10 rounded-full"
+                        style={{ background: v.accentColor || v.primaryColor, opacity: 0.6 }}
+                      />
+                      <div
+                        className="px-2 py-0.5 text-[9px] font-bold text-white"
+                        style={{ background: v.primaryColor, borderRadius: buttonPx }}
+                      >
+                        קבע
+                      </div>
                     </div>
                   </div>
-                  <div className="p-2 bg-background">
+
+                  {/* Label */}
+                  <div className="p-3 bg-background text-right">
                     <div className="font-bold text-sm">{preset.name}</div>
                     <div className="text-xs text-muted-foreground line-clamp-1">{preset.description}</div>
                   </div>
+
                   {active && (
-                    <div className="absolute top-1 right-1 w-6 h-6 rounded-full bg-primary text-white flex items-center justify-center text-xs">✓</div>
+                    <div className="absolute top-2 right-2 w-7 h-7 rounded-full bg-primary text-white flex items-center justify-center shadow-lg">
+                      <Check className="w-4 h-4" />
+                    </div>
                   )}
                 </button>
               );
@@ -2431,46 +2482,127 @@ function BrandingTab() {
           {form.designPreset && (
             <button
               onClick={() => setForm(p => ({ ...p, designPreset: "" }))}
-              className="mt-3 text-xs text-muted-foreground underline"
+              className="mt-4 text-xs text-muted-foreground underline hover:text-foreground"
             >
-              נקה בחירה (התאמה אישית)
+              נקה בחירה (המשך עם התאמה אישית)
             </button>
           )}
         </CardContent>
       </Card>
 
-      {/* Live preview */}
-      <Card>
-        <CardHeader>
-          <CardTitle>תצוגה מקדימה</CardTitle>
-          <CardDescription>כך יראה הפרופיל שלך — מתעדכן בזמן אמת</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div
-            className="rounded-2xl overflow-hidden border shadow-sm"
-            style={{
-              fontFamily: `'${form.fontFamily}', sans-serif`,
-              background: form.gradientEnabled && form.gradientFrom && form.gradientTo
-                ? `linear-gradient(${form.gradientAngle}deg, ${form.gradientFrom}, ${form.gradientTo})`
-                : undefined,
-              minHeight: "260px",
-            }}
-          >
-            <div className="p-6 text-center" style={{ color: form.themeMode === "dark" ? "white" : "#111" }}>
-              {form.showLogo && form.logoUrl && (
-                <img src={form.logoUrl} alt="" className="w-16 h-16 rounded-full mx-auto mb-3 border-2 border-white shadow-md object-cover" />
-              )}
-              {form.showBusinessName && (
-                <div className="text-2xl font-bold" style={{ color: form.primaryColor }}>{profile?.name || "העסק שלך"}</div>
-              )}
-              <div className="mt-4 flex gap-2 justify-center flex-wrap">
-                <button className="px-4 py-2 text-sm font-medium text-white shadow" style={{ backgroundColor: form.primaryColor, borderRadius: form.buttonRadius === "sharp" ? 0 : form.buttonRadius === "rounded" ? 9999 : 12 }}>קבע תור</button>
-                <button className="px-4 py-2 text-sm font-medium border" style={{ borderColor: form.accentColor || form.primaryColor, color: form.accentColor || form.primaryColor, borderRadius: form.buttonRadius === "sharp" ? 0 : form.buttonRadius === "rounded" ? 9999 : 12 }}>פרטים</button>
+      {/* Live preview — mirrors the real Book.tsx rendering */}
+      {(() => {
+        const isDark = form.themeMode === "dark" || form.themeMode === "fuchsia";
+        const textMain = isDark ? "rgba(255,255,255,0.95)" : "#1a1a1a";
+        const textMuted = isDark ? "rgba(255,255,255,0.6)" : "#6b7280";
+        const cardBg = isDark ? "rgba(255,255,255,0.08)" : "#ffffff";
+        const buttonPx = form.buttonRadius === "sharp" ? "4px" : form.buttonRadius === "rounded" ? "9999px" : "12px";
+        const cardPx = form.borderRadius === "sharp" ? "4px" : form.borderRadius === "rounded" ? "24px" : "14px";
+        const pageBg = form.gradientEnabled && form.gradientFrom && form.gradientTo
+          ? `linear-gradient(${form.gradientAngle}deg, ${form.gradientFrom}, ${form.gradientTo})`
+          : (isDark ? "#0a0a0a" : "#fafafa");
+        const patternStyle: React.CSSProperties = form.backgroundPattern === "dots"
+          ? { backgroundImage: "radial-gradient(rgba(0,0,0,0.08) 1px, transparent 1px)", backgroundSize: "16px 16px" }
+          : form.backgroundPattern === "grid"
+          ? { backgroundImage: "linear-gradient(rgba(0,0,0,0.05) 1px, transparent 1px), linear-gradient(90deg, rgba(0,0,0,0.05) 1px, transparent 1px)", backgroundSize: "24px 24px" }
+          : form.backgroundPattern === "circles"
+          ? { backgroundImage: "radial-gradient(circle, rgba(0,0,0,0.04) 18px, transparent 19px)", backgroundSize: "60px 60px" }
+          : {};
+
+        return (
+          <Card>
+            <CardHeader>
+              <CardTitle>תצוגה מקדימה</CardTitle>
+              <CardDescription>כך יראה עמוד ההזמנות של הלקוחות — מתעדכן בזמן אמת</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div
+                className="rounded-2xl overflow-hidden shadow-md"
+                dir="rtl"
+                style={{
+                  fontFamily: `'${form.fontFamily}', sans-serif`,
+                  background: pageBg,
+                  ...patternStyle,
+                  border: isDark ? "1px solid rgba(255,255,255,0.1)" : "1px solid rgba(0,0,0,0.08)",
+                }}
+              >
+                <div className="p-6">
+                  {/* Header */}
+                  <div className="flex flex-col items-center text-center gap-2 mb-5">
+                    {form.showLogo && form.logoUrl && (
+                      <img src={form.logoUrl} alt="" className="w-16 h-16 rounded-full object-cover ring-4 ring-white/80 shadow-lg" />
+                    )}
+                    {form.showBusinessName && (
+                      <div className="text-2xl font-bold" style={{ color: form.primaryColor }}>
+                        {profile?.name || "העסק שלך"}
+                      </div>
+                    )}
+                    <div className="text-xs" style={{ color: textMuted }}>קבע תור אונליין</div>
+                  </div>
+
+                  {/* Sample service card — reflects serviceCardStyle */}
+                  {form.serviceCardStyle === "minimal" ? (
+                    <div
+                      className="flex items-center justify-between py-3"
+                      style={{ borderTop: `1px solid ${isDark ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.08)"}`, borderBottom: `1px solid ${isDark ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.08)"}` }}
+                    >
+                      <div>
+                        <div className="font-semibold text-sm" style={{ color: textMain }}>תספורת גברים</div>
+                        <div className="text-xs" style={{ color: textMuted }}>30 דק׳ · ₪80</div>
+                      </div>
+                      <button className="px-4 py-1.5 text-xs font-medium text-white shadow" style={{ background: form.primaryColor, borderRadius: buttonPx }}>קבע</button>
+                    </div>
+                  ) : form.serviceCardStyle === "bubble" ? (
+                    <button
+                      className="w-full flex items-center gap-3 p-3 shadow-md"
+                      style={{
+                        background: `linear-gradient(135deg, ${form.primaryColor}20, ${(form.accentColor || form.primaryColor)}20)`,
+                        border: `2px solid ${form.primaryColor}40`,
+                        borderRadius: "9999px",
+                      }}
+                    >
+                      <div className="w-12 h-12 rounded-full shrink-0" style={{ background: form.primaryColor + "40" }} />
+                      <div className="flex-1 text-right">
+                        <div className="font-bold text-sm" style={{ color: textMain }}>תספורת גברים</div>
+                        <div className="text-xs" style={{ color: textMuted }}>30 דק׳</div>
+                      </div>
+                      <div className="font-bold text-lg" style={{ color: form.primaryColor }}>₪80</div>
+                    </button>
+                  ) : form.serviceCardStyle === "grid" ? (
+                    <div className="grid grid-cols-2 gap-3">
+                      {[1, 2].map(i => (
+                        <div key={i} className="overflow-hidden shadow-sm" style={{ background: cardBg, borderRadius: cardPx }}>
+                          <div className="h-16" style={{ background: `linear-gradient(135deg, ${form.primaryColor}40, ${(form.accentColor || form.primaryColor)}40)` }} />
+                          <div className="p-2">
+                            <div className="font-bold text-xs" style={{ color: textMain }}>{i === 1 ? "תספורת" : "צבע"}</div>
+                            <div className="flex justify-between text-xs mt-1">
+                              <span style={{ color: textMuted }}>30 דק׳</span>
+                              <span className="font-bold" style={{ color: form.primaryColor }}>₪{i === 1 ? 80 : 150}</span>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="overflow-hidden shadow-sm" style={{ background: cardBg, borderRadius: cardPx, border: `1px solid ${isDark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.06)"}` }}>
+                      <div className="p-4">
+                        <div className="flex justify-between items-start mb-1">
+                          <div className="font-bold text-sm" style={{ color: textMain }}>תספורת גברים</div>
+                          <div className="font-bold" style={{ color: form.primaryColor }}>₪80</div>
+                        </div>
+                        <div className="text-xs mb-3" style={{ color: textMuted }}>תספורת מקצועית לגברים · 30 דק׳</div>
+                        <div className="flex justify-end">
+                          <button className="px-4 py-1.5 text-xs font-medium text-white shadow" style={{ background: form.primaryColor, borderRadius: buttonPx }}>קבע תור</button>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
               </div>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
+            </CardContent>
+          </Card>
+        );
+      })()}
 
       <Card>
         <CardHeader>
