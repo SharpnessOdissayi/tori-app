@@ -151,6 +151,8 @@ Kavati uses **two separate terminals** within one Tranzila account:
 
 Using the tokenization terminal is **mandatory** for subscriptions. The plain terminal can process the charge but will not return a token — no token means no STO, which means no automatic monthly billing.
 
+**Iframe URL — use `directng.tranzila.com`, not `direct.tranzila.com`.** Tranzila migrated to a new DirectNG host. Tokenization terminals (like `lilash2tok`) are only reachable via the new URL; the old `direct.tranzila.com` returns 404 on them. All iframe integrations in this codebase use `https://directng.tranzila.com/{terminal}/iframenew.php`.
+
 ### Subscription flow
 
 1. Business owner clicks "שדרג למנוי פרו" on the dashboard

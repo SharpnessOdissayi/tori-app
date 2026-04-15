@@ -26,7 +26,9 @@ export function buildTranzilaUrl(params: {
   clientName: string;
   requiresApproval?: boolean;
 }): string {
-  const base = `https://direct.tranzila.com/${SUPPLIER}/iframenew.php`;
+  // Per Tranzila docs: direct.tranzila.com is the OLD URL. The new one is directng.tranzila.com
+  // ("new DirectNG"). The lilash2tok terminal is only reachable via the new URL.
+  const base = `https://directng.tranzila.com/${SUPPLIER}/iframenew.php`;
   const successUrl = `https://www.kavati.net/payment/success?appt=${params.appointmentId}${params.requiresApproval ? "&approval=1" : ""}`;
   const p = new URLSearchParams({
     sum: params.sum.toFixed(2),
@@ -61,9 +63,9 @@ function buildSubscriptionUrl(params: {
   // MUST be SUPPLIER_TOK (lilash2tok) — the dedicated tokenization terminal.
   // tranmode=AK on this terminal returns a reusable token (TranzilaTK + expdate)
   // in the notify payload, which is required to create the monthly STO.
-  // If iframenew.php returns 404, whitelist www.kavati.net on the terminal
-  // (my.tranzila.com → Settings → Terminal) — this is a Tranzila-side config.
-  const base = `https://direct.tranzila.com/${SUPPLIER_TOK}/iframenew.php`;
+  // URL must be directng.tranzila.com (new DirectNG), not direct.tranzila.com
+  // (old URL — returns 404 on tokenization terminals like lilash2tok).
+  const base = `https://directng.tranzila.com/${SUPPLIER_TOK}/iframenew.php`;
   const p = new URLSearchParams({
     sum: SUBSCRIPTION_FIRST_ILS.toFixed(2),
     currency: "1",
