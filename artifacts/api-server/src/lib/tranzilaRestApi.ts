@@ -23,7 +23,7 @@ const API_PUBLIC_KEY = process.env.TRANZILA_API_PUBLIC_KEY ?? "";
 const API_SECRET_KEY = process.env.TRANZILA_API_SECRET_KEY ?? "";
 const SUPPLIER_TOK   = process.env.TRANZILA_SUPPLIER_TOK ?? "";
 
-const STO_CREATE_URL = "https://api.tranzila.com/v1/sto/create";
+const STO_CREATE_URL = "https://api.tranzila.com/v2/sto/create";
 
 function buildAuthHeaders(): Record<string, string> {
   const nonce       = crypto.randomBytes(20).toString("hex"); // 40-char hex string
@@ -80,19 +80,25 @@ export async function createStandingOrder(params: {
   // Charge on the current day of month (same day each month)
   const chargeDom = Math.min(new Date().getDate(), 28);
 
+  // v2 spec: https://api.tranzila.com/v2/sto/create — uses `items` (array), not `item`.
   const body = {
     terminal_name:       SUPPLIER_TOK,
-    sto_payments_number: 9999,       // effectively unlimited
+    sto_payments_number: 9999,            // effectively unlimited
     charge_frequency:    "monthly",
     charge_dom:          chargeDom,
+    currency_code:       "ILS",
+    items: [
+      {
+        name:           `מנוי פרו קבעתי - ${params.businessId}`,
+        type:           "S",              // S = Service
+        unit_price:     params.amountILS,
+        units_number:   1,
+        price_type:     "G",              // G = Gross (VAT included)
+      },
+    ],
     client: {
       name:  params.clientName,
       email: params.clientEmail,
-    },
-    item: {
-      name:           `מנוי פרו קבעתי - ${params.businessId}`,
-      unit_price:     params.amountILS,
-      price_currency: "ILS",
     },
     card: {
       token:        params.token,
@@ -100,6 +106,7 @@ export async function createStandingOrder(params: {
       expire_year:  expireYear,
     },
     response_language: "hebrew",
+    created_by_user:   "kavati-saas",
   };
 
   try {
@@ -110,12 +117,14 @@ export async function createStandingOrder(params: {
     });
 
     const data = await res.json() as { error_code: number; message: string; sto_id?: number };
-    logger.info({ businessId: params.businessId, errorCode: data.error_code, stoId: data.sto_id }, "[TranzilaREST] STO create response");
+    logger.info({ businessId: params.businessId, status: res.status, errorCode: data.error_code, stoId: data.sto_id, msg: data.message }, "[TranzilaREST] STO create response");
 
     if (data.error_code === 0 && data.sto_id) {
       return { success: true, stoId: data.sto_id };
     }
-    return { success: false, error: data.message };
+    // Application error codes per v2 docs: 20300 too many payment methods, 20301 failed to insert,
+    // 20302 failed to retrieve, 20303 no payment method, 20304 bad date, 20305 failed to create token.
+    return { success: false, error: `[${data.error_code}] ${data.message ?? "unknown"}` };
   } catch (err) {
     logger.error({ err, businessId: params.businessId }, "[TranzilaREST] STO create failed");
     return { success: false, error: String(err) };
