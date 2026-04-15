@@ -33,16 +33,19 @@ function buildAuthHeaders(): Record<string, string> {
   const requestTime = String(Date.now());
 
   // Tranzila spec wording: "hash_hmac using 'sha256' on application key with
-  // secret + request-time + nonce". Crucially the spec links to jokecamp.com's
-  // HMAC-SHA256 reference — ALL examples there output **base64**, not hex.
-  // Our previous three attempts all used hex digest and were rejected with a
-  // generic gateway 401. Switching to base64, using the standard HMAC recipe:
-  //   key  = API_SECRET_KEY
-  //   data = API_PUBLIC_KEY + requestTime + nonce
-  //   out  = base64
+  // secret + request-time + nonce". Four variants rejected with generic 401:
+  //   v1 (hex):    key=secret,               data=publicKey+time+nonce
+  //   v2 (hex):    key=secret+time+nonce,    data=publicKey
+  //   v3 (hex):    key=publicKey,            data=secret+time+nonce
+  //   v4 (base64): key=secret,               data=publicKey+time+nonce
+  // Remaining to try — v5 (base64): key=secret+time+nonce, data=publicKey.
+  // This parses the spec literally per PHP's hash_hmac($algo, $data, $key):
+  // "hash_hmac on application key with secret+request-time+nonce" →
+  //   data = application key (publicKey), key = secret + time + nonce.
+  // Output base64 per jokecamp.com examples linked in the spec.
   const accessToken = crypto
-    .createHmac("sha256", API_SECRET_KEY)
-    .update(API_PUBLIC_KEY + requestTime + nonce)
+    .createHmac("sha256", API_SECRET_KEY + requestTime + nonce)
+    .update(API_PUBLIC_KEY)
     .digest("base64");
 
   return {
