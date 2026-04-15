@@ -128,9 +128,16 @@ router.post("/tranzila/notify", async (req, res): Promise<void> => {
             .where(eq(businessesTable.id, businessId));
           console.log(`[Tranzila] Recurring STO charge for business ${businessId} (sto=${stoExternalId}), renew=${renewDate.toISOString()}`);
         } else {
-          // Initial subscription payment
-          const token   = String(body.token   ?? body.Token   ?? "").trim();
-          const expdate = String(body.expdate ?? body.ExpDate ?? "").trim();
+          // Initial subscription payment.
+          // Tranzila's notify payload fields (confirmed from Railway logs 2026-04-15):
+          //   body.TranzilaTK = card token (e.g. "n861981937dbfca7985")
+          //   body.expmonth   = "09"
+          //   body.expyear    = "28"   (2-digit)
+          // We build expdate as MMYY since that's what tranzilaRestApi expects.
+          const token = String(body.TranzilaTK ?? body.tranzilatk ?? body.token ?? "").trim();
+          const mm    = String(body.expmonth   ?? "").padStart(2, "0").slice(0, 2);
+          const yy    = String(body.expyear    ?? "").padStart(2, "0").slice(-2);
+          const expdate = mm && yy ? `${mm}${yy}` : String(body.expdate ?? "").trim();
 
           await db
             .update(businessesTable)
