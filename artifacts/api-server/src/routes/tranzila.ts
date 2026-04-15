@@ -11,11 +11,13 @@ const SUPPLIER_TOK = process.env.TRANZILA_SUPPLIER_TOK ?? "";   // lilash2tok �
 const NOTIFY_PASSWORD = process.env.TRANZILA_NOTIFY_PASSWORD ?? "";
 const JWT_SECRET   = process.env.JWT_SECRET ?? "dev-secret";
 
-// TRANZILA_TEST_MODE=true → 0.10 ILS (10 agorot) so you can verify the
-// full flow end-to-end without spending real money.
+// TRANZILA_TEST_MODE=true → 1 ILS (the minimum most Tranzila terminals accept)
+// so you can verify the full flow end-to-end with a near-zero charge.
+// 0.10 ILS was previously used but many terminals reject sub-1-shekel charges
+// with a generic 404/error-page response, masking the real issue.
 const TEST_MODE = process.env.TRANZILA_TEST_MODE === "true";
-const SUBSCRIPTION_FIRST_ILS   = TEST_MODE ? 0.10 : 50;
-const SUBSCRIPTION_MONTHLY_ILS = TEST_MODE ? 0.10 : 100;
+const SUBSCRIPTION_FIRST_ILS   = TEST_MODE ? 1 : 50;
+const SUBSCRIPTION_MONTHLY_ILS = TEST_MODE ? 1 : 100;
 
 // ─── Appointment deposit iframe URL ──────────────────────────────────────────
 
