@@ -24,7 +24,6 @@ export interface AdminBusinessSummary {
   name: string;
   ownerName: string;
   email: string;
-  phone: string | null;
   isActive: boolean;
   subscriptionPlan: string;
   maxServicesAllowed: number;
@@ -36,6 +35,7 @@ export type AdminUpdateBusinessBodySubscriptionPlan =
 
 export const AdminUpdateBusinessBodySubscriptionPlan = {
   free: "free",
+  basic: "basic",
   pro: "pro",
 } as const;
 
@@ -280,6 +280,8 @@ export interface CreatePublicAppointmentBody {
   /** HH:MM */
   appointmentTime: string;
   notes?: string;
+  /** JWT returned from POST /public/{slug}/otp/verify; required across server instances when requirePhoneVerification is true */
+  phoneVerificationToken?: string;
 }
 
 export interface AvailabilityResponse {

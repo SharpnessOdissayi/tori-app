@@ -15,4 +15,6 @@ export interface CreatePublicAppointmentBody {
   /** HH:MM */
   appointmentTime: string;
   notes?: string;
+  /** JWT returned from POST /public/{slug}/otp/verify; required across server instances when requirePhoneVerification is true */
+  phoneVerificationToken?: string;
 }

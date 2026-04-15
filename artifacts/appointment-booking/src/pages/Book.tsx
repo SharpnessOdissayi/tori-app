@@ -253,6 +253,7 @@ function formatDuration(minutes: number): string {
 export default function Book() {
   const { businessSlug } = useParams<{ businessSlug: string }>();
   const [, navigate] = useLocation();
+  const API_BASE = import.meta.env.VITE_API_BASE_URL ?? "/api";
   // step 0 = profile page, 1-5 = booking wizard
   const [step, setStep] = useState(0);
   const [showNotification, setShowNotification] = useState(true);
@@ -280,6 +281,8 @@ export default function Book() {
   const [otpSent, setOtpSent] = useState(false);
   const [otpCode, setOtpCode] = useState("");
   const [phoneVerified, setPhoneVerified] = useState(false);
+  /** JWT from server after OTP — required for booking when API runs on multiple Railway instances */
+  const [phoneVerificationToken, setPhoneVerificationToken] = useState<string | null>(null);
   const [otpLoading, setOtpLoading] = useState(false);
 
   // Portal auth
@@ -374,17 +377,17 @@ export default function Book() {
     if (!selectedServiceId || !businessSlug) { setNextSlots([]); return; }
     setNextSlotsLoading(true);
     setUseCalendar(false);
-    fetch(`/api/public/${businessSlug}/next-slots?serviceId=${selectedServiceId}&count=8`)
+    fetch(`${API_BASE}/public/${businessSlug}/next-slots?serviceId=${selectedServiceId}&count=8`)
       .then(r => r.ok ? r.json() : [])
       .then(data => setNextSlots(Array.isArray(data) ? data : []))
       .catch(() => setNextSlots([]))
       .finally(() => setNextSlotsLoading(false));
-  }, [selectedServiceId, businessSlug]);
+  }, [selectedServiceId, businessSlug, API_BASE]);
 
   // Auto-fill client details from portal session
   useEffect(() => {
     if (!clientToken) return;
-    fetch("/api/client/me", { headers: { "x-client-token": clientToken } })
+    fetch(`${API_BASE}/client/me`, { headers: { "x-client-token": clientToken } })
       .then(r => r.ok ? r.json() : null)
       .then(data => {
         if (data) setClientData(prev => ({
@@ -393,16 +396,16 @@ export default function Book() {
           phone: prev.phone || data.phone || "",
         }));
       }).catch(() => {});
-  }, [clientToken]);
+  }, [clientToken, API_BASE]);
 
   // Load working hours
   useEffect(() => {
     if (!businessSlug) return;
-    fetch(`/api/public/${businessSlug}/hours`)
+    fetch(`${API_BASE}/public/${businessSlug}/hours`)
       .then(r => r.ok ? r.json() : [])
       .then(data => setWorkingHours(Array.isArray(data) ? data : []))
       .catch(() => {});
-  }, [businessSlug]);
+  }, [businessSlug, API_BASE]);
 
   // Load existing booking from localStorage
   useEffect(() => {
@@ -416,7 +419,7 @@ export default function Book() {
   // When logged in, check if client has an upcoming appointment for this business in the portal
   useEffect(() => {
     if (!clientToken || !businessSlug) { setPortalBookingExists(false); return; }
-    fetch("/api/client/appointments", { headers: { "x-client-token": clientToken } })
+    fetch(`${API_BASE}/client/appointments`, { headers: { "x-client-token": clientToken } })
       .then(r => r.ok ? r.json() : [])
       .then((data: any[]) => {
         const has = Array.isArray(data) && data.some(
@@ -427,7 +430,7 @@ export default function Book() {
         setPortalBookingExists(has);
       })
       .catch(() => setPortalBookingExists(false));
-  }, [clientToken, businessSlug]);
+  }, [clientToken, businessSlug, API_BASE]);
 
   useEffect(() => {
     if (!business) return;
@@ -462,8 +465,6 @@ export default function Book() {
 
     return () => { root.classList.remove("dark"); };
   }, [business, fontFamily, themeMode]);
-
-  const API_BASE = import.meta.env.VITE_API_BASE_URL ?? "/api";
 
   // Google sign-in for login gate
   useEffect(() => {
@@ -724,8 +725,9 @@ export default function Book() {
   const handleSendOtp = async () => {
     if (!clientData.phone) return;
     setOtpLoading(true);
+    setPhoneVerificationToken(null);
     try {
-      const res = await fetch(`/api/public/${businessSlug}/otp/send`, {
+      const res = await fetch(`${API_BASE}/public/${businessSlug}/otp/send`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ phone: clientData.phone }),
@@ -744,14 +746,18 @@ export default function Book() {
     if (!otpCode) return;
     setOtpLoading(true);
     try {
-      const res = await fetch(`/api/public/${businessSlug}/otp/verify`, {
+      const res = await fetch(`${API_BASE}/public/${businessSlug}/otp/verify`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ phone: clientData.phone, code: otpCode }),
       });
+      const verifyData = await res.json().catch(() => ({}));
       if (!res.ok) {
         toast({ title: "קוד שגוי, נסה שוב", variant: "destructive" });
         return;
+      }
+      if (typeof verifyData.phoneVerificationToken === "string") {
+        setPhoneVerificationToken(verifyData.phoneVerificationToken);
       }
       setPhoneVerified(true);
       toast({ title: "הטלפון אומת בהצלחה" });
@@ -774,7 +780,18 @@ export default function Book() {
     }
 
     createMutation.mutate(
-      { businessSlug: businessSlug || "", data: { serviceId: selectedServiceId, clientName: clientData.name, phoneNumber: clientData.phone, appointmentDate: dateStr, appointmentTime: selectedTime, notes: clientData.notes || undefined } },
+      {
+        businessSlug: businessSlug || "",
+        data: {
+          serviceId: selectedServiceId,
+          clientName: clientData.name,
+          phoneNumber: clientData.phone,
+          appointmentDate: dateStr,
+          appointmentTime: selectedTime,
+          notes: clientData.notes || undefined,
+          ...(phoneVerificationToken ? { phoneVerificationToken } : {}),
+        },
+      },
       {
         onSuccess: (data: any) => {
           // Save booking to localStorage (include id + phone for reschedule/cancel)
@@ -1600,7 +1617,7 @@ export default function Book() {
                           required
                           type="tel"
                           value={clientData.phone}
-                          onChange={e => { setClientData(p => ({ ...p, phone: e.target.value })); setOtpSent(false); setPhoneVerified(false); setOtpCode(""); }}
+                          onChange={e => { setClientData(p => ({ ...p, phone: e.target.value })); setOtpSent(false); setPhoneVerified(false); setOtpCode(""); setPhoneVerificationToken(null); }}
                           className="h-12 text-base flex-1"
                           dir="ltr"
                           disabled={phoneVerified}

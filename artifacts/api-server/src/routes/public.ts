@@ -15,6 +15,7 @@ import {
 import { computeAvailableSlots } from "../lib/availability";
 import { sendOtp, verifyOtp, notifyBusinessOwner, sendClientConfirmation, sendClientCancellation, sendTemplate } from "../lib/whatsapp";
 import { isPhoneVerified, consumeVerification, markPhoneVerified } from "../lib/otpStore";
+import { signPhoneVerificationToken, verifyPhoneVerificationToken } from "../lib/phoneVerificationJwt";
 
 const router = Router();
 
@@ -241,7 +242,8 @@ router.post("/public/:businessSlug/otp/verify", async (req, res): Promise<void> 
     return;
   }
   markPhoneVerified(phone);
-  res.json({ success: true });
+  const phoneVerificationToken = signPhoneVerificationToken(phone);
+  res.json({ success: true, phoneVerificationToken });
 });
 
 router.post("/public/:businessSlug/appointments", async (req, res): Promise<void> => {
@@ -257,7 +259,8 @@ router.post("/public/:businessSlug/appointments", async (req, res): Promise<void
   }
 
   const { businessSlug } = paramsParsed.data;
-  const { serviceId, clientName, phoneNumber, appointmentDate, appointmentTime, notes } = bodyParsed.data;
+  const { serviceId, clientName, phoneNumber, appointmentDate, appointmentTime, notes, phoneVerificationToken } =
+    bodyParsed.data;
 
   const [business] = await db
     .select()
@@ -269,10 +272,15 @@ router.post("/public/:businessSlug/appointments", async (req, res): Promise<void
     return;
   }
 
-  // Enforce phone OTP verification only if the business requires it
-  if (business.requirePhoneVerification && !isPhoneVerified(phoneNumber)) {
-    res.status(403).json({ error: "phone_not_verified", message: "יש לאמת את מספר הטלפון תחילה" });
-    return;
+  // Enforce phone OTP when required: in-memory (single instance) or signed JWT (multi-instance / Railway)
+  if (business.requirePhoneVerification) {
+    const verifiedByMemory = isPhoneVerified(phoneNumber);
+    const verifiedByToken =
+      phoneVerificationToken && verifyPhoneVerificationToken(phoneVerificationToken, phoneNumber);
+    if (!verifiedByMemory && !verifiedByToken) {
+      res.status(403).json({ error: "phone_not_verified", message: "יש לאמת את מספר הטלפון תחילה" });
+      return;
+    }
   }
 
   // ── Booking restrictions ──────────────────────────────────────────────────

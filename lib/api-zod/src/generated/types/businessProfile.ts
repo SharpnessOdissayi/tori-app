@@ -35,11 +35,8 @@ export interface BusinessProfile {
   stripeEnabled: boolean;
   /** @nullable */
   stripePublicKey: string | null;
-  /** @nullable */
-  phone: string | null;
   subscriptionPlan: string;
   maxServicesAllowed: number;
-  maxAppointmentsPerMonth: number;
   isActive: boolean;
   createdAt: string;
 }

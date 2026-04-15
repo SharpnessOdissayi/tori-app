@@ -24,7 +24,6 @@ export const SuperAdminListBusinessesResponseItem = zod.object({
   name: zod.string(),
   ownerName: zod.string(),
   email: zod.string(),
-  phone: zod.string().nullable(),
   isActive: zod.boolean(),
   subscriptionPlan: zod.string(),
   maxServicesAllowed: zod.number(),
@@ -44,7 +43,6 @@ export const SuperAdminCreateBusinessBody = zod.object({
   ownerName: zod.string(),
   email: zod.string(),
   password: zod.string(),
-  phone: zod.string().optional(),
 });
 
 export const SuperAdminUpdateBusinessParams = zod.object({
@@ -57,14 +55,13 @@ export const SuperAdminUpdateBusinessQueryParams = zod.object({
 
 export const SuperAdminUpdateBusinessBody = zod.object({
   isActive: zod.boolean().optional(),
-  subscriptionPlan: zod.enum(["free", "pro"]).optional(),
+  subscriptionPlan: zod.enum(["free", "basic", "pro"]).optional(),
   maxServicesAllowed: zod.number().optional(),
   name: zod.string().optional(),
   slug: zod.string().optional(),
   ownerName: zod.string().optional(),
   email: zod.string().email().optional(),
   password: zod.string().optional(),
-  phone: zod.string().optional(),
 });
 
 export const SuperAdminUpdateBusinessResponse = zod.object({
@@ -95,26 +92,6 @@ export const SuperAdminDeleteBusinessResponse = zod.object({
 export const BusinessLoginBody = zod.object({
   email: zod.string(),
   password: zod.string(),
-});
-
-export const BusinessRegisterBody = zod.object({
-  name: zod.string(),
-  slug: zod.string(),
-  username: zod.string().min(3).optional(),
-  ownerName: zod.string(),
-  phone: zod.string(),
-  email: zod.string().email(),
-  password: zod.string().min(6),
-  subscriptionPlan: zod.enum(["free", "pro"]),
-  businessCategories: zod.array(zod.string()).optional(),
-  address: zod.string().optional(),
-  websiteUrl: zod.string().optional(),
-  instagramHandle: zod.string().optional(),
-});
-
-export const ChangePasswordBody = zod.object({
-  currentPassword: zod.string(),
-  newPassword: zod.string().min(6),
 });
 
 export const BusinessLoginResponse = zod.object({
@@ -153,7 +130,6 @@ export const GetBusinessProfileResponse = zod.object({
   name: zod.string(),
   ownerName: zod.string(),
   email: zod.string(),
-  phone: zod.string().nullable(),
   bufferMinutes: zod.number(),
   notificationEnabled: zod.boolean(),
   notificationMessage: zod.string().nullable(),
@@ -164,21 +140,13 @@ export const GetBusinessProfileResponse = zod.object({
   themeMode: zod
     .union([zod.literal("light"), zod.literal("dark"), zod.literal(null)])
     .nullable(),
-  borderRadius: zod.string().nullable(),
-  welcomeText: zod.string().nullable(),
-  backgroundColor: zod.string().nullable(),
   whatsappApiKey: zod.string().nullable(),
   whatsappPhoneId: zod.string().nullable(),
   googleCalendarEnabled: zod.boolean(),
   stripeEnabled: zod.boolean(),
   stripePublicKey: zod.string().nullable(),
-  greenApiInstanceId: zod.string().nullable(),
-  greenApiToken: zod.string().nullable(),
-  requirePhoneVerification: zod.boolean(),
   subscriptionPlan: zod.string(),
   maxServicesAllowed: zod.number(),
-  maxAppointmentsPerMonth: zod.number(),
-  requireAppointmentApproval: zod.boolean(),
   isActive: zod.boolean(),
   createdAt: zod.string(),
 });
@@ -186,34 +154,9 @@ export const GetBusinessProfileResponse = zod.object({
 export const UpdateBusinessProfileBody = zod.object({
   name: zod.string().optional(),
   ownerName: zod.string().optional(),
-  phone: zod.string().nullish(),
-  email: zod.string().email().optional(),
   bufferMinutes: zod.number().optional(),
   notificationEnabled: zod.boolean().optional(),
   notificationMessage: zod.string().nullish(),
-  requireAppointmentApproval: zod.boolean().optional(),
-  requirePhoneVerification: zod.boolean().optional(),
-  // Booking restrictions
-  minLeadHours: zod.number().optional(),
-  cancellationHours: zod.number().optional(),
-  maxFutureWeeks: zod.number().optional(),
-  futureBookingMode: zod.string().optional(),
-  maxFutureDate: zod.string().nullish(),
-  maxAppointmentsPerCustomer: zod.number().nullish(),
-  requireActiveSubscription: zod.boolean().optional(),
-  maxAppointmentsPerDay: zod.number().nullish(),
-  // Reminders
-  buttonRadius: zod.string().nullish(),
-  sendReminders: zod.boolean().optional(),
-  requireArrivalConfirmation: zod.boolean().optional(),
-  sendWhatsAppReminders: zod.boolean().optional(),
-  reminderTriggers: zod.string().nullish(),
-  reminderCustomText: zod.string().nullish(),
-  shabbatMode: zod.string().optional(),
-  reminderSendTime: zod.string().optional(),
-  // Tranzila payment deposit
-  tranzilaEnabled: zod.boolean().optional(),
-  depositAmountAgorot: zod.number().nullish(),
 });
 
 export const UpdateBusinessProfileResponse = zod.object({
@@ -222,7 +165,6 @@ export const UpdateBusinessProfileResponse = zod.object({
   name: zod.string(),
   ownerName: zod.string(),
   email: zod.string(),
-  phone: zod.string().nullable(),
   bufferMinutes: zod.number(),
   notificationEnabled: zod.boolean(),
   notificationMessage: zod.string().nullable(),
@@ -233,21 +175,13 @@ export const UpdateBusinessProfileResponse = zod.object({
   themeMode: zod
     .union([zod.literal("light"), zod.literal("dark"), zod.literal(null)])
     .nullable(),
-  borderRadius: zod.string().nullable(),
-  welcomeText: zod.string().nullable(),
-  backgroundColor: zod.string().nullable(),
   whatsappApiKey: zod.string().nullable(),
   whatsappPhoneId: zod.string().nullable(),
   googleCalendarEnabled: zod.boolean(),
   stripeEnabled: zod.boolean(),
   stripePublicKey: zod.string().nullable(),
-  greenApiInstanceId: zod.string().nullable(),
-  greenApiToken: zod.string().nullable(),
-  requirePhoneVerification: zod.boolean(),
   subscriptionPlan: zod.string(),
   maxServicesAllowed: zod.number(),
-  maxAppointmentsPerMonth: zod.number(),
-  requireAppointmentApproval: zod.boolean(),
   isActive: zod.boolean(),
   createdAt: zod.string(),
 });
@@ -258,23 +192,6 @@ export const UpdateBusinessBrandingBody = zod.object({
   logoUrl: zod.string().nullish(),
   bannerUrl: zod.string().nullish(),
   themeMode: zod.string().nullish(),
-  borderRadius: zod.string().nullish(),
-  buttonRadius: zod.string().nullish(),
-  welcomeText: zod.string().nullish(),
-  backgroundColor: zod.string().nullish(),
-  showBusinessName: zod.boolean().optional(),
-  showLogo: zod.boolean().optional(),
-  showBanner: zod.boolean().optional(),
-  headerLayout: zod.string().optional(),
-  // Profile landing page
-  websiteUrl: zod.string().nullish(),
-  instagramUrl: zod.string().nullish(),
-  wazeUrl: zod.string().nullish(),
-  businessDescription: zod.string().nullish(),
-  galleryImages: zod.string().nullish(),
-  bannerPosition: zod.string().optional(),
-  contactPhone: zod.string().nullish(),
-  address: zod.string().nullish(),
 });
 
 export const UpdateBusinessBrandingResponse = zod.object({
@@ -283,7 +200,6 @@ export const UpdateBusinessBrandingResponse = zod.object({
   name: zod.string(),
   ownerName: zod.string(),
   email: zod.string(),
-  phone: zod.string().nullable(),
   bufferMinutes: zod.number(),
   notificationEnabled: zod.boolean(),
   notificationMessage: zod.string().nullable(),
@@ -294,21 +210,13 @@ export const UpdateBusinessBrandingResponse = zod.object({
   themeMode: zod
     .union([zod.literal("light"), zod.literal("dark"), zod.literal(null)])
     .nullable(),
-  borderRadius: zod.string().nullable(),
-  welcomeText: zod.string().nullable(),
-  backgroundColor: zod.string().nullable(),
   whatsappApiKey: zod.string().nullable(),
   whatsappPhoneId: zod.string().nullable(),
   googleCalendarEnabled: zod.boolean(),
   stripeEnabled: zod.boolean(),
   stripePublicKey: zod.string().nullable(),
-  greenApiInstanceId: zod.string().nullable(),
-  greenApiToken: zod.string().nullable(),
-  requirePhoneVerification: zod.boolean(),
   subscriptionPlan: zod.string(),
   maxServicesAllowed: zod.number(),
-  maxAppointmentsPerMonth: zod.number(),
-  requireAppointmentApproval: zod.boolean(),
   isActive: zod.boolean(),
   createdAt: zod.string(),
 });
@@ -319,8 +227,6 @@ export const UpdateBusinessIntegrationsBody = zod.object({
   googleCalendarEnabled: zod.boolean().optional(),
   stripeEnabled: zod.boolean().optional(),
   stripePublicKey: zod.string().nullish(),
-  greenApiInstanceId: zod.string().nullish(),
-  greenApiToken: zod.string().nullish(),
 });
 
 export const UpdateBusinessIntegrationsResponse = zod.object({
@@ -329,7 +235,6 @@ export const UpdateBusinessIntegrationsResponse = zod.object({
   name: zod.string(),
   ownerName: zod.string(),
   email: zod.string(),
-  phone: zod.string().nullable(),
   bufferMinutes: zod.number(),
   notificationEnabled: zod.boolean(),
   notificationMessage: zod.string().nullable(),
@@ -340,21 +245,13 @@ export const UpdateBusinessIntegrationsResponse = zod.object({
   themeMode: zod
     .union([zod.literal("light"), zod.literal("dark"), zod.literal(null)])
     .nullable(),
-  borderRadius: zod.string().nullable(),
-  welcomeText: zod.string().nullable(),
-  backgroundColor: zod.string().nullable(),
   whatsappApiKey: zod.string().nullable(),
   whatsappPhoneId: zod.string().nullable(),
   googleCalendarEnabled: zod.boolean(),
   stripeEnabled: zod.boolean(),
   stripePublicKey: zod.string().nullable(),
-  greenApiInstanceId: zod.string().nullable(),
-  greenApiToken: zod.string().nullable(),
-  requirePhoneVerification: zod.boolean(),
   subscriptionPlan: zod.string(),
   maxServicesAllowed: zod.number(),
-  maxAppointmentsPerMonth: zod.number(),
-  requireAppointmentApproval: zod.boolean(),
   isActive: zod.boolean(),
   createdAt: zod.string(),
 });
@@ -383,7 +280,6 @@ export const CreateBusinessServiceBody = zod.object({
     .optional()
     .describe("Buffer time after this service in minutes"),
   imageUrl: zod.string().nullish(),
-  description: zod.string().nullish(),
 });
 
 export const UpdateBusinessServiceParams = zod.object({
@@ -397,7 +293,6 @@ export const UpdateBusinessServiceBody = zod.object({
   bufferMinutes: zod.number().optional(),
   imageUrl: zod.string().nullish(),
   isActive: zod.boolean().optional(),
-  description: zod.string().nullish(),
 });
 
 export const UpdateBusinessServiceResponse = zod.object({
@@ -482,23 +377,6 @@ export const SetBreakTimesResponseItem = zod.object({
   label: zod.string().nullable(),
 });
 export const SetBreakTimesResponse = zod.array(SetBreakTimesResponseItem);
-
-export const CreateTimeOffBody = zod.object({
-  date: zod.string(),
-  startTime: zod.string().nullish(),
-  endTime: zod.string().nullish(),
-  fullDay: zod.boolean().default(true),
-  note: zod.string().nullish(),
-});
-export const TimeOffItem = zod.object({
-  id: zod.number(),
-  date: zod.string(),
-  startTime: zod.string().nullable(),
-  endTime: zod.string().nullable(),
-  fullDay: zod.boolean(),
-  note: zod.string().nullable(),
-});
-export const TimeOffList = zod.array(TimeOffItem);
 
 export const ListBusinessAppointmentsResponseItem = zod.object({
   id: zod.number(),
@@ -637,6 +515,12 @@ export const CreatePublicAppointmentBody = zod.object({
   appointmentDate: zod.string().describe("YYYY-MM-DD"),
   appointmentTime: zod.string().describe("HH:MM"),
   notes: zod.string().optional(),
+  phoneVerificationToken: zod
+    .string()
+    .optional()
+    .describe(
+      "JWT returned from POST \/public\/{slug}\/otp\/verify; required across server instances when requirePhoneVerification is true",
+    ),
 });
 
 export const JoinWaitlistParams = zod.object({

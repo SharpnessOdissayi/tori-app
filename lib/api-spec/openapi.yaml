@@ -1333,6 +1333,9 @@ components:
           description: HH:MM
         notes:
           type: string
+        phoneVerificationToken:
+          type: string
+          description: JWT returned from POST /public/{slug}/otp/verify; required across server instances when requirePhoneVerification is true
       required: [serviceId, clientName, phoneNumber, appointmentDate, appointmentTime]
 
     AvailabilityResponse:
