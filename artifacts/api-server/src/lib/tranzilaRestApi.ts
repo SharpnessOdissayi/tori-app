@@ -116,15 +116,47 @@ export async function createStandingOrder(params: {
       body:    JSON.stringify(body),
     });
 
-    const data = await res.json() as { error_code: number; message: string; sto_id?: number };
-    logger.info({ businessId: params.businessId, status: res.status, errorCode: data.error_code, stoId: data.sto_id, msg: data.message }, "[TranzilaREST] STO create response");
+    // v2 error responses (4xx) include mismatch_info[]: per-field validation errors with
+    // keyword / data_path / sub_errors. Log it verbatim so we can diagnose which field
+    // Tranzila rejected without guessing.
+    const data = await res.json() as {
+      error_code?: number;
+      message?: string;
+      sto_id?: number;
+      mismatch_info?: Array<{
+        keyword?: string;
+        keyword_args?: unknown;
+        data?: unknown;
+        data_path?: string[];
+        sub_errors?: unknown[];
+      }>;
+    };
+    logger.info(
+      {
+        businessId: params.businessId,
+        status:     res.status,
+        errorCode:  data.error_code,
+        stoId:      data.sto_id,
+        msg:        data.message,
+        mismatches: data.mismatch_info,
+      },
+      "[TranzilaREST] STO create response"
+    );
 
-    if (data.error_code === 0 && data.sto_id) {
+    if (res.ok && data.error_code === 0 && data.sto_id) {
       return { success: true, stoId: data.sto_id };
     }
-    // Application error codes per v2 docs: 20300 too many payment methods, 20301 failed to insert,
-    // 20302 failed to retrieve, 20303 no payment method, 20304 bad date, 20305 failed to create token.
-    return { success: false, error: `[${data.error_code}] ${data.message ?? "unknown"}` };
+
+    // Surface the first validation mismatch path alongside the app error code,
+    // e.g. "[20301] items.0.unit_price: required — Failed to insert STO"
+    const firstMismatch = data.mismatch_info?.[0];
+    const mismatchStr = firstMismatch
+      ? ` — ${firstMismatch.data_path?.join(".") ?? "?"}: ${firstMismatch.keyword ?? "?"}`
+      : "";
+    return {
+      success: false,
+      error:   `[${data.error_code ?? res.status}] ${data.message ?? "unknown"}${mismatchStr}`,
+    };
   } catch (err) {
     logger.error({ err, businessId: params.businessId }, "[TranzilaREST] STO create failed");
     return { success: false, error: String(err) };
