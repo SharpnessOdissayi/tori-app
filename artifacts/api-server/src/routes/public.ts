@@ -14,7 +14,7 @@ import {
 } from "@workspace/api-zod";
 import { computeAvailableSlots } from "../lib/availability";
 import { sendOtp, verifyOtp, notifyBusinessOwner, sendClientConfirmation, sendClientCancellation, sendTemplate } from "../lib/whatsapp";
-import { isPhoneVerified, consumeVerification, markPhoneVerified } from "../lib/otpStore";
+import { isPhoneVerified, consumeVerification, markPhoneVerified, normalizePhone } from "../lib/otpStore";
 import { signPhoneVerificationToken, verifyPhoneVerificationToken } from "../lib/phoneVerificationJwt";
 
 const router = Router();
@@ -291,7 +291,7 @@ router.post("/public/:businessSlug/appointments", async (req, res): Promise<void
           eq(clientSessionsTable.token, clientToken),
           gt(clientSessionsTable.expiresAt, new Date()),
         ));
-      if (session?.phoneNumber && session.phoneNumber.trim() === phoneNumber.trim()) {
+      if (session?.phoneNumber && normalizePhone(session.phoneNumber) === normalizePhone(phoneNumber)) {
         verifiedByClientSession = true;
       }
     }
@@ -304,9 +304,9 @@ router.post("/public/:businessSlug/appointments", async (req, res): Promise<void
 
   // ── Booking restrictions ──────────────────────────────────────────────────
 
-  // 1. Min lead time: appointment must be at least minLeadHours from now
+  // 1. Min lead time: appointment must be at least minLeadHours from now (Israel time)
   if (business.minLeadHours > 0) {
-    const apptDateTime = new Date(`${appointmentDate}T${appointmentTime}:00`);
+    const apptDateTime = israelTimeToUTC(appointmentDate, appointmentTime);
     const minAllowed = new Date(Date.now() + business.minLeadHours * 60 * 60 * 1000);
     if (apptDateTime < minAllowed) {
       res.status(400).json({
@@ -396,6 +396,7 @@ router.post("/public/:businessSlug/appointments", async (req, res): Promise<void
       .where(and(
         eq(appointmentsTable.businessId, business.id),
         gte(appointmentsTable.createdAt, startOfMonth),
+        sql`${appointmentsTable.status} NOT IN ('cancelled', 'pending_payment')`,
       ));
 
     if (monthlyCount >= FREE_MONTHLY_CUSTOMER_LIMIT) {
@@ -585,7 +586,7 @@ router.post("/public/:businessSlug/appointments/:id/cancel", async (req, res): P
     .where(eq(businessesTable.id, appt.businessId));
 
   if (business?.cancellationHours) {
-    const apptTime = new Date(`${appt.appointmentDate}T${appt.appointmentTime}:00`);
+    const apptTime = israelTimeToUTC(appt.appointmentDate, appt.appointmentTime);
     const hoursUntil = (apptTime.getTime() - Date.now()) / (1000 * 60 * 60);
     if (hoursUntil < (business.cancellationHours ?? 0)) {
       res.status(400).json({ error: "cancellation_too_late", message: `לא ניתן לבטל פחות מ-${business.cancellationHours} שעות לפני התור` });
@@ -642,6 +643,29 @@ router.patch("/public/:businessSlug/appointments/:id/reschedule", async (req, re
     .where(eq(businessesTable.id, appt.businessId));
 
   if (!business) { res.status(404).json({ error: "Business not found" }); return; }
+
+  // Apply the same booking restrictions on the new slot (Israel time)
+  if (business.minLeadHours > 0) {
+    const newDateTime = israelTimeToUTC(newDate, newTime);
+    const minAllowed = new Date(Date.now() + business.minLeadHours * 60 * 60 * 1000);
+    if (newDateTime < minAllowed) {
+      res.status(400).json({ error: "too_soon", message: `יש לדחות לפחות ${business.minLeadHours} שעות מראש` });
+      return;
+    }
+  }
+  if (business.futureBookingMode === "weeks" && business.maxFutureWeeks > 0) {
+    const maxDate = new Date();
+    maxDate.setDate(maxDate.getDate() + business.maxFutureWeeks * 7);
+    if (new Date(newDate) > maxDate) {
+      res.status(400).json({ error: "too_far", message: `ניתן לדחות עד ${business.maxFutureWeeks} שבועות מראש` });
+      return;
+    }
+  } else if (business.futureBookingMode === "date" && business.maxFutureDate) {
+    if (newDate > business.maxFutureDate) {
+      res.status(400).json({ error: "too_far", message: `ניתן לדחות עד תאריך ${business.maxFutureDate}` });
+      return;
+    }
+  }
 
   // Check for conflicts at the new time
   const [conflict] = await db

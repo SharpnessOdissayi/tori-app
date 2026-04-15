@@ -7,6 +7,7 @@ import { seedAdminUser } from "./lib/seedAdmin";
 import { seedDemoBusiness } from "./lib/seedDemo";
 import { runMigrations } from "./lib/migrate";
 import { runSubscriptionBilling } from "./lib/subscriptionCron";
+import { cleanupStalePendingPayment } from "./lib/pendingPaymentCleanup";
 
 const rawPort = process.env["PORT"];
 
@@ -52,6 +53,12 @@ app.listen(port, (err) => {
     runSubscriptionBilling().catch(e => logger.error(e, "Subscription billing job failed"));
   });
   logger.info("Subscription billing cron started (daily 08:00 IL)");
+
+  // Release pending_payment slots whose webhook never arrived (every 30 min)
+  cron.schedule("*/30 * * * *", () => {
+    cleanupStalePendingPayment().catch(e => logger.error(e, "Pending-payment cleanup failed"));
+  });
+  logger.info("Pending-payment cleanup cron started (every 30 minutes)");
 
 });
 

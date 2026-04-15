@@ -2,10 +2,12 @@ import { db, appointmentsTable, businessesTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
 import { sendReminder24h, sendReminder1h, sendReminderMorning } from "./whatsapp";
 
+// Israel is UTC+3 (Apr–Oct) / UTC+2 (Nov–Mar). Server runs UTC on Railway,
+// so build the Date with explicit Israel offset.
 function parseAppointmentDate(date: string, time: string): Date {
-  const [year, month, day] = date.split("-").map(Number);
-  const [hour, minute] = time.split(":").map(Number);
-  return new Date(year, month - 1, day, hour, minute, 0, 0);
+  const month = parseInt(date.split("-")[1], 10);
+  const offset = (month >= 4 && month <= 10) ? 3 : 2;
+  return new Date(`${date}T${time}:00+0${offset}:00`);
 }
 
 /** Day of week: 0=Sun, 5=Fri, 6=Sat */
