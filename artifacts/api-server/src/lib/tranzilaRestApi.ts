@@ -10,10 +10,13 @@
  *                              because only the tokenization terminal returns and
  *                              honors the card token.
  *
- * Auth: X-tranzila-api-access-token = HMAC-SHA256(key=secretKey, data=publicKey+requestTime+nonce)
+ * Auth (per v2 spec): "hash_hmac using 'sha256' on application key with secret + request-time + nonce".
+ * Parsed as PHP's hash_hmac($algo, $data, $key): data = public key, key = secret + request-time + nonce.
+ * So: X-tranzila-api-access-token = HMAC-SHA256(key = secret + requestTime + nonce, data = publicKey).
+ *
  * Docs:
- *   STO create: https://docs.tranzila.com/docs/payments-billing/xyajxscasy205-create-a-standing-order
- *   STO API:    https://docs.tranzila.com/docs/payments-billing/wbvbx8p3i3pu4-sto-api-for-my-billing
+ *   STO create v2: https://api.tranzila.com/v2/sto/create
+ *   STO for My-Billing: https://docs.tranzila.com/docs/payments-billing/wbvbx8p3i3pu4-sto-api-for-my-billing
  */
 
 import crypto from "crypto";
@@ -28,9 +31,13 @@ const STO_CREATE_URL = "https://api.tranzila.com/v2/sto/create";
 function buildAuthHeaders(): Record<string, string> {
   const nonce       = crypto.randomBytes(20).toString("hex"); // 40-char hex string
   const requestTime = String(Date.now());
+
+  // Per v2 spec: "hash_hmac using 'sha256' on application key with secret + request-time + nonce"
+  // → data = application key, key = secret + request-time + nonce (concatenated, in that order).
+  const hmacKey = API_SECRET_KEY + requestTime + nonce;
   const accessToken = crypto
-    .createHmac("sha256", API_SECRET_KEY)
-    .update(API_PUBLIC_KEY + requestTime + nonce)
+    .createHmac("sha256", hmacKey)
+    .update(API_PUBLIC_KEY)
     .digest("hex");
 
   return {
