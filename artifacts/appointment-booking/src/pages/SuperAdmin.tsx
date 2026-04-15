@@ -52,6 +52,9 @@ export default function SuperAdmin() {
   const [editDialogBusiness, setEditDialogBusiness] = useState<AdminBusinessSummary | null>(null);
   const [editForm, setEditForm] = useState<EditFormData>({ name: "", slug: "", username: "", ownerName: "", email: "", password: "", phone: "", address: "", city: "", websiteUrl: "", instagramHandle: "", businessDescription: "", subscriptionPlan: "free" });
   const [showEditPassword, setShowEditPassword] = useState(false);
+  const [grantProBusiness, setGrantProBusiness] = useState<AdminBusinessSummary | null>(null);
+  const [grantProDays, setGrantProDays] = useState<number | null>(30);
+  const [grantProLoading, setGrantProLoading] = useState(false);
 
   const [loginAttempted, setLoginAttempted] = useState(false);
 
@@ -207,6 +210,42 @@ export default function SuperAdmin() {
     });
   };
 
+  const handleGrantPro = async () => {
+    if (!grantProBusiness) return;
+    setGrantProLoading(true);
+    try {
+      const res = await fetch(`/api/super-admin/businesses/${grantProBusiness.id}/grant-pro`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ adminPassword: password, durationDays: grantProDays }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "שגיאה");
+      toast({ title: "מנוי פרו הוענק בהצלחה!", description: grantProDays ? `עד ${new Date(data.renewDate).toLocaleDateString("he-IL")}` : "ללא הגבלת זמן" });
+      setGrantProBusiness(null);
+      invalidate();
+    } catch (err: any) {
+      toast({ title: "שגיאה", description: err.message, variant: "destructive" });
+    } finally {
+      setGrantProLoading(false);
+    }
+  };
+
+  const handleRevokePro = async (biz: AdminBusinessSummary) => {
+    try {
+      const res = await fetch(`/api/super-admin/businesses/${biz.id}/revoke-pro`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ adminPassword: password }),
+      });
+      if (!res.ok) throw new Error("שגיאה");
+      toast({ title: "המנוי הוסר" });
+      invalidate();
+    } catch (err: any) {
+      toast({ title: "שגיאה", description: err.message, variant: "destructive" });
+    }
+  };
+
   if (!isAuthenticated) {
     return (
       <div className="min-h-screen flex flex-col bg-muted/30" dir="rtl">
@@ -338,6 +377,8 @@ export default function SuperAdmin() {
               onChangePlan={(plan) => handleChangePlan(b.id, plan)}
               onDelete={() => handleDelete(b.id)}
               onEdit={() => openEditDialog(b)}
+              onGrantPro={() => { setGrantProBusiness(b); setGrantProDays(30); }}
+              onRevokePro={() => handleRevokePro(b)}
               isPending={updateMutation.isPending || deleteMutation.isPending}
             />
           )) : (
@@ -446,6 +487,38 @@ export default function SuperAdmin() {
         </DialogContent>
       </Dialog>
       </div>
+
+      {/* Grant Pro Dialog */}
+      <Dialog open={!!grantProBusiness} onOpenChange={v => { if (!v) setGrantProBusiness(null); }}>
+        <DialogContent dir="rtl" className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>הענק מנוי פרו — {grantProBusiness?.name}</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 pt-2">
+            <div className="space-y-2">
+              <Label>משך המנוי</Label>
+              <div className="grid grid-cols-3 gap-2">
+                {[7, 30, 90, 180, 365].map(d => (
+                  <button key={d} type="button"
+                    onClick={() => setGrantProDays(d)}
+                    className={`py-2 text-sm rounded-lg border font-medium transition-all ${grantProDays === d ? "border-primary bg-primary/5 text-primary" : "border-border hover:border-primary/40"}`}>
+                    {d} ימים
+                  </button>
+                ))}
+                <button type="button"
+                  onClick={() => setGrantProDays(null)}
+                  className={`py-2 text-sm rounded-lg border font-medium transition-all col-span-3 ${grantProDays === null ? "border-violet-500 bg-violet-50 text-violet-700" : "border-border hover:border-violet-300"}`}>
+                  ♾️ ללא הגבלת זמן
+                </button>
+              </div>
+            </div>
+            <Button className="w-full bg-violet-600 hover:bg-violet-700 text-white"
+              onClick={handleGrantPro} disabled={grantProLoading}>
+              {grantProLoading ? "מעניק..." : "הענק מנוי פרו"}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
@@ -456,10 +529,12 @@ interface BusinessCardProps {
   onChangePlan: (plan: string) => void;
   onDelete: () => void;
   onEdit: () => void;
+  onGrantPro: () => void;
+  onRevokePro: () => void;
   isPending: boolean;
 }
 
-function BusinessCard({ business, onToggleActive, onChangePlan, onDelete, onEdit, isPending }: BusinessCardProps) {
+function BusinessCard({ business, onToggleActive, onChangePlan, onDelete, onEdit, onGrantPro, onRevokePro, isPending }: BusinessCardProps) {
   const plan = PLANS.find(p => p.value === business.subscriptionPlan) ?? PLANS[0];
 
   return (
@@ -506,7 +581,7 @@ function BusinessCard({ business, onToggleActive, onChangePlan, onDelete, onEdit
           </div>
         </div>
 
-        <div className="flex gap-2 pt-2">
+        <div className="flex flex-wrap gap-2 pt-2">
           <a href={`/book/${business.slug}`} target="_blank" rel="noopener noreferrer" className="flex-1">
             <Button variant="outline" size="sm" className="w-full gap-1.5 text-xs">
               <ExternalLink className="w-3.5 h-3.5" /> עמוד הזמנות
@@ -518,6 +593,21 @@ function BusinessCard({ business, onToggleActive, onChangePlan, onDelete, onEdit
           <Button variant="ghost" size="sm" className="text-destructive hover:bg-destructive/10 px-2" onClick={onDelete} disabled={isPending}>
             <Trash2 className="w-4 h-4" />
           </Button>
+        </div>
+
+        {/* Grant/Revoke Pro */}
+        <div className="flex gap-2 pt-1">
+          <Button size="sm" variant="outline"
+            className="flex-1 text-xs border-violet-300 text-violet-700 hover:bg-violet-50"
+            onClick={onGrantPro}>
+            👑 הענק פרו
+          </Button>
+          {business.subscriptionPlan === "pro" && (
+            <Button size="sm" variant="ghost" className="text-xs text-muted-foreground hover:text-red-600 hover:bg-red-50"
+              onClick={onRevokePro}>
+              בטל פרו
+            </Button>
+          )}
         </div>
       </CardContent>
     </Card>

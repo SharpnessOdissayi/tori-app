@@ -290,7 +290,7 @@ router.patch("/client/appointments/:id/cancel", requireClientAuth, async (req, r
 
   if (!appt) { res.status(404).json({ error: "תור לא נמצא" }); return; }
 
-  await db.update(appointmentsTable).set({ status: "cancelled" }).where(eq(appointmentsTable.id, id));
+  await db.update(appointmentsTable).set({ status: "cancelled", ...({ cancelledBy: "client" } as any) }).where(eq(appointmentsTable.id, id));
 
   // Log notification for business owner
   const [, month, day] = appt.appointmentDate.split("-");

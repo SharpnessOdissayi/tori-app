@@ -95,6 +95,9 @@ function mapBusiness(b: typeof businessesTable.$inferSelect) {
     // Tranzila
     tranzilaEnabled: (b as any).tranzilaEnabled ?? false,
     depositAmountAgorot: (b as any).depositAmountAgorot ?? null,
+    // Subscription timing
+    subscriptionRenewDate: (b as any).subscriptionRenewDate ? (b as any).subscriptionRenewDate.toISOString() : null,
+    subscriptionCancelledAt: (b as any).subscriptionCancelledAt ? (b as any).subscriptionCancelledAt.toISOString() : null,
   };
 }
 
@@ -530,9 +533,11 @@ router.delete("/business/appointments/:id", requireBusinessAuth, async (req, res
     return;
   }
 
+  const cancelReason = (req.body?.cancelReason as string | undefined) || null;
+
   await db
     .update(appointmentsTable)
-    .set({ status: "cancelled" })
+    .set({ status: "cancelled", ...(({ cancelledBy: "business", cancelReason }) as any) })
     .where(eq(appointmentsTable.id, appt.id));
 
   // Notify client via WhatsApp (non-blocking)
@@ -550,6 +555,49 @@ router.delete("/business/appointments/:id", requireBusinessAuth, async (req, res
   });
 
   res.json({ success: true, message: "Appointment cancelled" });
+});
+
+// Hard-delete a cancelled appointment (permanent)
+router.delete("/business/appointments/:id/permanent", requireBusinessAuth, async (req, res): Promise<void> => {
+  const id = Number(req.params.id);
+  if (!id || isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
+
+  const [appt] = await db
+    .select({ id: appointmentsTable.id, status: appointmentsTable.status })
+    .from(appointmentsTable)
+    .where(and(eq(appointmentsTable.id, id), eq(appointmentsTable.businessId, req.business!.businessId)));
+
+  if (!appt) { res.status(404).json({ error: "Appointment not found" }); return; }
+  if (appt.status !== "cancelled") { res.status(400).json({ error: "ניתן למחוק רק תורים מבוטלים" }); return; }
+
+  await db.delete(appointmentsTable).where(eq(appointmentsTable.id, id));
+  res.json({ success: true });
+});
+
+// Appointments by phone (for analytics drilldown)
+router.get("/business/appointments/by-phone", requireBusinessAuth, async (req, res): Promise<void> => {
+  const phone = typeof req.query.phone === "string" ? req.query.phone : null;
+  if (!phone) { res.status(400).json({ error: "phone required" }); return; }
+
+  const appts = await db
+    .select({
+      id: appointmentsTable.id,
+      serviceName: appointmentsTable.serviceName,
+      appointmentDate: appointmentsTable.appointmentDate,
+      appointmentTime: appointmentsTable.appointmentTime,
+      status: appointmentsTable.status,
+      cancelledBy: sql<string>`appointments.cancelled_by`,
+      cancelReason: sql<string>`appointments.cancel_reason`,
+    })
+    .from(appointmentsTable)
+    .where(and(
+      eq(appointmentsTable.businessId, req.business!.businessId),
+      eq(appointmentsTable.phoneNumber, phone),
+      eq(appointmentsTable.status, "cancelled")
+    ))
+    .orderBy(appointmentsTable.appointmentDate);
+
+  res.json(appts);
 });
 
 router.get("/business/stats", requireBusinessAuth, async (req, res): Promise<void> => {
@@ -812,7 +860,28 @@ router.get("/business/analytics", requireBusinessAuth, async (req, res): Promise
   const prevCount = byMonth[prevMonth] || 0;
   const trending = currentCount > prevCount;
 
-  res.json({ total, future, past, cancelled, avg, currentMonth: currentCount, prevMonth: prevCount, trending });
+  // Cancellation rankings
+  const cancelledAppts = allAppts.filter(a => a.status === "cancelled");
+  const cancelByClient: Record<string, { name: string; phone: string; count: number }> = {};
+  const noShowByClient: Record<string, { name: string; phone: string; count: number }> = {};
+
+  cancelledAppts.forEach((a: any) => {
+    const key = a.phoneNumber;
+    const name = a.clientName;
+    const phone = a.phoneNumber;
+    if (a.cancelReason === "ברז" || a.cancelReason === "no_show") {
+      if (!noShowByClient[key]) noShowByClient[key] = { name, phone, count: 0 };
+      noShowByClient[key].count++;
+    } else {
+      if (!cancelByClient[key]) cancelByClient[key] = { name, phone, count: 0 };
+      cancelByClient[key].count++;
+    }
+  });
+
+  const topCancellers = Object.values(cancelByClient).sort((a, b) => b.count - a.count).slice(0, 10);
+  const topNoShows = Object.values(noShowByClient).sort((a, b) => b.count - a.count).slice(0, 10);
+
+  res.json({ total, future, past, cancelled, avg, currentMonth: currentCount, prevMonth: prevCount, trending, topCancellers, topNoShows });
 });
 
 // GET /business/revenue

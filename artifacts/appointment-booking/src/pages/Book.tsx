@@ -13,7 +13,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardFooter } from "@/componen
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { DayPicker, type DayProps } from "react-day-picker";
+import { DayPicker, type DayButtonProps } from "react-day-picker";
 
 // ── Jewish holidays ───────────────────────────────────────────────────────────
 const JEWISH_HOLIDAYS: Record<string, string> = {
@@ -72,12 +72,11 @@ function toKey(d: Date) {
   return d.toISOString().slice(0, 10);
 }
 
-function HolidayDay(props: DayProps) {
-  const { day, modifiers, ...rest } = props;
+function HolidayDayButton({ day, modifiers, children, ...buttonProps }: DayButtonProps) {
   const holiday = JEWISH_HOLIDAYS[toKey(day.date)];
   return (
     <div className="relative flex flex-col items-center">
-      <button {...(rest as any)} />
+      <button {...buttonProps}>{children}</button>
       {holiday && (
         <span className="absolute -bottom-3.5 text-[8px] text-amber-600 font-medium whitespace-nowrap leading-none pointer-events-none">
           {holiday}
@@ -1517,7 +1516,7 @@ export default function Book() {
                           locale={he} weekStartsOn={0} disabled={{ before: new Date() }}
                           modifiersClassNames={{ selected: "font-bold rounded-full", today: "font-bold" }}
                           modifiersStyles={{ selected: { backgroundColor: primaryColor, color: "white" } }}
-                          components={{ Day: HolidayDay }}
+                          components={{ DayButton: HolidayDayButton }}
                           classNames={{ day: "pb-4" }}
                         />
                       </div>

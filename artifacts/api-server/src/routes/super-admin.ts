@@ -191,4 +191,62 @@ router.delete("/super-admin/businesses/:id", async (req, res): Promise<void> => 
   res.json({ success: true, message: "Business deleted" });
 });
 
+// POST /super-admin/businesses/:id/grant-pro — grant/revoke Pro subscription
+router.post("/super-admin/businesses/:id/grant-pro", async (req, res): Promise<void> => {
+  const { adminPassword, durationDays } = req.body ?? {};
+  if (!adminPassword || !isAdmin(adminPassword)) {
+    res.status(401).json({ error: "Unauthorized" }); return;
+  }
+
+  const id = Number(req.params.id);
+  if (!id || isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
+
+  const renewDate = durationDays
+    ? new Date(Date.now() + Number(durationDays) * 24 * 60 * 60 * 1000)
+    : null;
+
+  const [updated] = await db
+    .update(businessesTable)
+    .set({
+      subscriptionPlan: "pro",
+      maxServicesAllowed: 999,
+      maxAppointmentsPerMonth: 9999,
+      subscriptionRenewDate: renewDate,
+      subscriptionCancelledAt: null,
+    } as any)
+    .where(eq(businessesTable.id, id))
+    .returning();
+
+  if (!updated) { res.status(404).json({ error: "Business not found" }); return; }
+
+  res.json({ success: true, renewDate: renewDate?.toISOString() ?? null });
+});
+
+// POST /super-admin/businesses/:id/revoke-pro — revert to free
+router.post("/super-admin/businesses/:id/revoke-pro", async (req, res): Promise<void> => {
+  const { adminPassword } = req.body ?? {};
+  if (!adminPassword || !isAdmin(adminPassword)) {
+    res.status(401).json({ error: "Unauthorized" }); return;
+  }
+
+  const id = Number(req.params.id);
+  if (!id || isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
+
+  const [updated] = await db
+    .update(businessesTable)
+    .set({
+      subscriptionPlan: "free",
+      maxServicesAllowed: 3,
+      maxAppointmentsPerMonth: 20,
+      subscriptionRenewDate: null,
+      subscriptionCancelledAt: null,
+    } as any)
+    .where(eq(businessesTable.id, id))
+    .returning();
+
+  if (!updated) { res.status(404).json({ error: "Business not found" }); return; }
+
+  res.json({ success: true });
+});
+
 export default router;

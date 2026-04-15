@@ -79,6 +79,10 @@ export async function runMigrations() {
       "ALTER TABLE businesses ADD COLUMN IF NOT EXISTS subscription_cancelled_at TIMESTAMPTZ",
     ];
 
+    // Cancellation tracking
+    await db.execute(sql.raw(`ALTER TABLE appointments ADD COLUMN IF NOT EXISTS cancelled_by TEXT`));
+    await db.execute(sql.raw(`ALTER TABLE appointments ADD COLUMN IF NOT EXISTS cancel_reason TEXT`));
+
     // Notifications table
     await db.execute(sql.raw(`
       CREATE TABLE IF NOT EXISTS notifications (

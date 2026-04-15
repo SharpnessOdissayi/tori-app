@@ -43,7 +43,7 @@ import {
   Calendar, Clock, Settings, Briefcase, LogOut, Plus, Trash2, Edit,
   Users, ListOrdered, Palette, Puzzle, Phone, TrendingUp, CheckCircle,
   ExternalLink, Info, Upload, Image as ImageIcon, Crown, Zap, X, Copy, Check, Link,
-  ChevronLeft, ChevronRight, HelpCircle, Eye, EyeOff, Umbrella, DollarSign,
+  ChevronLeft, ChevronRight, Eye, EyeOff, Umbrella, DollarSign,
   MessageSquare, Send, Search, ChevronDown, Instagram, Bell
 } from "lucide-react";
 import { useLocation } from "wouter";
@@ -173,11 +173,27 @@ function SubscriptionBanner() {
   };
 
   if (isPro) {
+    const renewDate: Date | null = (profile as any)?.subscriptionRenewDate ? new Date((profile as any).subscriptionRenewDate) : null;
+    const cancelledAt: Date | null = (profile as any)?.subscriptionCancelledAt ? new Date((profile as any).subscriptionCancelledAt) : null;
+
+    let timerText = "ללא הגבלת זמן";
+    let timerColor = "text-violet-500";
+    if (renewDate) {
+      const daysLeft = Math.ceil((renewDate.getTime() - Date.now()) / (1000 * 60 * 60 * 24));
+      if (cancelledAt) {
+        timerText = daysLeft > 0 ? `פוקע בעוד ${daysLeft} ימים` : "פג תוקף";
+        timerColor = daysLeft <= 7 ? "text-red-500" : "text-amber-500";
+      } else {
+        timerText = daysLeft > 0 ? `מתחדש בעוד ${daysLeft} ימים` : "מתחדש היום";
+        timerColor = daysLeft <= 3 ? "text-amber-500" : "text-violet-500";
+      }
+    }
+
     return (
       <div className="flex items-center gap-2 px-4 py-2.5 bg-gradient-to-l from-violet-50 to-indigo-50 border border-violet-200 rounded-xl mb-4 text-sm">
         <Crown className="w-4 h-4 text-violet-600 shrink-0" />
         <span className="text-violet-800 font-medium">מנוי פרו פעיל</span>
-        <span className="text-violet-500 text-xs mr-auto">גישה מלאה לכל התכונות</span>
+        <span className={`text-xs mr-auto font-medium ${timerColor}`}>{timerText}</span>
       </div>
     );
   }
@@ -264,6 +280,7 @@ const TOUR_STEPS = [
       { icon: "📅", name: "תורים", desc: "כל התורים שלך במקום אחד" },
       { icon: "✂️", name: "שירותים", desc: "הגדר מה אתה מציע ובאיזה מחיר" },
       { icon: "🕐", name: "שעות עבודה", desc: "קבע מתי אתה זמין" },
+      { icon: "📊", name: "נתונים", desc: "סטטיסטיקות, ברזים וביטולים" },
       { icon: "🔗", name: "הגדרות", desc: "עמוד ההזמנה שלך + פרטי העסק" },
     ],
   },
@@ -271,25 +288,25 @@ const TOUR_STEPS = [
     emoji: "📅",
     title: "תורים",
     tab: "appointments",
-    desc: "כאן מופיעים כל התורים הקרובים. תוכל לאשר, לבטל ולראות היסטוריה מלאה של לקוחות.",
+    desc: "כאן מופיעים כל התורים הקרובים. תוכל לאשר, לבטל ולראות היסטוריה מלאה. בעת ביטול — בחר סיבה (ברז / ביטול לקוח / אחר) ומי ביטל יוצג בהיסטוריה.",
   },
   {
-    emoji: "✂️",
-    title: "שירותים",
-    tab: "services",
-    desc: "הוסף את השירותים שאתה מציע — שם, משך זמן ומחיר. הלקוחות יבחרו מהרשימה הזו בעת ההזמנה.",
+    emoji: "🔔",
+    title: "פעמון התראות",
+    tab: "appointments",
+    desc: "בפינה הימנית העליונה יש פעמון התראות שמציג בזמן אמת: תורים חדשים, ביטולים ועדכונים — ממך ומהלקוחות שלך.",
   },
   {
-    emoji: "🕐",
-    title: "שעות עבודה",
-    tab: "hours",
-    desc: "הגדר באילו ימים ושעות אתה פתוח. הלקוחות יוכלו לקבוע רק בזמנים שקבעת.",
+    emoji: "📊",
+    title: "נתונים וניתוח",
+    tab: "analytics",
+    desc: "כאן תמצא סטטיסטיקות מלאות: כמה תורים עברו, ביטולים, מגמות חודשיות, דירוג הברזים ומי ביטל הכי הרבה — לחץ על שורה לפרטים.",
   },
   {
     emoji: "🔗",
     title: "הגדרות",
     tab: "settings",
-    desc: "כאן תמצא את הלינק האישי שלך לשיתוף עם לקוחות, תמונת פרופיל, צבעים ועוד.",
+    desc: "הלינק האישי שלך לשיתוף עם לקוחות, תמונת פרופיל, צבעים, מגבלות הזמנה, תזכורות ועוד. כאן גם תנהל את המנוי שלך.",
   },
 ];
 
@@ -393,10 +410,7 @@ export default function Dashboard() {
   );
   const [activeTab, setActiveTab] = useState("appointments");
   const { data: headerProfile } = useGetBusinessProfile();
-  const [showTour, setShowTour] = useState(() => {
-    return localStorage.getItem("onboarding_pending") === "true" &&
-           !localStorage.getItem("onboarding_completed");
-  });
+  const [showTour, setShowTour] = useState(() => !localStorage.getItem("kavati_tour_seen"));
 
   const handleLogout = () => {
     localStorage.removeItem("biz_token");
@@ -420,16 +434,12 @@ export default function Dashboard() {
   }, [headerProfile]);
 
   const completeTour = () => {
-    localStorage.removeItem("onboarding_pending");
-    localStorage.setItem("onboarding_completed", "true");
+    localStorage.setItem("kavati_tour_seen", "true");
     setShowTour(false);
   };
 
   const handleLogin = (t: string) => {
     setToken(t);
-    if (localStorage.getItem("onboarding_pending") === "true") {
-      setShowTour(true);
-    }
   };
 
   if (!token) return <Login onLogin={handleLogin} />;
@@ -451,18 +461,6 @@ export default function Dashboard() {
         leftContent={
           <div className="flex items-center gap-2">
             <NotificationBell token={token!} />
-            {!showTour && localStorage.getItem("onboarding_completed") && (
-              <button
-                onClick={() => setShowTour(true)}
-                className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm transition-all"
-                style={{ color: "#c0c0c0" }}
-                onMouseEnter={e => (e.currentTarget.style.color = "#d4af37")}
-                onMouseLeave={e => (e.currentTarget.style.color = "#c0c0c0")}
-              >
-                <HelpCircle className="w-4 h-4" />
-                הדרכה
-              </button>
-            )}
             {headerProfile?.name && (
               <span className="hidden sm:block text-sm font-medium px-3 py-1.5 rounded-lg"
                 style={{ color: "#d4af37", border: "1px solid #d4af3740" }}>
@@ -834,6 +832,9 @@ function AppointmentsTab() {
   const queryClient = useQueryClient();
   const { toast } = useToast();
   const [approvingId, setApprovingId] = useState<number | null>(null);
+  const [cancelModal, setCancelModal] = useState<{ id: number } | null>(null);
+  const [cancelReason, setCancelReason] = useState("");
+  const [deletingId, setDeletingId] = useState<number | null>(null);
 
   const requireApproval = (profile as any)?.requireAppointmentApproval ?? false;
 
@@ -856,15 +857,41 @@ function AppointmentsTab() {
   };
 
   const handleCancel = (id: number) => {
-    if (confirm("האם אתה בטוח שברצונך לבטל פגישה זו?")) {
-      cancelMutation.mutate({ id }, {
-        onSuccess: () => {
-          toast({ title: "הצלחה", description: "הפגישה בוטלה" });
-          queryClient.invalidateQueries({ queryKey: getListBusinessAppointmentsQueryKey() });
-          queryClient.invalidateQueries({ queryKey: getGetBusinessStatsQueryKey() });
-        },
-        onError: () => toast({ title: "שגיאה", description: "לא ניתן לבטל", variant: "destructive" }),
+    setCancelReason("");
+    setCancelModal({ id });
+  };
+
+  const confirmCancel = () => {
+    if (!cancelModal) return;
+    const token = localStorage.getItem("biz_token") || sessionStorage.getItem("biz_token");
+    fetch(`/api/business/appointments/${cancelModal.id}`, {
+      method: "DELETE",
+      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ cancelReason }),
+    }).then(r => {
+      if (!r.ok) throw new Error();
+      toast({ title: "הפגישה בוטלה" });
+      queryClient.invalidateQueries({ queryKey: getListBusinessAppointmentsQueryKey() });
+      queryClient.invalidateQueries({ queryKey: getGetBusinessStatsQueryKey() });
+      setCancelModal(null);
+    }).catch(() => toast({ title: "שגיאה", description: "לא ניתן לבטל", variant: "destructive" }));
+  };
+
+  const hardDeleteAppointment = async (id: number) => {
+    setDeletingId(id);
+    try {
+      const token = localStorage.getItem("biz_token") || sessionStorage.getItem("biz_token");
+      const res = await fetch(`/api/business/appointments/${id}/permanent`, {
+        method: "DELETE",
+        headers: { authorization: `Bearer ${token}` },
       });
+      if (!res.ok) throw new Error();
+      toast({ title: "הפגישה נמחקה לצמיתות" });
+      queryClient.invalidateQueries({ queryKey: getListBusinessAppointmentsQueryKey() });
+    } catch {
+      toast({ title: "שגיאה במחיקה", variant: "destructive" });
+    } finally {
+      setDeletingId(null);
     }
   };
 
@@ -873,6 +900,9 @@ function AppointmentsTab() {
   const pending = aptList.filter(a => a.status === "pending");
   const upcoming = aptList.filter(a => a.appointmentDate >= now && a.status !== "pending" && a.status !== "cancelled" && a.status !== "pending_payment");
   const past = aptList.filter(a => a.appointmentDate < now && a.status !== "cancelled" && a.status !== "pending_payment");
+  const cancelled = aptList.filter(a => a.status === "cancelled");
+
+  const CANCEL_REASONS = ["ברז", "לקוח התחרט", "אחר"];
 
   return (
     <div className="space-y-6">
@@ -978,6 +1008,71 @@ function AppointmentsTab() {
           </CardContent>
         </Card>
       )}
+
+      {cancelled.length > 0 && (
+        <Card>
+          <CardHeader><CardTitle className="text-muted-foreground flex items-center gap-2">❌ פגישות שבוטלו</CardTitle></CardHeader>
+          <CardContent>
+            <div className="space-y-2">
+              {cancelled.slice(-20).reverse().map((apt: any) => (
+                <div key={apt.id} className="flex flex-col sm:flex-row justify-between items-start sm:items-center p-3 border rounded-lg text-sm gap-1">
+                  <div>
+                    <span className="font-medium">{apt.clientName}</span>
+                    <span className="text-muted-foreground mx-2">•</span>
+                    <span className="text-muted-foreground">{apt.serviceName}</span>
+                    <span className="text-muted-foreground mx-2">•</span>
+                    <span className="text-muted-foreground">{apt.appointmentDate} {apt.appointmentTime}</span>
+                  </div>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    {apt.cancelledBy && (
+                      <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${apt.cancelledBy === "business" ? "bg-orange-100 text-orange-700" : "bg-blue-100 text-blue-700"}`}>
+                        {apt.cancelledBy === "business" ? "ביטל העסק" : "ביטל הלקוח"}
+                      </span>
+                    )}
+                    {apt.cancelReason && (
+                      <span className="text-xs px-2 py-0.5 rounded-full bg-gray-100 text-gray-600 font-medium">
+                        {apt.cancelReason}
+                      </span>
+                    )}
+                    <Button size="sm" variant="ghost"
+                      className="text-red-500 hover:text-red-700 hover:bg-red-50 h-6 px-2"
+                      disabled={deletingId === apt.id}
+                      onClick={() => hardDeleteAppointment(apt.id)}>
+                      <Trash2 className="w-3 h-3" />
+                    </Button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Cancel reason modal */}
+      <Dialog open={!!cancelModal} onOpenChange={open => { if (!open) setCancelModal(null); }}>
+        <DialogContent dir="rtl" className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>סיבת ביטול</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3 pt-2">
+            {CANCEL_REASONS.map(r => (
+              <button
+                key={r}
+                onClick={() => setCancelReason(r)}
+                className={`w-full text-right px-4 py-3 rounded-xl border-2 font-medium transition-all text-sm ${cancelReason === r ? "border-primary bg-primary/5 text-primary" : "border-border hover:border-primary/40"}`}
+              >
+                {r === "ברז" ? "🚫 ברז — לא הגיע" : r === "לקוח התחרט" ? "↩️ לקוח התחרט" : "💬 אחר"}
+              </button>
+            ))}
+            <div className="flex gap-2 pt-2">
+              <Button variant="outline" className="flex-1" onClick={() => setCancelModal(null)}>ביטול</Button>
+              <Button className="flex-1 bg-red-600 hover:bg-red-700 text-white" onClick={confirmCancel} disabled={!cancelReason}>
+                אשר ביטול
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
@@ -1481,12 +1576,44 @@ function DayOffTab() {
 function AnalyticsTab() {
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [drilldown, setDrilldown] = useState<{ name: string; phone: string } | null>(null);
+  const [drilldownAppts, setDrilldownAppts] = useState<any[]>([]);
+  const [drilldownLoading, setDrilldownLoading] = useState(false);
+  const { toast } = useToast();
 
-  useEffect(() => {
-    const token = localStorage.getItem("biz_token") || sessionStorage.getItem("biz_token");
+  const token = localStorage.getItem("biz_token") || sessionStorage.getItem("biz_token");
+
+  const loadAnalytics = () => {
     fetch("/api/business/analytics", { headers: { authorization: `Bearer ${token}` } })
       .then(r => r.json()).then(setData).finally(() => setLoading(false));
-  }, []);
+  };
+
+  const openDrilldown = (person: { name: string; phone: string }) => {
+    setDrilldown(person);
+    setDrilldownLoading(true);
+    fetch(`/api/business/appointments/by-phone?phone=${encodeURIComponent(person.phone)}`, {
+      headers: { authorization: `Bearer ${token}` },
+    })
+      .then(r => r.json())
+      .then(appts => setDrilldownAppts(Array.isArray(appts) ? appts : []))
+      .finally(() => setDrilldownLoading(false));
+  };
+
+  const hardDelete = async (id: number) => {
+    const res = await fetch(`/api/business/appointments/${id}/permanent`, {
+      method: "DELETE",
+      headers: { authorization: `Bearer ${token}` },
+    });
+    if (res.ok) {
+      setDrilldownAppts(prev => prev.filter(a => a.id !== id));
+      toast({ title: "הפגישה נמחקה" });
+      loadAnalytics();
+    } else {
+      toast({ title: "שגיאה במחיקה", variant: "destructive" });
+    }
+  };
+
+  useEffect(() => { loadAnalytics(); }, []);
 
   if (loading) return <div className="text-center py-12 text-muted-foreground">טוען נתונים...</div>;
   if (!data) return null;
@@ -1500,6 +1627,40 @@ function AnalyticsTab() {
 
   return (
     <div className="space-y-4">
+      {/* Drilldown modal */}
+      <Dialog open={!!drilldown} onOpenChange={v => { if (!v) setDrilldown(null); }}>
+        <DialogContent dir="rtl" className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>פגישות מבוטלות — {drilldown?.name}</DialogTitle>
+            <DialogDescription dir="ltr">{drilldown?.phone}</DialogDescription>
+          </DialogHeader>
+          {drilldownLoading ? (
+            <div className="text-center py-8 text-muted-foreground">טוען...</div>
+          ) : drilldownAppts.length === 0 ? (
+            <div className="text-center py-8 text-muted-foreground">אין פגישות מבוטלות</div>
+          ) : (
+            <div className="space-y-2 max-h-96 overflow-y-auto">
+              {drilldownAppts.map((a: any) => {
+                const [, m, d] = a.appointmentDate.split("-");
+                return (
+                  <div key={a.id} className="flex items-center gap-3 p-3 rounded-xl bg-muted/40 border">
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium">{a.serviceName}</p>
+                      <p className="text-xs text-muted-foreground">{d}/{m} בשעה {a.appointmentTime}</p>
+                      {a.cancelReason && <p className="text-xs text-red-500 mt-0.5">{a.cancelReason}</p>}
+                    </div>
+                    <Button size="sm" variant="ghost" className="text-red-500 hover:text-red-700 hover:bg-red-50 shrink-0"
+                      onClick={() => hardDelete(a.id)}>
+                      <Trash2 className="w-4 h-4" />
+                    </Button>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
@@ -1535,6 +1696,54 @@ function AnalyticsTab() {
           </div>
         </CardContent>
       </Card>
+
+      {/* No-show ranking */}
+      {data.topNoShows?.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-base">🚫 ברזים — מי לא הגיע הכי הרבה</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-2">
+              {data.topNoShows.map((c: any, i: number) => (
+                <div key={c.phone} className="flex items-center gap-3 p-2.5 rounded-xl bg-red-50 border border-red-100 cursor-pointer hover:bg-red-100 transition-colors"
+                  onClick={() => openDrilldown(c)}>
+                  <span className="text-lg font-bold text-red-400 w-6 text-center">{i + 1}</span>
+                  <div className="flex-1 min-w-0">
+                    <p className="font-semibold text-sm truncate">{c.name}</p>
+                    <p className="text-xs text-muted-foreground" dir="ltr">{c.phone}</p>
+                  </div>
+                  <span className="text-sm font-bold text-red-600 bg-red-100 px-2.5 py-1 rounded-full">{c.count}x</span>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Cancellation ranking */}
+      {data.topCancellers?.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-base">↩️ ביטולים — מי ביטל הכי הרבה</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-2">
+              {data.topCancellers.map((c: any, i: number) => (
+                <div key={c.phone} className="flex items-center gap-3 p-2.5 rounded-xl bg-orange-50 border border-orange-100 cursor-pointer hover:bg-orange-100 transition-colors"
+                  onClick={() => openDrilldown(c)}>
+                  <span className="text-lg font-bold text-orange-400 w-6 text-center">{i + 1}</span>
+                  <div className="flex-1 min-w-0">
+                    <p className="font-semibold text-sm truncate">{c.name}</p>
+                    <p className="text-xs text-muted-foreground" dir="ltr">{c.phone}</p>
+                  </div>
+                  <span className="text-sm font-bold text-orange-600 bg-orange-100 px-2.5 py-1 rounded-full">{c.count}x</span>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }
