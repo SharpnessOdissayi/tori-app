@@ -16,7 +16,8 @@ export async function computeAvailableSlots(
   businessId: number,
   date: string,
   serviceDurationMinutes: number,
-  bufferMinutes: number
+  bufferMinutes: number,
+  maxAppointmentsPerDay?: number | null
 ): Promise<{ time: string; available: boolean }[]> {
   const dateObj = new Date(date);
   const dayOfWeek = dateObj.getUTCDay();
@@ -62,6 +63,13 @@ export async function computeAvailableSlots(
   const existingAppointments = allAppointments.filter(
     a => a.status !== "cancelled" && a.status !== "pending_payment"
   );
+
+  // If the business has a daily cap and it's already reached by confirmed
+  // appointments, the day is full — return zero slots so the calendar /
+  // next-slots views don't offer anything bookable for this date.
+  if (maxAppointmentsPerDay && existingAppointments.length >= maxAppointmentsPerDay) {
+    return [];
+  }
 
   const startMinutes = timeToMinutes(workingHour.startTime);
   const endMinutes = timeToMinutes(workingHour.endTime);

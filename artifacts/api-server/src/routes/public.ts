@@ -195,7 +195,7 @@ router.get("/public/:businessSlug/availability", async (req, res): Promise<void>
   }
 
   const bufferMinutes = service.bufferMinutes > 0 ? service.bufferMinutes : business.bufferMinutes;
-  const slots = await computeAvailableSlots(business.id, date, service.durationMinutes, bufferMinutes);
+  const slots = await computeAvailableSlots(business.id, date, service.durationMinutes, bufferMinutes, business.maxAppointmentsPerDay);
 
   const minLeadHours: number = (business as any).minLeadHours ?? 0;
   const minAllowed = new Date(Date.now() + minLeadHours * 60 * 60 * 1000);
@@ -319,7 +319,9 @@ router.post("/public/:businessSlug/appointments", async (req, res): Promise<void
     }
   }
 
-  // 3. Max appointments per day (total for this business)
+  // 3. Max appointments per day (total for this business).
+  // Exclude `pending_payment` rows so abandoned/expired deposit attempts
+  // don't permanently block the day for real customers.
   if (business.maxAppointmentsPerDay) {
     const [{ dayCount }] = await db
       .select({ dayCount: count() })
@@ -327,7 +329,7 @@ router.post("/public/:businessSlug/appointments", async (req, res): Promise<void
       .where(and(
         eq(appointmentsTable.businessId, business.id),
         eq(appointmentsTable.appointmentDate, appointmentDate),
-        sql`${appointmentsTable.status} != 'cancelled'`
+        sql`${appointmentsTable.status} NOT IN ('cancelled', 'pending_payment')`
       ));
     if (dayCount >= business.maxAppointmentsPerDay) {
       res.status(409).json({
@@ -395,7 +397,7 @@ router.post("/public/:businessSlug/appointments", async (req, res): Promise<void
   }
 
   const bufferMinutes = service.bufferMinutes > 0 ? service.bufferMinutes : business.bufferMinutes;
-  const slots = await computeAvailableSlots(business.id, appointmentDate, service.durationMinutes, bufferMinutes);
+  const slots = await computeAvailableSlots(business.id, appointmentDate, service.durationMinutes, bufferMinutes, business.maxAppointmentsPerDay);
   const slot = slots.find((s) => s.time === appointmentTime);
   if (!slot || !slot.available) {
     res.status(409).json({ error: "This time slot is no longer available" });
@@ -664,7 +666,7 @@ router.get("/public/:businessSlug/next-slots", async (req, res): Promise<void> =
     const day = String(d.getDate()).padStart(2, "0");
     const dateStr = `${year}-${month}-${day}`;
 
-    const slots = await computeAvailableSlots(business.id, dateStr, service.durationMinutes, bufferMinutes);
+    const slots = await computeAvailableSlots(business.id, dateStr, service.durationMinutes, bufferMinutes, business.maxAppointmentsPerDay);
 
     for (const slot of slots) {
       if (!slot.available) continue;
