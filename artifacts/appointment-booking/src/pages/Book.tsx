@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { FaWheelchair } from "react-icons/fa";
 import { useParams, useLocation } from "wouter";
 import {
@@ -127,23 +127,42 @@ const JEWISH_HOLIDAYS: Record<string, string> = {
 };
 
 function toKey(d: Date) {
-  return d.toISOString().slice(0, 10);
+  // Use LOCAL date (not UTC) so holidays align with what the user sees in the calendar.
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
 }
 
-function HolidayDayButton({ day, modifiers, children, ...buttonProps }: DayButtonProps) {
-  const holiday = JEWISH_HOLIDAYS[toKey(day.date)];
-  return (
-    <div className="relative flex flex-col items-center" title={holiday ?? undefined}>
-      <button {...buttonProps} className={`${(buttonProps as any).className ?? ""} ${holiday ? "ring-1 ring-amber-300/60 rounded-md" : ""}`}>
-        {children}
-      </button>
-      {holiday && (
-        <span className="absolute -bottom-2.5 text-[7px] text-amber-700 font-semibold whitespace-nowrap leading-none pointer-events-none max-w-[42px] overflow-hidden text-ellipsis">
-          {holiday}
-        </span>
-      )}
-    </div>
-  );
+// Factory — captures primaryColor so selected cells use the business brand color.
+function makeHolidayDayButton(primaryColor: string) {
+  return function HolidayDayButton({ day, modifiers, children, ...buttonProps }: DayButtonProps) {
+    const holiday = JEWISH_HOLIDAYS[toKey(day.date)];
+    const isSelected = modifiers.selected;
+    const isToday = modifiers.today;
+    const isDisabled = modifiers.disabled;
+    return (
+      <div className="relative inline-flex flex-col items-center w-9" title={holiday ?? undefined}>
+        <button
+          {...buttonProps}
+          className="w-9 h-9 rounded-full flex items-center justify-center text-sm transition hover:bg-muted/50 disabled:opacity-30 disabled:hover:bg-transparent"
+          style={{
+            ...(buttonProps.style ?? {}),
+            ...(isSelected ? { backgroundColor: primaryColor, color: "white", fontWeight: 700 } : {}),
+            ...(isToday && !isSelected ? { fontWeight: 700, color: primaryColor } : {}),
+          }}
+          disabled={isDisabled}
+        >
+          {children}
+        </button>
+        {holiday && (
+          <span className="absolute left-1/2 -translate-x-1/2 top-[36px] w-[68px] text-center text-[9px] text-amber-700 font-semibold leading-[10px] pointer-events-none break-words">
+            {holiday}
+          </span>
+        )}
+      </div>
+    );
+  };
 }
 import { format } from "date-fns";
 import { he } from "date-fns/locale";
@@ -407,6 +426,7 @@ export default function Book() {
   const waitlistMutation = useJoinWaitlist();
 
   const primaryColor = business?.primaryColor ?? "#2563eb";
+  const DayButtonComp = useMemo(() => makeHolidayDayButton(primaryColor), [primaryColor]);
   const fontFamily = business?.fontFamily ?? "Heebo";
   const backgroundColor = (business as any)?.backgroundColor ?? null;
   const borderRadius = (business as any)?.borderRadius ?? "medium";
@@ -1606,14 +1626,13 @@ export default function Book() {
                       >
                         ← חזור לתורים קרובים
                       </button>
-                      <div className="flex justify-center bg-muted/20 p-4 rounded-xl border" dir="ltr">
+                      <div className="flex justify-center bg-muted/20 p-4 rounded-xl" dir="rtl">
                         <DayPicker mode="single" selected={selectedDate}
                           onSelect={(date) => { if (date) { setSelectedDate(date); setSelectedTime(null); } }}
                           locale={he} weekStartsOn={0} disabled={{ before: new Date() }}
-                          modifiersClassNames={{ selected: "font-bold rounded-full", today: "font-bold" }}
-                          modifiersStyles={{ selected: { backgroundColor: primaryColor, color: "white" } }}
-                          components={{ DayButton: HolidayDayButton }}
-                          classNames={{ day: "pb-4" }}
+                          dir="rtl"
+                          components={{ DayButton: DayButtonComp }}
+                          classNames={{ week: "[&>td]:pb-6" }}
                         />
                       </div>
                     </>
