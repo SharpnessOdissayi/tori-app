@@ -482,6 +482,34 @@ export default function Book() {
   let galleryImages: string[] = [];
   try { if (galleryImagesRaw) galleryImages = JSON.parse(galleryImagesRaw); } catch {}
 
+  // Advanced design fields
+  const accentColor = (business as any)?.accentColor ?? primaryColor;
+  const gradientEnabled = (business as any)?.gradientEnabled ?? false;
+  const gradientFrom = (business as any)?.gradientFrom ?? null;
+  const gradientTo = (business as any)?.gradientTo ?? null;
+  const gradientAngle = (business as any)?.gradientAngle ?? 135;
+  const backgroundPattern = (business as any)?.backgroundPattern ?? "none";
+  const heroLayout = (business as any)?.heroLayout ?? (business as any)?.headerLayout ?? "stacked";
+  const serviceCardStyle = (business as any)?.serviceCardStyle ?? "card";
+  const animationStyle = (business as any)?.animationStyle ?? "none";
+  const hoverEffect = (business as any)?.hoverEffect ?? "none";
+
+  // Page background: gradient > solid color > default
+  const pageBackground = gradientEnabled && gradientFrom && gradientTo
+    ? `linear-gradient(${gradientAngle}deg, ${gradientFrom}, ${gradientTo})`
+    : backgroundColor || undefined;
+
+  // Optional decorative SVG patterns as CSS background-image
+  const patternSvg = backgroundPattern === "dots"
+    ? `url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='20' height='20'><circle cx='2' cy='2' r='1' fill='rgba(0,0,0,0.06)'/></svg>")`
+    : backgroundPattern === "grid"
+    ? `url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='24' height='24'><path d='M24 0H0V24' fill='none' stroke='rgba(0,0,0,0.05)' stroke-width='1'/></svg>")`
+    : backgroundPattern === "waves"
+    ? `url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='80' height='20'><path d='M0 10 Q 20 0 40 10 T 80 10' fill='none' stroke='rgba(0,0,0,0.06)' stroke-width='1.5'/></svg>")`
+    : backgroundPattern === "circles"
+    ? `url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='60' height='60'><circle cx='30' cy='30' r='20' fill='none' stroke='rgba(0,0,0,0.04)' stroke-width='1'/></svg>")`
+    : undefined;
+
   const cardRadius = borderRadius === "sharp" ? "8px" : borderRadius === "rounded" ? "24px" : "16px";
 
   // Fetch next available slots when service is selected
@@ -1038,7 +1066,15 @@ export default function Book() {
     ];
 
     return (
-      <div dir="rtl" style={{ fontFamily: `'${fontFamily}', sans-serif`, backgroundColor }} className="min-h-screen overflow-x-hidden">
+      <div
+        dir="rtl"
+        style={{
+          fontFamily: `'${fontFamily}', sans-serif`,
+          background: pageBackground,
+          backgroundImage: patternSvg,
+        }}
+        className="min-h-screen overflow-x-hidden"
+      >
 
         {/* Notification popup — dismissable permanently via localStorage */}
         {business.notificationEnabled && business.notificationMessage && (
@@ -1359,38 +1395,119 @@ export default function Book() {
 
           {/* Services tab */}
           {activeTab === "services" && (
-            <div className="space-y-3">
-              {servicesLoading && <div className="text-center py-8 text-muted-foreground">טוען שירותים...</div>}
-              {servicesList.filter(s => s.isActive).map(service => (
-                <div key={service.id} className="border rounded-2xl overflow-hidden shadow-sm">
-                  {service.imageUrl && (
-                    <img src={service.imageUrl} alt={service.name} className="w-full h-32 object-cover" />
-                  )}
-                  <div className="p-4">
-                    <div className="flex justify-between items-start">
-                      <div className="font-bold text-base">{service.name}</div>
-                      <div className="font-bold" style={{ color: primaryColor }}>₪{(service.price / 100).toFixed(0)}</div>
-                    </div>
-                    {(service as any).description && (
-                      <p className="text-sm text-muted-foreground mt-1">{(service as any).description}</p>
-                    )}
-                    <div className="flex justify-between items-center mt-3">
-                      <span className="text-xs text-muted-foreground flex items-center gap-1" dir="rtl">
-                        <Clock className="w-3.5 h-3.5" /> <bdi>{formatDuration(service.durationMinutes)}</bdi>
-                      </span>
+            <div className={serviceCardStyle === "grid" ? "grid grid-cols-2 gap-3" : "space-y-3"}>
+              {servicesLoading && <div className="text-center py-8 text-muted-foreground col-span-2">טוען שירותים...</div>}
+              {servicesList.filter(s => s.isActive).map(service => {
+                const hoverClass = hoverEffect === "lift"
+                  ? "transition-transform duration-200 hover:-translate-y-1 hover:shadow-lg"
+                  : hoverEffect === "glow"
+                  ? "transition-shadow duration-200"
+                  : "";
+                const hoverStyle = hoverEffect === "glow"
+                  ? ({ boxShadow: `0 0 0 0 ${primaryColor}00` } as React.CSSProperties)
+                  : undefined;
+                const priceStr = `₪${(service.price / 100).toFixed(0)}`;
+                const desc = (service as any).description as string | undefined;
+
+                if (serviceCardStyle === "minimal") {
+                  return (
+                    <div key={service.id} className={`flex items-center justify-between py-3 border-b last:border-0 ${hoverClass}`}>
+                      <div className="flex-1 min-w-0">
+                        <div className="font-medium">{service.name}</div>
+                        <div className="text-xs text-muted-foreground flex items-center gap-2">
+                          <span className="flex items-center gap-1"><Clock className="w-3 h-3" /><bdi>{formatDuration(service.durationMinutes)}</bdi></span>
+                          <span style={{ color: primaryColor }}>{priceStr}</span>
+                        </div>
+                      </div>
                       <button
                         onClick={() => { setSelectedServiceId(service.id); setStep(2); }}
-                        className="px-4 py-1.5 rounded-full text-sm font-medium text-white shadow-sm"
+                        className="px-4 py-1.5 rounded-full text-sm font-medium text-white shadow-sm shrink-0"
                         style={{ backgroundColor: primaryColor }}
                       >
-                        קבע תור
+                        קבע
                       </button>
                     </div>
+                  );
+                }
+
+                if (serviceCardStyle === "bubble") {
+                  return (
+                    <button
+                      key={service.id}
+                      onClick={() => { setSelectedServiceId(service.id); setStep(2); }}
+                      className={`w-full text-right rounded-full p-4 flex items-center gap-4 shadow-md ${hoverClass}`}
+                      style={{ background: `linear-gradient(135deg, ${primaryColor}15, ${accentColor}15)`, border: `2px solid ${primaryColor}40` }}
+                    >
+                      {service.imageUrl && (
+                        <img src={service.imageUrl} alt="" className="w-14 h-14 object-cover rounded-full shrink-0" />
+                      )}
+                      <div className="flex-1 min-w-0">
+                        <div className="font-bold">{service.name}</div>
+                        {desc && <div className="text-xs text-muted-foreground truncate">{desc}</div>}
+                      </div>
+                      <div className="text-left shrink-0">
+                        <div className="font-bold text-lg" style={{ color: primaryColor }}>{priceStr}</div>
+                        <div className="text-xs text-muted-foreground"><bdi>{formatDuration(service.durationMinutes)}</bdi></div>
+                      </div>
+                    </button>
+                  );
+                }
+
+                if (serviceCardStyle === "grid") {
+                  return (
+                    <button
+                      key={service.id}
+                      onClick={() => { setSelectedServiceId(service.id); setStep(2); }}
+                      className={`text-right border rounded-2xl overflow-hidden shadow-sm ${hoverClass}`}
+                    >
+                      {service.imageUrl ? (
+                        <img src={service.imageUrl} alt={service.name} className="w-full h-24 object-cover" />
+                      ) : (
+                        <div className="w-full h-24" style={{ background: `linear-gradient(135deg, ${primaryColor}30, ${accentColor}30)` }} />
+                      )}
+                      <div className="p-3">
+                        <div className="font-bold text-sm line-clamp-1">{service.name}</div>
+                        <div className="flex justify-between items-center mt-2 text-xs">
+                          <span className="text-muted-foreground flex items-center gap-1"><Clock className="w-3 h-3" /><bdi>{formatDuration(service.durationMinutes)}</bdi></span>
+                          <span className="font-bold" style={{ color: primaryColor }}>{priceStr}</span>
+                        </div>
+                      </div>
+                    </button>
+                  );
+                }
+
+                // default: "card"
+                return (
+                  <div key={service.id} className={`border rounded-2xl overflow-hidden shadow-sm ${hoverClass}`} style={hoverStyle}>
+                    {service.imageUrl && (
+                      <img src={service.imageUrl} alt={service.name} className="w-full h-32 object-cover" />
+                    )}
+                    <div className="p-4">
+                      <div className="flex justify-between items-start">
+                        <div className="font-bold text-base">{service.name}</div>
+                        <div className="font-bold" style={{ color: primaryColor }}>{priceStr}</div>
+                      </div>
+                      {desc && (
+                        <p className="text-sm text-muted-foreground mt-1">{desc}</p>
+                      )}
+                      <div className="flex justify-between items-center mt-3">
+                        <span className="text-xs text-muted-foreground flex items-center gap-1" dir="rtl">
+                          <Clock className="w-3.5 h-3.5" /> <bdi>{formatDuration(service.durationMinutes)}</bdi>
+                        </span>
+                        <button
+                          onClick={() => { setSelectedServiceId(service.id); setStep(2); }}
+                          className="px-4 py-1.5 rounded-full text-sm font-medium text-white shadow-sm"
+                          style={{ backgroundColor: primaryColor }}
+                        >
+                          קבע תור
+                        </button>
+                      </div>
+                    </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
               {!servicesLoading && !servicesList.filter(s => s.isActive).length && (
-                <div className="text-center py-8 text-muted-foreground">אין שירותים זמינים כרגע</div>
+                <div className="text-center py-8 text-muted-foreground col-span-2">אין שירותים זמינים כרגע</div>
               )}
             </div>
           )}
