@@ -142,11 +142,14 @@ Clients access `kavati.net/portal` by entering their phone number. Features:
 
 Kavati monetizes via a monthly subscription (₪100/month, first month ₪50 to activate). All billing runs through **Tranzila**.
 
-### Terminal setup
+### Two Tranzila terminals
 
-Kavati uses **one Tranzila terminal** (`TRANZILA_SUPPLIER`, e.g. `lilash2`) for both appointment deposits and Pro subscriptions. Earlier versions tried to use a separate `lilash2tok` token-service path; that route returned 404 on the production Tranzila account and was reverted.
+Kavati uses **two separate terminals** within one Tranzila account:
 
-For subscriptions to tokenize the card (so monthly STO renewals can run), the terminal must be configured in Tranzila admin to support token responses. Without tokenization, the first subscription charge still succeeds and the business is upgraded to Pro — but monthly renewal falls back to the cron job (requires a saved card flow, not currently live).
+- `TRANZILA_SUPPLIER` (e.g. `lilash2`) — the regular terminal. Used for one-off **appointment deposits** (the iframe on the public booking page).
+- `TRANZILA_SUPPLIER_TOK` (e.g. `lilash2tok`) — the dedicated **tokenization** terminal. The `tok` suffix is literal Tranzila naming for tokenization terminals. Used for **Pro subscriptions**: charges the first month *and* returns a reusable card token, which we send to the STO REST API so Tranzila handles the monthly renewals.
+
+Using the tokenization terminal is **mandatory** for subscriptions. The plain terminal can process the charge but will not return a token — no token means no STO, which means no automatic monthly billing.
 
 ### Subscription flow
 

@@ -58,12 +58,12 @@ function buildSubscriptionUrl(params: {
   ownerName: string;
   email: string;
 }): string {
-  // Use the main SUPPLIER terminal (lilash2) — the alternate "tok" path returns 404.
-  // tranmode=AK still asks for tokenization; if the terminal is configured in
-  // Tranzila admin to support tokens, notify will return token+expdate and an STO
-  // is created. Otherwise the first charge succeeds and the business is upgraded
-  // to Pro, but monthly renewal falls back to the cron job.
-  const base = `https://direct.tranzila.com/${SUPPLIER}/iframenew.php`;
+  // MUST be SUPPLIER_TOK (lilash2tok) — the dedicated tokenization terminal.
+  // tranmode=AK on this terminal returns a reusable token (TranzilaTK + expdate)
+  // in the notify payload, which is required to create the monthly STO.
+  // If iframenew.php returns 404, whitelist www.kavati.net on the terminal
+  // (my.tranzila.com → Settings → Terminal) — this is a Tranzila-side config.
+  const base = `https://direct.tranzila.com/${SUPPLIER_TOK}/iframenew.php`;
   const p = new URLSearchParams({
     sum: SUBSCRIPTION_FIRST_ILS.toFixed(2),
     currency: "1",

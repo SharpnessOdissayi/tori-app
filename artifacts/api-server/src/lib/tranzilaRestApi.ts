@@ -5,8 +5,10 @@
  * Required env vars:
  *   TRANZILA_API_PUBLIC_KEY  — Application public key supplied by Tranzila
  *   TRANZILA_API_SECRET_KEY  — Secret used for HMAC signing
- *   TRANZILA_SUPPLIER        — Terminal name that processed the initial charge
- *                              (must match the terminal used in the iframe URL).
+ *   TRANZILA_SUPPLIER_TOK    — Tokenization terminal (lilash2tok). This MUST be the
+ *                              same terminal that processed the initial charge,
+ *                              because only the tokenization terminal returns and
+ *                              honors the card token.
  *
  * Auth: X-tranzila-api-access-token = HMAC-SHA256(key=secretKey, data=publicKey+requestTime+nonce)
  * Docs:
@@ -19,7 +21,7 @@ import { logger } from "./logger";
 
 const API_PUBLIC_KEY = process.env.TRANZILA_API_PUBLIC_KEY ?? "";
 const API_SECRET_KEY = process.env.TRANZILA_API_SECRET_KEY ?? "";
-const SUPPLIER       = process.env.TRANZILA_SUPPLIER ?? "";
+const SUPPLIER_TOK   = process.env.TRANZILA_SUPPLIER_TOK ?? "";
 
 const STO_CREATE_URL = "https://api.tranzila.com/v1/sto/create";
 
