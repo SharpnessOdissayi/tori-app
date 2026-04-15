@@ -2992,14 +2992,14 @@ function SettingsTab() {
     tranzilaEnabled: false,
     depositAmount: "0",
     // booking restrictions
-    minLeadHours: "20",
-    cancellationHours: "24",
+    minLeadHours: "0",
+    cancellationHours: "0",
     maxFutureWeeks: "15",
     futureBookingMode: "weeks" as "weeks" | "date",
     maxFutureDate: "",
     maxAppointmentsPerCustomer: "",
     requireActiveSubscription: false,
-    maxAppointmentsPerDay: "3",
+    maxAppointmentsPerDay: "",
   });
 
   // Password change state
@@ -3017,8 +3017,8 @@ function SettingsTab() {
       requirePhoneVerification: (profile as any).requirePhoneVerification ?? false,
       tranzilaEnabled: (profile as any).tranzilaEnabled ?? false,
       depositAmount: (((profile as any).depositAmountAgorot ?? 0) / 100).toString(),
-      minLeadHours: ((profile as any).minLeadHours ?? 20).toString(),
-      cancellationHours: ((profile as any).cancellationHours ?? 24).toString(),
+      minLeadHours: ((profile as any).minLeadHours ?? 0).toString(),
+      cancellationHours: ((profile as any).cancellationHours ?? 0).toString(),
       maxFutureWeeks: ((profile as any).maxFutureWeeks ?? 15).toString(),
       futureBookingMode: (profile as any).futureBookingMode ?? "weeks",
       maxFutureDate: (profile as any).maxFutureDate ?? "",

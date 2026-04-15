@@ -765,8 +765,16 @@ export default function Book() {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedServiceId || !dateStr || !selectedTime) return;
+
+    // Client-side guard: reject past date+time
+    const apptDateTime = new Date(`${dateStr}T${selectedTime}:00`);
+    if (apptDateTime < new Date()) {
+      toast({ title: "לא ניתן לקבוע תור בעבר", description: "אנא בחר תאריך ושעה עתידיים", variant: "destructive" });
+      return;
+    }
+
     createMutation.mutate(
-      { businessSlug: businessSlug || "", data: { serviceId: selectedServiceId, clientName: clientData.name, phoneNumber: clientData.phone, appointmentDate: dateStr, appointmentTime: selectedTime, notes: clientData.notes } },
+      { businessSlug: businessSlug || "", data: { serviceId: selectedServiceId, clientName: clientData.name, phoneNumber: clientData.phone, appointmentDate: dateStr, appointmentTime: selectedTime, notes: clientData.notes || undefined } },
       {
         onSuccess: (data: any) => {
           // Save booking to localStorage (include id + phone for reschedule/cancel)
@@ -795,7 +803,10 @@ export default function Book() {
             setStep(5);
           }
         },
-        onError: () => toast({ title: "שגיאה", description: "לא ניתן לקבוע את התור, נסה שוב", variant: "destructive" }),
+        onError: (err: any) => {
+          const msg = err?.data?.message ?? err?.data?.error ?? "לא ניתן לקבוע את התור, נסה שוב";
+          toast({ title: "שגיאה בקביעת תור", description: msg, variant: "destructive" });
+        },
       }
     );
   };

@@ -237,7 +237,10 @@ router.post("/public/:businessSlug/appointments", async (req, res): Promise<void
   const bodyParsed = CreatePublicAppointmentBody.safeParse(req.body);
 
   if (!paramsParsed.success || !bodyParsed.success) {
-    res.status(400).json({ error: "Invalid input" });
+    const detail = bodyParsed.success === false
+      ? bodyParsed.error.errors.map(e => `${e.path.join(".")}: ${e.message}`).join(", ")
+      : "invalid slug";
+    res.status(400).json({ error: "Invalid input", message: detail });
     return;
   }
 
