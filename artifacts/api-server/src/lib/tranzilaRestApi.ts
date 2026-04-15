@@ -32,15 +32,17 @@ function buildAuthHeaders(): Record<string, string> {
   const nonce       = crypto.randomBytes(20).toString("hex"); // 40-char hex string
   const requestTime = String(Date.now());
 
-  // Standard HMAC auth (matches most Tranzila community samples):
-  //   HMAC-SHA256(key = API_SECRET_KEY, data = API_PUBLIC_KEY + requestTime + nonce)
-  // The v2 spec wording "hash_hmac on application key with secret+time+nonce" is
-  // ambiguous in English; the PHP convention hash_hmac($algo, $data, $key) suggests
-  // data=publicKey+time+nonce and key=secret, which is what we use here. The other
-  // interpretation (data=publicKey, key=secret+time+nonce) yielded 401 in production.
+  // Tranzila spec wording: "hash_hmac using 'sha256' on application key with
+  // secret + request-time + nonce". Both mainstream parses have been tried and
+  // rejected with a generic 401 gateway response (no 20000/20002 code):
+  //   1. key = secret,        data = publicKey + time + nonce  → 401
+  //   2. key = secret+time+nonce, data = publicKey             → 401
+  // Trying the remaining variant: PHP convention hash_hmac($algo, $data, $key)
+  // where the "on X" phrase treats X as the KEY and "with Y" is the data.
+  //   3. key = publicKey,     data = secret + time + nonce
   const accessToken = crypto
-    .createHmac("sha256", API_SECRET_KEY)
-    .update(API_PUBLIC_KEY + requestTime + nonce)
+    .createHmac("sha256", API_PUBLIC_KEY)
+    .update(API_SECRET_KEY + requestTime + nonce)
     .digest("hex");
 
   return {
