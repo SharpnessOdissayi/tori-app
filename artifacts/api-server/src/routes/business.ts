@@ -222,6 +222,18 @@ router.patch("/business/branding", requireBusinessAuth, async (req, res): Promis
     else (updates as any).announcementCreatedAt = null;
   }
   if ((bd as any).announcementValidHours !== undefined) (updates as any).announcementValidHours = Number((bd as any).announcementValidHours) || 24;
+  // Advanced design fields (preset + fine-grain)
+  if (bd.designPreset !== undefined) (updates as any).designPreset = bd.designPreset ?? null;
+  if (bd.accentColor !== undefined) (updates as any).accentColor = bd.accentColor ?? null;
+  if (bd.gradientEnabled !== undefined) (updates as any).gradientEnabled = !!bd.gradientEnabled;
+  if (bd.gradientFrom !== undefined) (updates as any).gradientFrom = bd.gradientFrom ?? null;
+  if (bd.gradientTo !== undefined) (updates as any).gradientTo = bd.gradientTo ?? null;
+  if (bd.gradientAngle !== undefined) (updates as any).gradientAngle = Number(bd.gradientAngle) || 135;
+  if (bd.backgroundPattern !== undefined) (updates as any).backgroundPattern = bd.backgroundPattern ?? null;
+  if (bd.heroLayout !== undefined) (updates as any).heroLayout = bd.heroLayout ?? null;
+  if (bd.serviceCardStyle !== undefined) (updates as any).serviceCardStyle = bd.serviceCardStyle ?? null;
+  if (bd.animationStyle !== undefined) (updates as any).animationStyle = bd.animationStyle ?? null;
+  if (bd.hoverEffect !== undefined) (updates as any).hoverEffect = bd.hoverEffect ?? null;
 
   const [updated] = await db
     .update(businessesTable)

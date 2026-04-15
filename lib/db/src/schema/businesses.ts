@@ -89,6 +89,18 @@ export const businessesTable = pgTable("businesses", {
   subscriptionRenewDate: timestamp("subscription_renew_date", { withTimezone: true }),
   subscriptionCancelledAt: timestamp("subscription_cancelled_at", { withTimezone: true }),
   tranzilaStorId: integer("tranzila_sto_id"),     // Tranzila Standing Order ID (REST API) — if set, Tranzila manages billing
+  // ─── Advanced design (preset + fine-grain overrides) ───
+  designPreset: text("design_preset"),                      // "elegant" | "minimal" | "bold" | "spa" | "sport" | "nature" | "dark" | "custom"
+  accentColor: text("accent_color"),                        // secondary color
+  gradientEnabled: boolean("gradient_enabled").notNull().default(false),
+  gradientFrom: text("gradient_from"),                      // CSS color
+  gradientTo: text("gradient_to"),                          // CSS color
+  gradientAngle: integer("gradient_angle").notNull().default(135), // degrees
+  backgroundPattern: text("background_pattern"),            // "none" | "dots" | "grid" | "waves" | "circles"
+  heroLayout: text("hero_layout"),                          // "stacked" | "hero-full" | "split" | "compact"
+  serviceCardStyle: text("service_card_style"),             // "card" | "minimal" | "grid" | "bubble"
+  animationStyle: text("animation_style"),                  // "none" | "subtle" | "bouncy"
+  hoverEffect: text("hover_effect"),                        // "none" | "lift" | "glow"
 });
 
 export const insertBusinessSchema = createInsertSchema(businessesTable).omit({ id: true, createdAt: true });

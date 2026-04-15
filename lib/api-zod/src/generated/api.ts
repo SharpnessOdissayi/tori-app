@@ -192,7 +192,7 @@ export const UpdateBusinessBrandingBody = zod.object({
   logoUrl: zod.string().nullish(),
   bannerUrl: zod.string().nullish(),
   themeMode: zod.string().nullish(),
-});
+}).passthrough();
 
 export const UpdateBusinessBrandingResponse = zod.object({
   id: zod.number(),

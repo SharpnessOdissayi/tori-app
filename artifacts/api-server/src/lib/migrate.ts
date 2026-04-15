@@ -78,6 +78,18 @@ export async function runMigrations() {
       "ALTER TABLE businesses ADD COLUMN IF NOT EXISTS subscription_renew_date TIMESTAMPTZ",
       "ALTER TABLE businesses ADD COLUMN IF NOT EXISTS subscription_cancelled_at TIMESTAMPTZ",
       "ALTER TABLE businesses ADD COLUMN IF NOT EXISTS tranzila_sto_id INTEGER",
+      // Advanced design
+      "ALTER TABLE businesses ADD COLUMN IF NOT EXISTS design_preset TEXT",
+      "ALTER TABLE businesses ADD COLUMN IF NOT EXISTS accent_color TEXT",
+      "ALTER TABLE businesses ADD COLUMN IF NOT EXISTS gradient_enabled BOOLEAN NOT NULL DEFAULT FALSE",
+      "ALTER TABLE businesses ADD COLUMN IF NOT EXISTS gradient_from TEXT",
+      "ALTER TABLE businesses ADD COLUMN IF NOT EXISTS gradient_to TEXT",
+      "ALTER TABLE businesses ADD COLUMN IF NOT EXISTS gradient_angle INTEGER NOT NULL DEFAULT 135",
+      "ALTER TABLE businesses ADD COLUMN IF NOT EXISTS background_pattern TEXT",
+      "ALTER TABLE businesses ADD COLUMN IF NOT EXISTS hero_layout TEXT",
+      "ALTER TABLE businesses ADD COLUMN IF NOT EXISTS service_card_style TEXT",
+      "ALTER TABLE businesses ADD COLUMN IF NOT EXISTS animation_style TEXT",
+      "ALTER TABLE businesses ADD COLUMN IF NOT EXISTS hover_effect TEXT",
     ];
 
     // Cancellation tracking
