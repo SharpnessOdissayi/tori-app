@@ -929,7 +929,20 @@ export default function Book() {
           if (data?.requiresPayment && data?.id) {
             fetch(`${API_BASE}/tranzila/payment-url/${data.id}`)
               .then(r => r.json())
-              .then(({ url }) => { if (url) setPaymentIframeUrl(url); else setStep(5); })
+              .then(({ url }) => {
+                if (!url) { setStep(5); return; }
+                // Open in a centered popup — cookies/ALTCHA can't work in cross-origin iframe
+                const w = 600, h = 760;
+                const left = window.screenX + (window.outerWidth - w) / 2;
+                const top = window.screenY + (window.outerHeight - h) / 2;
+                const popup = window.open(
+                  url,
+                  "tranzila_payment",
+                  `width=${w},height=${h},left=${left},top=${top},resizable=yes,scrollbars=yes`
+                );
+                // Popup blocked → fall back to full redirect
+                if (!popup) window.location.href = url;
+              })
               .catch(() => setStep(5));
           } else {
             setStep(5);

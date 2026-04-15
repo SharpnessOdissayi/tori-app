@@ -10,27 +10,36 @@ export default function PaymentSuccess() {
   const apptId = params.get("appt");
 
   const isSubscription = type === "subscription";
-  const inIframe = window !== window.parent;
+  const inPopup = !!window.opener && window.opener !== window;
+  const inIframe = !inPopup && window !== window.parent;
 
   useEffect(() => {
+    if (inPopup) {
+      // Notify opener and close this popup
+      try {
+        window.opener.postMessage(
+          { type: "kavati_payment_success", paymentType: type, apptId },
+          "*"
+        );
+      } catch {}
+      setTimeout(() => window.close(), 1200);
+      return;
+    }
+
     if (inIframe) {
-      // Notify parent window that payment succeeded
       try {
         window.parent.postMessage(
           { type: "kavati_payment_success", paymentType: type, apptId },
           "*"
         );
-      } catch {
-        // cross-origin postMessage failed — ignore
-      }
-      // Break out of ALL frames (window.top works even from cross-origin iframes)
+      } catch {}
       setTimeout(() => {
         window.top!.location.href = isSubscription ? "/dashboard" : "/";
       }, 1500);
       return;
     }
 
-    // Not in iframe — normal auto-redirect
+    // Full-page return — normal auto-redirect
     const t = setTimeout(() => {
       setLocation(isSubscription ? "/dashboard" : "/");
     }, 4000);

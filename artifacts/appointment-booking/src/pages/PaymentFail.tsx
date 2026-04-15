@@ -10,18 +10,26 @@ export default function PaymentFail() {
   const apptId = params.get("appt");
 
   const isSubscription = type === "subscription";
-  const inIframe = window !== window.parent;
+  const inPopup = !!window.opener && window.opener !== window;
+  const inIframe = !inPopup && window !== window.parent;
 
   useEffect(() => {
+    if (inPopup) {
+      try {
+        window.opener.postMessage(
+          { type: "kavati_payment_fail", paymentType: type, apptId },
+          "*"
+        );
+      } catch {}
+      return;
+    }
     if (inIframe) {
       try {
         window.parent.postMessage(
           { type: "kavati_payment_fail", paymentType: type, apptId },
           "*"
         );
-      } catch {
-        // Cross-origin — ignore
-      }
+      } catch {}
     }
   }, []);
 
