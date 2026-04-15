@@ -197,12 +197,19 @@ function StepPayment({ onNext, onBack }: { onNext: () => void; onBack: () => voi
         </CardContent>
       </Card>
 
-      <div className="rounded-2xl border-2 border-dashed border-muted-foreground/30 p-8 text-center space-y-3">
-        <div className="text-4xl">💳</div>
-        <div className="font-semibold">שילוב Tranzila בפיתוח</div>
-        <p className="text-sm text-muted-foreground max-w-xs mx-auto">
-          מערכת התשלום תוקם בקרוב. לחץ "המשך" כדי להשלים את הרישום — הגישה לפרו תופעל לאחר אימות התשלום.
-        </p>
+      <div className="rounded-2xl border border-violet-200 bg-white p-6 space-y-4">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-full bg-violet-100 flex items-center justify-center text-xl">🔒</div>
+          <div>
+            <div className="font-semibold">תשלום מאובטח — Tranzila</div>
+            <p className="text-xs text-muted-foreground">סליקה מוצפנת לפי תקן PCI-DSS</p>
+          </div>
+        </div>
+        <ul className="text-sm text-muted-foreground space-y-1.5 pr-1">
+          <li>• השלמת הרישום תעביר אותך לעמוד התשלום</li>
+          <li>• חיוב ראשון ₪50, מהחודש השני ₪100/חודש</li>
+          <li>• ניתן לבטל בכל עת מהדשבורד — ללא קנסות</li>
+        </ul>
       </div>
 
       <Button className="w-full h-11 bg-violet-600 hover:bg-violet-700 text-white gap-2" onClick={onNext}>

@@ -694,36 +694,37 @@ function NotificationBell({ token }: { token: string }) {
 
       {open && (
         <>
-          {/* Mobile backdrop — tap to close */}
+          {/* Backdrop — tap to close */}
           <div
             onClick={() => setOpen(false)}
-            className="fixed inset-0 bg-black/20 z-[99] sm:hidden"
+            className="fixed inset-0 bg-black/30 z-[999]"
           />
+          {/* Panel — fixed position, below navbar, responsive width */}
           <div
-            className="fixed sm:absolute top-auto bottom-0 sm:bottom-auto sm:top-10 left-0 sm:left-auto sm:right-0 right-0 w-full sm:w-80 max-h-[80vh] sm:max-h-[520px] bg-white rounded-t-2xl sm:rounded-2xl shadow-2xl border border-border z-[100] overflow-hidden flex flex-col"
+            className="fixed top-14 left-2 right-2 sm:left-auto sm:right-4 sm:w-96 max-h-[80vh] bg-white rounded-2xl shadow-2xl border border-gray-200 z-[1000] overflow-hidden flex flex-col"
             dir="rtl"
           >
-            <div className="flex items-center justify-between px-4 py-3 border-b bg-muted/30 shrink-0">
-              <span className="font-bold text-sm">התראות</span>
+            <div className="flex items-center justify-between px-4 py-3 border-b bg-gray-50 shrink-0">
+              <span className="font-bold text-sm text-gray-900">התראות</span>
               <div className="flex items-center gap-3">
                 {unread > 0 && (
-                  <button onClick={markAllRead} className="text-xs text-primary hover:underline">סמן הכל כנקרא</button>
+                  <button onClick={markAllRead} className="text-xs text-primary hover:underline">סמן הכל</button>
                 )}
                 {notifications.length > 0 && (
                   <button onClick={deleteAll} className="text-xs text-red-600 hover:underline">מחק הכל</button>
                 )}
-                <button onClick={() => setOpen(false)} className="sm:hidden text-lg leading-none text-muted-foreground">×</button>
+                <button onClick={() => setOpen(false)} className="w-7 h-7 flex items-center justify-center text-gray-500 hover:bg-gray-100 rounded-full text-xl leading-none">×</button>
               </div>
             </div>
-            <div className="flex-1 overflow-y-auto divide-y">
+            <div className="flex-1 overflow-y-auto divide-y bg-white">
               {notifications.length === 0 ? (
-                <div className="py-10 text-center text-muted-foreground text-sm">אין התראות</div>
+                <div className="py-12 text-center text-gray-400 text-sm">אין התראות חדשות</div>
               ) : notifications.map((n: any) => (
-                <div key={n.id} className={`px-4 py-3 flex gap-3 items-start transition-colors ${!n.is_read ? "bg-blue-50/60" : ""}`}>
+                <div key={n.id} className={`px-4 py-3 flex gap-3 items-start ${!n.is_read ? "bg-blue-50/60" : "bg-white"}`}>
                   <span className="text-lg mt-0.5 shrink-0">{typeIcon(n.type)}</span>
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm leading-snug text-gray-800">{n.message}</p>
-                    <p className="text-[11px] text-muted-foreground mt-0.5">
+                    <p className="text-sm leading-snug text-gray-800 break-words">{n.message}</p>
+                    <p className="text-[11px] text-gray-400 mt-0.5">
                       {new Date(n.created_at).toLocaleString("he-IL", { day: "numeric", month: "numeric", hour: "2-digit", minute: "2-digit" })}
                     </p>
                   </div>
@@ -3813,27 +3814,47 @@ function SettingsTab() {
         </CardContent>
       </Card>
 
-      {/* Subscription Management Card — shown only for Pro */}
-      {profile && profile.subscriptionPlan === "pro" && (
-        <SubscriptionManagementCard />
-      )}
+      {/* Subscription status card — shown for both free and pro */}
+      {profile && <SubscriptionStatusCard />}
     </div>
   );
 }
 
-function SubscriptionManagementCard() {
+function SubscriptionStatusCard() {
   const { data: profile } = useGetBusinessProfile();
   const queryClient = useQueryClient();
   const { toast } = useToast();
   const [cancelling, setCancelling] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
+  const [loadingUpgrade, setLoadingUpgrade] = useState(false);
 
+  const isPro = profile?.subscriptionPlan === "pro";
   const renewDate: Date | null = (profile as any)?.subscriptionRenewDate
     ? new Date((profile as any).subscriptionRenewDate)
     : null;
   const cancelledAt: Date | null = (profile as any)?.subscriptionCancelledAt
     ? new Date((profile as any).subscriptionCancelledAt)
     : null;
+  const subscriptionStartDate: Date | null = (profile as any)?.subscriptionStartDate
+    ? new Date((profile as any).subscriptionStartDate)
+    : null;
+
+  const handleUpgrade = async () => {
+    setLoadingUpgrade(true);
+    try {
+      const token = localStorage.getItem("biz_token") || sessionStorage.getItem("biz_token");
+      const res = await fetch(`${API_BASE_DASH}/tranzila/subscription-url`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json();
+      if (!res.ok || !data.url) throw new Error(data.error ?? "שגיאה");
+      window.open(data.url, "_blank", "width=500,height=700");
+    } catch (err: any) {
+      toast({ title: "שגיאה", description: err.message, variant: "destructive" });
+    } finally {
+      setLoadingUpgrade(false);
+    }
+  };
 
   const handleCancel = async () => {
     setCancelling(true);
@@ -3857,34 +3878,66 @@ function SubscriptionManagementCard() {
 
   return (
     <>
-      <Card className="border-violet-200">
+      <Card className={isPro ? "border-violet-200" : "border-slate-200"}>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <Crown className="w-5 h-5 text-violet-600" /> ניהול מנוי פרו
+            <Crown className={`w-5 h-5 ${isPro ? "text-violet-600" : "text-slate-400"}`} />
+            סטטוס מנוי
           </CardTitle>
-          <CardDescription>הגדרות חיוב חודשי אוטומטי</CardDescription>
+          <CardDescription>
+            {isPro ? "הגדרות חיוב חודשי אוטומטי" : "אתה במנוי חינמי — שדרג לפרו להסרת כל המגבלות"}
+          </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="flex items-center justify-between p-4 border rounded-xl bg-violet-50/50">
-            <div>
-              <div className="font-medium text-sm text-violet-900">מנוי פרו פעיל</div>
-              {renewDate && !cancelledAt && (
-                <div className="text-xs text-muted-foreground mt-0.5">
-                  חידוש אוטומטי ב-{format(renewDate, "d בMMM yyyy", { locale: he })} — ₪100
+          <div className={`flex items-center justify-between p-4 border rounded-xl ${isPro ? "bg-violet-50/50" : "bg-slate-50"}`}>
+            <div className="space-y-1">
+              <div className={`font-medium text-sm ${isPro ? "text-violet-900" : "text-slate-900"}`}>
+                {isPro
+                  ? (cancelledAt ? "מנוי פרו — בוטל" : "מנוי פרו פעיל")
+                  : "מנוי חינמי"}
+              </div>
+              {isPro && subscriptionStartDate && (
+                <div className="text-xs text-muted-foreground">
+                  פעיל מאז {format(subscriptionStartDate, "d בMMM yyyy", { locale: he })}
                 </div>
               )}
-              {cancelledAt && renewDate && (
-                <div className="text-xs text-amber-600 mt-0.5">
-                  מבוטל — גישה לפרו בתוקף עד {format(renewDate, "d בMMM yyyy", { locale: he })}
+              {isPro && renewDate && !cancelledAt && (
+                <div className="text-xs text-muted-foreground">
+                  חידוש אוטומטי ב-{format(renewDate, "d בMMM yyyy", { locale: he })} — ₪100/חודש
+                </div>
+              )}
+              {isPro && cancelledAt && renewDate && (
+                <div className="text-xs text-amber-600">
+                  גישה לפרו בתוקף עד {format(renewDate, "d בMMM yyyy", { locale: he })}
+                </div>
+              )}
+              {!isPro && (
+                <div className="text-xs text-muted-foreground">
+                  עד {FREE_SERVICE_LIMIT} שירותים · ללא עיצוב מותאם · ללא WhatsApp מותאם
                 </div>
               )}
             </div>
-            <Badge className={cancelledAt ? "bg-amber-100 text-amber-700 border-amber-200" : "bg-violet-100 text-violet-700 border-violet-200"}>
-              {cancelledAt ? "מבוטל" : "פעיל"}
+            <Badge className={
+              !isPro ? "bg-slate-100 text-slate-700 border-slate-200"
+              : cancelledAt ? "bg-amber-100 text-amber-700 border-amber-200"
+              : "bg-violet-100 text-violet-700 border-violet-200"
+            }>
+              {!isPro ? "חינמי" : cancelledAt ? "מבוטל" : "פעיל"}
             </Badge>
           </div>
 
-          {!cancelledAt && (
+          {!isPro && (
+            <Button
+              onClick={handleUpgrade}
+              disabled={loadingUpgrade}
+              className="bg-violet-600 hover:bg-violet-700 text-white gap-2"
+            >
+              <Crown className="w-4 h-4" />
+              {loadingUpgrade ? "טוען..." : "שדרג למנוי פרו — ₪100/חודש"}
+            </Button>
+          )}
+
+          {isPro && !cancelledAt && (
             <Button
               variant="outline"
               size="sm"
@@ -3895,7 +3948,7 @@ function SubscriptionManagementCard() {
             </Button>
           )}
 
-          {cancelledAt && (
+          {isPro && cancelledAt && (
             <p className="text-xs text-muted-foreground">
               לחידוש המנוי לאחר הפקיעה, פתח שדרוג חדש מהבאנר למעלה.
             </p>

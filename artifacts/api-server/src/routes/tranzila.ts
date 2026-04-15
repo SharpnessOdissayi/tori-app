@@ -58,7 +58,10 @@ function buildSubscriptionUrl(params: {
   ownerName: string;
   email: string;
 }): string {
-  const base = `https://direct.tranzila.com/${SUPPLIER}/iframenew.php`;
+  // MUST be SUPPLIER_TOK (lilash2tok) — only the token-service terminal honors
+  // tranmode=AK and returns a token we can use for monthly STO charges.
+  // Using the plain SUPPLIER terminal results in a one-time charge with no token.
+  const base = `https://direct.tranzila.com/${SUPPLIER_TOK}/iframenew.php`;
   const p = new URLSearchParams({
     sum: SUBSCRIPTION_FIRST_ILS.toFixed(2),
     currency: "1",
