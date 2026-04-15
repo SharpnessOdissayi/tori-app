@@ -15,11 +15,21 @@ import {
   UpdateBusinessBrandingBody,
   UpdateBusinessIntegrationsBody,
   RemoveFromWaitlistParams,
-  CreateTimeOffBody,
 } from "@workspace/api-zod";
 import { requireBusinessAuth } from "../middlewares/business-auth";
 
 const router = Router();
+
+function parseCreateTimeOffBody(raw: any) {
+  if (!raw || typeof raw !== "object") return { success: false as const };
+  const { date, startTime, endTime, fullDay, note } = raw;
+  if (typeof date !== "string") return { success: false as const };
+  if (startTime !== undefined && startTime !== null && typeof startTime !== "string") return { success: false as const };
+  if (endTime !== undefined && endTime !== null && typeof endTime !== "string") return { success: false as const };
+  if (fullDay !== undefined && typeof fullDay !== "boolean") return { success: false as const };
+  if (note !== undefined && typeof note !== "string") return { success: false as const };
+  return { success: true as const, data: { date, startTime, endTime, fullDay, note } };
+}
 
 function mapBusiness(b: typeof businessesTable.$inferSelect) {
   return {
@@ -813,7 +823,7 @@ router.get("/business/time-off", requireBusinessAuth, async (req, res): Promise<
 
 // POST /business/time-off
 router.post("/business/time-off", requireBusinessAuth, async (req, res): Promise<void> => {
-  const parsed = CreateTimeOffBody.safeParse(req.body);
+  const parsed = parseCreateTimeOffBody(req.body);
   if (!parsed.success) { res.status(400).json({ error: "Invalid data" }); return; }
   const [item] = await db.insert(timeOffTable).values({
     businessId: req.business!.businessId,

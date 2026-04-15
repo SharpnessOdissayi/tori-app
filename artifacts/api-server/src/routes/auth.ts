@@ -2,7 +2,7 @@ import { Router } from "express";
 import bcrypt from "bcryptjs";
 import { db, businessesTable, workingHoursTable } from "@workspace/db";
 import { eq, or, sql } from "drizzle-orm";
-import { BusinessLoginBody, BusinessRegisterBody, ChangePasswordBody } from "@workspace/api-zod";
+import { BusinessLoginBody } from "@workspace/api-zod";
 import { signBusinessToken } from "../lib/auth";
 import { requireBusinessAuth } from "../middlewares/business-auth";
 import { sendEmail } from "../lib/email";
@@ -14,6 +14,44 @@ const resetCodes = new Map<string, { code: string; expiresAt: number }>();
 const emailChangeCodes = new Map<number, { newEmail: string; code: string; expiresAt: number }>();
 
 const router = Router();
+
+function parseBusinessRegisterBody(raw: any) {
+  if (!raw || typeof raw !== "object") return { success: false as const };
+  const {
+    name, slug, username, ownerName, phone, email, password, subscriptionPlan,
+    businessCategories, address, websiteUrl, instagramHandle,
+  } = raw;
+  const isString = (v: unknown) => typeof v === "string";
+  if (
+    !isString(name) || !isString(slug) || !isString(ownerName) || !isString(phone) ||
+    !isString(email) || !isString(password) || !["free", "pro"].includes(subscriptionPlan)
+  ) {
+    return { success: false as const };
+  }
+  if (username !== undefined && !isString(username)) return { success: false as const };
+  if (address !== undefined && !isString(address)) return { success: false as const };
+  if (websiteUrl !== undefined && !isString(websiteUrl)) return { success: false as const };
+  if (instagramHandle !== undefined && !isString(instagramHandle)) return { success: false as const };
+  if (businessCategories !== undefined && (!Array.isArray(businessCategories) || businessCategories.some((c) => !isString(c)))) {
+    return { success: false as const };
+  }
+  return {
+    success: true as const,
+    data: {
+      name, slug, username, ownerName, phone, email, password, subscriptionPlan,
+      businessCategories, address, websiteUrl, instagramHandle,
+    },
+  };
+}
+
+function parseChangePasswordBody(raw: any) {
+  if (!raw || typeof raw !== "object") return { success: false as const };
+  const { currentPassword, newPassword } = raw;
+  if (typeof currentPassword !== "string" || typeof newPassword !== "string" || newPassword.length === 0) {
+    return { success: false as const };
+  }
+  return { success: true as const, data: { currentPassword, newPassword } };
+}
 
 function buildLoginResponse(business: typeof businessesTable.$inferSelect, token: string) {
   return {
@@ -79,9 +117,9 @@ router.post("/auth/business/login", async (req, res): Promise<void> => {
 
 // POST /auth/business/register — self-service registration
 router.post("/auth/business/register", async (req, res): Promise<void> => {
-  const parsed = BusinessRegisterBody.safeParse(req.body);
+  const parsed = parseBusinessRegisterBody(req.body);
   if (!parsed.success) {
-    res.status(400).json({ error: "Invalid input", details: parsed.error.flatten() });
+    res.status(400).json({ error: "Invalid input" });
     return;
   }
 
@@ -157,7 +195,7 @@ router.post("/auth/business/register", async (req, res): Promise<void> => {
 
 // POST /auth/business/change-password — change own password
 router.post("/auth/business/change-password", requireBusinessAuth, async (req, res): Promise<void> => {
-  const parsed = ChangePasswordBody.safeParse(req.body);
+  const parsed = parseChangePasswordBody(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: "Invalid input" });
     return;
