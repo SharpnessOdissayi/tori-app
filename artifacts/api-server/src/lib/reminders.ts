@@ -1,5 +1,5 @@
 import { db, appointmentsTable, businessesTable } from "@workspace/db";
-import { eq, not } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { sendReminder24h, sendReminder1h, sendReminderMorning } from "./whatsapp";
 
 function parseAppointmentDate(date: string, time: string): Date {
@@ -116,7 +116,7 @@ export async function sendReminders(): Promise<void> {
     })
     .from(appointmentsTable)
     .innerJoin(businessesTable, eq(appointmentsTable.businessId, businessesTable.id))
-    .where(not(eq(appointmentsTable.status, "cancelled")));
+    .where(eq(appointmentsTable.status, "confirmed"));
 
   for (const appt of appointments) {
     if (!appt.sendReminders) continue;
