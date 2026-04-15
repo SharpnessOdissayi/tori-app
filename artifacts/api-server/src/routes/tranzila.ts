@@ -180,7 +180,7 @@ router.post("/tranzila/notify", async (req, res): Promise<void> => {
                   .where(eq(businessesTable.id, businessId));
                 console.log(`[Tranzila] STO created for business ${businessId}, stoId=${stoResult.stoId}`);
               } else {
-                console.warn(`[Tranzila] STO creation failed for business ${businessId}: ${stoResult.error} — cron fallback active`);
+                console.warn(`[Tranzila] STO creation failed for business ${businessId}: ${stoResult.error}`);
               }
             }
           }
