@@ -119,10 +119,25 @@ export async function createStandingOrder(params: {
     created_by_user:   "kavati-saas",
   };
 
+  const headers = buildAuthHeaders();
+
+  // Debug: print request meta so HMAC inputs are visible in Railway logs.
+  // Truncate the token to avoid leaking the full signing material.
+  console.log("[TranzilaREST] STO create request →", {
+    url:             STO_CREATE_URL,
+    terminal:        SUPPLIER_TOK,
+    publicKeyLen:    API_PUBLIC_KEY.length,
+    secretLen:       API_SECRET_KEY.length,
+    nonce:           headers["X-tranzila-api-nonce"],
+    requestTime:     headers["X-tranzila-api-request-time"],
+    accessTokenHead: headers["X-tranzila-api-access-token"].slice(0, 16) + "…",
+    body:            { ...body, card: { ...body.card, token: String(body.card.token).slice(0, 6) + "…" } },
+  });
+
   try {
     const res = await fetch(STO_CREATE_URL, {
       method:  "POST",
-      headers: buildAuthHeaders(),
+      headers,
       body:    JSON.stringify(body),
     });
 
@@ -143,20 +158,17 @@ export async function createStandingOrder(params: {
     } = {};
     try { data = JSON.parse(rawText); } catch { /* non-JSON — keep rawText for log */ }
 
-    // Always log the full response (raw body + parsed fields + auth headers used)
-    // so HMAC mismatches can be diagnosed against Tranzila's expectations.
-    logger.info(
-      {
-        businessId: params.businessId,
-        status:     res.status,
-        errorCode:  data.error_code,
-        stoId:      data.sto_id,
-        msg:        data.message,
-        mismatches: data.mismatch_info,
-        rawBody:    rawText.slice(0, 500),
-      },
-      "[TranzilaREST] STO create response"
-    );
+    // Use console.log so the line is visible in Railway's log view
+    // (pino JSON gets truncated/collapsed there).
+    console.log("[TranzilaREST] STO create response ←", {
+      businessId: params.businessId,
+      status:     res.status,
+      errorCode:  data.error_code,
+      stoId:      data.sto_id,
+      msg:        data.message,
+      mismatches: data.mismatch_info,
+      rawBody:    rawText.slice(0, 500),
+    });
 
     if (res.ok && data.error_code === 0 && data.sto_id) {
       return { success: true, stoId: data.sto_id };
