@@ -340,15 +340,19 @@ router.post("/public/:businessSlug/appointments", async (req, res): Promise<void
     }
   }
 
-  // 4. Max appointments per customer (active, non-cancelled)
+  // 4. Max appointments per customer — only count UPCOMING, confirmed
+  // appointments. Past appointments and abandoned pending_payment rows
+  // shouldn't lock a customer out of booking new ones.
   if (business.maxAppointmentsPerCustomer) {
+    const todayStr = new Date().toISOString().slice(0, 10);
     const [{ customerCount }] = await db
       .select({ customerCount: count() })
       .from(appointmentsTable)
       .where(and(
         eq(appointmentsTable.businessId, business.id),
         eq(appointmentsTable.phoneNumber, phoneNumber),
-        sql`${appointmentsTable.status} != 'cancelled'`
+        sql`${appointmentsTable.status} NOT IN ('cancelled', 'pending_payment', 'completed', 'no_show')`,
+        sql`${appointmentsTable.appointmentDate} >= ${todayStr}`
       ));
     if (customerCount >= business.maxAppointmentsPerCustomer) {
       res.status(409).json({
