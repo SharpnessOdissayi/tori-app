@@ -62,12 +62,13 @@ function buildSubscriptionUrl(params: {
   ownerName: string;
   email: string;
 }): string {
-  // MUST be SUPPLIER_TOK (lilash2tok) — the dedicated tokenization terminal.
-  // tranmode=AK on this terminal returns a reusable token (TranzilaTK + expdate)
-  // in the notify payload, which is required to create the monthly STO.
-  // URL must be directng.tranzila.com (new DirectNG), not direct.tranzila.com
-  // (old URL — returns 404 on tokenization terminals like lilash2tok).
-  const base = `https://directng.tranzila.com/${SUPPLIER_TOK}/iframenew.php`;
+  // Tokenize the card via the SUPPLIER iframe (lilash2), NOT SUPPLIER_TOK.
+  // Tranzila support (ticket #211337802) confirmed: lilash2tok does not expose
+  // an iframe endpoint. The correct flow is to tokenize on lilash2's iframe
+  // (tranmode=AK returns TranzilaTK + expdate) and then create the STO on the
+  // lilash2tok terminal — tokens are valid across sibling terminals in the
+  // same Tranzila account.
+  const base = `https://directng.tranzila.com/${SUPPLIER}/iframenew.php`;
   const p = new URLSearchParams({
     sum: SUBSCRIPTION_FIRST_ILS.toFixed(2),
     currency: "1",

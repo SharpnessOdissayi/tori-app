@@ -149,7 +149,12 @@ Kavati uses **two separate terminals** within one Tranzila account:
 - `TRANZILA_SUPPLIER` (e.g. `lilash2`) — the regular terminal. Used for one-off **appointment deposits** (the iframe on the public booking page).
 - `TRANZILA_SUPPLIER_TOK` (e.g. `lilash2tok`) — the dedicated **tokenization** terminal. The `tok` suffix is literal Tranzila naming for tokenization terminals. Used for **Pro subscriptions**: charges the first month *and* returns a reusable card token, which we send to the STO REST API so Tranzila handles the monthly renewals.
 
-Using the tokenization terminal is **mandatory** for subscriptions. The plain terminal can process the charge but will not return a token — no token means no STO, which means no automatic monthly billing.
+**Iframe vs. STO terminal split:** per Tranzila support (ticket #211337802), the `lilash2tok` terminal does **not** expose an iframe endpoint — only the main `lilash2` terminal does. The correct flow is:
+
+1. Customer enters card in the iframe served from **`lilash2`** with `tranmode=AK` → Tranzila returns `TranzilaTK` + `expdate` in the notify webhook.
+2. Backend calls the STO API on **`lilash2tok`** with that token → Tranzila creates the Standing Order and drives monthly charges.
+
+Tokens issued by one terminal are valid across sibling terminals in the same Tranzila account, which is what makes this cross-terminal flow work.
 
 **Iframe URL — use `directng.tranzila.com`, not `direct.tranzila.com`.** Tranzila migrated to a new DirectNG host. Tokenization terminals (like `lilash2tok`) are only reachable via the new URL; the old `direct.tranzila.com` returns 404 on them. All iframe integrations in this codebase use `https://directng.tranzila.com/{terminal}/iframenew.php`.
 
