@@ -544,20 +544,18 @@ export default function Dashboard() {
               <TabsTrigger value="waitlist" className="gap-1.5 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground whitespace-nowrap">
                 <ListOrdered className="w-4 h-4" /> רשימת המתנה
               </TabsTrigger>
-              {isProPlan && <>
-                <TabsTrigger value="analytics" className="gap-1.5 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground whitespace-nowrap">
-                  <TrendingUp className="w-4 h-4" /> נתונים
-                </TabsTrigger>
-                <TabsTrigger value="revenue" className="gap-1.5 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground whitespace-nowrap">
-                  <DollarSign className="w-4 h-4" /> כסף
-                </TabsTrigger>
-              </>}
+              <TabsTrigger value="analytics" className="gap-1.5 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground whitespace-nowrap">
+                <TrendingUp className="w-4 h-4" /> נתונים {!isProPlan && <ProShine />}
+              </TabsTrigger>
+              <TabsTrigger value="revenue" className="gap-1.5 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground whitespace-nowrap">
+                <DollarSign className="w-4 h-4" /> כסף {!isProPlan && <ProShine />}
+              </TabsTrigger>
               <TabsTrigger value="branding" className="gap-1.5 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground whitespace-nowrap">
                 <Palette className="w-4 h-4" /> עיצוב
               </TabsTrigger>
-              {isProPlan && <TabsTrigger value="integrations" className="gap-1.5 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground whitespace-nowrap">
-                <Phone className="w-4 h-4" /> הודעות
-              </TabsTrigger>}
+              <TabsTrigger value="integrations" className="gap-1.5 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground whitespace-nowrap">
+                <Phone className="w-4 h-4" /> הודעות {!isProPlan && <ProShine />}
+              </TabsTrigger>
               <TabsTrigger value="settings" className="gap-1.5 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground whitespace-nowrap">
                 <Settings className="w-4 h-4" /> הגדרות
               </TabsTrigger>
@@ -579,11 +577,11 @@ export default function Dashboard() {
                 { value: "branding", icon: <Palette className="w-6 h-6" />, label: "עיצוב", proOnly: false },
                 { value: "integrations", icon: <Phone className="w-6 h-6" />, label: "הודעות", proOnly: true },
                 { value: "settings", icon: <Settings className="w-6 h-6" />, label: "הגדרות", proOnly: false },
-              ].filter(t => isProPlan || !t.proOnly).map(({ value, icon, label }) => (
+              ].map(({ value, icon, label, proOnly }) => (
                 <button
                   key={value}
                   onClick={() => setActiveTab(value)}
-                  className={`flex flex-col items-center justify-center gap-1.5 py-4 rounded-2xl border-2 transition-all text-sm font-medium ${
+                  className={`relative flex flex-col items-center justify-center gap-1.5 py-4 rounded-2xl border-2 transition-all text-sm font-medium ${
                     activeTab === value
                       ? "border-primary bg-primary text-primary-foreground shadow-md scale-[1.02]"
                       : "border-border bg-card text-muted-foreground hover:border-primary/40"
@@ -591,6 +589,9 @@ export default function Dashboard() {
                 >
                   {icon}
                   <span className="text-xs leading-tight">{label}</span>
+                  {proOnly && !isProPlan && (
+                    <span className="absolute -top-1 -left-1"><ProShine /></span>
+                  )}
                 </button>
               ))}
             </div>
@@ -602,10 +603,10 @@ export default function Dashboard() {
           <TabsContent value="timeoff"><DayOffTab /></TabsContent>
           <TabsContent value="customers"><CustomersTab /></TabsContent>
           <TabsContent value="waitlist"><WaitlistTab /></TabsContent>
-          {isProPlan && <TabsContent value="analytics"><AnalyticsTab /></TabsContent>}
-          {isProPlan && <TabsContent value="revenue"><RevenueTab /></TabsContent>}
+          <TabsContent value="analytics">{isProPlan ? <AnalyticsTab /> : <ProUpgradePrompt title="נתונים — מנוי PRO בלבד" desc="שדרג למנוי PRO כדי לראות סטטיסטיקות מפורטות, גרפים ומגמות של העסק שלך" />}</TabsContent>
+          <TabsContent value="revenue">{isProPlan ? <RevenueTab /> : <ProUpgradePrompt title="כסף — מנוי PRO בלבד" desc="שדרג למנוי PRO כדי לעקוב אחרי הכנסות, תשלומים מקדמה ודוחות כספיים" />}</TabsContent>
           <TabsContent value="branding"><BrandingTab /></TabsContent>
-          {isProPlan && <TabsContent value="integrations"><IntegrationsTab /></TabsContent>}
+          <TabsContent value="integrations">{isProPlan ? <IntegrationsTab /> : <ProUpgradePrompt title="הודעות — מנוי PRO בלבד" desc="שדרג למנוי PRO כדי לנהל תבניות WhatsApp אישיות, הודעות ברודקאסט ותזכורות מתוזמנות" />}</TabsContent>
           <TabsContent value="settings"><SettingsTab /></TabsContent>
         </Tabs>
 
@@ -2845,7 +2846,11 @@ function BrandingTab() {
 
               {/* Categories */}
               <div className="space-y-2">
-                <Label className="flex items-center gap-1.5">סוג העסק <span className="text-xs text-muted-foreground font-normal">(אפשר לבחור כמה)</span></Label>
+                <Label className="flex items-center gap-1.5">
+                  סוג העסק
+                  <span className="text-xs text-muted-foreground font-normal">(אפשר לבחור כמה)</span>
+                  {!isPro && <ProShine />}
+                </Label>
                 {selectedCategories.length > 0 && (
                   <div className="flex flex-wrap gap-1.5">
                     {selectedCategories.map(cat => (
@@ -3997,5 +4002,41 @@ function SubscriptionStatusCard() {
 function EmptyState({ text, className = "" }: { text: string; className?: string }) {
   return (
     <div className={`text-center py-12 text-muted-foreground ${className}`}>{text}</div>
+  );
+}
+
+// Small glowing "PRO" chip for marking Pro-gated features without hiding them.
+function ProShine() {
+  return (
+    <span
+      className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-md text-[10px] font-bold text-white bg-gradient-to-r from-violet-500 via-fuchsia-500 to-amber-400 shadow-[0_0_8px_rgba(168,85,247,0.5)] animate-pulse"
+      title="זמין במנוי PRO"
+    >
+      <Crown className="w-2.5 h-2.5" />
+      PRO
+    </span>
+  );
+}
+
+// Full-tab upgrade prompt shown when a free user opens a Pro-only tab.
+function ProUpgradePrompt({ title, desc }: { title: string; desc: string }) {
+  const { toast } = useToast();
+  return (
+    <div className="flex flex-col items-center justify-center py-20 gap-6 text-center">
+      <div className="w-20 h-20 rounded-full bg-gradient-to-br from-violet-100 to-fuchsia-100 flex items-center justify-center shadow-[0_0_24px_rgba(168,85,247,0.35)]">
+        <Crown className="w-10 h-10 text-violet-600" />
+      </div>
+      <div>
+        <h2 className="text-xl font-bold mb-2">{title}</h2>
+        <p className="text-muted-foreground max-w-sm">{desc}</p>
+      </div>
+      <Button
+        size="lg"
+        className="gap-2 bg-gradient-to-r from-violet-600 to-fuchsia-600 hover:from-violet-700 hover:to-fuchsia-700 text-white shadow-lg"
+        onClick={() => toast({ title: "שדרוג למנוי PRO", description: "פתח את לשונית ההגדרות → סטטוס מנוי → שדרג" })}
+      >
+        <Crown className="w-4 h-4" /> שדרג למנוי PRO
+      </Button>
+    </div>
   );
 }
