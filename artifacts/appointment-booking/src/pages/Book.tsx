@@ -502,11 +502,14 @@ export default function Book() {
     fetch(`${API_BASE}/client/me`, { headers: { "x-client-token": clientToken } })
       .then(r => r.ok ? r.json() : null)
       .then(data => {
-        if (data) setClientData(prev => ({
+        if (!data) return;
+        setClientData(prev => ({
           ...prev,
           name: prev.name || data.clientName || "",
           phone: prev.phone || data.phone || "",
         }));
+        // Phone already verified via portal login (OTP) — skip re-verification
+        if (data.phone) setPhoneVerified(true);
       }).catch(() => {});
   }, [clientToken, API_BASE]);
 
@@ -926,7 +929,7 @@ export default function Book() {
           if (data?.requiresPayment && data?.id) {
             fetch(`${API_BASE}/tranzila/payment-url/${data.id}`)
               .then(r => r.json())
-              .then(({ url }) => { if (url) window.location.href = url; else setStep(5); })
+              .then(({ url }) => { if (url) setPaymentIframeUrl(url); else setStep(5); })
               .catch(() => setStep(5));
           } else {
             setStep(5);
@@ -1503,7 +1506,7 @@ export default function Book() {
 
       {/* Payment iframe modal */}
       <Dialog open={!!paymentIframeUrl} onOpenChange={(open) => { if (!open) setPaymentIframeUrl(null); }}>
-        <DialogContent className="max-w-lg p-0 overflow-hidden" dir="rtl">
+        <DialogContent className="max-w-2xl w-[95vw] p-0 overflow-hidden" dir="rtl" aria-describedby={undefined}>
           <DialogHeader className="p-4 pb-2">
             <DialogTitle>תשלום מקדמה</DialogTitle>
           </DialogHeader>
@@ -1511,8 +1514,9 @@ export default function Book() {
             <iframe
               src={paymentIframeUrl}
               className="w-full border-0"
-              style={{ height: "520px" }}
+              style={{ height: "75vh", minHeight: "600px" }}
               title="תשלום מקדמה"
+              allow="payment"
             />
           )}
         </DialogContent>
@@ -1936,7 +1940,7 @@ export default function Book() {
               ) : <div />}
               {step === 4 ? (
                 <Button form="booking-form" type="submit" size="lg" disabled={createMutation.isPending} style={{ backgroundColor: primaryColor }}>
-                  {createMutation.isPending ? "קובע תור..." : "אשר תור"}
+                  {createMutation.isPending ? "קובע תור..." : "קבע תור"}
                 </Button>
               ) : step === 3 && selectedTime ? (
                 <Button onClick={handleNext} size="lg" style={{ backgroundColor: primaryColor }}>המשך</Button>

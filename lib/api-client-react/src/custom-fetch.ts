@@ -363,6 +363,15 @@ export async function customFetch<T = unknown>(
     }
   }
 
+  // Attach client portal token (logged-in client) so public endpoints can
+  // recognize the session and skip OTP when phone matches.
+  const clientToken = typeof window !== "undefined"
+    ? localStorage.getItem("kavati_client_token")
+    : null;
+  if (clientToken && !headers.has("x-client-token")) {
+    headers.set("x-client-token", clientToken);
+  }
+
   const requestInfo = { method, url: resolveUrl(input) };
 
   const response = await fetch(input, { ...init, method, headers });

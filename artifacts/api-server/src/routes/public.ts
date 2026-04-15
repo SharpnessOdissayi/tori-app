@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { logBusinessNotification } from "./notifications";
 import { db, businessesTable, servicesTable, appointmentsTable, waitlistTable, workingHoursTable, clientSessionsTable } from "@workspace/db";
-import { eq, and, gte, sql, countDistinct, count, ilike, or } from "drizzle-orm";
+import { eq, and, gte, sql, countDistinct, count, ilike, or, gt } from "drizzle-orm";
 import {
   GetPublicBusinessParams,
   GetPublicServicesParams,
@@ -274,12 +274,29 @@ router.post("/public/:businessSlug/appointments", async (req, res): Promise<void
     return;
   }
 
-  // Enforce phone OTP when required: in-memory (single instance) or signed JWT (multi-instance / Railway)
+  // Enforce phone OTP when required: in-memory, signed JWT, or logged-in client with matching phone
   if (business.requirePhoneVerification) {
     const verifiedByMemory = isPhoneVerified(phoneNumber);
     const verifiedByToken =
       phoneVerificationToken && verifyPhoneVerificationToken(phoneVerificationToken, phoneNumber);
-    if (!verifiedByMemory && !verifiedByToken) {
+
+    // Client logged-in via portal with a matching phone counts as verified (they passed OTP on login)
+    let verifiedByClientSession = false;
+    const clientToken = req.headers["x-client-token"] as string | undefined;
+    if (clientToken) {
+      const [session] = await db
+        .select({ phoneNumber: clientSessionsTable.phoneNumber })
+        .from(clientSessionsTable)
+        .where(and(
+          eq(clientSessionsTable.token, clientToken),
+          gt(clientSessionsTable.expiresAt, new Date()),
+        ));
+      if (session?.phoneNumber && session.phoneNumber.trim() === phoneNumber.trim()) {
+        verifiedByClientSession = true;
+      }
+    }
+
+    if (!verifiedByMemory && !verifiedByToken && !verifiedByClientSession) {
       res.status(403).json({ error: "phone_not_verified", message: "יש לאמת את מספר הטלפון תחילה" });
       return;
     }
