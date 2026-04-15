@@ -915,6 +915,7 @@ function AppointmentsTab() {
   const now = new Date().toISOString().split("T")[0];
   const aptList = Array.isArray(appointments) ? appointments : [];
   const pending = aptList.filter(a => a.status === "pending");
+  const pendingPayment = aptList.filter(a => a.status === "pending_payment");
   const upcoming = aptList.filter(a => a.appointmentDate >= now && a.status !== "pending" && a.status !== "cancelled" && a.status !== "pending_payment");
   const past = aptList.filter(a => a.appointmentDate < now && a.status !== "cancelled" && a.status !== "pending_payment");
   const cancelled = aptList.filter(a => a.status === "cancelled");
@@ -973,6 +974,39 @@ function AppointmentsTab() {
                       <X className="w-3.5 h-3.5" /> דחה
                     </button>
                   </div>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {pendingPayment.length > 0 && (
+        <Card className="border-blue-300 bg-blue-50/50">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-blue-800">
+              <span>💳</span> ממתינים לתשלום ({pendingPayment.length})
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-3">
+              {pendingPayment.map(apt => (
+                <div key={apt.id} className="flex flex-col sm:flex-row justify-between items-start sm:items-center p-4 border border-blue-200 rounded-xl bg-white gap-3">
+                  <div className="flex-1">
+                    <div className="font-semibold">{apt.clientName}
+                      <span className="text-muted-foreground text-sm font-normal mr-2" dir="ltr">{apt.phoneNumber}</span>
+                    </div>
+                    <div className="text-sm text-muted-foreground mt-0.5">{apt.serviceName} • {formatDuration(apt.durationMinutes)}</div>
+                    <div className="text-blue-700 font-medium text-sm mt-1">
+                      {format(parseISO(apt.appointmentDate + "T" + apt.appointmentTime), "EEEE, d בMMMM yyyy", { locale: he })} • {apt.appointmentTime}
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => handleCancel(apt.id)} disabled={cancelMutation.isPending}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-red-50 hover:bg-red-100 text-red-500 border border-red-100 transition-all disabled:opacity-60"
+                  >
+                    <X className="w-3.5 h-3.5" /> בטל
+                  </button>
                 </div>
               ))}
             </div>
