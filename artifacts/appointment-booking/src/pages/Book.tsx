@@ -926,7 +926,7 @@ export default function Book() {
           if (data?.requiresPayment && data?.id) {
             fetch(`${API_BASE}/tranzila/payment-url/${data.id}`)
               .then(r => r.json())
-              .then(({ url }) => { if (url) setPaymentIframeUrl(url); else setStep(5); })
+              .then(({ url }) => { if (url) window.location.href = url; else setStep(5); })
               .catch(() => setStep(5));
           } else {
             setStep(5);
