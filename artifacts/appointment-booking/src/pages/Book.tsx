@@ -1486,17 +1486,23 @@ export default function Book() {
                         <>
                           <p className="text-sm text-muted-foreground">הזמנים הפנויים הקרובים:</p>
                           <div className="grid grid-cols-2 gap-2">
-                            {nextSlots.map((slot, i) => (
-                              <button
-                                key={i}
-                                onClick={() => handleQuickSlot(slot)}
-                                className="py-3 px-4 rounded-xl border-2 text-sm font-medium text-right transition-all hover:border-primary/50 hover:bg-muted/40"
-                                style={{ borderColor: "transparent", backgroundColor: primaryColor + "0d" }}
-                                dir="ltr"
-                              >
-                                {formatQuickSlot(slot)}
-                              </button>
-                            ))}
+                            {nextSlots.map((slot, i) => {
+                              const holiday = JEWISH_HOLIDAYS[slot.date];
+                              return (
+                                <button
+                                  key={i}
+                                  onClick={() => handleQuickSlot(slot)}
+                                  className="py-3 px-4 rounded-xl border-2 text-sm font-medium text-right transition-all hover:border-primary/50 hover:bg-muted/40 flex flex-col items-start gap-0.5"
+                                  style={{ borderColor: "transparent", backgroundColor: primaryColor + "0d" }}
+                                  dir="ltr"
+                                >
+                                  <span>{formatQuickSlot(slot)}</span>
+                                  {holiday && (
+                                    <span className="text-[10px] text-amber-600 font-medium" dir="rtl">{holiday}</span>
+                                  )}
+                                </button>
+                              );
+                            })}
                           </div>
                         </>
                       ) : (

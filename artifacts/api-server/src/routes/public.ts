@@ -195,7 +195,19 @@ router.get("/public/:businessSlug/availability", async (req, res): Promise<void>
 
   const bufferMinutes = service.bufferMinutes > 0 ? service.bufferMinutes : business.bufferMinutes;
   const slots = await computeAvailableSlots(business.id, date, service.durationMinutes, bufferMinutes);
-  const availableSlots = slots.filter((s) => s.available).map((s) => s.time);
+
+  const minLeadHours: number = (business as any).minLeadHours ?? 0;
+  const minAllowed = new Date(Date.now() + minLeadHours * 60 * 60 * 1000);
+
+  const availableSlots = slots
+    .filter(s => s.available)
+    .map(s => s.time)
+    .filter(time => {
+      const [h, m] = time.split(":").map(Number);
+      const slotDate = new Date(`${date}T00:00:00`);
+      slotDate.setHours(h, m, 0, 0);
+      return slotDate >= minAllowed;
+    });
   const isFullyBooked = availableSlots.length === 0;
 
   res.json({ date, slots: availableSlots, isFullyBooked });
@@ -633,6 +645,8 @@ router.get("/public/:businessSlug/next-slots", async (req, res): Promise<void> =
   const bufferMinutes = service.bufferMinutes > 0 ? service.bufferMinutes : (business.bufferMinutes ?? 0);
   const results: { date: string; time: string }[] = [];
   const today = new Date();
+  const minLeadHoursNS: number = (business as any).minLeadHours ?? 0;
+  const minAllowedNS = new Date(Date.now() + minLeadHoursNS * 60 * 60 * 1000);
 
   for (let dayOffset = 0; dayOffset < 60 && results.length < count; dayOffset++) {
     const d = new Date(today);
@@ -643,17 +657,13 @@ router.get("/public/:businessSlug/next-slots", async (req, res): Promise<void> =
     const dateStr = `${year}-${month}-${day}`;
 
     const slots = await computeAvailableSlots(business.id, dateStr, service.durationMinutes, bufferMinutes);
-    const now = new Date();
 
     for (const slot of slots) {
       if (!slot.available) continue;
-      // Skip past slots on today
-      if (dayOffset === 0) {
-        const [h, m] = slot.time.split(":").map(Number);
-        const slotDate = new Date(today);
-        slotDate.setHours(h, m, 0, 0);
-        if (slotDate <= now) continue;
-      }
+      const [h, m] = slot.time.split(":").map(Number);
+      const slotDate = new Date(`${dateStr}T00:00:00`);
+      slotDate.setHours(h, m, 0, 0);
+      if (slotDate < minAllowedNS) continue;
       results.push({ date: dateStr, time: slot.time });
       if (results.length >= count) break;
     }
