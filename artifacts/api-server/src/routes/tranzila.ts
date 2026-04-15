@@ -21,8 +21,10 @@ export function buildTranzilaUrl(params: {
   sum: number;
   description: string;
   clientName: string;
+  requiresApproval?: boolean;
 }): string {
   const base = `https://direct.tranzila.com/${SUPPLIER}/iframenew.php`;
+  const successUrl = `https://www.kavati.net/payment/success?appt=${params.appointmentId}${params.requiresApproval ? "&approval=1" : ""}`;
   const p = new URLSearchParams({
     sum: params.sum.toFixed(2),
     currency: "1",
@@ -31,7 +33,7 @@ export function buildTranzilaUrl(params: {
     pdesc: params.description,
     contact: params.clientName,
     myid: String(params.appointmentId),
-    success_url_address: `https://www.kavati.net/payment/success?appt=${params.appointmentId}`,
+    success_url_address: successUrl,
     fail_url_address:    `https://www.kavati.net/payment/fail?appt=${params.appointmentId}`,
     notify_url_address:  `https://www.kavati.net/api/tranzila/notify`,
     TranzilaTK: NOTIFY_PASSWORD,
@@ -208,7 +210,7 @@ router.get("/tranzila/payment-url/:appointmentId", async (req, res): Promise<voi
   if (!appt) { res.status(404).json({ error: "Appointment not found" }); return; }
 
   const [business] = await db
-    .select({ depositAmountAgorot: (businessesTable as any).depositAmountAgorot })
+    .select({ depositAmountAgorot: (businessesTable as any).depositAmountAgorot, requireAppointmentApproval: businessesTable.requireAppointmentApproval })
     .from(businessesTable)
     .where(eq(businessesTable.id, appt.businessId));
 
@@ -220,6 +222,7 @@ router.get("/tranzila/payment-url/:appointmentId", async (req, res): Promise<voi
     sum: sumILS,
     description: `${appt.serviceName} - תור מספר ${appt.id}`,
     clientName: appt.clientName,
+    requiresApproval: !!business.requireAppointmentApproval,
   });
 
   res.json({ url, sum: sumILS, appointmentId: appt.id });

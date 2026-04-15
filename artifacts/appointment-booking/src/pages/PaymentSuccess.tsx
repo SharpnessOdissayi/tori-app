@@ -10,6 +10,7 @@ export default function PaymentSuccess() {
   const params = new URLSearchParams(window.location.search);
   const type = params.get("type");
   const apptId = params.get("appt");
+  const requiresApproval = params.get("approval") === "1";
 
   const isSubscription = type === "subscription";
   const inPopup = !!window.opener && window.opener !== window;
@@ -72,9 +73,11 @@ export default function PaymentSuccess() {
           <p className="text-base text-gray-700 leading-relaxed">
             {isSubscription
               ? "המנוי שלך הופעל. כעת יש לך גישה מלאה לכל תכונות קבעתי פרו."
-              : apptId
-                ? `התור שלך אושר לאחר קבלת המקדמה. נשלחה לך הודעת אישור בוואטסאפ.`
-                : "התשלום התקבל בהצלחה."}
+              : apptId && requiresApproval
+                ? "המקדמה התקבלה. התור ממתין לאישור בעל העסק — תקבל/י הודעת אישור בוואטסאפ לאחר שיאושר."
+                : apptId
+                  ? "התור שלך אושר לאחר קבלת המקדמה. נשלחה לך הודעת אישור בוואטסאפ."
+                  : "התשלום התקבל בהצלחה."}
           </p>
         </div>
 

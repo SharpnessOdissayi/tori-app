@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+  import { useState, useEffect, useCallback } from "react";
 import { useLocation, useSearch } from "wouter";
 import { Home, CalendarDays, Plus, LogOut, Trash2, Edit2, X, ChevronLeft, Settings, Search, MapPin, Tag, Bell } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
@@ -421,7 +421,7 @@ export default function ClientPortal() {
       body: JSON.stringify({ clientName: profileName, phone: profilePhone, receiveNotifications: profileReceiveNotifications, gender: profileGender }),
     });
     setLoading(false);
-    if (res.ok) { toast({ title: "פרטים עודכנו" }); setProfileOpen(false); setSession(s => s ? { ...s, clientName: profileName, phone: profilePhone, receiveNotifications: profileReceiveNotifications, gender: profileGender } : s); }
+    if (res.ok) { toast({ title: "פרטים עודכנו" }); setProfileOpen(false); setSession(s => s ? { ...s, clientName: profileName, phone: profilePhone || s.phone, receiveNotifications: profileReceiveNotifications, gender: profileGender } : s); }
     else toast({ title: "שגיאה", variant: "destructive" });
   };
 
@@ -673,8 +673,14 @@ export default function ClientPortal() {
               </div>
               <div className="space-y-1.5">
                 <label className="text-sm font-medium text-gray-700">טלפון</label>
-                <input type="tel" dir="ltr" value={profilePhone} onChange={e => setProfilePhone(e.target.value)}
-                  className="w-full rounded-xl border border-gray-200 px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500 text-right" />
+                {session.phone ? (
+                  <div className="w-full rounded-xl border border-gray-100 bg-gray-50 px-4 py-2.5 text-sm text-gray-500 text-right" dir="ltr">
+                    {session.phone}
+                  </div>
+                ) : (
+                  <input type="tel" dir="ltr" value={profilePhone} onChange={e => setProfilePhone(e.target.value)}
+                    className="w-full rounded-xl border border-gray-200 px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500 text-right" />
+                )}
               </div>
               <div className="space-y-1.5">
                 <label className="text-sm font-medium text-gray-700">מין</label>
