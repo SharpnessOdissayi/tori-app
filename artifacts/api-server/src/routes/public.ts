@@ -43,7 +43,10 @@ router.get("/public/directory", async (req, res): Promise<void> => {
       businessDescription: (businessesTable as any).businessDescription,
     })
     .from(businessesTable)
-    .where(eq(businessesTable.isActive, true));
+    .where(and(
+      eq(businessesTable.isActive, true),
+      sql`${businessesTable.slug} != 'admin'`,
+    ));
 
   const filtered = rows.filter(b => {
     if (city && (b as any).city && !(b as any).city.includes(city)) return false;
