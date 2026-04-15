@@ -480,7 +480,7 @@ function StepDetails({
             required
             type="tel"
             dir="ltr"
-            placeholder="050-0000000"
+            placeholder=""
             value={form.phone}
             onChange={set("phone")}
           />

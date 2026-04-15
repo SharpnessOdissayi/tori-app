@@ -1,4 +1,5 @@
 import { Router } from "express";
+import { logBusinessNotification, logClientNotification } from "./notifications";
 import { db, businessesTable, servicesTable, workingHoursTable, breakTimesTable, appointmentsTable, waitlistTable, timeOffTable } from "@workspace/db";
 import { eq, and, gte, sql, count } from "drizzle-orm";
 import { sendClientCancellation, sendClientReschedule, sendClientConfirmation, sendWhatsApp } from "../lib/whatsapp";
@@ -484,6 +485,23 @@ router.patch("/business/appointments/:id/reschedule", requireBusinessAuth, async
   const formattedDate = `${day}/${month}`;
   sendClientReschedule(appt.phoneNumber, appt.clientName, formattedDate, newTime).catch(() => {});
 
+  // Log notification for business + client
+  logBusinessNotification({
+    businessId: req.business!.businessId,
+    type: "reschedule",
+    appointmentId: appt.id,
+    message: `שינית תור של ${appt.clientName} ל-${formattedDate} בשעה ${newTime}`,
+    actorType: "business",
+    actorName: req.business!.businessName,
+  });
+  logClientNotification({
+    phoneNumber: appt.phoneNumber,
+    type: "reschedule",
+    appointmentId: appt.id,
+    businessName: req.business!.businessName,
+    message: `התור שלך שונה ל-${formattedDate} בשעה ${newTime}`,
+  });
+
   res.json({ ...updated, createdAt: updated.createdAt.toISOString() });
 });
 
@@ -521,6 +539,15 @@ router.delete("/business/appointments/:id", requireBusinessAuth, async (req, res
   const [, month, day] = appt.appointmentDate.split("-");
   const formattedDate = `${day}/${month}`;
   sendClientCancellation(appt.phoneNumber, appt.clientName, req.business!.businessName, formattedDate, appt.appointmentTime).catch(() => {});
+
+  // Log notification for client
+  logClientNotification({
+    phoneNumber: appt.phoneNumber,
+    type: "cancellation",
+    appointmentId: appt.id,
+    businessName: req.business!.businessName,
+    message: `התור שלך ב-${formattedDate} בשעה ${appt.appointmentTime} בוטל על ידי העסק`,
+  });
 
   res.json({ success: true, message: "Appointment cancelled" });
 });

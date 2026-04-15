@@ -44,7 +44,7 @@ import {
   Users, ListOrdered, Palette, Puzzle, Phone, TrendingUp, CheckCircle,
   ExternalLink, Info, Upload, Image as ImageIcon, Crown, Zap, X, Copy, Check, Link,
   ChevronLeft, ChevronRight, HelpCircle, Eye, EyeOff, Umbrella, DollarSign,
-  MessageSquare, Send, Search, ChevronDown, Instagram
+  MessageSquare, Send, Search, ChevronDown, Instagram, Bell
 } from "lucide-react";
 import { useLocation } from "wouter";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
@@ -450,6 +450,7 @@ export default function Dashboard() {
       <Navbar
         leftContent={
           <div className="flex items-center gap-2">
+            <NotificationBell token={token!} />
             {!showTour && localStorage.getItem("onboarding_completed") && (
               <button
                 onClick={() => setShowTour(true)}
@@ -599,6 +600,105 @@ export default function Dashboard() {
   );
 }
 
+// ─── Calendar icon showing today's date ──────────────────────────────────────
+function TodayCalendarIcon() {
+  const today = new Date();
+  const day = today.getDate();
+  const weekday = today.toLocaleDateString("he-IL", { weekday: "short" });
+  const month = today.toLocaleDateString("he-IL", { month: "short" });
+  return (
+    <div className="inline-flex flex-col items-center justify-center w-16 h-16 rounded-2xl overflow-hidden shadow-lg mx-auto mb-2 border border-border select-none" style={{ background: "#fff" }}>
+      <div className="w-full text-white text-[10px] font-bold text-center py-0.5" style={{ background: "#e11d48" }}>{weekday}</div>
+      <div className="flex-1 flex flex-col items-center justify-center">
+        <span className="text-2xl font-bold leading-none text-gray-800">{day}</span>
+        <span className="text-[9px] text-gray-400 mt-0.5">{month}</span>
+      </div>
+    </div>
+  );
+}
+
+// ─── Business notifications bell ──────────────────────────────────────────────
+const API_BASE = import.meta.env.VITE_API_BASE_URL ?? "/api";
+
+function NotificationBell({ token }: { token: string }) {
+  const [open, setOpen] = useState(false);
+  const [notifications, setNotifications] = useState<any[]>([]);
+  const [unread, setUnread] = useState(0);
+  const ref = useRef<HTMLDivElement>(null);
+
+  const fetchNotifs = async () => {
+    try {
+      const r = await fetch(`${API_BASE}/notifications/business`, { headers: { Authorization: `Bearer ${token}` } });
+      if (!r.ok) return;
+      const d = await r.json();
+      setNotifications(d.notifications ?? []);
+      setUnread(d.unreadCount ?? 0);
+    } catch {}
+  };
+
+  useEffect(() => { fetchNotifs(); const t = setInterval(fetchNotifs, 30000); return () => clearInterval(t); }, [token]);
+
+  useEffect(() => {
+    const handler = (e: MouseEvent) => { if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false); };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, []);
+
+  const markAllRead = async () => {
+    await fetch(`${API_BASE}/notifications/business/read-all`, { method: "POST", headers: { Authorization: `Bearer ${token}` } });
+    setUnread(0);
+    setNotifications(prev => prev.map(n => ({ ...n, is_read: true })));
+  };
+
+  const typeIcon = (type: string) => type === "new_booking" ? "📅" : type === "cancellation" ? "❌" : "🔄";
+
+  return (
+    <div className="relative" ref={ref} dir="rtl">
+      <button
+        onClick={() => { setOpen(v => !v); if (!open) { fetchNotifs(); } }}
+        className="relative flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm transition-all"
+        style={{ color: "#c0c0c0" }}
+        onMouseEnter={e => (e.currentTarget.style.color = "#d4af37")}
+        onMouseLeave={e => (e.currentTarget.style.color = "#c0c0c0")}
+      >
+        <Bell className="w-4 h-4" />
+        {unread > 0 && (
+          <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[10px] font-bold rounded-full w-4 h-4 flex items-center justify-center">
+            {unread > 9 ? "9+" : unread}
+          </span>
+        )}
+      </button>
+
+      {open && (
+        <div className="absolute left-0 top-9 w-80 bg-white rounded-2xl shadow-2xl border border-border z-50 overflow-hidden" dir="rtl">
+          <div className="flex items-center justify-between px-4 py-3 border-b bg-muted/30">
+            <span className="font-bold text-sm">התראות</span>
+            {unread > 0 && (
+              <button onClick={markAllRead} className="text-xs text-primary hover:underline">סמן הכל כנקרא</button>
+            )}
+          </div>
+          <div className="max-h-96 overflow-y-auto divide-y">
+            {notifications.length === 0 ? (
+              <div className="py-10 text-center text-muted-foreground text-sm">אין התראות</div>
+            ) : notifications.map((n: any) => (
+              <div key={n.id} className={`px-4 py-3 flex gap-3 items-start transition-colors ${!n.is_read ? "bg-blue-50/60" : ""}`}>
+                <span className="text-lg mt-0.5 shrink-0">{typeIcon(n.type)}</span>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm leading-snug text-gray-800">{n.message}</p>
+                  <p className="text-[11px] text-muted-foreground mt-0.5">
+                    {new Date(n.created_at).toLocaleString("he-IL", { day: "numeric", month: "numeric", hour: "2-digit", minute: "2-digit" })}
+                  </p>
+                </div>
+                {!n.is_read && <span className="w-2 h-2 rounded-full bg-blue-500 shrink-0 mt-1.5" />}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function Login({ onLogin }: { onLogin: (t: string) => void }) {
   const [identifier, setIdentifier] = useState("");
   const [password, setPassword] = useState("");
@@ -645,9 +745,7 @@ function Login({ onLogin }: { onLogin: (t: string) => void }) {
       <div className="flex-1 flex items-center justify-center p-4">
         <Card className="w-full max-w-md shadow-xl">
           <CardHeader className="text-center space-y-2 pb-6">
-            <a href="/" className="inline-block">
-              <img src="/logo.png" alt="קבעתי" className="h-16 w-16 rounded-2xl object-cover mx-auto mb-2" />
-            </a>
+            <TodayCalendarIcon />
             <CardTitle className="text-2xl">כניסה לקבעתי</CardTitle>
             <CardDescription>הזן אימייל, מספר טלפון או שם משתמש</CardDescription>
           </CardHeader>
@@ -1223,7 +1321,7 @@ function ForgotPasswordFlow({ onBack }: { onBack: () => void }) {
         <>
           <div className="space-y-1">
             <Label className="text-xs">מספר טלפון הרשום בחשבון</Label>
-            <Input dir="ltr" value={phone} onChange={e => setPhone(e.target.value)} placeholder="050-0000000" />
+            <Input dir="ltr" value={phone} onChange={e => setPhone(e.target.value)} placeholder="" />
           </div>
           <Button size="sm" className="w-full" onClick={handleSendOtp} disabled={loading || !phone}>
             {loading ? "שולח..." : "שלח קוד לוואטסאפ"}
@@ -2272,7 +2370,7 @@ function BrandingTab() {
               <div className="space-y-2">
                 <Label>מספר טלפון ליצירת קשר (יוצג ללקוחות)</Label>
                 <p className="text-xs text-muted-foreground">אם לא מוזן, יוצג מספר הטלפון הרשום בחשבון</p>
-                <Input dir="ltr" value={form.contactPhone} onChange={e => setForm(p => ({ ...p, contactPhone: e.target.value }))} placeholder="050-0000000" />
+                <Input dir="ltr" value={form.contactPhone} onChange={e => setForm(p => ({ ...p, contactPhone: e.target.value }))} placeholder="" />
               </div>
               <div className="space-y-2">
                 <Label>כתובת העסק (תוצג בפרופיל)</Label>
@@ -2811,7 +2909,7 @@ function SettingsTab() {
                   <Input
                     type="tel"
                     dir="ltr"
-                    placeholder="050-0000000"
+                    placeholder=""
                     value={form.phone}
                     onChange={e => setForm(p => ({ ...p, phone: e.target.value }))}
                   />

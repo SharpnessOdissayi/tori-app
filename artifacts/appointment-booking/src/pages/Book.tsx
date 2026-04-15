@@ -13,7 +13,79 @@ import { Card, CardContent, CardHeader, CardTitle, CardFooter } from "@/componen
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { DayPicker } from "react-day-picker";
+import { DayPicker, type DayProps } from "react-day-picker";
+
+// ── Jewish holidays ───────────────────────────────────────────────────────────
+const JEWISH_HOLIDAYS: Record<string, string> = {
+  // 5785 (2024-2025)
+  "2024-10-02": "ראש השנה", "2024-10-03": "ראש השנה",
+  "2024-10-11": "יום כיפור",
+  "2024-10-16": "סוכות", "2024-10-17": "סוכות",
+  "2024-10-23": "שמחת תורה",
+  "2024-12-25": "חנוכה", "2024-12-26": "חנוכה", "2024-12-27": "חנוכה",
+  "2024-12-28": "חנוכה", "2024-12-29": "חנוכה", "2024-12-30": "חנוכה",
+  "2024-12-31": "חנוכה", "2025-01-01": "חנוכה", "2025-01-02": "חנוכה",
+  "2025-02-13": "ט״ו בשבט",
+  "2025-03-13": "פורים", "2025-03-14": "פורים",
+  "2025-04-12": "פסח", "2025-04-13": "פסח",
+  "2025-04-18": "פסח", "2025-04-19": "פסח",
+  "2025-04-24": "יום השואה",
+  "2025-04-30": "יום הזיכרון",
+  "2025-05-01": "יום העצמאות",
+  "2025-05-15": "ל״ג בעומר",
+  "2025-05-26": "יום ירושלים",
+  "2025-06-01": "שבועות", "2025-06-02": "שבועות",
+  "2025-08-12": "תשעה באב",
+  // 5786 (2025-2026)
+  "2025-09-22": "ראש השנה", "2025-09-23": "ראש השנה",
+  "2025-10-01": "יום כיפור",
+  "2025-10-06": "סוכות", "2025-10-07": "סוכות",
+  "2025-10-13": "שמחת תורה",
+  "2025-12-14": "חנוכה", "2025-12-15": "חנוכה", "2025-12-16": "חנוכה",
+  "2025-12-17": "חנוכה", "2025-12-18": "חנוכה", "2025-12-19": "חנוכה",
+  "2025-12-20": "חנוכה", "2025-12-21": "חנוכה",
+  "2026-02-01": "ט״ו בשבט",
+  "2026-03-03": "פורים",
+  "2026-04-01": "פסח", "2026-04-02": "פסח",
+  "2026-04-07": "פסח", "2026-04-08": "פסח",
+  "2026-04-16": "יום השואה",
+  "2026-04-22": "יום הזיכרון",
+  "2026-04-23": "יום העצמאות",
+  "2026-05-22": "שבועות",
+  "2026-08-02": "תשעה באב",
+  // 5787 (2026-2027)
+  "2026-09-11": "ראש השנה", "2026-09-12": "ראש השנה",
+  "2026-09-20": "יום כיפור",
+  "2026-09-25": "סוכות", "2026-09-26": "סוכות",
+  "2026-10-02": "שמחת תורה",
+  "2026-12-04": "חנוכה", "2026-12-05": "חנוכה", "2026-12-06": "חנוכה",
+  "2026-12-07": "חנוכה", "2026-12-08": "חנוכה", "2026-12-09": "חנוכה",
+  "2026-12-10": "חנוכה", "2026-12-11": "חנוכה",
+  "2027-03-22": "פורים", "2027-03-23": "פורים",
+  "2027-04-20": "פסח", "2027-04-21": "פסח",
+  "2027-04-26": "פסח", "2027-04-27": "פסח",
+  "2027-05-13": "יום העצמאות",
+  "2027-06-10": "שבועות",
+};
+
+function toKey(d: Date) {
+  return d.toISOString().slice(0, 10);
+}
+
+function HolidayDay(props: DayProps) {
+  const { day, modifiers, ...rest } = props;
+  const holiday = JEWISH_HOLIDAYS[toKey(day.date)];
+  return (
+    <div className="relative flex flex-col items-center">
+      <button {...(rest as any)} />
+      {holiday && (
+        <span className="absolute -bottom-3.5 text-[8px] text-amber-600 font-medium whitespace-nowrap leading-none pointer-events-none">
+          {holiday}
+        </span>
+      )}
+    </div>
+  );
+}
 import { format } from "date-fns";
 import { he } from "date-fns/locale";
 import { Check, ChevronRight, Clock, CalendarIcon, User, Phone, CheckCircle2, ListOrdered, Globe, MapPin, Instagram } from "lucide-react";
@@ -553,7 +625,7 @@ export default function Book() {
                 <div>
                   <Label className="text-sm mb-1.5 block">מספר טלפון</Label>
                   <Input
-                    type="tel" dir="ltr" placeholder="05X-XXXXXXX"
+                    type="tel" dir="ltr" placeholder=""
                     value={portalPhone}
                     onChange={e => setPortalPhone(e.target.value)}
                     onKeyDown={e => e.key === "Enter" && handlePortalSendOtp()}
@@ -1310,7 +1382,7 @@ export default function Book() {
                 <Input
                   type="tel"
                   dir="ltr"
-                  placeholder="05X-XXXXXXX"
+                  placeholder=""
                   value={portalPhone}
                   onChange={e => setPortalPhone(e.target.value)}
                   onKeyDown={e => e.key === "Enter" && handlePortalSendOtp()}
@@ -1445,6 +1517,8 @@ export default function Book() {
                           locale={he} weekStartsOn={0} disabled={{ before: new Date() }}
                           modifiersClassNames={{ selected: "font-bold rounded-full", today: "font-bold" }}
                           modifiersStyles={{ selected: { backgroundColor: primaryColor, color: "white" } }}
+                          components={{ Day: HolidayDay }}
+                          classNames={{ day: "pb-4" }}
                         />
                       </div>
                     </>

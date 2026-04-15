@@ -283,7 +283,7 @@ export default function SuperAdmin() {
                 </div>
                 <div className="space-y-2">
                   <Label>מספר טלפון</Label>
-                  <Input type="tel" value={newBusiness.phone} onChange={e => setNewBusiness(p => ({ ...p, phone: e.target.value }))} dir="ltr" placeholder="050-0000000" />
+                  <Input type="tel" value={newBusiness.phone} onChange={e => setNewBusiness(p => ({ ...p, phone: e.target.value }))} dir="ltr" placeholder="" />
                 </div>
                 <div className="space-y-2">
                   <Label>מנוי</Label>
@@ -378,7 +378,7 @@ export default function SuperAdmin() {
             </div>
             <div className="space-y-2">
               <Label>מספר טלפון</Label>
-              <Input type="tel" value={editForm.phone} onChange={e => setEditForm(p => ({ ...p, phone: e.target.value }))} dir="ltr" placeholder="050-0000000" />
+              <Input type="tel" value={editForm.phone} onChange={e => setEditForm(p => ({ ...p, phone: e.target.value }))} dir="ltr" placeholder="" />
             </div>
             <div className="space-y-2">
               <Label>מנוי</Label>

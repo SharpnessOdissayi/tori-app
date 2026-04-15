@@ -79,6 +79,34 @@ export async function runMigrations() {
       "ALTER TABLE businesses ADD COLUMN IF NOT EXISTS subscription_cancelled_at TIMESTAMPTZ",
     ];
 
+    // Notifications table
+    await db.execute(sql.raw(`
+      CREATE TABLE IF NOT EXISTS notifications (
+        id SERIAL PRIMARY KEY,
+        business_id INTEGER NOT NULL,
+        type TEXT NOT NULL,
+        appointment_id INTEGER,
+        message TEXT NOT NULL,
+        actor_type TEXT NOT NULL DEFAULT 'client',
+        actor_name TEXT,
+        is_read BOOLEAN NOT NULL DEFAULT FALSE,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      )
+    `));
+
+    await db.execute(sql.raw(`
+      CREATE TABLE IF NOT EXISTS client_notifications (
+        id SERIAL PRIMARY KEY,
+        phone_number TEXT NOT NULL,
+        type TEXT NOT NULL,
+        appointment_id INTEGER,
+        business_name TEXT,
+        message TEXT NOT NULL,
+        is_read BOOLEAN NOT NULL DEFAULT FALSE,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      )
+    `));
+
     for (const stmt of alterations) {
       await db.execute(sql.raw(stmt));
     }

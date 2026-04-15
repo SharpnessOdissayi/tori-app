@@ -1,4 +1,5 @@
 import { Router } from "express";
+import { logBusinessNotification } from "./notifications";
 import { db, businessesTable, servicesTable, appointmentsTable, waitlistTable, workingHoursTable, clientSessionsTable } from "@workspace/db";
 import { eq, and, gte, sql, countDistinct, count, ilike, or } from "drizzle-orm";
 import {
@@ -403,6 +404,16 @@ router.post("/public/:businessSlug/appointments", async (req, res): Promise<void
 
   const [, month, day] = appointmentDate.split("-");
   const formattedDate = `${day}/${month}`;
+
+  // Log in-app notification for business owner
+  logBusinessNotification({
+    businessId: business.id,
+    type: "new_booking",
+    appointmentId: appointment.id,
+    message: `תור חדש: ${clientName} קבע ${service.name} ב-${formattedDate} בשעה ${appointmentTime}`,
+    actorType: "client",
+    actorName: clientName,
+  });
 
   // Notify business owner via WhatsApp (non-blocking)
   if (business.phone) {

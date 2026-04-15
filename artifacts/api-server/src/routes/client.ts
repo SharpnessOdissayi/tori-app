@@ -1,4 +1,5 @@
 import { Router, Request, Response, NextFunction } from "express";
+import { logBusinessNotification } from "./notifications";
 import { db, appointmentsTable, businessesTable, clientSessionsTable, clientBusinessesTable } from "@workspace/db";
 import { eq, and, or, gt } from "drizzle-orm";
 import { sendOtp, verifyOtp } from "../lib/whatsapp";
@@ -290,6 +291,18 @@ router.patch("/client/appointments/:id/cancel", requireClientAuth, async (req, r
   if (!appt) { res.status(404).json({ error: "תור לא נמצא" }); return; }
 
   await db.update(appointmentsTable).set({ status: "cancelled" }).where(eq(appointmentsTable.id, id));
+
+  // Log notification for business owner
+  const [, month, day] = appt.appointmentDate.split("-");
+  logBusinessNotification({
+    businessId: appt.businessId,
+    type: "cancellation",
+    appointmentId: appt.id,
+    message: `${appt.clientName} ביטל/ה את התור של ${appt.serviceName} ב-${day}/${month} בשעה ${appt.appointmentTime}`,
+    actorType: "client",
+    actorName: appt.clientName,
+  });
+
   res.json({ success: true });
 });
 
