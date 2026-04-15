@@ -886,6 +886,8 @@ export default function Book() {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedServiceId || !dateStr || !selectedTime) return;
+    // Guard: prevent duplicate submits (double-click before button disables)
+    if (createMutation.isPending) return;
 
     // Client-side guard: reject past date+time
     const apptDateTime = new Date(`${dateStr}T${selectedTime}:00`);

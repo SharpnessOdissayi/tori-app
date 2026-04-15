@@ -432,6 +432,23 @@ router.post("/public/:businessSlug/appointments", async (req, res): Promise<void
   const requiresPayment = tranzilaEnabled && depositAmountAgorot && depositAmountAgorot > 0;
   const appointmentStatus = requiresPayment ? "pending_payment" : business.requireAppointmentApproval ? "pending" : "confirmed";
 
+  // Idempotency: if same client+service+date+time already exists (not cancelled), return it
+  const [existing] = await db
+    .select()
+    .from(appointmentsTable)
+    .where(and(
+      eq(appointmentsTable.businessId, business.id),
+      eq(appointmentsTable.serviceId, service.id),
+      eq(appointmentsTable.phoneNumber, phoneNumber),
+      eq(appointmentsTable.appointmentDate, appointmentDate),
+      eq(appointmentsTable.appointmentTime, appointmentTime),
+      sql`${appointmentsTable.status} != 'cancelled'`,
+    ));
+  if (existing) {
+    res.json({ ...existing, requiresPayment });
+    return;
+  }
+
   const [appointment] = await db
     .insert(appointmentsTable)
     .values({
