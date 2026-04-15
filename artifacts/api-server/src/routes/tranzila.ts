@@ -8,7 +8,6 @@ const router = Router();
 
 const SUPPLIER     = process.env.TRANZILA_SUPPLIER ?? "";       // lilash2  — for appointment deposits
 const SUPPLIER_TOK = process.env.TRANZILA_SUPPLIER_TOK ?? "";   // lilash2tok — for subscription (token service)
-const NOTIFY_PASSWORD = process.env.TRANZILA_NOTIFY_PASSWORD ?? "";
 const JWT_SECRET   = process.env.JWT_SECRET ?? "dev-secret";
 
 // TRANZILA_TEST_MODE=true → 1 ILS (the minimum most Tranzila terminals accept)
@@ -166,7 +165,8 @@ router.post("/tranzila/notify", async (req, res): Promise<void> => {
             if (biz && !biz.existingStoId) {
               const stoResult = await createStandingOrder({
                 token,
-                expiry:      expdate,
+                expireMonth: parseInt(mm, 10),
+                expireYear:  2000 + parseInt(yy, 10),
                 clientName:  biz.ownerName,
                 clientEmail: biz.email,
                 businessId,
