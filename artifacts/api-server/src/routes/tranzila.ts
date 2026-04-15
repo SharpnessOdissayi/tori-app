@@ -43,7 +43,6 @@ export function buildTranzilaUrl(params: {
     success_url_address: successUrl,
     fail_url_address:    `https://www.kavati.net/payment/fail?appt=${params.appointmentId}`,
     notify_url_address:  `https://www.kavati.net/api/tranzila/notify`,
-    TranzilaTK: NOTIFY_PASSWORD,
     nologo: "1",
     newprocess: "1",
   });
@@ -82,7 +81,6 @@ function buildSubscriptionUrl(params: {
     success_url_address: `https://www.kavati.net/payment/success?type=subscription`,
     fail_url_address:    `https://www.kavati.net/payment/fail?type=subscription`,
     notify_url_address:  `https://www.kavati.net/api/tranzila/notify`,
-    TranzilaTK: NOTIFY_PASSWORD,
     nologo: "1",
     newprocess: "1",
   });
@@ -95,12 +93,13 @@ router.post("/tranzila/notify", async (req, res): Promise<void> => {
   try {
     const body = req.body ?? {};
 
-    const receivedPw = body.TranzilaTK ?? body.tranzilatk ?? "";
-    if (NOTIFY_PASSWORD && receivedPw !== NOTIFY_PASSWORD) {
-      console.warn("[Tranzila] Notify password mismatch");
-      res.status(200).send("OK");
-      return;
-    }
+    // NOTE: we previously tried to echo NOTIFY_PASSWORD via the TranzilaTK
+    // iframe param and verify it here, but TranzilaTK is a reserved field —
+    // Tranzila overwrites it with the card token in the notify payload, so
+    // the comparison always failed and every legitimate webhook was rejected
+    // (see Railway logs 2026-04-15 "Notify password mismatch"). Correlation
+    // now relies on pdesc matching "מנוי פרו קבעתי - {businessId}" plus the
+    // Tranzila-side terminal authentication.
 
     const responsecode = String(body.Response ?? body.responsecode ?? "");
     const pdesc        = String(body.pdesc ?? "");
