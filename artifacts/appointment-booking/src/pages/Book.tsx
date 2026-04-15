@@ -460,6 +460,8 @@ export default function Book() {
   const fontFamily = business?.fontFamily ?? "Heebo";
   const backgroundColor = (business as any)?.backgroundColor ?? null;
   const borderRadius = (business as any)?.borderRadius ?? "medium";
+  const buttonRadius = (business as any)?.buttonRadius ?? "medium";
+  const buttonRadiusPx = buttonRadius === "sharp" ? "4px" : buttonRadius === "rounded" ? "9999px" : "12px";
   const themeMode = business?.themeMode ?? "light";
   const requireApproval = (business as any)?.requireAppointmentApproval ?? false;
   const showBusinessName = (business as any)?.showBusinessName ?? true;

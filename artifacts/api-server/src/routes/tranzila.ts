@@ -11,8 +11,11 @@ const SUPPLIER_TOK = process.env.TRANZILA_SUPPLIER_TOK ?? "";   // lilash2tok �
 const NOTIFY_PASSWORD = process.env.TRANZILA_NOTIFY_PASSWORD ?? "";
 const JWT_SECRET   = process.env.JWT_SECRET ?? "dev-secret";
 
-const SUBSCRIPTION_FIRST_ILS   = 50;   // promo first month
-const SUBSCRIPTION_MONTHLY_ILS = 100;  // every month after
+// TRANZILA_TEST_MODE=true → 0.10 ILS (10 agorot) so you can verify the
+// full flow end-to-end without spending real money.
+const TEST_MODE = process.env.TRANZILA_TEST_MODE === "true";
+const SUBSCRIPTION_FIRST_ILS   = TEST_MODE ? 0.10 : 50;
+const SUBSCRIPTION_MONTHLY_ILS = TEST_MODE ? 0.10 : 100;
 
 // ─── Appointment deposit iframe URL ──────────────────────────────────────────
 
