@@ -58,7 +58,7 @@ function buildSubscriptionUrl(params: {
   ownerName: string;
   email: string;
 }): string {
-  const base = `https://direct.tranzila.com/${SUPPLIER_TOK}/iframenew.php`;
+  const base = `https://direct.tranzila.com/${SUPPLIER}/iframenew.php`;
   const p = new URLSearchParams({
     sum: SUBSCRIPTION_FIRST_ILS.toFixed(2),
     currency: "1",
