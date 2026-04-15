@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { useQueryClient } from "@tanstack/react-query";
+import { DESIGN_PRESETS } from "@/lib/designPresets";
 import {
   useBusinessLogin,
   useListBusinessAppointments,
@@ -2181,6 +2182,18 @@ function BrandingTab() {
     contactPhone: "",
     address: "",
     city: "",
+    // Advanced design
+    designPreset: "" as string,
+    accentColor: "",
+    gradientEnabled: false,
+    gradientFrom: "",
+    gradientTo: "",
+    gradientAngle: 135,
+    backgroundPattern: "none" as string,
+    heroLayout: "stacked" as string,
+    serviceCardStyle: "card" as string,
+    animationStyle: "none" as string,
+    hoverEffect: "none" as string,
   });
   const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
   const [categorySearch, setCategorySearch] = useState("");
@@ -2217,6 +2230,17 @@ function BrandingTab() {
         contactPhone: (profile as any).contactPhone ?? "",
         address: (profile as any).address ?? "",
         city: (profile as any).city ?? "",
+        designPreset: (profile as any).designPreset ?? "",
+        accentColor: (profile as any).accentColor ?? "",
+        gradientEnabled: (profile as any).gradientEnabled ?? false,
+        gradientFrom: (profile as any).gradientFrom ?? "",
+        gradientTo: (profile as any).gradientTo ?? "",
+        gradientAngle: (profile as any).gradientAngle ?? 135,
+        backgroundPattern: (profile as any).backgroundPattern ?? "none",
+        heroLayout: (profile as any).heroLayout ?? (profile as any).headerLayout ?? "stacked",
+        serviceCardStyle: (profile as any).serviceCardStyle ?? "card",
+        animationStyle: (profile as any).animationStyle ?? "none",
+        hoverEffect: (profile as any).hoverEffect ?? "none",
       });
       try {
         const cats = (profile as any).businessCategories;
@@ -2266,10 +2290,47 @@ function BrandingTab() {
         address: form.address || null,
         city: (form as any).city || null,
         businessCategories: selectedCategories.length > 0 ? JSON.stringify(selectedCategories) : null,
+        designPreset: form.designPreset || null,
+        accentColor: form.accentColor || null,
+        gradientEnabled: !!form.gradientEnabled,
+        gradientFrom: form.gradientFrom || null,
+        gradientTo: form.gradientTo || null,
+        gradientAngle: Number(form.gradientAngle) || 135,
+        backgroundPattern: form.backgroundPattern === "none" ? null : form.backgroundPattern,
+        heroLayout: form.heroLayout || null,
+        serviceCardStyle: form.serviceCardStyle || null,
+        animationStyle: form.animationStyle === "none" ? null : form.animationStyle,
+        hoverEffect: form.hoverEffect === "none" ? null : form.hoverEffect,
       } as any
     }, {
       onSuccess: () => { toast({ title: "עיצוב נשמר" }); queryClient.invalidateQueries({ queryKey: getGetBusinessProfileQueryKey() }); },
     });
+  };
+
+  // Apply a preset — bulk-updates all design fields
+  const applyPreset = (presetId: string) => {
+    const preset = DESIGN_PRESETS.find(p => p.id === presetId);
+    if (!preset) return;
+    setForm(p => ({
+      ...p,
+      designPreset: preset.id,
+      primaryColor: preset.values.primaryColor,
+      accentColor: preset.values.accentColor,
+      fontFamily: preset.values.fontFamily,
+      themeMode: preset.values.themeMode as any,
+      borderRadius: (preset.values.borderRadius === "small" ? "sharp" : preset.values.borderRadius === "large" || preset.values.borderRadius === "full" ? "rounded" : preset.values.borderRadius === "none" ? "sharp" : "medium") as any,
+      buttonRadius: (preset.values.buttonRadius === "small" ? "sharp" : preset.values.buttonRadius === "large" || preset.values.buttonRadius === "full" ? "rounded" : preset.values.buttonRadius === "none" ? "sharp" : "medium") as any,
+      gradientEnabled: preset.values.gradientEnabled,
+      gradientFrom: preset.values.gradientFrom || "",
+      gradientTo: preset.values.gradientTo || "",
+      gradientAngle: preset.values.gradientAngle,
+      backgroundPattern: preset.values.backgroundPattern,
+      heroLayout: preset.values.heroLayout,
+      serviceCardStyle: preset.values.serviceCardStyle,
+      animationStyle: preset.values.animationStyle,
+      hoverEffect: preset.values.hoverEffect,
+    }));
+    toast({ title: `הופעל עיצוב: ${preset.name}`, description: "לחץ 'שמור' כדי להחיל על הפרופיל" });
   };
 
   const handleImageUpload = async (file: File, field: "logoUrl" | "bannerUrl") => {
@@ -2303,6 +2364,91 @@ function BrandingTab() {
 
   return (
     <div className="space-y-6">
+      {/* Preset chooser — one-click professional looks */}
+      <Card>
+        <CardHeader>
+          <CardTitle>עיצובים מוכנים</CardTitle>
+          <CardDescription>לחץ על תבנית כדי להחיל עיצוב מקצועי מוכן — ואז שמור</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            {DESIGN_PRESETS.map(preset => {
+              const active = form.designPreset === preset.id;
+              return (
+                <button
+                  key={preset.id}
+                  onClick={() => applyPreset(preset.id)}
+                  className={`relative rounded-2xl overflow-hidden border-2 transition-all text-right ${active ? "border-primary scale-[1.02] shadow-lg" : "border-border hover:border-primary/50"}`}
+                >
+                  <div
+                    className="h-20 flex items-end p-2"
+                    style={{ background: preset.preview.bg }}
+                  >
+                    <div
+                      className="text-xs font-bold px-2 py-1 rounded-md backdrop-blur-sm"
+                      style={{
+                        background: "rgba(255,255,255,0.85)",
+                        color: preset.preview.accent,
+                      }}
+                    >
+                      Aa
+                    </div>
+                  </div>
+                  <div className="p-2 bg-background">
+                    <div className="font-bold text-sm">{preset.name}</div>
+                    <div className="text-xs text-muted-foreground line-clamp-1">{preset.description}</div>
+                  </div>
+                  {active && (
+                    <div className="absolute top-1 right-1 w-6 h-6 rounded-full bg-primary text-white flex items-center justify-center text-xs">✓</div>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+          {form.designPreset && (
+            <button
+              onClick={() => setForm(p => ({ ...p, designPreset: "" }))}
+              className="mt-3 text-xs text-muted-foreground underline"
+            >
+              נקה בחירה (התאמה אישית)
+            </button>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Live preview */}
+      <Card>
+        <CardHeader>
+          <CardTitle>תצוגה מקדימה</CardTitle>
+          <CardDescription>כך יראה הפרופיל שלך — מתעדכן בזמן אמת</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div
+            className="rounded-2xl overflow-hidden border shadow-sm"
+            style={{
+              fontFamily: `'${form.fontFamily}', sans-serif`,
+              background: form.gradientEnabled && form.gradientFrom && form.gradientTo
+                ? `linear-gradient(${form.gradientAngle}deg, ${form.gradientFrom}, ${form.gradientTo})`
+                : undefined,
+              minHeight: "260px",
+            }}
+          >
+            <div className="p-6 text-center" style={{ color: form.themeMode === "dark" ? "white" : "#111" }}>
+              {form.showLogo && form.logoUrl && (
+                <img src={form.logoUrl} alt="" className="w-16 h-16 rounded-full mx-auto mb-3 border-2 border-white shadow-md object-cover" />
+              )}
+              {form.showBusinessName && (
+                <div className="text-2xl font-bold" style={{ color: form.primaryColor }}>{profile?.name || "העסק שלך"}</div>
+              )}
+              <div className="mt-4 flex gap-2 justify-center flex-wrap">
+                <button className="px-4 py-2 text-sm font-medium text-white shadow" style={{ backgroundColor: form.primaryColor, borderRadius: form.buttonRadius === "sharp" ? 0 : form.buttonRadius === "rounded" ? 9999 : 12 }}>קבע תור</button>
+                <button className="px-4 py-2 text-sm font-medium border" style={{ borderColor: form.accentColor || form.primaryColor, color: form.accentColor || form.primaryColor, borderRadius: form.buttonRadius === "sharp" ? 0 : form.buttonRadius === "rounded" ? 9999 : 12 }}>פרטים</button>
+              </div>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
       <Card>
         <CardHeader>
           <CardTitle>עיצוב חנות</CardTitle>
@@ -2735,6 +2881,173 @@ function BrandingTab() {
               </Button>
             )}
             {galleryUpload.error && <p className="text-xs text-destructive">{galleryUpload.error}</p>}
+          </div>
+
+          {/* Advanced design — gradients, patterns, layouts, card styles */}
+          <div className="space-y-6 pt-4 border-t">
+            <div>
+              <h3 className="font-semibold text-base border-b pb-2 mb-3">רקע מתקדם</h3>
+
+              <label className="flex items-center gap-2 mb-3 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={form.gradientEnabled}
+                  onChange={e => setForm(p => ({ ...p, gradientEnabled: e.target.checked }))}
+                  className="w-4 h-4"
+                />
+                <span className="text-sm">הפעל גרדיאנט (מעבר צבעים) ברקע הדף</span>
+              </label>
+
+              {form.gradientEnabled && (
+                <div className="grid grid-cols-2 gap-3 mb-3 p-3 bg-muted/50 rounded-lg">
+                  <div>
+                    <label className="text-xs">מצבע</label>
+                    <input
+                      type="color"
+                      value={form.gradientFrom || "#ffffff"}
+                      onChange={e => setForm(p => ({ ...p, gradientFrom: e.target.value }))}
+                      className="w-full h-10 rounded border cursor-pointer"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs">לצבע</label>
+                    <input
+                      type="color"
+                      value={form.gradientTo || "#000000"}
+                      onChange={e => setForm(p => ({ ...p, gradientTo: e.target.value }))}
+                      className="w-full h-10 rounded border cursor-pointer"
+                    />
+                  </div>
+                  <div className="col-span-2">
+                    <label className="text-xs">זווית: {form.gradientAngle}°</label>
+                    <input
+                      type="range"
+                      min={0}
+                      max={360}
+                      step={15}
+                      value={form.gradientAngle}
+                      onChange={e => setForm(p => ({ ...p, gradientAngle: Number(e.target.value) }))}
+                      className="w-full"
+                    />
+                  </div>
+                </div>
+              )}
+
+              <label className="text-sm font-medium block mb-2">דוגמה דקורטיבית ברקע</label>
+              <div className="grid grid-cols-5 gap-2">
+                {(["none", "dots", "grid", "waves", "circles"] as const).map(p => (
+                  <button
+                    key={p}
+                    onClick={() => setForm(pv => ({ ...pv, backgroundPattern: p }))}
+                    className={`p-3 text-xs rounded-lg border-2 transition-all ${form.backgroundPattern === p ? "border-primary bg-primary/5" : "border-border"}`}
+                  >
+                    {p === "none" ? "ללא" : p === "dots" ? "נקודות" : p === "grid" ? "רשת" : p === "waves" ? "גלים" : "עיגולים"}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div>
+              <h3 className="font-semibold text-base border-b pb-2 mb-3">פריסת כותרת (Hero)</h3>
+              <div className="grid grid-cols-2 gap-2">
+                {[
+                  { id: "stacked", label: "מקובץ", desc: "לוגו מעל שם" },
+                  { id: "hero-full", label: "באנר מלא", desc: "תמונה על כל המסך" },
+                  { id: "split", label: "מפוצל", desc: "לוגו מצד, טקסט מצד" },
+                  { id: "compact", label: "קומפקטי", desc: "מינימלי ונקי" },
+                ].map(opt => (
+                  <button
+                    key={opt.id}
+                    onClick={() => setForm(p => ({ ...p, heroLayout: opt.id }))}
+                    className={`p-3 text-right rounded-lg border-2 transition-all ${form.heroLayout === opt.id ? "border-primary bg-primary/5" : "border-border"}`}
+                  >
+                    <div className="font-medium text-sm">{opt.label}</div>
+                    <div className="text-xs text-muted-foreground">{opt.desc}</div>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div>
+              <h3 className="font-semibold text-base border-b pb-2 mb-3">סגנון כרטיסיות שירות</h3>
+              <div className="grid grid-cols-2 gap-2">
+                {[
+                  { id: "card", label: "כרטיס", desc: "קלאסי עם תמונה" },
+                  { id: "minimal", label: "מינימלי", desc: "שורת טקסט + כפתור" },
+                  { id: "grid", label: "רשת", desc: "2 עמודות עם תמונה" },
+                  { id: "bubble", label: "בועה", desc: "עגול ומעוצב" },
+                ].map(opt => (
+                  <button
+                    key={opt.id}
+                    onClick={() => setForm(p => ({ ...p, serviceCardStyle: opt.id }))}
+                    className={`p-3 text-right rounded-lg border-2 transition-all ${form.serviceCardStyle === opt.id ? "border-primary bg-primary/5" : "border-border"}`}
+                  >
+                    <div className="font-medium text-sm">{opt.label}</div>
+                    <div className="text-xs text-muted-foreground">{opt.desc}</div>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div>
+              <h3 className="font-semibold text-base border-b pb-2 mb-3">אפקטים</h3>
+              <label className="text-sm font-medium block mb-1">Hover על כרטיסיות</label>
+              <div className="grid grid-cols-3 gap-2 mb-3">
+                {[
+                  { id: "none", label: "ללא" },
+                  { id: "lift", label: "הרמה" },
+                  { id: "glow", label: "זוהר" },
+                ].map(opt => (
+                  <button
+                    key={opt.id}
+                    onClick={() => setForm(p => ({ ...p, hoverEffect: opt.id }))}
+                    className={`p-2 text-sm rounded-lg border-2 transition-all ${form.hoverEffect === opt.id ? "border-primary bg-primary/5" : "border-border"}`}
+                  >
+                    {opt.label}
+                  </button>
+                ))}
+              </div>
+
+              <label className="text-sm font-medium block mb-1">אנימציית כניסה</label>
+              <div className="grid grid-cols-3 gap-2">
+                {[
+                  { id: "none", label: "ללא" },
+                  { id: "subtle", label: "עדינה" },
+                  { id: "bouncy", label: "קפיצית" },
+                ].map(opt => (
+                  <button
+                    key={opt.id}
+                    onClick={() => setForm(p => ({ ...p, animationStyle: opt.id }))}
+                    className={`p-2 text-sm rounded-lg border-2 transition-all ${form.animationStyle === opt.id ? "border-primary bg-primary/5" : "border-border"}`}
+                  >
+                    {opt.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div>
+              <h3 className="font-semibold text-base border-b pb-2 mb-3">צבע משני (אקצנט)</h3>
+              <div className="flex items-center gap-3">
+                <input
+                  type="color"
+                  value={form.accentColor || form.primaryColor}
+                  onChange={e => setForm(p => ({ ...p, accentColor: e.target.value }))}
+                  className="w-14 h-10 rounded border cursor-pointer"
+                />
+                <input
+                  type="text"
+                  value={form.accentColor}
+                  onChange={e => setForm(p => ({ ...p, accentColor: e.target.value }))}
+                  placeholder="#6b7280"
+                  className="flex-1 h-10 px-3 rounded border"
+                />
+                {form.accentColor && (
+                  <button onClick={() => setForm(p => ({ ...p, accentColor: "" }))} className="text-xs text-muted-foreground underline">נקה</button>
+                )}
+              </div>
+              <p className="text-xs text-muted-foreground mt-1">משמש בכפתורים משניים ובהדגשות</p>
+            </div>
           </div>
 
         </CardContent>
