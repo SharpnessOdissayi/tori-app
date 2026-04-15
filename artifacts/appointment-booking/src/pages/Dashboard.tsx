@@ -2698,33 +2698,6 @@ function BrandingTab() {
               ))}
             </div>
 
-            <div className="space-y-2 pt-2">
-              <Label className="text-sm font-medium">סידור כותרת</Label>
-              <div className="flex gap-3">
-                <button
-                  onClick={() => setForm(p => ({ ...p, headerLayout: "stacked" }))}
-                  className={`flex-1 py-3 border-2 text-sm font-medium rounded-xl transition-all ${form.headerLayout === "stacked" ? "border-primary bg-primary/5 text-primary" : "border-border"}`}
-                >
-                  <div className="flex flex-col items-center gap-1">
-                    <div className="w-8 h-8 rounded-lg bg-current opacity-20 mx-auto" />
-                    <div className="w-16 h-2 rounded bg-current opacity-20" />
-                    <span>מוערם</span>
-                  </div>
-                </button>
-                <button
-                  onClick={() => setForm(p => ({ ...p, headerLayout: "side" }))}
-                  className={`flex-1 py-3 border-2 text-sm font-medium rounded-xl transition-all ${form.headerLayout === "side" ? "border-primary bg-primary/5 text-primary" : "border-border"}`}
-                >
-                  <div className="flex flex-col items-center gap-1">
-                    <div className="flex items-center gap-1 mx-auto">
-                      <div className="w-6 h-6 rounded bg-current opacity-20" />
-                      <div className="w-12 h-2 rounded bg-current opacity-20" />
-                    </div>
-                    <span>לצד</span>
-                  </div>
-                </button>
-              </div>
-            </div>
           </div>
 
           <Separator />
@@ -3103,10 +3076,7 @@ function IntegrationsTab() {
   const [announcementText, setAnnouncementText] = useState("");
   const [announcementValidHours, setAnnouncementValidHours] = useState(24);
   const [sendReminders, setSendReminders] = useState(true);
-  const [requireArrivalConfirmation, setRequireArrivalConfirmation] = useState(true);
-  const [sendWhatsAppReminders, setSendWhatsAppReminders] = useState(true);
   const [shabbatMode, setShabbatMode] = useState<"any" | "shabbat">("any");
-  const [reminderCustomText, setReminderCustomText] = useState("");
   const [reminderTriggers, setReminderTriggers] = useState<Array<{ amount: string; unit: string }>>([
     { amount: "24", unit: "hours" }
   ]);
@@ -3119,10 +3089,7 @@ function IntegrationsTab() {
       setSendReminders((profile as any).sendReminders ?? true);
       setAnnouncementText((profile as any).announcementText ?? "");
       setAnnouncementValidHours((profile as any).announcementValidHours ?? 24);
-      setRequireArrivalConfirmation((profile as any).requireArrivalConfirmation ?? true);
-      setSendWhatsAppReminders((profile as any).sendWhatsAppReminders ?? true);
       setShabbatMode(((profile as any).shabbatMode ?? "any") as "any" | "shabbat");
-      setReminderCustomText((profile as any).reminderCustomText ?? "");
       const saved = (profile as any).reminderTriggers;
       if (saved) { try { setReminderTriggers(JSON.parse(saved)); } catch {} }
     }
@@ -3137,11 +3104,8 @@ function IntegrationsTab() {
         sendReminders,
         announcementText: announcementText || null,
         announcementValidHours,
-        requireArrivalConfirmation,
-        sendWhatsAppReminders,
         reminderTriggers: JSON.stringify(reminderTriggers),
         shabbatMode,
-        reminderCustomText: reminderCustomText || null,
       } as any
     }, {
       onSuccess: () => {
@@ -3260,13 +3224,6 @@ function IntegrationsTab() {
               </div>
               <Switch checked={sendReminders} onCheckedChange={setSendReminders} />
             </div>
-            <div className="flex items-center justify-between p-4 border rounded-xl bg-muted/20">
-              <div>
-                <div className="font-medium text-sm">דרישת אישור הגעה בתזכורת</div>
-                <div className="text-xs text-muted-foreground mt-0.5">הלקוח יצטרך לאשר הגעה בהודעת התזכורת</div>
-              </div>
-              <Switch checked={requireArrivalConfirmation} onCheckedChange={setRequireArrivalConfirmation} />
-            </div>
           </div>
 
           {sendReminders && (
@@ -3342,19 +3299,6 @@ function IntegrationsTab() {
             </div>
           )}
 
-          <div className="space-y-2">
-            <Label className="text-sm font-medium">תוספת מותאמת אישית לתזכורת</Label>
-            <textarea value={reminderCustomText}
-              onChange={e => setReminderCustomText(e.target.value.slice(0, 800))}
-              rows={3} maxLength={800}
-              className="w-full rounded-xl border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary resize-none"
-              placeholder="לדוגמא: לשלוח הודעה במידה ויש עיכוב בהגעה"
-            />
-            <div className="flex justify-between items-center">
-              <p className="text-xs text-muted-foreground">תוספת זו תופיע בסוף התזכורת שנשלחת ללקוחות</p>
-              <span className="text-xs text-muted-foreground">{reminderCustomText.length} / 800</span>
-            </div>
-          </div>
         </CardContent>
       </Card>
 
