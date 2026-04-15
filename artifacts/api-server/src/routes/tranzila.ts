@@ -2,6 +2,7 @@ import { Router } from "express";
 import { db, appointmentsTable, businessesTable } from "@workspace/db";
 import { eq, and } from "drizzle-orm";
 import jwt from "jsonwebtoken";
+import { createStandingOrder } from "../lib/tranzilaRestApi";
 
 const router = Router();
 
@@ -120,6 +121,35 @@ router.post("/tranzila/notify", async (req, res): Promise<void> => {
           .where(eq(businessesTable.id, businessId));
 
         console.log(`[Tranzila] Business ${businessId} subscribed to Pro, token saved, renews ${renewDate.toISOString()}`);
+
+        // Create Standing Order via REST API so Tranzila handles future monthly charges
+        if (token && expdate) {
+          const [biz] = await db
+            .select({ ownerName: businessesTable.ownerName, email: businessesTable.email })
+            .from(businessesTable)
+            .where(eq(businessesTable.id, businessId));
+
+          if (biz) {
+            const stoResult = await createStandingOrder({
+              token,
+              expiry:      expdate,
+              clientName:  biz.ownerName,
+              clientEmail: biz.email,
+              businessId,
+              amountILS:   SUBSCRIPTION_MONTHLY_ILS,
+            });
+
+            if (stoResult.success && stoResult.stoId) {
+              await db
+                .update(businessesTable)
+                .set({ tranzilaStorId: stoResult.stoId } as any)
+                .where(eq(businessesTable.id, businessId));
+              console.log(`[Tranzila] STO created for business ${businessId}, stoId=${stoResult.stoId}`);
+            } else {
+              console.warn(`[Tranzila] STO creation failed for business ${businessId}: ${stoResult.error} — cron fallback active`);
+            }
+          }
+        }
       } else {
         console.log(`[Tranzila] Subscription payment failed for business ${businessId} (code: ${responsecode})`);
       }

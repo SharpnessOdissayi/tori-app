@@ -35,11 +35,8 @@ export default function PaymentFail() {
 
   const handleBack = () => {
     if (inIframe) {
-      try {
-        window.parent.location.href = isSubscription ? "/dashboard" : "/";
-      } catch {
-        // Cross-origin fallback
-      }
+      // window.top works even from cross-origin iframes
+      window.top!.location.href = isSubscription ? "/dashboard" : "/";
     } else {
       setLocation(isSubscription ? "/dashboard" : "/");
     }

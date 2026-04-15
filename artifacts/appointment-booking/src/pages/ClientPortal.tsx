@@ -319,6 +319,9 @@ export default function ClientPortal() {
   const [loading, setLoading] = useState(false);
 
   // Discover
+  const [hiddenApptIds, setHiddenApptIds] = useState<Set<number>>(
+    () => new Set(JSON.parse(localStorage.getItem("kavati_hidden_appts") ?? "[]"))
+  );
   const [discoverOpen, setDiscoverOpen] = useState(false);
   const [discoverList, setDiscoverList] = useState<DirectoryBusiness[]>([]);
   const [discoverLoading, setDiscoverLoading] = useState(false);
@@ -425,8 +428,14 @@ export default function ClientPortal() {
   if (!token) return <LoginScreen onLogin={handleLogin} />;
   if (!session) return <div className="min-h-screen flex items-center justify-center" dir="rtl"><div className="text-gray-400">טוען...</div></div>;
 
+  const hideAppt = (id: number) => {
+    const next = new Set(hiddenApptIds).add(id);
+    setHiddenApptIds(next);
+    localStorage.setItem("kavati_hidden_appts", JSON.stringify([...next]));
+  };
+
   const upcoming = appointments.filter(a => a.status !== "cancelled" && isUpcoming(a.appointmentDate, a.appointmentTime));
-  const past = appointments.filter(a => !isUpcoming(a.appointmentDate, a.appointmentTime) || a.status === "cancelled");
+  const past = appointments.filter(a => !hiddenApptIds.has(a.id) && (!isUpcoming(a.appointmentDate, a.appointmentTime) || a.status === "cancelled"));
 
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col max-w-md mx-auto relative" dir="rtl">
@@ -597,6 +606,15 @@ export default function ClientPortal() {
                         </div>
                         {a.status === "cancelled" && (
                           <span className="text-xs font-bold text-red-500 bg-red-50 px-2 py-0.5 rounded-full shrink-0">בוטל</span>
+                        )}
+                        {a.status === "cancelled" && (
+                          <button
+                            onClick={() => hideAppt(a.id)}
+                            className="p-1.5 rounded-full text-gray-300 hover:text-red-400 hover:bg-red-50 transition-colors shrink-0"
+                            title="הסר מהרשימה"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
                         )}
                       </div>
                     </div>

@@ -33,6 +33,10 @@ function mapAdminBusiness(b: typeof businessesTable.$inferSelect) {
     subscriptionPlan: b.subscriptionPlan,
     maxServicesAllowed: b.maxServicesAllowed,
     createdAt: b.createdAt.toISOString(),
+    // Subscription details
+    subscriptionRenewDate: (b as any).subscriptionRenewDate ? new Date((b as any).subscriptionRenewDate).toISOString() : null,
+    subscriptionCancelledAt: (b as any).subscriptionCancelledAt ? new Date((b as any).subscriptionCancelledAt).toISOString() : null,
+    hasToken: !!((b as any).tranzilaToken),
     // Profile fields
     address: b.address ?? null,
     city: b.city ?? null,
@@ -247,6 +251,27 @@ router.post("/super-admin/businesses/:id/revoke-pro", async (req, res): Promise<
   if (!updated) { res.status(404).json({ error: "Business not found" }); return; }
 
   res.json({ success: true });
+});
+
+// POST /super-admin/businesses/:id/cancel-subscription — soft cancel (access stays until renewDate)
+router.post("/super-admin/businesses/:id/cancel-subscription", async (req, res): Promise<void> => {
+  const { adminPassword } = req.body ?? {};
+  if (!adminPassword || !isAdmin(adminPassword)) {
+    res.status(401).json({ error: "Unauthorized" }); return;
+  }
+
+  const id = Number(req.params.id);
+  if (!id || isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
+
+  const [updated] = await db
+    .update(businessesTable)
+    .set({ subscriptionCancelledAt: new Date() } as any)
+    .where(eq(businessesTable.id, id))
+    .returning();
+
+  if (!updated) { res.status(404).json({ error: "Business not found" }); return; }
+
+  res.json({ success: true, cancelledAt: new Date().toISOString() });
 });
 
 export default router;

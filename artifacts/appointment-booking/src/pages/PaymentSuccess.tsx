@@ -14,20 +14,19 @@ export default function PaymentSuccess() {
 
   useEffect(() => {
     if (inIframe) {
-      // Notify parent window that payment succeeded, then break out
+      // Notify parent window that payment succeeded
       try {
         window.parent.postMessage(
           { type: "kavati_payment_success", paymentType: type, apptId },
           "*"
         );
-        // Break out of iframe after short delay so parent can react
-        setTimeout(() => {
-          window.parent.location.href = isSubscription ? "/dashboard" : "/";
-        }, 1500);
       } catch {
-        // Cross-origin fallback — just redirect parent
-        window.parent.location.href = isSubscription ? "/dashboard" : "/";
+        // cross-origin postMessage failed — ignore
       }
+      // Break out of ALL frames (window.top works even from cross-origin iframes)
+      setTimeout(() => {
+        window.top!.location.href = isSubscription ? "/dashboard" : "/";
+      }, 1500);
       return;
     }
 

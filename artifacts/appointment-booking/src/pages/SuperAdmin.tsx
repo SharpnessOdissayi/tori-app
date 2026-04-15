@@ -246,6 +246,22 @@ export default function SuperAdmin() {
     }
   };
 
+  const handleCancelSubscription = async (biz: AdminBusinessSummary) => {
+    if (!confirm(`לבטל את המנוי של ${biz.name}? הגישה תישמר עד תאריך החידוש.`)) return;
+    try {
+      const res = await fetch(`/api/super-admin/businesses/${biz.id}/cancel-subscription`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ adminPassword: password }),
+      });
+      if (!res.ok) throw new Error("שגיאה");
+      toast({ title: "המנוי בוטל — הגישה תפוג בתאריך החידוש" });
+      invalidate();
+    } catch (err: any) {
+      toast({ title: "שגיאה", description: err.message, variant: "destructive" });
+    }
+  };
+
   if (!isAuthenticated) {
     return (
       <div className="min-h-screen flex flex-col bg-muted/30" dir="rtl">
@@ -379,6 +395,7 @@ export default function SuperAdmin() {
               onEdit={() => openEditDialog(b)}
               onGrantPro={() => { setGrantProBusiness(b); setGrantProDays(30); }}
               onRevokePro={() => handleRevokePro(b)}
+              onCancelSubscription={() => handleCancelSubscription(b)}
               isPending={updateMutation.isPending || deleteMutation.isPending}
             />
           )) : (
@@ -524,18 +541,25 @@ export default function SuperAdmin() {
 }
 
 interface BusinessCardProps {
-  business: AdminBusinessSummary;
+  business: AdminBusinessSummary & {
+    subscriptionRenewDate?: string | null;
+    subscriptionCancelledAt?: string | null;
+    hasToken?: boolean;
+  };
   onToggleActive: () => void;
   onChangePlan: (plan: string) => void;
   onDelete: () => void;
   onEdit: () => void;
   onGrantPro: () => void;
   onRevokePro: () => void;
+  onCancelSubscription: () => void;
   isPending: boolean;
 }
 
-function BusinessCard({ business, onToggleActive, onChangePlan, onDelete, onEdit, onGrantPro, onRevokePro, isPending }: BusinessCardProps) {
+function BusinessCard({ business, onToggleActive, onChangePlan, onDelete, onEdit, onGrantPro, onRevokePro, onCancelSubscription, isPending }: BusinessCardProps) {
   const plan = PLANS.find(p => p.value === business.subscriptionPlan) ?? PLANS[0];
+  const renewDate = business.subscriptionRenewDate ? new Date(business.subscriptionRenewDate) : null;
+  const isCancelled = !!business.subscriptionCancelledAt;
 
   return (
     <Card
@@ -595,6 +619,22 @@ function BusinessCard({ business, onToggleActive, onChangePlan, onDelete, onEdit
           </Button>
         </div>
 
+        {/* Subscription details */}
+        {business.subscriptionPlan === "pro" && (
+          <div className="text-xs text-muted-foreground space-y-0.5 border rounded-lg px-3 py-2 bg-violet-50/50">
+            {renewDate && (
+              <div>חידוש: <span className="font-medium text-foreground">{renewDate.toLocaleDateString("he-IL")}</span></div>
+            )}
+            {isCancelled && (
+              <div className="text-orange-600 font-medium">בוטל — פוקע בתאריך החידוש</div>
+            )}
+            {business.hasToken
+              ? <div className="text-green-700">טוקן כרטיס שמור ✓</div>
+              : <div className="text-orange-600">אין טוקן (הוענק ידנית)</div>
+            }
+          </div>
+        )}
+
         {/* Grant/Revoke Pro */}
         <div className="flex gap-2 pt-1">
           <Button size="sm" variant="outline"
@@ -602,10 +642,16 @@ function BusinessCard({ business, onToggleActive, onChangePlan, onDelete, onEdit
             onClick={onGrantPro}>
             👑 הענק פרו
           </Button>
+          {business.subscriptionPlan === "pro" && !isCancelled && (
+            <Button size="sm" variant="ghost" className="text-xs text-orange-600 hover:bg-orange-50"
+              onClick={onCancelSubscription}>
+              בטל מנוי
+            </Button>
+          )}
           {business.subscriptionPlan === "pro" && (
             <Button size="sm" variant="ghost" className="text-xs text-muted-foreground hover:text-red-600 hover:bg-red-50"
               onClick={onRevokePro}>
-              בטל פרו
+              הסר פרו
             </Button>
           )}
         </div>

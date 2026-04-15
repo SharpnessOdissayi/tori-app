@@ -77,6 +77,7 @@ export async function runMigrations() {
       "ALTER TABLE businesses ADD COLUMN IF NOT EXISTS tranzila_token_expiry TEXT",
       "ALTER TABLE businesses ADD COLUMN IF NOT EXISTS subscription_renew_date TIMESTAMPTZ",
       "ALTER TABLE businesses ADD COLUMN IF NOT EXISTS subscription_cancelled_at TIMESTAMPTZ",
+      "ALTER TABLE businesses ADD COLUMN IF NOT EXISTS tranzila_sto_id INTEGER",
     ];
 
     // Cancellation tracking

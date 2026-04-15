@@ -88,6 +88,7 @@ export const businessesTable = pgTable("businesses", {
   tranzilaTokenExpiry: text("tranzila_token_expiry"), // MMYY format
   subscriptionRenewDate: timestamp("subscription_renew_date", { withTimezone: true }),
   subscriptionCancelledAt: timestamp("subscription_cancelled_at", { withTimezone: true }),
+  tranzilaStorId: integer("tranzila_sto_id"),     // Tranzila Standing Order ID (REST API) — if set, Tranzila manages billing
 });
 
 export const insertBusinessSchema = createInsertSchema(businessesTable).omit({ id: true, createdAt: true });

@@ -6,6 +6,7 @@
 
 import { db, businessesTable } from "@workspace/db";
 import { and, isNotNull, isNull, lte, eq } from "drizzle-orm";
+// Businesses with a Tranzila STO are billed automatically by Tranzila — skip them here
 import { chargeToken } from "./tranzilaCharge";
 import { logger } from "./logger";
 
@@ -30,6 +31,7 @@ export async function runSubscriptionBilling() {
         eq(businessesTable.subscriptionPlan, "pro"),
         isNotNull((businessesTable as any).tranzilaToken),
         isNull((businessesTable as any).subscriptionCancelledAt),
+        isNull((businessesTable as any).tranzilaStorId),       // skip STO-managed businesses
         lte((businessesTable as any).subscriptionRenewDate, chargeThreshold),
       )
     );

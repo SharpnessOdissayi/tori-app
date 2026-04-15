@@ -339,6 +339,7 @@ export default function Book() {
   const [step, setStep] = useState(0);
   const [showNotification, setShowNotification] = useState(true);
   const [showAnnouncement, setShowAnnouncement] = useState(false);
+  const [paymentIframeUrl, setPaymentIframeUrl] = useState<string | null>(null);
   const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
   const [showWaitlist, setShowWaitlist] = useState(false);
   const [showExistingBooking, setShowExistingBooking] = useState(false);
@@ -401,11 +402,32 @@ export default function Book() {
     if (!text || !createdAt) return;
     const expiresAt = new Date(createdAt).getTime() + validHours * 60 * 60 * 1000;
     if (Date.now() > expiresAt) return;
-    // Key: slug + createdAt — so a new announcement resets dismiss state
     const dismissKey = `ann_dismissed_${businessSlug}_${createdAt}`;
     if (localStorage.getItem(dismissKey)) return;
     setShowAnnouncement(true);
   }, [business, businessSlug]);
+
+  // Dismiss notification permanently if already seen for this exact message
+  useEffect(() => {
+    if (!business?.notificationMessage || !businessSlug) return;
+    const seen = localStorage.getItem(`notif_seen_${businessSlug}`);
+    if (seen === business.notificationMessage) setShowNotification(false);
+  }, [business?.notificationMessage, businessSlug]);
+
+  // Listen for payment postMessages from Tranzila iframe
+  useEffect(() => {
+    const handleMessage = (e: MessageEvent) => {
+      if (e.data?.type === "kavati_payment_success") {
+        setPaymentIframeUrl(null);
+        setStep(5);
+      } else if (e.data?.type === "kavati_payment_fail") {
+        setPaymentIframeUrl(null);
+        toast({ title: "התשלום נכשל", description: "ניתן לנסות שוב", variant: "destructive" });
+      }
+    };
+    window.addEventListener("message", handleMessage);
+    return () => window.removeEventListener("message", handleMessage);
+  }, []);
 
   const dateStr = selectedDate ? format(selectedDate, "yyyy-MM-dd") : "";
   const { data: availability, isLoading: availabilityLoading } = useGetPublicAvailability(
@@ -896,7 +918,7 @@ export default function Book() {
           if (data?.requiresPayment && data?.id) {
             fetch(`${API_BASE}/tranzila/payment-url/${data.id}`)
               .then(r => r.json())
-              .then(({ url }) => { if (url) window.location.href = url; })
+              .then(({ url }) => { if (url) setPaymentIframeUrl(url); else setStep(5); })
               .catch(() => setStep(5));
           } else {
             setStep(5);
@@ -1005,6 +1027,29 @@ export default function Book() {
     return (
       <div dir="rtl" style={{ fontFamily: `'${fontFamily}', sans-serif`, backgroundColor }} className="min-h-screen overflow-x-hidden">
 
+        {/* Notification popup — dismissable permanently via localStorage */}
+        {business.notificationEnabled && business.notificationMessage && (
+          <Dialog open={showNotification} onOpenChange={setShowNotification}>
+            <DialogContent className="sm:max-w-md text-center" dir="rtl">
+              <DialogHeader>
+                <DialogTitle className="text-xl">הודעה מבית העסק</DialogTitle>
+              </DialogHeader>
+              <DialogDescription className="text-base py-4 whitespace-pre-wrap text-foreground">
+                {business.notificationMessage}
+              </DialogDescription>
+              <Button
+                onClick={() => {
+                  localStorage.setItem(`notif_seen_${businessSlug}`, business.notificationMessage!);
+                  setShowNotification(false);
+                }}
+                style={{ backgroundColor: primaryColor }}
+              >
+                הבנתי, לא להציג שוב ✓
+              </Button>
+            </DialogContent>
+          </Dialog>
+        )}
+
         {/* Announcement popup — dismissable per-message via localStorage */}
         <Dialog open={showAnnouncement} onOpenChange={setShowAnnouncement}>
           <DialogContent className="sm:max-w-md text-center" dir="rtl">
@@ -1014,24 +1059,16 @@ export default function Book() {
             <DialogDescription className="text-base py-4 whitespace-pre-wrap text-foreground">
               {(business as any).announcementText}
             </DialogDescription>
-            <div className="flex flex-col gap-2">
-              <Button
-                onClick={() => {
-                  const createdAt = (business as any).announcementCreatedAt;
-                  localStorage.setItem(`ann_dismissed_${businessSlug}_${createdAt}`, "1");
-                  setShowAnnouncement(false);
-                }}
-                style={{ backgroundColor: primaryColor }}
-              >
-                הבנתי, לא להציג שוב ✓
-              </Button>
-              <button
-                className="text-sm text-muted-foreground underline"
-                onClick={() => setShowAnnouncement(false)}
-              >
-                סגור (יוצג שוב בביקור הבא)
-              </button>
-            </div>
+            <Button
+              onClick={() => {
+                const createdAt = (business as any).announcementCreatedAt;
+                localStorage.setItem(`ann_dismissed_${businessSlug}_${createdAt}`, "1");
+                setShowAnnouncement(false);
+              }}
+              style={{ backgroundColor: primaryColor }}
+            >
+              הבנתי ✓
+            </Button>
           </DialogContent>
         </Dialog>
 
@@ -1434,15 +1471,42 @@ export default function Book() {
     <div className="min-h-[100dvh] flex flex-col relative" dir="rtl" style={{ fontFamily: `'${fontFamily}', sans-serif`, backgroundColor }}>
       <div className="absolute top-0 w-full h-52 -z-10 rounded-b-[40px]" style={{ backgroundColor: primaryColor + "18" }} />
 
-      <Dialog open={business.notificationEnabled && showNotification} onOpenChange={setShowNotification}>
-        <DialogContent className="sm:max-w-md text-center" dir="rtl">
-          <DialogHeader>
-            <DialogTitle className="text-xl">הודעה מבית העסק</DialogTitle>
+      {business.notificationEnabled && business.notificationMessage && (
+        <Dialog open={showNotification} onOpenChange={setShowNotification}>
+          <DialogContent className="sm:max-w-md text-center" dir="rtl">
+            <DialogHeader>
+              <DialogTitle className="text-xl">הודעה מבית העסק</DialogTitle>
+            </DialogHeader>
+            <DialogDescription className="text-base py-4 whitespace-pre-wrap text-foreground">
+              {business.notificationMessage}
+            </DialogDescription>
+            <Button
+              onClick={() => {
+                localStorage.setItem(`notif_seen_${businessSlug}`, business.notificationMessage!);
+                setShowNotification(false);
+              }}
+              style={{ backgroundColor: primaryColor }}
+            >
+              הבנתי, לא להציג שוב ✓
+            </Button>
+          </DialogContent>
+        </Dialog>
+      )}
+
+      {/* Payment iframe modal */}
+      <Dialog open={!!paymentIframeUrl} onOpenChange={(open) => { if (!open) setPaymentIframeUrl(null); }}>
+        <DialogContent className="max-w-lg p-0 overflow-hidden" dir="rtl">
+          <DialogHeader className="p-4 pb-2">
+            <DialogTitle>תשלום מקדמה</DialogTitle>
           </DialogHeader>
-          <DialogDescription className="text-base py-4 whitespace-pre-wrap text-foreground">
-            {business.notificationMessage}
-          </DialogDescription>
-          <Button onClick={() => setShowNotification(false)} style={{ backgroundColor: primaryColor }}>הבנתי, תודה</Button>
+          {paymentIframeUrl && (
+            <iframe
+              src={paymentIframeUrl}
+              className="w-full border-0"
+              style={{ height: "520px" }}
+              title="תשלום מקדמה"
+            />
+          )}
         </DialogContent>
       </Dialog>
 
