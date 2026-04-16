@@ -88,12 +88,21 @@ export async function chargeToken(
   const expireYear  = 2000 + parseInt(expiry.slice(2, 4), 10);
 
   // v1 STO body per docs: single `item` object (not array) + `card.token`
-  // (not `card_number`). charge_dom = today capped at 28.
+  // (not `card_number`). Both first_charge_date AND charge_dom are
+  // required — first_charge_date starts 30 days from now (the 1st month
+  // was already paid via the iframe on signup), charge_dom is that same
+  // day of the month, capped at 28.
+  const firstCharge = new Date();
+  firstCharge.setDate(firstCharge.getDate() + 30);
+  const firstChargeDate = firstCharge.toISOString().slice(0, 10); // YYYY-MM-DD
+  const chargeDom       = Math.min(firstCharge.getDate(), 28);
+
   const body = {
     terminal_name:       TERMINAL,
     sto_payments_number: 12,
     charge_frequency:    "monthly",
-    charge_dom:          Math.min(new Date().getDate(), 28),
+    first_charge_date:   firstChargeDate,
+    charge_dom:          chargeDom,
     item: {
       name:           `מנוי פרו קבעתי - ${businessId}`,
       unit_price:     amountILS,
