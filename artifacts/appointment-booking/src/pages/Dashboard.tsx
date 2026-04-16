@@ -476,7 +476,7 @@ export default function Dashboard() {
     // Uses the --dashboard-font CSS variable so that BrandingTab's live
     // font picker (which writes to the same variable) takes effect
     // immediately across the dashboard — not only after the owner saves.
-    <div className="min-h-screen bg-muted/30" dir="rtl"
+    <div className="portal-dark-scope min-h-screen bg-muted/30" dir="rtl"
       style={{ fontFamily: "var(--dashboard-font, inherit)" }}
     >
       {showTour && (

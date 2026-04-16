@@ -734,7 +734,7 @@ export default function Book({ slugOverride }: { slugOverride?: string } = {}) {
             <h1 className="text-2xl font-extrabold" style={{ color: primaryColor }}>{business.name}</h1>
           </div>
 
-          <div className="bg-white rounded-2xl shadow-lg p-6 space-y-5">
+          <div className="bg-white dark:bg-neutral-900 rounded-2xl shadow-lg p-6 space-y-5">
             <div>
               <h2 className="text-lg font-bold">כניסה לפורטל לקוחות</h2>
               <p className="text-sm text-muted-foreground mt-0.5">נהל/י את התורים שלך בקלות</p>

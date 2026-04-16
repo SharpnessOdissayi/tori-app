@@ -508,7 +508,7 @@ export default function ClientPortal() {
   const past = appointments.filter(a => !hiddenApptIds.has(a.id) && (!isUpcoming(a.appointmentDate, a.appointmentTime) || a.status === "cancelled"));
 
   return (
-    <div className="min-h-screen bg-gray-50 flex flex-col max-w-md mx-auto relative" dir="rtl">
+    <div className="portal-dark-scope min-h-screen bg-gray-50 flex flex-col max-w-md mx-auto relative" dir="rtl">
 
       {/* Header — z-30 so the notifications panel rendered inside beats the
           bottom nav's z-20 stacking context. Sticky elements create their

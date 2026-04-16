@@ -189,46 +189,53 @@
  * The client portal uses hardcoded Tailwind colors (bg-white, bg-gray-50,
  * text-gray-700, etc.) that don't react to the `dark` class on <html>.
  * Rather than hand-edit every component we override those utility colors
- * globally whenever .dark is active. Kept scoped to the portal via the
- * descendant combinator so the booking page and dashboard are untouched.
+ * whenever .dark AND .portal-dark-scope are both ancestors — so these
+ * overrides ONLY affect ClientPortal and friends, not the business
+ * profile page (Book.tsx) or the Dashboard. The business-profile page
+ * drives its own theming via inline styles (primaryColor, gradient,
+ * backgroundColor, pattern). Earlier this selector was unscoped — that's
+ * why a business's custom design looked "erased" when the owner turned
+ * on dark mode on their own /book/:slug page.
  *
  * Body text / backgrounds / borders / shadows — the common visible ones.
  */
-.dark .bg-white            { background-color: #0a0a0a !important; }
-.dark .bg-gray-50          { background-color: #0a0a0a !important; }
-.dark .bg-gray-100         { background-color: #171717 !important; }
-.dark .bg-gray-200         { background-color: #262626 !important; }
-.dark .bg-violet-50        { background-color: rgba(124, 58, 237, 0.15) !important; }
-.dark .bg-blue-50          { background-color: rgba(59, 130, 246, 0.15) !important; }
-.dark .bg-red-50           { background-color: rgba(239, 68, 68, 0.15) !important; }
-.dark .bg-green-50         { background-color: rgba(34, 197, 94, 0.15) !important; }
-.dark .bg-amber-50         { background-color: rgba(245, 158, 11, 0.15) !important; }
-.dark .bg-orange-50        { background-color: rgba(249, 115, 22, 0.12) !important; }
-.dark .bg-orange-100       { background-color: rgba(249, 115, 22, 0.2) !important; }
-.dark .border-orange-100   { border-color: rgba(249, 115, 22, 0.25) !important; }
-.dark .text-orange-400     { color: #fb923c !important; }
-.dark .text-orange-600     { color: #fdba74 !important; }
+.dark .portal-dark-scope .bg-white,
+.dark.portal-dark-scope .bg-white,
+.dark .portal-dark-scope.bg-white          { background-color: #0a0a0a !important; }
+.dark .portal-dark-scope .bg-gray-50       { background-color: #0a0a0a !important; }
+.dark .portal-dark-scope .bg-gray-100      { background-color: #171717 !important; }
+.dark .portal-dark-scope .bg-gray-200      { background-color: #262626 !important; }
+.dark .portal-dark-scope .bg-violet-50     { background-color: rgba(124, 58, 237, 0.15) !important; }
+.dark .portal-dark-scope .bg-blue-50       { background-color: rgba(59, 130, 246, 0.15) !important; }
+.dark .portal-dark-scope .bg-red-50        { background-color: rgba(239, 68, 68, 0.15) !important; }
+.dark .portal-dark-scope .bg-green-50      { background-color: rgba(34, 197, 94, 0.15) !important; }
+.dark .portal-dark-scope .bg-amber-50      { background-color: rgba(245, 158, 11, 0.15) !important; }
+.dark .portal-dark-scope .bg-orange-50     { background-color: rgba(249, 115, 22, 0.12) !important; }
+.dark .portal-dark-scope .bg-orange-100    { background-color: rgba(249, 115, 22, 0.2) !important; }
+.dark .portal-dark-scope .border-orange-100{ border-color: rgba(249, 115, 22, 0.25) !important; }
+.dark .portal-dark-scope .text-orange-400  { color: #fb923c !important; }
+.dark .portal-dark-scope .text-orange-600  { color: #fdba74 !important; }
 
-.dark .text-gray-900       { color: #f1f5f9 !important; }
-.dark .text-gray-800       { color: #e2e8f0 !important; }
-.dark .text-gray-700       { color: #cbd5e1 !important; }
-.dark .text-gray-600       { color: #94a3b8 !important; }
-.dark .text-gray-500       { color: #94a3b8 !important; }
-.dark .text-gray-400       { color: #64748b !important; }
-.dark .text-black          { color: #f1f5f9 !important; }
+.dark .portal-dark-scope .text-gray-900    { color: #f1f5f9 !important; }
+.dark .portal-dark-scope .text-gray-800    { color: #e2e8f0 !important; }
+.dark .portal-dark-scope .text-gray-700    { color: #cbd5e1 !important; }
+.dark .portal-dark-scope .text-gray-600    { color: #94a3b8 !important; }
+.dark .portal-dark-scope .text-gray-500    { color: #94a3b8 !important; }
+.dark .portal-dark-scope .text-gray-400    { color: #64748b !important; }
+.dark .portal-dark-scope .text-black       { color: #f1f5f9 !important; }
 
-.dark .border-gray-100     { border-color: #171717 !important; }
-.dark .border-gray-200     { border-color: #262626 !important; }
-.dark .border-gray-300     { border-color: #404040 !important; }
-.dark .border-b            { border-bottom-color: #262626 !important; }
-.dark .border-t            { border-top-color: #262626 !important; }
-.dark .divide-y > * + *    { border-top-color: #262626 !important; }
-.dark .divide-gray-100 > * + *,
-.dark .divide-gray-200 > * + * { border-top-color: #262626 !important; }
+.dark .portal-dark-scope .border-gray-100  { border-color: #171717 !important; }
+.dark .portal-dark-scope .border-gray-200  { border-color: #262626 !important; }
+.dark .portal-dark-scope .border-gray-300  { border-color: #404040 !important; }
+.dark .portal-dark-scope .border-b         { border-bottom-color: #262626 !important; }
+.dark .portal-dark-scope .border-t         { border-top-color: #262626 !important; }
+.dark .portal-dark-scope .divide-y > * + * { border-top-color: #262626 !important; }
+.dark .portal-dark-scope .divide-gray-100 > * + *,
+.dark .portal-dark-scope .divide-gray-200 > * + * { border-top-color: #262626 !important; }
 
 /* Make the violet accent pop a bit brighter on dark backgrounds. */
-.dark .text-violet-600     { color: #a78bfa !important; }
-.dark .bg-violet-100       { background-color: rgba(167, 139, 250, 0.2) !important; }
+.dark .portal-dark-scope .text-violet-600  { color: #a78bfa !important; }
+.dark .portal-dark-scope .bg-violet-100    { background-color: rgba(167, 139, 250, 0.2) !important; }
 
 @layer base {
   * {
