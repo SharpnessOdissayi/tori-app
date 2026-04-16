@@ -2996,7 +2996,6 @@ function IntegrationsTab() {
   const { toast } = useToast();
 
   const [notificationEnabled, setNotificationEnabled] = useState(true);
-  const [notificationMessage, setNotificationMessage] = useState("");
   const [sendBookingConfirmation, setSendBookingConfirmation] = useState(true);
   const [announcementText, setAnnouncementText] = useState("");
   const [announcementValidHours, setAnnouncementValidHours] = useState(24);
@@ -3009,7 +3008,6 @@ function IntegrationsTab() {
   useEffect(() => {
     if (profile) {
       setNotificationEnabled(profile.notificationEnabled ?? true);
-      setNotificationMessage(profile.notificationMessage ?? "");
       setSendBookingConfirmation((profile as any).sendBookingConfirmation ?? true);
       setSendReminders((profile as any).sendReminders ?? true);
       setAnnouncementText((profile as any).announcementText ?? "");
@@ -3024,7 +3022,9 @@ function IntegrationsTab() {
     updateProfile.mutate({
       data: {
         notificationEnabled,
-        notificationMessage: notificationMessage || null,
+        // Custom per-booking WhatsApp text field was removed from the UI;
+        // clear any stale value in the DB so it doesn't keep appending.
+        notificationMessage: null,
         sendBookingConfirmation,
         sendReminders,
         announcementText: announcementText || null,
@@ -3073,30 +3073,24 @@ function IntegrationsTab() {
             </div>
             <Switch checked={sendBookingConfirmation} onCheckedChange={setSendBookingConfirmation} />
           </div>
-          <Separator />
-          <div className="space-y-2">
-            <Label>הודעה מותאמת אישית ללקוחות (אופציונלי)</Label>
-            <p className="text-xs text-muted-foreground">תוסף לאישור שנשלח ללקוחות בעת קביעת תור</p>
-            <Input
-              placeholder="לביטול תור נא לפנות 24 שעות מראש"
-              value={notificationMessage}
-              onChange={e => setNotificationMessage(e.target.value)}
-            />
-          </div>
         </CardContent>
       </Card>
 
-      {/* Announcement popup card */}
+      {/* הודעת פתיחה ללקוח — shown when a client opens the business profile.
+           Owner can set content + duration; client sees a popup with a
+           "קראתי" checkbox that dismisses the message forever. */}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <span className="text-xl">📢</span> הודעת פתיחה לפרופיל העסק
+            <span className="text-xl">📢</span> הודעת פתיחה
           </CardTitle>
+          <CardDescription>
+            הודעה שלקוח יראה בפעם הראשונה שייכנס לעמוד ההזמנות שלך. לקוח יכול לסמן "קראתי" ולא לראות אותה שוב.
+          </CardDescription>
         </CardHeader>
-        <CardContent className="space-y-4">
+        <CardContent className="space-y-5">
           <div className="space-y-2">
             <Label>תוכן ההודעה</Label>
-            <p className="text-xs text-muted-foreground">תוצג ללקוח כחלון קופץ בכניסה לפרופיל שלך. ריק = ללא הודעה</p>
             <textarea
               rows={3}
               maxLength={500}
@@ -3105,29 +3099,99 @@ function IntegrationsTab() {
               value={announcementText}
               onChange={e => setAnnouncementText(e.target.value.slice(0, 500))}
             />
-            <div className="flex justify-between items-center">
-              <span className="text-xs text-muted-foreground">{announcementText.length} / 500</span>
-              {announcementText && (
-                <button type="button" onClick={() => setAnnouncementText("")}
-                  className="text-xs text-destructive hover:underline">מחק הודעה</button>
+            <div className="flex justify-between items-center text-xs text-muted-foreground">
+              <span>{announcementText.length} / 500 תווים</span>
+              {announcementText.trim() && (
+                <span className="inline-flex items-center gap-1 text-green-600 font-medium">
+                  <span className="w-1.5 h-1.5 rounded-full bg-green-500" /> פעיל
+                </span>
               )}
             </div>
           </div>
-          {announcementText && (
-            <div className="space-y-2">
-              <Label>תוקף ההודעה</Label>
-              <p className="text-xs text-muted-foreground">לקוח שסגר את ההודעה לא יראה אותה שוב עד שתוקפה פג</p>
-              <div className="flex items-center gap-3">
-                <input
-                  type="number" min={1} max={720}
-                  className="w-24 rounded-xl border bg-background px-3 py-2 text-sm text-center focus:outline-none focus:ring-2 focus:ring-primary"
-                  value={announcementValidHours}
-                  onChange={e => setAnnouncementValidHours(Number(e.target.value) || 24)}
-                />
-                <span className="text-sm text-muted-foreground">שעות</span>
-                <span className="text-xs text-muted-foreground">(24 = יום, 168 = שבוע)</span>
+
+          {/* Duration + quick-adjust actions — only when there's content. */}
+          {announcementText.trim() && (
+            <>
+              <div className="space-y-2 pt-2 border-t">
+                <Label>כמה זמן ההודעה תופיע ללקוחות?</Label>
+                <p className="text-xs text-muted-foreground">
+                  הכמות בשעות. ברגע שהזמן נגמר, ההודעה תיעלם מהעמוד ולקוחות חדשים לא יראו אותה.
+                </p>
+                <div className="flex items-center gap-3 flex-wrap">
+                  <input
+                    type="number" min={1} max={8760}
+                    className="w-28 rounded-xl border bg-background px-3 py-2 text-sm text-center focus:outline-none focus:ring-2 focus:ring-primary"
+                    value={announcementValidHours}
+                    onChange={e => setAnnouncementValidHours(Math.max(1, Number(e.target.value) || 24))}
+                  />
+                  <span className="text-sm text-muted-foreground">שעות</span>
+                  {/* Quick presets */}
+                  <div className="flex gap-1.5 ms-2">
+                    {[
+                      { label: "יום",    hours: 24 },
+                      { label: "שבוע",   hours: 24 * 7 },
+                      { label: "חודש",   hours: 24 * 30 },
+                    ].map(p => (
+                      <button
+                        key={p.hours}
+                        type="button"
+                        onClick={() => setAnnouncementValidHours(p.hours)}
+                        className={`px-3 py-1 text-xs rounded-full border transition-all ${announcementValidHours === p.hours ? "border-primary bg-primary/10 text-primary font-medium" : "border-border text-muted-foreground hover:border-primary/40"}`}
+                      >
+                        {p.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
               </div>
-            </div>
+
+              {/* Quick extend/shorten + delete actions */}
+              <div className="flex gap-2 flex-wrap pt-2 border-t">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setAnnouncementValidHours(h => Math.max(1, h - 24))}
+                  className="text-xs"
+                  title="הורד יום אחד"
+                >
+                  − יום
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setAnnouncementValidHours(h => h + 24)}
+                  className="text-xs"
+                  title="הוסף יום אחד"
+                >
+                  + יום
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setAnnouncementValidHours(h => h + 24 * 7)}
+                  className="text-xs"
+                  title="הוסף שבוע"
+                >
+                  + שבוע
+                </Button>
+                <div className="ms-auto">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      if (confirm("למחוק את ההודעה?")) setAnnouncementText("");
+                    }}
+                    className="text-xs text-destructive hover:text-destructive hover:bg-destructive/10"
+                  >
+                    🗑 מחק הודעה
+                  </Button>
+                </div>
+              </div>
+            </>
           )}
         </CardContent>
       </Card>
@@ -3227,9 +3291,44 @@ function IntegrationsTab() {
         </CardContent>
       </Card>
 
-      <Button onClick={handleSave} disabled={updateProfile.isPending} size="lg" className="w-full">
-        {updateProfile.isPending ? "שומר..." : "שמור הגדרות"}
-      </Button>
+      {/* Spacer so the last card isn't hidden behind the sticky bar. */}
+      <div className="h-24" />
+
+      {/* Sticky bottom bar — save + cancel at the bottom of the tab. */}
+      <div className="fixed bottom-0 left-0 right-0 z-40 bg-background/95 backdrop-blur-sm border-t shadow-lg">
+        <div className="max-w-2xl mx-auto flex items-center justify-between gap-3 p-3">
+          <Button
+            type="button"
+            variant="outline"
+            size="lg"
+            onClick={() => {
+              if (profile) {
+                setNotificationEnabled(profile.notificationEnabled ?? true);
+                setSendBookingConfirmation((profile as any).sendBookingConfirmation ?? true);
+                setSendReminders((profile as any).sendReminders ?? true);
+                setAnnouncementText((profile as any).announcementText ?? "");
+                setAnnouncementValidHours((profile as any).announcementValidHours ?? 24);
+                setShabbatMode(((profile as any).shabbatMode ?? "any") as "any" | "shabbat");
+                const saved = (profile as any).reminderTriggers;
+                setReminderTriggers(saved ? (() => { try { return JSON.parse(saved); } catch { return [{ amount: "24", unit: "hours" }]; } })() : [{ amount: "24", unit: "hours" }]);
+                toast({ title: "השינויים בוטלו" });
+              }
+            }}
+            className="flex-1 sm:flex-none"
+          >
+            בטל עריכה
+          </Button>
+          <Button
+            type="button"
+            size="lg"
+            onClick={handleSave}
+            disabled={updateProfile.isPending}
+            className="flex-1 sm:flex-none"
+          >
+            {updateProfile.isPending ? "שומר..." : "שמור הכל"}
+          </Button>
+        </div>
+      </div>
     </div>
   );
 }

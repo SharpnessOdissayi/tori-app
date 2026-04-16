@@ -177,6 +177,62 @@ const DAYS_HE = ["ראשון", "שני", "שלישי", "רביעי", "חמישי
 // now mounted globally in App.tsx so every route gets it without each page
 // having to include it. Keeping this comment as a signpost for grep-ers.
 
+/**
+ * AnnouncementDialog — popup that opens when the owner has an active
+ * announcement. Shows the message plus a "קראתי — אל תציג שוב" checkbox.
+ *  - "סגור" (X) with checkbox OFF → reopens on next visit until it expires.
+ *  - Checkbox ON + any close action → permanently dismissed (localStorage
+ *    key tied to the announcement's createdAt so a NEW announcement from
+ *    the same business reopens for everyone).
+ */
+function AnnouncementDialog({
+  open,
+  onOpenChange,
+  text,
+  createdAt,
+  slug,
+  primaryColor,
+}: {
+  open: boolean;
+  onOpenChange: (v: boolean) => void;
+  text: string;
+  createdAt: string | null | undefined;
+  slug: string;
+  primaryColor: string;
+}) {
+  const [dontShow, setDontShow] = useState(false);
+  const close = () => {
+    if (dontShow && createdAt) {
+      localStorage.setItem(`ann_dismissed_${slug}_${createdAt}`, "1");
+    }
+    onOpenChange(false);
+  };
+  return (
+    <Dialog open={open} onOpenChange={close}>
+      <DialogContent className="sm:max-w-md text-center" dir="rtl">
+        <DialogHeader>
+          <DialogTitle className="text-xl">📢 הודעה מבית העסק</DialogTitle>
+        </DialogHeader>
+        <DialogDescription className="text-base py-4 whitespace-pre-wrap text-foreground">
+          {text}
+        </DialogDescription>
+        <label className="flex items-center gap-2 text-sm cursor-pointer select-none px-2 py-2 rounded-lg hover:bg-muted transition-colors">
+          <input
+            type="checkbox"
+            checked={dontShow}
+            onChange={e => setDontShow(e.target.checked)}
+            className="w-4 h-4 cursor-pointer"
+          />
+          <span>קראתי — אל תציג שוב</span>
+        </label>
+        <Button onClick={close} style={{ backgroundColor: primaryColor }}>
+          סגור
+        </Button>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 function formatDuration(minutes: number): string {
   if (minutes < 60) return `${minutes} דקות`;
   const h = Math.floor(minutes / 60);
@@ -982,27 +1038,17 @@ export default function Book({ slugOverride }: { slugOverride?: string } = {}) {
           </Dialog>
         )}
 
-        {/* Announcement popup — dismissable per-message via localStorage */}
-        <Dialog open={showAnnouncement} onOpenChange={setShowAnnouncement}>
-          <DialogContent className="sm:max-w-md text-center" dir="rtl">
-            <DialogHeader>
-              <DialogTitle className="text-xl">📢 הודעה מבית העסק</DialogTitle>
-            </DialogHeader>
-            <DialogDescription className="text-base py-4 whitespace-pre-wrap text-foreground">
-              {(business as any).announcementText}
-            </DialogDescription>
-            <Button
-              onClick={() => {
-                const createdAt = (business as any).announcementCreatedAt;
-                localStorage.setItem(`ann_dismissed_${businessSlug}_${createdAt}`, "1");
-                setShowAnnouncement(false);
-              }}
-              style={{ backgroundColor: primaryColor }}
-            >
-              הבנתי ✓
-            </Button>
-          </DialogContent>
-        </Dialog>
+        {/* Announcement popup — dismiss-forever checkbox means the client
+             won't see this particular message again (tied to the message's
+             createdAt timestamp; a NEW announcement resets the flag). */}
+        <AnnouncementDialog
+          open={showAnnouncement}
+          onOpenChange={setShowAnnouncement}
+          text={(business as any).announcementText}
+          createdAt={(business as any).announcementCreatedAt}
+          slug={businessSlug}
+          primaryColor={primaryColor}
+        />
 
         {/* Existing booking dialog */}
         <Dialog open={showExistingBooking} onOpenChange={setShowExistingBooking}>
