@@ -193,6 +193,7 @@ function SubscriptionBanner() {
   if (isPro) {
     const renewDate: Date | null = (profile as any)?.subscriptionRenewDate ? new Date((profile as any).subscriptionRenewDate) : null;
     const cancelledAt: Date | null = (profile as any)?.subscriptionCancelledAt ? new Date((profile as any).subscriptionCancelledAt) : null;
+    const hasToken = !!(profile as any)?.tranzilaToken;
 
     let timerText = "ללא הגבלת זמן";
     let timerColor = "text-violet-500";
@@ -207,11 +208,42 @@ function SubscriptionBanner() {
       }
     }
 
+    const testCharge = async () => {
+      const authToken = localStorage.getItem("biz_token") || sessionStorage.getItem("biz_token");
+      try {
+        const res  = await fetch(`${API_BASE_SUB}/tranzila/test-charge`, {
+          method:  "POST",
+          headers: { Authorization: `Bearer ${authToken}` },
+        });
+        const data = await res.json();
+        if (data.success) {
+          toast({ title: `✅ חויב ${data.amount} ₪ בהצלחה`, description: `קוד: ${data.responseCode}` });
+        } else {
+          toast({
+            title:       `❌ החיוב נכשל`,
+            description: `קוד: ${data.responseCode}${data.rawBody ? " — " + data.rawBody.slice(0, 120) : ""}`,
+            variant:     "destructive",
+          });
+        }
+      } catch (err: any) {
+        toast({ title: "שגיאה", description: err.message, variant: "destructive" });
+      }
+    };
+
     return (
-      <div className="flex items-center gap-2 px-4 py-2.5 bg-gradient-to-l from-violet-50 to-indigo-50 border border-violet-200 rounded-xl mb-4 text-sm">
+      <div className="flex flex-wrap items-center gap-2 px-4 py-2.5 bg-gradient-to-l from-violet-50 to-indigo-50 border border-violet-200 rounded-xl mb-4 text-sm">
         <Crown className="w-4 h-4 text-violet-600 shrink-0" />
         <span className="text-violet-800 font-medium">מנוי פרו פעיל</span>
-        <span className={`text-xs mr-auto font-medium ${timerColor}`}>{timerText}</span>
+        <span className={`text-xs font-medium ${timerColor}`}>{timerText}</span>
+        {hasToken && (
+          <button
+            onClick={testCharge}
+            className="mr-auto text-xs px-2.5 py-1 rounded-md bg-violet-600 text-white hover:bg-violet-700 transition"
+            title="מחייב 1 ₪ דרך הטוקן השמור כדי לוודא שהחיוב החודשי יעבוד"
+          >
+            ⚡ בדיקת חיוב (1 ₪)
+          </button>
+        )}
       </div>
     );
   }

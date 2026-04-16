@@ -2,7 +2,7 @@ import { Router } from "express";
 import { db, appointmentsTable, businessesTable } from "@workspace/db";
 import { eq, and } from "drizzle-orm";
 import jwt from "jsonwebtoken";
-import { createStandingOrder } from "../lib/tranzilaSto";
+import { chargeToken } from "../lib/tranzilaCharge";
 
 const router = Router();
 
@@ -11,9 +11,8 @@ const router = Router();
 const SUPPLIER   = process.env.TRANZILA_SUPPLIER ?? "";
 const JWT_SECRET = process.env.JWT_SECRET ?? "dev-secret";
 
-const TEST_MODE                = process.env.TRANZILA_TEST_MODE === "true";
-const SUBSCRIPTION_FIRST_ILS   = TEST_MODE ? 1 : 50;
-const SUBSCRIPTION_MONTHLY_ILS = TEST_MODE ? 1 : 100;
+const TEST_MODE              = process.env.TRANZILA_TEST_MODE === "true";
+const SUBSCRIPTION_FIRST_ILS = TEST_MODE ? 1 : 50;
 
 // Per iframe docs: base URL is direct.tranzila.com/<terminal>/iframenew.php.
 const IFRAME_BASE = `https://direct.tranzila.com/${SUPPLIER}/iframenew.php`;
@@ -83,85 +82,39 @@ router.post("/tranzila/notify", async (req, res): Promise<void> => {
 
     console.log("[Tranzila] Notify received:", { responsecode, pdesc, body });
 
-    // ── Subscription payment ─────────────────────────────────────────────
-    // Initial iframe charge (tranmode=AK) → no sto_external_id yet.
-    //   Store token + call /v1/sto/create. Tranzila then auto-charges monthly.
-    // Recurring STO charge → body includes sto_external_id. Just extend renewal.
+    // ── Subscription payment (initial iframe charge, tranmode=AK) ────────
+    // Monthly renewals are driven by subscriptionCron.ts using the stored
+    // token via /v1/transaction/credit_card/create — not by this webhook.
     const subscriptionMatch = pdesc.match(/מנוי פרו קבעתי - (\d+)/);
     if (subscriptionMatch) {
-      const businessId    = parseInt(subscriptionMatch[1]);
-      const stoExternalId = body.sto_external_id ? parseInt(String(body.sto_external_id)) : null;
+      const businessId = parseInt(subscriptionMatch[1]);
 
       if (responsecode === "000") {
+        const token   = String(body.TranzilaTK ?? body.tranzilatk ?? body.token ?? "").trim();
+        const mm      = String(body.expmonth ?? "").padStart(2, "0").slice(0, 2);
+        const yy      = String(body.expyear  ?? "").padStart(2, "0").slice(-2);
+        const expdate = mm && yy ? `${mm}${yy}` : String(body.expdate ?? "").trim();
+
         const renewDate = new Date();
         renewDate.setDate(renewDate.getDate() + 30);
 
-        if (stoExternalId) {
-          // Recurring STO charge — Tranzila handled the charge, extend renewal.
-          await db
-            .update(businessesTable)
-            .set({ subscriptionRenewDate: renewDate } as any)
-            .where(eq(businessesTable.id, businessId));
-          console.log(`[Tranzila] Recurring STO charge business=${businessId} sto=${stoExternalId}`);
-        } else {
-          // Initial iframe charge. Store token, mark Pro, create STO.
-          const token   = String(body.TranzilaTK ?? body.tranzilatk ?? body.token ?? "").trim();
-          const mm      = String(body.expmonth ?? "").padStart(2, "0").slice(0, 2);
-          const yy      = String(body.expyear  ?? "").padStart(2, "0").slice(-2);
-          const expdate = mm && yy ? `${mm}${yy}` : String(body.expdate ?? "").trim();
+        await db
+          .update(businessesTable)
+          .set({
+            subscriptionPlan:        "pro",
+            maxServicesAllowed:      999,
+            maxAppointmentsPerMonth: 9999,
+            subscriptionStartDate:   new Date(),
+            subscriptionRenewDate:   renewDate,
+            subscriptionCancelledAt: null,
+            tranzilaToken:           token   || null,
+            tranzilaTokenExpiry:     expdate || null,
+          } as any)
+          .where(eq(businessesTable.id, businessId));
 
-          await db
-            .update(businessesTable)
-            .set({
-              subscriptionPlan:        "pro",
-              maxServicesAllowed:      999,
-              maxAppointmentsPerMonth: 9999,
-              subscriptionStartDate:   new Date(),
-              subscriptionRenewDate:   renewDate,
-              subscriptionCancelledAt: null,
-              tranzilaToken:           token   || null,
-              tranzilaTokenExpiry:     expdate || null,
-            } as any)
-            .where(eq(businessesTable.id, businessId));
-
-          console.log(`[Tranzila] Business ${businessId} upgraded to Pro, renews ${renewDate.toISOString()}`);
-
-          // Create STO so Tranzila handles all future monthly charges.
-          if (token && mm && yy) {
-            const [biz] = await db
-              .select({
-                ownerName:     businessesTable.ownerName,
-                email:         businessesTable.email,
-                existingStoId: (businessesTable as any).tranzilaStorId,
-              })
-              .from(businessesTable)
-              .where(eq(businessesTable.id, businessId));
-
-            if (biz && !biz.existingStoId) {
-              const sto = await createStandingOrder({
-                token,
-                expireMonth: parseInt(mm, 10),
-                expireYear:  2000 + parseInt(yy, 10),
-                clientName:  biz.ownerName,
-                clientEmail: biz.email,
-                businessId,
-                amountILS:   SUBSCRIPTION_MONTHLY_ILS,
-              });
-
-              if (sto.success && sto.stoId) {
-                await db
-                  .update(businessesTable)
-                  .set({ tranzilaStorId: sto.stoId } as any)
-                  .where(eq(businessesTable.id, businessId));
-                console.log(`[Tranzila] STO created business=${businessId} stoId=${sto.stoId}`);
-              } else {
-                console.warn(`[Tranzila] STO creation failed business=${businessId}: ${sto.error}`);
-              }
-            }
-          }
-        }
+        console.log(`[Tranzila] Business ${businessId} upgraded to Pro, renews ${renewDate.toISOString()}`);
       } else {
-        console.log(`[Tranzila] Subscription payment failed business=${businessId} code=${responsecode} sto=${stoExternalId ?? "n/a"}`);
+        console.log(`[Tranzila] Subscription payment failed business=${businessId} code=${responsecode}`);
       }
 
       res.status(200).send("OK");
@@ -270,6 +223,53 @@ router.get("/tranzila/subscription-url", async (req, res): Promise<void> => {
 
   const url = buildSubscriptionUrl({ businessId: biz.id, ownerName: biz.ownerName, email: biz.email });
   res.json({ url, firstCharge: SUBSCRIPTION_FIRST_ILS, monthlyCharge: SUBSCRIPTION_MONTHLY_ILS });
+});
+
+// ─── POST /api/tranzila/test-charge (authenticated) ─────────────────────────
+// Manual "charge my stored token now" button for the dashboard. Useful to
+// verify the monthly charging path works before waiting 30 days for cron.
+const TEST_CHARGE_AMOUNT_ILS = TEST_MODE ? 1 : 1; // 1 ILS test regardless
+
+router.post("/tranzila/test-charge", async (req, res): Promise<void> => {
+  const authHeader = req.headers.authorization ?? "";
+  const rawToken   = authHeader.startsWith("Bearer ") ? authHeader.slice(7) : "";
+  if (!rawToken) { res.status(401).json({ error: "Unauthorized" }); return; }
+
+  let businessId: number;
+  try {
+    const payload = jwt.verify(rawToken, JWT_SECRET) as { businessId?: number; id?: number };
+    businessId = payload.businessId ?? payload.id ?? 0;
+    if (!businessId) throw new Error("No businessId");
+  } catch {
+    res.status(401).json({ error: "Unauthorized" }); return;
+  }
+
+  const [biz] = await db
+    .select({
+      tranzilaToken:       (businessesTable as any).tranzilaToken,
+      tranzilaTokenExpiry: (businessesTable as any).tranzilaTokenExpiry,
+    })
+    .from(businessesTable)
+    .where(eq(businessesTable.id, businessId));
+
+  if (!biz?.tranzilaToken || !biz?.tranzilaTokenExpiry) {
+    res.status(400).json({ error: "אין טוקן שמור — יש לבצע תשלום ראשון כדי ליצור טוקן" });
+    return;
+  }
+
+  const result = await chargeToken(
+    biz.tranzilaToken,
+    biz.tranzilaTokenExpiry,
+    TEST_CHARGE_AMOUNT_ILS,
+    businessId,
+  );
+
+  res.json({
+    success:      result.success,
+    responseCode: result.responseCode,
+    amount:       TEST_CHARGE_AMOUNT_ILS,
+    rawBody:      result.rawResponse.slice(0, 500),
+  });
 });
 
 export default router;

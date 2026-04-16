@@ -6,6 +6,7 @@ import { sendReminders } from "./lib/reminders";
 import { seedAdminUser } from "./lib/seedAdmin";
 import { seedDemoBusiness } from "./lib/seedDemo";
 import { runMigrations } from "./lib/migrate";
+import { runSubscriptionBilling } from "./lib/subscriptionCron";
 import { cleanupStalePendingPayment } from "./lib/pendingPaymentCleanup";
 
 const rawPort = process.env["PORT"];
@@ -45,8 +46,13 @@ app.listen(port, (err) => {
   });
   logger.info("Reminders cron started (every 15 minutes)");
 
-  // Monthly subscription charges are handled by Tranzila via the STO we
-  // create on first payment — no cron on our side.
+  // Monthly subscription billing — daily at 08:00 Israel time (UTC+3 = 05:00 UTC)
+  // Charges the stored TranzilaTK token via /v1/transaction/credit_card/create.
+  // subscriptionCancelledAt set → cron skips. Failed charge → downgrade to free.
+  cron.schedule("0 5 * * *", () => {
+    runSubscriptionBilling().catch(e => logger.error(e, "Subscription billing job failed"));
+  });
+  logger.info("Subscription billing cron started (daily 08:00 IL)");
 
   // Release pending_payment slots whose webhook never arrived (every 30 min)
   cron.schedule("*/30 * * * *", () => {
