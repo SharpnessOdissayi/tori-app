@@ -472,8 +472,11 @@ export default function Dashboard() {
   const isProPlan = headerProfile?.subscriptionPlan === "pro";
 
   return (
+    // Uses the --dashboard-font CSS variable so that BrandingTab's live
+    // font picker (which writes to the same variable) takes effect
+    // immediately across the dashboard — not only after the owner saves.
     <div className="min-h-screen bg-muted/30" dir="rtl"
-      style={dashFont && dashFont !== "inherit" ? { fontFamily: `'${dashFont}', sans-serif` } : undefined}
+      style={{ fontFamily: "var(--dashboard-font, inherit)" }}
     >
       {showTour && (
         <OnboardingTour
@@ -1431,6 +1434,7 @@ function WorkingHoursTab() {
   if (!hours) return <div className="p-8 text-center text-muted-foreground">טוען...</div>;
 
   return (
+    <>
     <Card>
       <CardHeader>
         <CardTitle>שעות עבודה</CardTitle>
@@ -1462,11 +1466,47 @@ function WorkingHoursTab() {
           </div>
           <p className="text-xs text-muted-foreground">זמן קצוב לניקיון/מנוחה בין תור לתור</p>
         </div>
-        <div className="pt-4 flex justify-end">
-          <Button onClick={handleSave} disabled={updateMutation.isPending || updateProfileMutation.isPending} size="lg">שמור</Button>
-        </div>
       </CardContent>
     </Card>
+
+    {/* Spacer so the last input isn't hidden behind the sticky bar. */}
+    <div className="h-24" />
+
+    {/* Sticky bottom bar — save + cancel for the hours tab. */}
+    <div className="fixed bottom-0 left-0 right-0 z-40 bg-background/95 backdrop-blur-sm border-t shadow-lg">
+      <div className="max-w-2xl mx-auto flex items-center justify-between gap-3 p-3">
+        <Button
+          type="button"
+          variant="outline"
+          size="lg"
+          onClick={() => {
+            if (hours) {
+              setLocalHours(DAYS.map((_, i) => {
+                const ex = hours.find(h => h.dayOfWeek === i);
+                return ex ? { ...ex } : { dayOfWeek: i, startTime: "09:00", endTime: "18:00", isEnabled: false };
+              }));
+            }
+            if (profile) {
+              setBufferMinutes((profile.bufferMinutes ?? 0).toString());
+            }
+            toast({ title: "השינויים בוטלו" });
+          }}
+          className="flex-1 sm:flex-none"
+        >
+          בטל עריכה
+        </Button>
+        <Button
+          type="button"
+          size="lg"
+          onClick={handleSave}
+          disabled={updateMutation.isPending || updateProfileMutation.isPending}
+          className="flex-1 sm:flex-none"
+        >
+          {updateMutation.isPending || updateProfileMutation.isPending ? "שומר..." : "שמור הכל"}
+        </Button>
+      </div>
+    </div>
+    </>
   );
 }
 
@@ -2213,6 +2253,14 @@ function BrandingTab() {
   const logoRef = useRef<HTMLInputElement>(null);
   const bannerRef = useRef<HTMLInputElement>(null);
 
+  // Live-apply the picked font to the whole dashboard. The outer useEffect
+  // in the Dashboard root applies whatever's SAVED on the profile; this
+  // one takes over while the user is hovering over the BrandingTab so the
+  // font change is visible immediately (not only after hitting save).
+  // Cleanup: when the user leaves the tab or unsaves, the parent effect
+  // re-applies the saved value on the next profile refetch.
+  const liveFontRef = useRef<string | null>(null);
+
   const [form, setForm] = useState({
     primaryColor: "#2563eb",
     fontFamily: "Heebo",
@@ -2304,6 +2352,27 @@ function BrandingTab() {
       } catch {}
     }
   }, [profile]);
+
+  // ── Live font preview ──────────────────────────────────────────────────
+  // As soon as the user picks a font in FontPicker we (a) pull the
+  // Google Font stylesheet for it and (b) swap the --dashboard-font
+  // CSS var. The whole dashboard re-renders in the new typeface even
+  // before the owner hits save. On unmount / profile reload the root
+  // Dashboard useEffect restores the saved value.
+  useEffect(() => {
+    const f = form.fontFamily;
+    if (!f || f === "inherit") return;
+    const id = `gfont-live-${f.replace(/\s+/g, "-")}`;
+    if (!document.getElementById(id)) {
+      const link = document.createElement("link");
+      link.id   = id;
+      link.rel  = "stylesheet";
+      link.href = `https://fonts.googleapis.com/css2?family=${encodeURIComponent(f)}:wght@400;500;600;700&display=swap`;
+      document.head.appendChild(link);
+    }
+    document.documentElement.style.setProperty("--dashboard-font", `'${f}', sans-serif`);
+    liveFontRef.current = f;
+  }, [form.fontFamily]);
 
   // Update form when uploads complete
   useEffect(() => { if (logoUpload.url) setForm(p => ({ ...p, logoUrl: logoUpload.url! })); }, [logoUpload.url]);
