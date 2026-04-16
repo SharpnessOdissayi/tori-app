@@ -3365,7 +3365,10 @@ function IntegrationsTab() {
 
       {/* Sticky bottom bar — save + cancel at the bottom of the tab. */}
       <div className="fixed bottom-0 left-0 right-0 z-40 bg-background/95 backdrop-blur-sm border-t shadow-lg">
-        <div className="max-w-2xl mx-auto flex items-center justify-between gap-3 p-3">
+        <div
+          className="max-w-2xl mx-auto flex items-center justify-between gap-3 px-3 pt-3"
+          style={{ paddingBottom: "max(env(safe-area-inset-bottom), 0.5rem)" }}
+        >
           <Button
             type="button"
             variant="outline"
@@ -4191,7 +4194,10 @@ function SettingsTab() {
           slug). Password change has its own submit button because it
           needs currentPassword + newPassword validation. */}
       <div className="fixed bottom-0 left-0 right-0 z-40 bg-background/95 backdrop-blur-sm border-t shadow-lg">
-        <div className="max-w-2xl mx-auto flex items-center justify-between gap-3 p-3">
+        <div
+          className="max-w-2xl mx-auto flex items-center justify-between gap-3 px-3 pt-3"
+          style={{ paddingBottom: "max(env(safe-area-inset-bottom), 0.5rem)" }}
+        >
           <Button
             type="button"
             variant="outline"
