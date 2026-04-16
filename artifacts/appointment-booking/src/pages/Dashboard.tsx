@@ -2222,6 +2222,7 @@ function BrandingTab() {
     serviceCardStyle: "card" as string,
     animationStyle: "none" as string,
     hoverEffect: "none" as string,
+    backgroundColor: "" as string,
   });
   const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
   const [categorySearch, setCategorySearch] = useState("");
@@ -2269,6 +2270,7 @@ function BrandingTab() {
         serviceCardStyle: (profile as any).serviceCardStyle ?? "card",
         animationStyle: (profile as any).animationStyle ?? "none",
         hoverEffect: (profile as any).hoverEffect ?? "none",
+        backgroundColor: (profile as any).backgroundColor ?? "",
       });
       try {
         const cats = (profile as any).businessCategories;
@@ -2303,21 +2305,13 @@ function BrandingTab() {
         borderRadius: form.borderRadius || null,
         buttonRadius: form.buttonRadius || null,
         welcomeText: null,
-        backgroundColor: null,
+        backgroundColor: form.backgroundColor || null,
         showBusinessName: form.showBusinessName,
         showLogo: form.showLogo,
         showBanner: form.showBanner,
         headerLayout: form.headerLayout,
-        websiteUrl: form.websiteUrl || null,
-        instagramUrl: form.instagramHandle ? `https://www.instagram.com/${form.instagramHandle.replace(/^@/, "")}` : null,
-        wazeUrl: form.wazeUrl || null,
-        businessDescription: form.businessDescription || null,
         galleryImages: form.galleryImages.length > 0 ? JSON.stringify(form.galleryImages) : null,
         bannerPosition: form.bannerPosition || "center",
-        contactPhone: form.contactPhone || null,
-        address: form.address || null,
-        city: (form as any).city || null,
-        businessCategories: selectedCategories.length > 0 ? JSON.stringify(selectedCategories) : null,
         designPreset: form.designPreset || null,
         accentColor: form.accentColor || null,
         gradientEnabled: !!form.gradientEnabled,
@@ -2357,6 +2351,7 @@ function BrandingTab() {
       serviceCardStyle: preset.values.serviceCardStyle,
       animationStyle: preset.values.animationStyle,
       hoverEffect: preset.values.hoverEffect,
+      backgroundColor: preset.values.backgroundColor || "",
     }));
     toast({ title: `הופעל עיצוב: ${preset.name}`, description: "לחץ 'שמור' כדי להחיל על הפרופיל" });
   };
@@ -2505,7 +2500,7 @@ function BrandingTab() {
         const cardPx = form.borderRadius === "sharp" ? "4px" : form.borderRadius === "rounded" ? "24px" : "14px";
         const pageBg = form.gradientEnabled && form.gradientFrom && form.gradientTo
           ? `linear-gradient(${form.gradientAngle}deg, ${form.gradientFrom}, ${form.gradientTo})`
-          : (isDark ? "#0a0a0a" : "#fafafa");
+          : (form.backgroundColor || (isDark ? "#0a0a0a" : "#fafafa"));
         const patternStyle: React.CSSProperties = form.backgroundPattern === "dots"
           ? { backgroundImage: "radial-gradient(rgba(0,0,0,0.08) 1px, transparent 1px)", backgroundSize: "16px 16px" }
           : form.backgroundPattern === "grid"
@@ -2617,6 +2612,7 @@ function BrandingTab() {
         <CardContent className="space-y-8">
           <div className="space-y-4">
             <h3 className="font-semibold text-base border-b pb-2">צבע ראשי</h3>
+            <p className="text-xs text-muted-foreground">הצבע הדומיננטי של העסק — כפתורים ראשיים, הדגשות, שם עסק ומספרי מחיר</p>
             <div className="flex flex-wrap gap-3 items-center">
               {PRESET_COLORS.map(c => (
                 <button key={c} onClick={() => setForm(p => ({ ...p, primaryColor: c }))}
@@ -2642,6 +2638,7 @@ function BrandingTab() {
 
           <div className="space-y-4">
             <h3 className="font-semibold text-base border-b pb-2">מצב תצוגה</h3>
+            <p className="text-xs text-muted-foreground">רקע בהיר / כהה / פוקסיה — משפיע על כל הצבעים של עמוד ההזמנות</p>
             <div className="grid grid-cols-3 gap-3">
               {/* Light */}
               <button onClick={() => setForm(p => ({ ...p, themeMode: "light" }))}
@@ -2780,6 +2777,7 @@ function BrandingTab() {
 
           <div className="space-y-4">
             <h3 className="font-semibold text-base border-b pb-2">לוגו ובאנר</h3>
+            <p className="text-xs text-muted-foreground">לוגו מופיע כאייקון עגול בראש הדף, הבאנר הוא רקע אחורי בראש עמוד הפרופיל</p>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
               <div className="space-y-3">
                 <Label>לוגו העסק</Label>
@@ -2835,120 +2833,6 @@ function BrandingTab() {
               ))}
             </div>
 
-          </div>
-
-          <Separator />
-
-          {/* Business profile info */}
-          <div className="space-y-4">
-            <h3 className="font-semibold text-base border-b pb-2">פרטי העסק לעמוד הפרופיל</h3>
-            <div className="space-y-4">
-
-              {/* Categories */}
-              <div className="space-y-2">
-                <Label className="flex items-center gap-1.5">
-                  סוג העסק
-                  <span className="text-xs text-muted-foreground font-normal">(אפשר לבחור כמה)</span>
-                  {!isPro && <ProShine />}
-                </Label>
-                {selectedCategories.length > 0 && (
-                  <div className="flex flex-wrap gap-1.5">
-                    {selectedCategories.map(cat => (
-                      <span key={cat} className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-primary/10 text-primary text-xs font-medium">
-                        {cat}
-                        <button type="button" onClick={() => setSelectedCategories(p => p.filter(c => c !== cat))}>
-                          <X className="w-3 h-3" />
-                        </button>
-                      </span>
-                    ))}
-                  </div>
-                )}
-                <button
-                  type="button"
-                  onClick={() => setCategoryOpen(o => !o)}
-                  className="w-full flex items-center justify-between px-3 py-2.5 border rounded-xl text-sm hover:bg-muted/50 transition-colors"
-                >
-                  <span className="text-muted-foreground">{selectedCategories.length > 0 ? `${selectedCategories.length} נבחרו` : "בחר סוג עסק..."}</span>
-                  <ChevronDown className={`w-4 h-4 text-muted-foreground transition-transform ${categoryOpen ? "rotate-180" : ""}`} />
-                </button>
-                {categoryOpen && (
-                  <div className="border rounded-xl bg-background shadow-md">
-                    <div className="p-2 border-b">
-                      <div className="relative">
-                        <Search className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
-                        <Input
-                          type="text"
-                          placeholder="חפש סוג עסק..."
-                          value={categorySearch}
-                          onChange={e => setCategorySearch(e.target.value)}
-                          className="pr-9 h-8 text-sm"
-                        />
-                      </div>
-                    </div>
-                    <div className="max-h-48 overflow-y-auto p-1.5 space-y-0.5">
-                      {BUSINESS_CATEGORIES.filter(c => c.includes(categorySearch)).map(cat => (
-                        <button
-                          key={cat}
-                          type="button"
-                          onClick={() => setSelectedCategories(p => p.includes(cat) ? p.filter(c => c !== cat) : [...p, cat])}
-                          className={`w-full text-right px-3 py-2 rounded-lg text-sm transition-colors ${selectedCategories.includes(cat) ? "bg-primary text-primary-foreground font-medium" : "hover:bg-muted"}`}
-                        >
-                          {cat}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              <div className="space-y-2">
-                <Label>תיאור העסק</Label>
-                <textarea
-                  value={form.businessDescription}
-                  onChange={e => setForm(p => ({ ...p, businessDescription: e.target.value }))}
-                  className="flex min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 resize-none"
-                  placeholder="כתבו כמה מילים על העסק..."
-                />
-              </div>
-              <div className="space-y-2">
-                <Label>מספר טלפון ליצירת קשר (יוצג ללקוחות)</Label>
-                <p className="text-xs text-muted-foreground">אם לא מוזן, יוצג מספר הטלפון הרשום בחשבון</p>
-                <Input dir="ltr" value={form.contactPhone} onChange={e => setForm(p => ({ ...p, contactPhone: e.target.value }))} placeholder="" />
-              </div>
-              <div className="space-y-2">
-                <Label>כתובת העסק (תוצג בפרופיל)</Label>
-                <Input value={form.address} onChange={e => setForm(p => ({ ...p, address: e.target.value }))} placeholder="רחוב הרצל 1, תל אביב" />
-              </div>
-              <div className="space-y-2">
-                <Label>עיר (לחיפוש בספריית קבעתי)</Label>
-                <Input value={(form as any).city ?? ""} onChange={e => setForm(p => ({ ...p, city: e.target.value }))} placeholder="תל אביב" />
-              </div>
-              <div className="space-y-2">
-                <Label>קישור לאתר</Label>
-                <Input dir="ltr" value={form.websiteUrl} onChange={e => setForm(p => ({ ...p, websiteUrl: e.target.value }))} placeholder="https://www.mywebsite.com" />
-              </div>
-              <div className="space-y-2">
-                <Label className="flex items-center gap-1.5"><Instagram className="w-4 h-4 text-muted-foreground" /> שם משתמש באינסטגרם</Label>
-                <div className="flex items-center rounded-xl border bg-muted/40 overflow-hidden focus-within:ring-2 focus-within:ring-primary">
-                  <span className="px-3 text-sm text-muted-foreground border-l bg-muted">@</span>
-                  <input
-                    dir="ltr"
-                    className="flex-1 px-3 py-2 bg-transparent text-sm outline-none"
-                    placeholder="my_business"
-                    value={form.instagramHandle}
-                    onChange={e => setForm(p => ({ ...p, instagramHandle: e.target.value.replace(/^@/, "") }))}
-                  />
-                </div>
-                {form.instagramHandle && (
-                  <p className="text-xs text-muted-foreground">instagram.com/{form.instagramHandle}</p>
-                )}
-              </div>
-              <div className="space-y-2">
-                <Label>קישור לוויז (אופציונלי)</Label>
-                <p className="text-xs text-muted-foreground">אם ריק — ניווט יופעל אוטומטית לפי הכתובת שהוזנה</p>
-                <Input dir="ltr" value={form.wazeUrl} onChange={e => setForm(p => ({ ...p, wazeUrl: e.target.value }))} placeholder="https://waze.com/ul/..." />
-              </div>
-            </div>
           </div>
 
           <Separator />
@@ -3024,6 +2908,7 @@ function BrandingTab() {
           <div className="space-y-6 pt-4 border-t">
             <div>
               <h3 className="font-semibold text-base border-b pb-2 mb-3">רקע מתקדם</h3>
+              <p className="text-xs text-muted-foreground mb-3">גרדיאנט = מעבר חלק בין שני צבעים ברקע הדף. דוגמה דקורטיבית = תבנית עדינה על הרקע (נקודות, רשת, וכד').</p>
 
               <label className="flex items-center gap-2 mb-3 cursor-pointer">
                 <input
@@ -3086,6 +2971,7 @@ function BrandingTab() {
 
             <div>
               <h3 className="font-semibold text-base border-b pb-2 mb-3">פריסת כותרת (Hero)</h3>
+              <p className="text-xs text-muted-foreground mb-3">איך הלוגו, שם העסק והבאנר מסודרים בראש עמוד ההזמנות</p>
               <div className="grid grid-cols-2 gap-2">
                 {[
                   { id: "stacked", label: "מקובץ", desc: "לוגו מעל שם" },
@@ -3107,6 +2993,7 @@ function BrandingTab() {
 
             <div>
               <h3 className="font-semibold text-base border-b pb-2 mb-3">סגנון כרטיסיות שירות</h3>
+              <p className="text-xs text-muted-foreground mb-3">איך כרטיסי השירותים (תספורת, טיפול וכד') מוצגים בעמוד ההזמנות — קלאסי, שורה מינימלית, רשת 2×2 או בועה</p>
               <div className="grid grid-cols-2 gap-2">
                 {[
                   { id: "card", label: "כרטיס", desc: "קלאסי עם תמונה" },
@@ -3128,6 +3015,7 @@ function BrandingTab() {
 
             <div>
               <h3 className="font-semibold text-base border-b pb-2 mb-3">אפקטים</h3>
+              <p className="text-xs text-muted-foreground mb-3">Hover = מה שקורה כשעוברים עם העכבר על כרטיס (הרמה או זוהר). אנימציית כניסה = איך הכרטיסים נכנסים לתצוגה כשהדף נטען.</p>
               <label className="text-sm font-medium block mb-1">Hover על כרטיסיות</label>
               <div className="grid grid-cols-3 gap-2 mb-3">
                 {[
@@ -3473,7 +3361,18 @@ function SettingsTab() {
     maxAppointmentsPerCustomer: "",
     requireActiveSubscription: false,
     maxAppointmentsPerDay: "",
+    // Business profile (moved from Design tab)
+    businessDescription: "",
+    contactPhone: "",
+    address: "",
+    city: "",
+    websiteUrl: "",
+    instagramHandle: "",
+    wazeUrl: "",
   });
+  const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
+  const [categorySearch, setCategorySearch] = useState("");
+  const [categoryOpen, setCategoryOpen] = useState(false);
 
   // Password change state
   const [pwForm, setPwForm] = useState({ currentPassword: "", newPassword: "", confirmPassword: "" });
@@ -3481,24 +3380,37 @@ function SettingsTab() {
   const [showPw, setShowPw] = useState(false);
 
   useEffect(() => {
-    if (profile) setForm({
-      name: profile.name,
-      ownerName: profile.ownerName,
-      phone: (profile as any).phone ?? "",
-      email: (profile as any).email ?? "",
-      requireAppointmentApproval: (profile as any).requireAppointmentApproval ?? false,
-      requirePhoneVerification: (profile as any).requirePhoneVerification ?? false,
-      tranzilaEnabled: (profile as any).tranzilaEnabled ?? false,
-      depositAmount: (((profile as any).depositAmountAgorot ?? 0) / 100).toString(),
-      minLeadHours: ((profile as any).minLeadHours ?? 0).toString(),
-      cancellationHours: ((profile as any).cancellationHours ?? 0).toString(),
-      maxFutureWeeks: ((profile as any).maxFutureWeeks ?? 15).toString(),
-      futureBookingMode: (profile as any).futureBookingMode ?? "weeks",
-      maxFutureDate: (profile as any).maxFutureDate ?? "",
-      maxAppointmentsPerCustomer: ((profile as any).maxAppointmentsPerCustomer ?? "").toString(),
-      requireActiveSubscription: (profile as any).requireActiveSubscription ?? false,
-      maxAppointmentsPerDay: ((profile as any).maxAppointmentsPerDay ?? 3).toString(),
-    });
+    if (profile) {
+      setForm({
+        name: profile.name,
+        ownerName: profile.ownerName,
+        phone: (profile as any).phone ?? "",
+        email: (profile as any).email ?? "",
+        requireAppointmentApproval: (profile as any).requireAppointmentApproval ?? false,
+        requirePhoneVerification: (profile as any).requirePhoneVerification ?? false,
+        tranzilaEnabled: (profile as any).tranzilaEnabled ?? false,
+        depositAmount: (((profile as any).depositAmountAgorot ?? 0) / 100).toString(),
+        minLeadHours: ((profile as any).minLeadHours ?? 0).toString(),
+        cancellationHours: ((profile as any).cancellationHours ?? 0).toString(),
+        maxFutureWeeks: ((profile as any).maxFutureWeeks ?? 15).toString(),
+        futureBookingMode: (profile as any).futureBookingMode ?? "weeks",
+        maxFutureDate: (profile as any).maxFutureDate ?? "",
+        maxAppointmentsPerCustomer: ((profile as any).maxAppointmentsPerCustomer ?? "").toString(),
+        requireActiveSubscription: (profile as any).requireActiveSubscription ?? false,
+        maxAppointmentsPerDay: ((profile as any).maxAppointmentsPerDay ?? 3).toString(),
+        businessDescription: (profile as any).businessDescription ?? "",
+        contactPhone: (profile as any).contactPhone ?? "",
+        address: (profile as any).address ?? "",
+        city: (profile as any).city ?? "",
+        websiteUrl: (profile as any).websiteUrl ?? "",
+        instagramHandle: ((profile as any).instagramUrl ?? "").replace(/^https?:\/\/(www\.)?instagram\.com\//, "").replace(/\/$/, ""),
+        wazeUrl: (profile as any).wazeUrl ?? "",
+      });
+      try {
+        const cats = (profile as any).businessCategories;
+        if (cats) setSelectedCategories(JSON.parse(cats));
+      } catch {}
+    }
   }, [profile]);
 
   const handleSave = (e: React.FormEvent) => {
@@ -3521,6 +3433,15 @@ function SettingsTab() {
         maxAppointmentsPerDay: form.maxAppointmentsPerDay ? parseInt(form.maxAppointmentsPerDay) : null,
         tranzilaEnabled: form.tranzilaEnabled,
         depositAmountAgorot: form.tranzilaEnabled ? Math.round(parseFloat(form.depositAmount || "0") * 100) : null,
+        // Business profile fields (moved from Design tab)
+        businessDescription: form.businessDescription || null,
+        contactPhone: form.contactPhone || null,
+        address: form.address || null,
+        city: form.city || null,
+        websiteUrl: form.websiteUrl || null,
+        instagramUrl: form.instagramHandle ? `https://www.instagram.com/${form.instagramHandle.replace(/^@/, "")}` : null,
+        wazeUrl: form.wazeUrl || null,
+        businessCategories: selectedCategories.length > 0 ? JSON.stringify(selectedCategories) : null,
       } as any
     }, {
       onSuccess: () => {
@@ -3654,6 +3575,130 @@ function SettingsTab() {
               <Button type="submit" disabled={updateMutation.isPending} size="lg">שמור הגדרות</Button>
             </div>
           </form>
+        </CardContent>
+      </Card>
+
+      {/* Business profile card (moved from Design tab) */}
+      <Card>
+        <CardHeader>
+          <CardTitle>פרטי העסק לעמוד הפרופיל</CardTitle>
+          <CardDescription>מה שלקוחות רואים בעמוד ההזמנות שלך — קטגוריה, תיאור, דרכי יצירת קשר, קישורים</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-5">
+          {/* Categories */}
+          <div className="space-y-2">
+            <Label className="flex items-center gap-1.5">
+              סוג העסק
+              <span className="text-xs text-muted-foreground font-normal">(אפשר לבחור כמה)</span>
+            </Label>
+            {selectedCategories.length > 0 && (
+              <div className="flex flex-wrap gap-1.5">
+                {selectedCategories.map(cat => (
+                  <span key={cat} className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-primary/10 text-primary text-xs font-medium">
+                    {cat}
+                    <button type="button" onClick={() => setSelectedCategories(p => p.filter(c => c !== cat))}>
+                      <X className="w-3 h-3" />
+                    </button>
+                  </span>
+                ))}
+              </div>
+            )}
+            <button
+              type="button"
+              onClick={() => setCategoryOpen(o => !o)}
+              className="w-full flex items-center justify-between px-3 py-2.5 border rounded-xl text-sm hover:bg-muted/50 transition-colors"
+            >
+              <span className="text-muted-foreground">{selectedCategories.length > 0 ? `${selectedCategories.length} נבחרו` : "בחר סוג עסק..."}</span>
+              <ChevronDown className={`w-4 h-4 text-muted-foreground transition-transform ${categoryOpen ? "rotate-180" : ""}`} />
+            </button>
+            {categoryOpen && (
+              <div className="border rounded-xl bg-background shadow-md">
+                <div className="p-2 border-b">
+                  <div className="relative">
+                    <Search className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
+                    <Input
+                      type="text"
+                      placeholder="חפש סוג עסק..."
+                      value={categorySearch}
+                      onChange={e => setCategorySearch(e.target.value)}
+                      className="pr-9 h-8 text-sm"
+                    />
+                  </div>
+                </div>
+                <div className="max-h-48 overflow-y-auto p-1.5 space-y-0.5">
+                  {BUSINESS_CATEGORIES.filter(c => c.includes(categorySearch)).map(cat => (
+                    <button
+                      key={cat}
+                      type="button"
+                      onClick={() => setSelectedCategories(p => p.includes(cat) ? p.filter(c => c !== cat) : [...p, cat])}
+                      className={`w-full text-right px-3 py-2 rounded-lg text-sm transition-colors ${selectedCategories.includes(cat) ? "bg-primary text-primary-foreground font-medium" : "hover:bg-muted"}`}
+                    >
+                      {cat}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+
+          <div className="space-y-2">
+            <Label>תיאור העסק</Label>
+            <textarea
+              value={form.businessDescription}
+              onChange={e => setForm(p => ({ ...p, businessDescription: e.target.value }))}
+              className="flex min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 resize-none"
+              placeholder="כתבו כמה מילים על העסק..."
+            />
+          </div>
+
+          <div className="space-y-2">
+            <Label>מספר טלפון ליצירת קשר (יוצג ללקוחות)</Label>
+            <p className="text-xs text-muted-foreground">אם לא מוזן, יוצג מספר הטלפון הרשום בחשבון</p>
+            <Input dir="ltr" value={form.contactPhone} onChange={e => setForm(p => ({ ...p, contactPhone: e.target.value }))} placeholder="" />
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label>כתובת העסק (תוצג בפרופיל)</Label>
+              <Input value={form.address} onChange={e => setForm(p => ({ ...p, address: e.target.value }))} placeholder="רחוב הרצל 1, תל אביב" />
+            </div>
+            <div className="space-y-2">
+              <Label>עיר (לחיפוש בספריית קבעתי)</Label>
+              <Input value={form.city} onChange={e => setForm(p => ({ ...p, city: e.target.value }))} placeholder="תל אביב" />
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <Label>קישור לאתר</Label>
+            <Input dir="ltr" value={form.websiteUrl} onChange={e => setForm(p => ({ ...p, websiteUrl: e.target.value }))} placeholder="https://www.mywebsite.com" />
+          </div>
+
+          <div className="space-y-2">
+            <Label className="flex items-center gap-1.5"><Instagram className="w-4 h-4 text-muted-foreground" /> שם משתמש באינסטגרם</Label>
+            <div className="flex items-center rounded-xl border bg-muted/40 overflow-hidden focus-within:ring-2 focus-within:ring-primary">
+              <span className="px-3 text-sm text-muted-foreground border-l bg-muted">@</span>
+              <input
+                dir="ltr"
+                className="flex-1 px-3 py-2 bg-transparent text-sm outline-none"
+                placeholder="my_business"
+                value={form.instagramHandle}
+                onChange={e => setForm(p => ({ ...p, instagramHandle: e.target.value.replace(/^@/, "") }))}
+              />
+            </div>
+            {form.instagramHandle && (
+              <p className="text-xs text-muted-foreground">instagram.com/{form.instagramHandle}</p>
+            )}
+          </div>
+
+          <div className="space-y-2">
+            <Label>קישור לוויז (אופציונלי)</Label>
+            <p className="text-xs text-muted-foreground">אם ריק — ניווט יופעל אוטומטית לפי הכתובת שהוזנה</p>
+            <Input dir="ltr" value={form.wazeUrl} onChange={e => setForm(p => ({ ...p, wazeUrl: e.target.value }))} placeholder="https://waze.com/ul/..." />
+          </div>
+
+          <div className="flex justify-end pt-2">
+            <Button onClick={handleSave as any} disabled={updateMutation.isPending} size="lg">שמור פרטי עסק</Button>
+          </div>
         </CardContent>
       </Card>
 

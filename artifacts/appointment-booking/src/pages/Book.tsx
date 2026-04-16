@@ -1397,17 +1397,15 @@ export default function Book() {
 
           {/* Services tab */}
           {activeTab === "services" && (
-            <div className={serviceCardStyle === "grid" ? "grid grid-cols-2 gap-3" : "space-y-3"}>
+            <div className={`${serviceCardStyle === "grid" ? "grid grid-cols-2 gap-3" : "space-y-3"} ${animationStyle === "subtle" ? "animate-in fade-in duration-500" : animationStyle === "bouncy" ? "animate-in zoom-in-95 duration-500" : ""}`}>
               {servicesLoading && <div className="text-center py-8 text-muted-foreground col-span-2">טוען שירותים...</div>}
               {servicesList.filter(s => s.isActive).map(service => {
                 const hoverClass = hoverEffect === "lift"
                   ? "transition-transform duration-200 hover:-translate-y-1 hover:shadow-lg"
                   : hoverEffect === "glow"
-                  ? "transition-shadow duration-200"
+                  ? "transition-shadow duration-300 hover:shadow-2xl"
                   : "";
-                const hoverStyle = hoverEffect === "glow"
-                  ? ({ boxShadow: `0 0 0 0 ${primaryColor}00` } as React.CSSProperties)
-                  : undefined;
+                const hoverStyle = undefined;
                 const priceStr = `₪${(service.price / 100).toFixed(0)}`;
                 const desc = (service as any).description as string | undefined;
 
@@ -1600,7 +1598,7 @@ export default function Book() {
 
   // ─── STEPS 1-5: Booking wizard ──────────────────────────────────────────────
   return (
-    <div className="min-h-[100dvh] flex flex-col relative" dir="rtl" style={{ fontFamily: `'${fontFamily}', sans-serif`, backgroundColor }}>
+    <div className="min-h-[100dvh] flex flex-col relative" dir="rtl" style={{ fontFamily: `'${fontFamily}', sans-serif`, background: pageBackground, backgroundImage: patternSvg, backgroundRepeat: patternSvg ? "repeat" : undefined }}>
       <div className="absolute top-0 w-full h-52 -z-10 rounded-b-[40px]" style={{ backgroundColor: primaryColor + "18" }} />
 
       {business.notificationEnabled && business.notificationMessage && (
