@@ -16,6 +16,8 @@ import Privacy from "@/pages/Privacy";
 import Terms from "@/pages/Terms";
 import PaymentSuccess from "@/pages/PaymentSuccess";
 import PaymentFail from "@/pages/PaymentFail";
+import AccessibilityFab from "@/components/AccessibilityFab";
+import ThemeToggleFab from "@/components/ThemeToggleFab";
 
 class ErrorBoundary extends Component<{ children: ReactNode }, { hasError: boolean; error: Error | null }> {
   constructor(props: { children: ReactNode }) {
@@ -78,6 +80,11 @@ function App() {
           <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
             <Router />
           </WouterRouter>
+          {/* Global FABs — accessibility (legally required) + dark-mode
+              toggle. Stacked together in the bottom-right corner across
+              every route so mobile users always have them within reach. */}
+          <AccessibilityFab />
+          <ThemeToggleFab />
           <Toaster />
         </TooltipProvider>
       </QueryClientProvider>
