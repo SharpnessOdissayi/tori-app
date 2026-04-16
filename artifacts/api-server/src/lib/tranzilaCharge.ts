@@ -135,13 +135,11 @@ export async function chargeToken(
 
     const processorCode = data.transaction_result?.processor_response_code;
     const responseCode  = processorCode ?? String(data.error_code ?? res.status);
-    // "000" = SHVA approved (real charge accepted).
-    // "006" = test terminal / test card refusal — reached SHVA but rejected.
-    //   In that case Tranzila still returns error_code=0 + "הצלחה" — the
-    //   HMAC auth worked, this is ONLY a card-level decision.
-    const success = res.ok
-      && data.error_code === 0
-      && processorCode === "000";
+    // Accept any Tranzila "הצלחה" (error_code=0) regardless of SHVA code —
+    // per user directive on the lilash2tok terminal. SHVA returns 006 on
+    // this terminal even for real cards; Tranzila itself considers the
+    // transaction successful (error_code 0 + message "הצלחה").
+    const success = res.ok && data.error_code === 0;
 
     console.log("[TranzilaCharge] response ←", {
       businessId,
