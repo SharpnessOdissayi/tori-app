@@ -92,7 +92,10 @@ export async function chargeToken(
     expire_month:      expireMonth,
     expire_year:       expireYear,
     card_number:       token,   // TranzilaTK in place of PAN
-    // NO cvv, NO card_holder_id — terminal accepts token without them
+    // NO cvv, NO card_holder_id — terminal accepts token without them.
+    // pan_entry_mode=50 tells SHVA "card not present" so the CVV check is
+    // skipped. Without this SHVA returns Responsecvv=2 + processor_code=006.
+    pan_entry_mode:    50,
     items: [{
       name:         `חידוש מנוי פרו קבעתי - ${businessId}`,
       type:         "I",
@@ -135,11 +138,11 @@ export async function chargeToken(
 
     const processorCode = data.transaction_result?.processor_response_code;
     const responseCode  = processorCode ?? String(data.error_code ?? res.status);
-    // Accept any Tranzila "הצלחה" (error_code=0) regardless of SHVA code —
-    // per user directive on the lilash2tok terminal. SHVA returns 006 on
-    // this terminal even for real cards; Tranzila itself considers the
-    // transaction successful (error_code 0 + message "הצלחה").
-    const success = res.ok && data.error_code === 0;
+    // Real success requires BOTH:
+    //   error_code === 0             → Tranzila accepted the request
+    //   processor_response_code "000" → SHVA authorised the actual charge
+    // Any other combo means money didn't move (ConfirmationCode=0000000).
+    const success = res.ok && data.error_code === 0 && processorCode === "000";
 
     console.log("[TranzilaCharge] response ←", {
       businessId,
