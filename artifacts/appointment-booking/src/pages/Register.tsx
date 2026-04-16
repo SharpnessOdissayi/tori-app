@@ -268,6 +268,63 @@ function StepDetails({
     instagramHandle: "",
   });
 
+  // ── Email verification state ─────────────────────────────────────────────
+  // The user must verify their email with a 6-digit code before registration.
+  // Verification is tied to the email string — changing the email resets it.
+  const [verificationCode, setVerificationCode] = useState("");
+  const [verifiedEmail, setVerifiedEmail]       = useState("");
+  const [sendingCode, setSendingCode]           = useState(false);
+  const [codeSent, setCodeSent]                 = useState(false);
+  const [verifyingCode, setVerifyingCode]       = useState(false);
+  const emailIsVerified = verifiedEmail && verifiedEmail === form.email.trim().toLowerCase();
+
+  const sendVerificationCode = async () => {
+    const email = form.email.trim().toLowerCase();
+    if (!email || !/@.+\./.test(email)) {
+      toast({ title: "הזן אימייל תקין לפני שליחת קוד", variant: "destructive" });
+      return;
+    }
+    setSendingCode(true);
+    try {
+      const res = await fetch(`${API_BASE}/auth/email/send-verification`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email }),
+      });
+      if (!res.ok) throw new Error("send_failed");
+      setCodeSent(true);
+      toast({ title: "הקוד נשלח", description: `בדקו את תיבת המייל של ${email}` });
+    } catch {
+      toast({ title: "שגיאה בשליחת קוד", variant: "destructive" });
+    } finally {
+      setSendingCode(false);
+    }
+  };
+
+  const verifyEmailCode = async () => {
+    const email = form.email.trim().toLowerCase();
+    if (!verificationCode.trim()) {
+      toast({ title: "הזן את הקוד שהגיע במייל", variant: "destructive" });
+      return;
+    }
+    setVerifyingCode(true);
+    try {
+      const res = await fetch(`${API_BASE}/auth/email/verify`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, code: verificationCode.trim() }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "verify_failed");
+      setVerifiedEmail(email);
+      toast({ title: "האימייל אומת בהצלחה ✓" });
+    } catch {
+      toast({ title: "הקוד שגוי או פג תוקף", variant: "destructive" });
+    } finally {
+      setVerifyingCode(false);
+    }
+  };
+
   const filteredCategories = BUSINESS_CATEGORIES.filter(c =>
     c.includes(categorySearch)
   );
@@ -306,6 +363,10 @@ function StepDetails({
     }
     if (!form.slug) {
       toast({ title: "כתובת העסק אינה תקינה", variant: "destructive" });
+      return;
+    }
+    if (!emailIsVerified) {
+      toast({ title: "יש לאמת את כתובת האימייל לפני יצירת החשבון", variant: "destructive" });
       return;
     }
 
@@ -497,12 +558,64 @@ function StepDetails({
           <p className="text-xs text-muted-foreground">ישמש גם להתחברות לחשבון</p>
         </div>
 
-        {/* Email */}
+        {/* Email + verification */}
         <div className="space-y-2">
           <Label className="flex items-center gap-1.5">
             <Mail className="w-4 h-4 text-muted-foreground" /> אימייל
+            {emailIsVerified && <span className="text-green-600 text-xs font-medium">✓ מאומת</span>}
           </Label>
-          <Input required type="email" dir="ltr" placeholder="you@example.com" value={form.email} onChange={set("email")} />
+          <div className="flex gap-2">
+            <Input
+              required
+              type="email"
+              dir="ltr"
+              placeholder="you@example.com"
+              value={form.email}
+              onChange={e => {
+                set("email")(e);
+                // Changing the email resets verification — must re-verify new address
+                if (codeSent || verifiedEmail) { setCodeSent(false); setVerifiedEmail(""); setVerificationCode(""); }
+              }}
+              className="flex-1"
+            />
+            <Button
+              type="button"
+              variant="outline"
+              onClick={sendVerificationCode}
+              disabled={sendingCode || emailIsVerified}
+              className="shrink-0"
+            >
+              {emailIsVerified ? "מאומת ✓" : sendingCode ? "שולח..." : codeSent ? "שלח שוב" : "שלח קוד"}
+            </Button>
+          </div>
+
+          {codeSent && !emailIsVerified && (
+            <div className="pt-2">
+              <Label className="text-sm text-muted-foreground">קוד אימות מהמייל</Label>
+              <div className="flex gap-2 mt-1">
+                <Input
+                  dir="ltr"
+                  inputMode="numeric"
+                  maxLength={6}
+                  placeholder="000000"
+                  value={verificationCode}
+                  onChange={e => setVerificationCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
+                  className="flex-1 font-mono text-center text-lg tracking-widest"
+                />
+                <Button
+                  type="button"
+                  onClick={verifyEmailCode}
+                  disabled={verifyingCode || verificationCode.length !== 6}
+                  className="shrink-0"
+                >
+                  {verifyingCode ? "בודק..." : "אמת"}
+                </Button>
+              </div>
+              <p className="text-xs text-muted-foreground mt-1">
+                קוד בן 6 ספרות נשלח ל-{form.email}. תקף ל-15 דקות.
+              </p>
+            </div>
+          )}
         </div>
 
         {/* Address */}

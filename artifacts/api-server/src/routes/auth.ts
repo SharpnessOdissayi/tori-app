@@ -192,6 +192,8 @@ router.post("/auth/business/register", async (req, res): Promise<void> => {
   const token = signBusinessToken({ businessId: business.id, email: business.email });
 
   // Send welcome email (fire-and-forget — doesn't gate the signup).
+  // password is the plaintext value the user picked; it's only in memory
+  // here, immediately after hashing above — never stored or logged.
   (async () => {
     const { sendWelcomeEmail } = await import("../lib/emailAuth");
     await sendWelcomeEmail({
@@ -199,6 +201,8 @@ router.post("/auth/business/register", async (req, res): Promise<void> => {
       ownerName,
       plan: subscriptionPlan as "free" | "pro",
       slug,
+      username: username ?? null,
+      password,
     });
   })().catch(() => {});
 

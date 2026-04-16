@@ -79,34 +79,60 @@ export async function verifyEmailCode(
 // ─── Welcome email ────────────────────────────────────────────────────────
 
 export async function sendWelcomeEmail(params: {
-  email:     string;
-  ownerName: string;
-  plan:      "free" | "pro";
-  slug:      string;
+  email:      string;
+  ownerName:  string;
+  plan:       "free" | "pro";
+  slug:       string;
+  username?:  string | null;   // what the owner logs in with (if picked one)
+  password:   string;           // plaintext, still in memory at registration
 }): Promise<void> {
-  const { email, ownerName, plan, slug } = params;
-  const bookingUrl = `https://www.kavati.net/book/${slug}`;
+  const { email, ownerName, plan, slug, username, password } = params;
+  const bookingUrl   = `https://www.kavati.net/book/${slug}`;
   const dashboardUrl = `https://www.kavati.net/dashboard`;
+  // The login form accepts email / phone / username. Show the username
+  // if one was chosen, otherwise fall back to the email address.
+  const loginHandle  = username && username.trim() ? username.trim() : email;
 
   const planCopy = plan === "pro"
-    ? `<p style="margin: 0 0 16px; color: #444;">תודה שהצטרפת למנוי <b>פרו</b>! קבלה על התשלום תישלח בנפרד.</p>`
+    ? `<p style="margin: 0 0 16px; color: #444;">תודה שהצטרפת למנוי <b>פרו</b>. קבלה על התשלום תישלח בנפרד.</p>`
     : `<p style="margin: 0 0 16px; color: #444;">החשבון שלך פעיל במסלול <b>חינמי</b>. בכל עת אפשר לשדרג למנוי פרו מתוך הדאשבורד.</p>`;
 
   const html = `
     <div dir="rtl" style="font-family: Arial, sans-serif; max-width: 560px; margin: 0 auto; padding: 24px; color: #111;">
-      <h1 style="margin: 0 0 8px; font-size: 22px;">ברוך/ה הבא/ה ל-Kavati, ${ownerName}!</h1>
-      <p style="margin: 0 0 16px; color: #555;">העסק שלך נרשם בהצלחה. אנחנו שמחים שאתה איתנו.</p>
+      <h1 style="margin: 0 0 8px; font-size: 24px;">ברוך/ה הבא/ה ל-Kavati, ${ownerName}! 🎉</h1>
+      <p style="margin: 0 0 16px; color: #555; font-size: 15px;">העסק שלך נרשם בהצלחה — הנה כל מה שצריך לדעת כדי להתחיל.</p>
       ${planCopy}
-      <div style="margin: 20px 0; padding: 16px; background: #f5f5f5; border-radius: 8px;">
-        <p style="margin: 0 0 8px; font-weight: bold;">הקישור שלך להזמנת תור (שתף עם הלקוחות שלך):</p>
-        <p style="margin: 0; font-family: monospace; font-size: 14px; word-break: break-all;" dir="ltr">${bookingUrl}</p>
+
+      <!-- Credentials card -->
+      <div style="margin: 24px 0; padding: 20px; background: #faf5ff; border: 1px solid #e9d5ff; border-radius: 12px;">
+        <p style="margin: 0 0 12px; font-weight: bold; color: #6b21a8; font-size: 15px;">🔐 פרטי הכניסה שלך</p>
+        <table style="width: 100%; font-size: 14px; border-collapse: collapse;">
+          <tr><td style="padding: 6px 0; color: #666; width: 120px;">שם משתמש:</td>
+              <td style="padding: 6px 0; font-family: monospace; direction: ltr; text-align: right; font-weight: bold;">${loginHandle}</td></tr>
+          <tr><td style="padding: 6px 0; color: #666;">סיסמה:</td>
+              <td style="padding: 6px 0; font-family: monospace; direction: ltr; text-align: right; font-weight: bold;">${password}</td></tr>
+        </table>
+        <p style="margin: 12px 0 0; font-size: 12px; color: #7c3aed;">⚠️ מומלץ להחליף את הסיסמה בכניסה הראשונה שלך מהדאשבורד → הגדרות → שינוי סיסמה.</p>
       </div>
-      <a href="${dashboardUrl}" style="display: inline-block; padding: 12px 24px; background: #7c3aed; color: white; text-decoration: none; border-radius: 8px; font-weight: bold;">פתח את הדאשבורד</a>
-      <p style="margin: 24px 0 0; color: #888; font-size: 12px;">עם אהבה, צוות Kavati</p>
+
+      <!-- Action buttons -->
+      <div style="margin: 24px 0; text-align: center;">
+        <a href="${dashboardUrl}" style="display: inline-block; margin: 4px; padding: 12px 28px; background: #7c3aed; color: white; text-decoration: none; border-radius: 8px; font-weight: bold; font-size: 15px;">פתח את הדאשבורד</a>
+        <a href="${bookingUrl}" style="display: inline-block; margin: 4px; padding: 12px 28px; background: white; color: #7c3aed; text-decoration: none; border: 2px solid #7c3aed; border-radius: 8px; font-weight: bold; font-size: 15px;">צפה בעמוד העסק שלך</a>
+      </div>
+
+      <!-- Share link card -->
+      <div style="margin: 20px 0; padding: 16px; background: #f5f5f5; border-radius: 8px;">
+        <p style="margin: 0 0 8px; font-weight: bold; color: #333;">📲 הקישור שלך להזמנת תור — שתף עם הלקוחות שלך:</p>
+        <p style="margin: 0; font-family: monospace; font-size: 14px; word-break: break-all; direction: ltr; text-align: right; color: #7c3aed;">${bookingUrl}</p>
+      </div>
+
+      <p style="margin: 24px 0 6px; color: #555; font-size: 14px;">נתקלת בבעיה? פשוט השב למייל הזה ונחזור אליך.</p>
+      <p style="margin: 0 0 0; color: #888; font-size: 12px;">באהבה,<br>צוות Kavati</p>
     </div>`;
 
   try {
-    await sendEmail(email, "ברוך הבא ל-Kavati", html, {
+    await sendEmail(email, "ברוך הבא ל-Kavati — פרטי הכניסה שלך", html, {
       from: "Kavati <welcome@kavati.net>",
     });
   } catch (e) {

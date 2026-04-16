@@ -114,6 +114,13 @@ function mapBusiness(b: typeof businessesTable.$inferSelect) {
     // Custom domain for white-label booking page
     customDomain:         (b as any).customDomain         ?? null,
     customDomainVerified: (b as any).customDomainVerified ?? false,
+    // Receipt / invoice profile — what the owner prints on receipts
+    businessTaxId:     (b as any).businessTaxId     ?? null,
+    businessLegalType: (b as any).businessLegalType ?? null,
+    businessLegalName: (b as any).businessLegalName ?? null,
+    invoiceAddress:    (b as any).invoiceAddress    ?? null,
+    autoSendReceipts:  (b as any).autoSendReceipts  ?? false,
+    emailVerified:     (b as any).emailVerified     ?? false,
   };
 }
 
@@ -179,6 +186,12 @@ router.patch("/business/profile", requireBusinessAuth, async (req, res): Promise
   // Tranzila
   if (d.tranzilaEnabled !== undefined) (updates as any).tranzilaEnabled = d.tranzilaEnabled;
   if (d.depositAmountAgorot !== undefined) (updates as any).depositAmountAgorot = d.depositAmountAgorot ?? null;
+  // Receipt / invoice profile
+  if (d.businessTaxId !== undefined)     (updates as any).businessTaxId     = d.businessTaxId     || null;
+  if (d.businessLegalType !== undefined) (updates as any).businessLegalType = d.businessLegalType || null;
+  if (d.businessLegalName !== undefined) (updates as any).businessLegalName = d.businessLegalName || null;
+  if (d.invoiceAddress !== undefined)    (updates as any).invoiceAddress    = d.invoiceAddress    || null;
+  if (d.autoSendReceipts !== undefined)  (updates as any).autoSendReceipts  = !!d.autoSendReceipts;
 
   const [updated] = await db
     .update(businessesTable)

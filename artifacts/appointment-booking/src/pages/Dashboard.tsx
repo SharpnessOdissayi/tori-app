@@ -45,7 +45,7 @@ import {
   Users, ListOrdered, Palette, Puzzle, Phone, TrendingUp, CheckCircle,
   ExternalLink, Info, Upload, Image as ImageIcon, Crown, Zap, X, Copy, Check, Link,
   ChevronLeft, ChevronRight, Eye, EyeOff, Umbrella, DollarSign,
-  MessageSquare, Send, Search, ChevronDown, Instagram, Bell
+  MessageSquare, Send, Search, ChevronDown, Instagram, Bell, FileText
 } from "lucide-react";
 import { useLocation } from "wouter";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
@@ -580,6 +580,7 @@ export default function Dashboard() {
                 { value: "waitlist", icon: <ListOrdered className="w-6 h-6" />, label: "המתנה", proOnly: false },
                 { value: "analytics", icon: <TrendingUp className="w-6 h-6" />, label: "נתונים", proOnly: true },
                 { value: "revenue", icon: <DollarSign className="w-6 h-6" />, label: "כסף", proOnly: true },
+                { value: "receipts", icon: <FileText className="w-6 h-6" />, label: "קבלות", proOnly: false },
                 { value: "branding", icon: <Palette className="w-6 h-6" />, label: "עיצוב", proOnly: false },
                 { value: "integrations", icon: <Phone className="w-6 h-6" />, label: "הודעות", proOnly: true },
                 { value: "settings", icon: <Settings className="w-6 h-6" />, label: "הגדרות", proOnly: false },
@@ -611,6 +612,7 @@ export default function Dashboard() {
           <TabsContent value="waitlist"><WaitlistTab /></TabsContent>
           <TabsContent value="analytics">{isProPlan ? <AnalyticsTab /> : <ProUpgradePrompt title="נתונים — מנוי PRO בלבד" desc="שדרג למנוי PRO כדי לראות סטטיסטיקות מפורטות, גרפים ומגמות של העסק שלך" />}</TabsContent>
           <TabsContent value="revenue">{isProPlan ? <RevenueTab /> : <ProUpgradePrompt title="כסף — מנוי PRO בלבד" desc="שדרג למנוי PRO כדי לעקוב אחרי הכנסות, תשלומים מקדמה ודוחות כספיים" />}</TabsContent>
+          <TabsContent value="receipts"><ReceiptsTab /></TabsContent>
           <TabsContent value="branding"><BrandingTab /></TabsContent>
           <TabsContent value="integrations">{isProPlan ? <IntegrationsTab /> : <ProUpgradePrompt title="הודעות — מנוי PRO בלבד" desc="שדרג למנוי PRO כדי לנהל תבניות WhatsApp אישיות, הודעות ברודקאסט ותזכורות מתוזמנות" />}</TabsContent>
           <TabsContent value="settings"><SettingsTab /></TabsContent>
@@ -2920,28 +2922,6 @@ function BrandingTab() {
             </div>
 
             <div>
-              <h3 className="font-semibold text-base border-b pb-2 mb-3">פריסת כותרת (Hero)</h3>
-              <p className="text-xs text-muted-foreground mb-3">איך הלוגו, שם העסק והבאנר מסודרים בראש עמוד ההזמנות</p>
-              <div className="grid grid-cols-2 gap-2">
-                {[
-                  { id: "stacked", label: "מקובץ", desc: "לוגו מעל שם" },
-                  { id: "hero-full", label: "באנר מלא", desc: "תמונה על כל המסך" },
-                  { id: "split", label: "מפוצל", desc: "לוגו מצד, טקסט מצד" },
-                  { id: "compact", label: "קומפקטי", desc: "מינימלי ונקי" },
-                ].map(opt => (
-                  <button
-                    key={opt.id}
-                    onClick={() => setForm(p => ({ ...p, heroLayout: opt.id }))}
-                    className={`p-3 text-right rounded-lg border-2 transition-all ${form.heroLayout === opt.id ? "border-primary bg-primary/5" : "border-border"}`}
-                  >
-                    <div className="font-medium text-sm">{opt.label}</div>
-                    <div className="text-xs text-muted-foreground">{opt.desc}</div>
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <div>
               <h3 className="font-semibold text-base border-b pb-2 mb-3">סגנון כרטיסיות שירות</h3>
               <p className="text-xs text-muted-foreground mb-3">איך כרטיסי השירותים (תספורת, טיפול וכד') מוצגים בעמוד ההזמנות — קלאסי, שורה מינימלית, רשת 2×2 או בועה</p>
               <div className="grid grid-cols-2 gap-2">
@@ -2963,66 +2943,6 @@ function BrandingTab() {
               </div>
             </div>
 
-            <div>
-              <h3 className="font-semibold text-base border-b pb-2 mb-3">אפקטים</h3>
-              <p className="text-xs text-muted-foreground mb-3">Hover = מה שקורה כשעוברים עם העכבר על כרטיס (הרמה או זוהר). אנימציית כניסה = איך הכרטיסים נכנסים לתצוגה כשהדף נטען.</p>
-              <label className="text-sm font-medium block mb-1">Hover על כרטיסיות</label>
-              <div className="grid grid-cols-3 gap-2 mb-3">
-                {[
-                  { id: "none", label: "ללא" },
-                  { id: "lift", label: "הרמה" },
-                  { id: "glow", label: "זוהר" },
-                ].map(opt => (
-                  <button
-                    key={opt.id}
-                    onClick={() => setForm(p => ({ ...p, hoverEffect: opt.id }))}
-                    className={`p-2 text-sm rounded-lg border-2 transition-all ${form.hoverEffect === opt.id ? "border-primary bg-primary/5" : "border-border"}`}
-                  >
-                    {opt.label}
-                  </button>
-                ))}
-              </div>
-
-              <label className="text-sm font-medium block mb-1">אנימציית כניסה</label>
-              <div className="grid grid-cols-3 gap-2">
-                {[
-                  { id: "none", label: "ללא" },
-                  { id: "subtle", label: "עדינה" },
-                  { id: "bouncy", label: "קפיצית" },
-                ].map(opt => (
-                  <button
-                    key={opt.id}
-                    onClick={() => setForm(p => ({ ...p, animationStyle: opt.id }))}
-                    className={`p-2 text-sm rounded-lg border-2 transition-all ${form.animationStyle === opt.id ? "border-primary bg-primary/5" : "border-border"}`}
-                  >
-                    {opt.label}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <div>
-              <h3 className="font-semibold text-base border-b pb-2 mb-3">צבע משני (אקצנט)</h3>
-              <div className="flex items-center gap-3">
-                <input
-                  type="color"
-                  value={form.accentColor || form.primaryColor}
-                  onChange={e => setForm(p => ({ ...p, accentColor: e.target.value }))}
-                  className="w-14 h-10 rounded border cursor-pointer"
-                />
-                <input
-                  type="text"
-                  value={form.accentColor}
-                  onChange={e => setForm(p => ({ ...p, accentColor: e.target.value }))}
-                  placeholder="#6b7280"
-                  className="flex-1 h-10 px-3 rounded border"
-                />
-                {form.accentColor && (
-                  <button onClick={() => setForm(p => ({ ...p, accentColor: "" }))} className="text-xs text-muted-foreground underline">נקה</button>
-                )}
-              </div>
-              <p className="text-xs text-muted-foreground mt-1">משמש בכפתורים משניים ובהדגשות</p>
-            </div>
           </div>
 
         </CardContent>
@@ -3281,6 +3201,186 @@ function IntegrationsTab() {
 
 const API_BASE_DASH = import.meta.env.VITE_API_BASE_URL ?? "/api";
 
+// ─── Receipts Tab ─────────────────────────────────────────────────────────
+// Business owners list + issue receipts to their clients. Sends receipt
+// email via the backend (Resend). Requires the owner to fill in tax ID etc.
+// in the settings tab first — the backend will return 400 otherwise.
+
+interface ReceiptRow {
+  id:               number;
+  receipt_number:   number;
+  client_name:      string | null;
+  client_phone:     string | null;
+  client_email:     string | null;
+  amount_agorot:    number;
+  currency:         string;
+  payment_method:   string | null;
+  description:      string | null;
+  issued_at:        string;
+}
+
+function ReceiptsTab() {
+  const { data: profile } = useGetBusinessProfile();
+  const { toast } = useToast();
+  const [rows, setRows] = useState<ReceiptRow[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [formOpen, setFormOpen] = useState(false);
+  const [form, setForm] = useState({
+    clientName: "", clientPhone: "", clientEmail: "",
+    amountILS: "", description: "", paymentMethod: "credit_card",
+  });
+  const [saving, setSaving] = useState(false);
+
+  const hasTaxSetup = !!((profile as any)?.businessTaxId);
+
+  const load = () => {
+    setLoading(true);
+    const token = localStorage.getItem("biz_token") || sessionStorage.getItem("biz_token");
+    fetch(`${API_BASE_DASH}/business/receipts`, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then(r => (r.ok ? r.json() : []))
+      .then((data: ReceiptRow[]) => setRows(Array.isArray(data) ? data : []))
+      .catch(() => setRows([]))
+      .finally(() => setLoading(false));
+  };
+
+  useEffect(load, []);
+
+  const handleIssue = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!form.amountILS || Number(form.amountILS) <= 0) {
+      toast({ title: "סכום לא תקין", variant: "destructive" }); return;
+    }
+    setSaving(true);
+    try {
+      const token = localStorage.getItem("biz_token") || sessionStorage.getItem("biz_token");
+      const res = await fetch(`${API_BASE_DASH}/business/receipts`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({
+          clientName: form.clientName || null,
+          clientPhone: form.clientPhone || null,
+          clientEmail: form.clientEmail || null,
+          amountILS: Number(form.amountILS),
+          description: form.description || null,
+          paymentMethod: form.paymentMethod,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message ?? "שגיאה");
+      toast({ title: `קבלה מספר ${data.receiptNumber} הונפקה` });
+      setForm({ clientName: "", clientPhone: "", clientEmail: "", amountILS: "", description: "", paymentMethod: "credit_card" });
+      setFormOpen(false);
+      load();
+    } catch (err: any) {
+      toast({ title: "שגיאה", description: err.message, variant: "destructive" });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  if (!hasTaxSetup) {
+    return (
+      <div className="max-w-2xl p-6 border-2 border-dashed rounded-xl text-center space-y-3">
+        <h3 className="font-bold text-lg">לפני שניפיקי קבלות — צריך למלא פרטי עסק</h3>
+        <p className="text-sm text-muted-foreground">
+          כל קבלה חייבת לכלול ח.פ / ת.ז. וכתובת של העסק. לך להגדרות → "פרטי עסק לקבלות" ותמלאי את הפרטים.
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6 max-w-4xl">
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-xl font-bold">קבלות ללקוחות</h2>
+          <p className="text-sm text-muted-foreground">כאן תוכל להנפיק ולנהל קבלות שיישלחו אוטומטית במייל ללקוחות.</p>
+        </div>
+        <Button onClick={() => setFormOpen(o => !o)} size="lg">
+          <Plus className="w-4 h-4 ml-1" /> הנפק קבלה חדשה
+        </Button>
+      </div>
+
+      {formOpen && (
+        <Card>
+          <CardHeader>
+            <CardTitle>קבלה חדשה</CardTitle>
+            <CardDescription>מלא פרטי הלקוח והסכום. הקבלה תישלח במייל אם תזין כתובת.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <form onSubmit={handleIssue} className="space-y-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>שם הלקוח</Label>
+                  <Input value={form.clientName} onChange={e => setForm(p => ({ ...p, clientName: e.target.value }))} placeholder="שם פרטי + משפחה" />
+                </div>
+                <div className="space-y-2">
+                  <Label>אימייל הלקוח (לשליחת הקבלה)</Label>
+                  <Input type="email" dir="ltr" value={form.clientEmail} onChange={e => setForm(p => ({ ...p, clientEmail: e.target.value }))} placeholder="client@example.com" />
+                </div>
+                <div className="space-y-2">
+                  <Label>טלפון הלקוח</Label>
+                  <Input type="tel" dir="ltr" value={form.clientPhone} onChange={e => setForm(p => ({ ...p, clientPhone: e.target.value }))} placeholder="050-1234567" />
+                </div>
+                <div className="space-y-2">
+                  <Label>סכום (₪)</Label>
+                  <Input type="number" min="1" step="0.01" value={form.amountILS} onChange={e => setForm(p => ({ ...p, amountILS: e.target.value }))} placeholder="100" />
+                </div>
+                <div className="space-y-2 sm:col-span-2">
+                  <Label>תיאור</Label>
+                  <Input value={form.description} onChange={e => setForm(p => ({ ...p, description: e.target.value }))} placeholder="תיאור השירות או המוצר" />
+                </div>
+              </div>
+              <div className="flex justify-end gap-2">
+                <Button type="button" variant="outline" onClick={() => setFormOpen(false)}>ביטול</Button>
+                <Button type="submit" disabled={saving}>{saving ? "מנפיק..." : "הנפק קבלה"}</Button>
+              </div>
+            </form>
+          </CardContent>
+        </Card>
+      )}
+
+      <Card>
+        <CardHeader>
+          <CardTitle>קבלות אחרונות</CardTitle>
+          <CardDescription>{rows.length > 0 ? `${rows.length} קבלות הונפקו` : "עדיין לא הנפקת קבלות"}</CardDescription>
+        </CardHeader>
+        <CardContent>
+          {loading ? (
+            <p className="text-sm text-muted-foreground text-center py-8">טוען...</p>
+          ) : rows.length === 0 ? (
+            <p className="text-sm text-muted-foreground text-center py-8">
+              לחץ "הנפק קבלה חדשה" למעלה כדי להתחיל.
+            </p>
+          ) : (
+            <div className="space-y-2">
+              {rows.map(r => (
+                <div key={r.id} className="flex items-center justify-between p-4 border rounded-xl">
+                  <div>
+                    <div className="font-semibold">קבלה #{r.receipt_number}</div>
+                    <div className="text-xs text-muted-foreground">
+                      {r.client_name ?? "—"} {r.client_email ? `· ${r.client_email}` : ""}
+                    </div>
+                    {r.description && <div className="text-xs text-muted-foreground mt-1">{r.description}</div>}
+                  </div>
+                  <div className="text-left">
+                    <div className="font-bold text-lg">₪{(r.amount_agorot / 100).toFixed(2)}</div>
+                    <div className="text-[10px] text-muted-foreground">
+                      {new Date(r.issued_at).toLocaleDateString("he-IL")}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
 function SettingsTab() {
   const { data: profile } = useGetBusinessProfile();
   const updateMutation = useUpdateBusinessProfile();
@@ -3310,6 +3410,11 @@ function SettingsTab() {
     websiteUrl: "",
     instagramHandle: "",
     wazeUrl: "",
+    // Receipt profile
+    businessTaxId: "",
+    businessLegalType: "exempt" as "exempt" | "authorized" | "company",
+    businessLegalName: "",
+    invoiceAddress: "",
   });
   const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
   const [categorySearch, setCategorySearch] = useState("");
@@ -3346,6 +3451,10 @@ function SettingsTab() {
         websiteUrl: (profile as any).websiteUrl ?? "",
         instagramHandle: ((profile as any).instagramUrl ?? "").replace(/^https?:\/\/(www\.)?instagram\.com\//, "").replace(/\/$/, ""),
         wazeUrl: (profile as any).wazeUrl ?? "",
+        businessTaxId: (profile as any).businessTaxId ?? "",
+        businessLegalType: ((profile as any).businessLegalType ?? "exempt") as "exempt" | "authorized" | "company",
+        businessLegalName: (profile as any).businessLegalName ?? "",
+        invoiceAddress: (profile as any).invoiceAddress ?? "",
       });
       try {
         const cats = (profile as any).businessCategories;
@@ -3383,6 +3492,11 @@ function SettingsTab() {
         instagramUrl: form.instagramHandle ? `https://www.instagram.com/${form.instagramHandle.replace(/^@/, "")}` : null,
         wazeUrl: form.wazeUrl || null,
         businessCategories: selectedCategories.length > 0 ? JSON.stringify(selectedCategories) : null,
+        // Receipt profile — what the business prints on its receipts
+        businessTaxId: form.businessTaxId || null,
+        businessLegalType: form.businessLegalType || null,
+        businessLegalName: form.businessLegalName || null,
+        invoiceAddress: form.invoiceAddress || null,
       } as any
     }, {
       onSuccess: () => {
@@ -3627,10 +3741,105 @@ function SettingsTab() {
           </div>
             </div>
 
+            {/* ── Business Receipt / Invoice Profile ── */}
+            <div className="space-y-4">
+              <h3 className="font-medium text-base border-b pb-2">פרטי עסק לקבלות</h3>
+              <p className="text-xs text-muted-foreground -mt-2">
+                פרטים אלה יודפסו על כל קבלה שתנפיק ללקוחות. חובה למלא ח.פ / ת.ז. ושם משפטי לפני הנפקת הקבלה הראשונה.
+              </p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>ח.פ / ת.ז. (מספר עוסק)</Label>
+                  <Input
+                    dir="ltr"
+                    value={form.businessTaxId}
+                    onChange={e => setForm(p => ({ ...p, businessTaxId: e.target.value.replace(/\D/g, "") }))}
+                    placeholder="123456789"
+                    maxLength={9}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>סוג העסק</Label>
+                  <select
+                    value={form.businessLegalType}
+                    onChange={e => setForm(p => ({ ...p, businessLegalType: e.target.value as any }))}
+                    className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                  >
+                    <option value="exempt">עוסק פטור</option>
+                    <option value="authorized">עוסק מורשה</option>
+                    <option value="company">חברה בע"מ</option>
+                  </select>
+                </div>
+                <div className="space-y-2 sm:col-span-2">
+                  <Label>שם משפטי לקבלות (כפי שרשום ברשות המיסים)</Label>
+                  <Input
+                    value={form.businessLegalName}
+                    onChange={e => setForm(p => ({ ...p, businessLegalName: e.target.value }))}
+                    placeholder={form.ownerName || "שם מלא"}
+                  />
+                  <p className="text-xs text-muted-foreground">אם ריק, יוצג שם העסק הרגיל. עוסק פטור = שם מלא. חברה = השם המשפטי המלא.</p>
+                </div>
+                <div className="space-y-2 sm:col-span-2">
+                  <Label>כתובת לחשבונית</Label>
+                  <Input
+                    value={form.invoiceAddress}
+                    onChange={e => setForm(p => ({ ...p, invoiceAddress: e.target.value }))}
+                    placeholder="רחוב 1, עיר, מיקוד"
+                  />
+                  <p className="text-xs text-muted-foreground">הכתובת הרשומה במס הכנסה — לא בהכרח כתובת העסק הפיזית.</p>
+                </div>
+              </div>
+            </div>
+
             <div className="flex justify-end">
               <Button type="submit" disabled={updateMutation.isPending} size="lg">שמור הגדרות</Button>
             </div>
           </form>
+
+          {/* ── Password change — nested here so it lives at the bottom of
+                 the general-settings card instead of as a standalone block. */}
+          <div className="pt-6 mt-6 border-t">
+            <h3 className="font-medium text-base mb-1">שינוי סיסמה</h3>
+            <p className="text-xs text-muted-foreground mb-4">עדכן את הסיסמה שלך לכניסה ללוח הבקרה</p>
+            <form onSubmit={handlePasswordChange} className="space-y-4">
+              <div className="space-y-2">
+                <Label>סיסמה נוכחית</Label>
+                <div className="relative">
+                  <Input
+                    type={showPw ? "text" : "password"}
+                    dir="ltr"
+                    required
+                    value={pwForm.currentPassword}
+                    onChange={e => setPwForm(p => ({ ...p, currentPassword: e.target.value }))}
+                    autoComplete="current-password"
+                  />
+                  <button type="button" tabIndex={-1} onClick={() => setShowPw(v => !v)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
+                    {showPw ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>סיסמה חדשה</Label>
+                  <Input type={showPw ? "text" : "password"} dir="ltr" required placeholder="לפחות 6 תווים"
+                    value={pwForm.newPassword} onChange={e => setPwForm(p => ({ ...p, newPassword: e.target.value }))}
+                    autoComplete="new-password" />
+                </div>
+                <div className="space-y-2">
+                  <Label>אימות סיסמה חדשה</Label>
+                  <Input type={showPw ? "text" : "password"} dir="ltr" required placeholder="הכנס שוב"
+                    value={pwForm.confirmPassword} onChange={e => setPwForm(p => ({ ...p, confirmPassword: e.target.value }))}
+                    autoComplete="new-password" />
+                </div>
+              </div>
+              <div className="flex justify-end">
+                <Button type="submit" variant="outline" disabled={pwLoading} size="lg">
+                  {pwLoading ? "שומר..." : "שנה סיסמה"}
+                </Button>
+              </div>
+            </form>
+          </div>
         </CardContent>
       </Card>
 
@@ -3741,66 +3950,6 @@ function SettingsTab() {
         </CardContent>
       </Card>
 
-
-      {/* Password change card */}
-      <Card>
-        <CardHeader>
-          <CardTitle>שינוי סיסמה</CardTitle>
-          <CardDescription>עדכן את הסיסמה שלך לכניסה ללוח הבקרה</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <form onSubmit={handlePasswordChange} className="space-y-4">
-            <div className="space-y-2">
-              <Label>סיסמה נוכחית</Label>
-              <div className="relative">
-                <Input
-                  type={showPw ? "text" : "password"}
-                  dir="ltr"
-                  required
-                  value={pwForm.currentPassword}
-                  onChange={e => setPwForm(p => ({ ...p, currentPassword: e.target.value }))}
-                  autoComplete="current-password"
-                />
-                <button type="button" tabIndex={-1} onClick={() => setShowPw(v => !v)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
-                  {showPw ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                </button>
-              </div>
-            </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label>סיסמה חדשה</Label>
-                <Input
-                  type={showPw ? "text" : "password"}
-                  dir="ltr"
-                  required
-                  placeholder="לפחות 6 תווים"
-                  value={pwForm.newPassword}
-                  onChange={e => setPwForm(p => ({ ...p, newPassword: e.target.value }))}
-                  autoComplete="new-password"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label>אימות סיסמה חדשה</Label>
-                <Input
-                  type={showPw ? "text" : "password"}
-                  dir="ltr"
-                  required
-                  placeholder="הכנס שוב"
-                  value={pwForm.confirmPassword}
-                  onChange={e => setPwForm(p => ({ ...p, confirmPassword: e.target.value }))}
-                  autoComplete="new-password"
-                />
-              </div>
-            </div>
-            <div className="flex justify-end">
-              <Button type="submit" variant="outline" disabled={pwLoading} size="lg">
-                {pwLoading ? "שומר..." : "שנה סיסמה"}
-              </Button>
-            </div>
-          </form>
-        </CardContent>
-      </Card>
 
       {/* Custom domain — Pro-only */}
       {profile && <CustomDomainCard />}
