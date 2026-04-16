@@ -11,9 +11,13 @@ const router = Router();
 const SUPPLIER   = process.env.TRANZILA_SUPPLIER ?? "";
 const JWT_SECRET = process.env.JWT_SECRET ?? "dev-secret";
 
-// Real charges — 1 ILS until the real subscription price is set.
-const SUBSCRIPTION_FIRST_ILS   = 1;
-const SUBSCRIPTION_MONTHLY_ILS = 1;
+// Subscription pricing:
+//   First month:  ₪50 (50% opening discount, paid on the iframe at signup)
+//   From month 2: ₪100/mo, auto-charged monthly by Tranzila via the STO
+// The STO is created with the MONTHLY amount so recurring runs use 100,
+// not the discounted first-month figure.
+const SUBSCRIPTION_FIRST_ILS   = 50;
+const SUBSCRIPTION_MONTHLY_ILS = 100;
 
 // Per iframe docs: base URL is direct.tranzila.com/<terminal>/iframenew.php.
 const IFRAME_BASE = `https://direct.tranzila.com/${SUPPLIER}/iframenew.php`;

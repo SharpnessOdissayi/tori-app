@@ -142,8 +142,11 @@ function StepPlan({ onNext }: { onNext: (plan: Plan) => void }) {
           <div className="flex items-baseline gap-2 mb-1">
             <span className="text-3xl font-bold text-violet-800">₪50</span>
             <span className="text-sm text-violet-500 line-through">₪100</span>
+            <span className="text-[10px] font-bold text-amber-700 bg-amber-100 px-1.5 py-0.5 rounded">🎉 -50%</span>
           </div>
-          <div className="text-sm text-violet-600 mb-4">לחודש הראשון • לאחר מכן ₪100/חודש</div>
+          <div className="text-sm text-violet-600 mb-4">
+            <span className="font-semibold">מבצע פתיחה!</span> לחודש הראשון — לאחר מכן ₪100/חודש
+          </div>
           <ul className="space-y-2 text-sm text-right text-violet-800">
             <li className="flex items-center gap-2"><CheckCircle className="w-4 h-4 text-green-500 shrink-0" /> שירותים ללא הגבלה</li>
             <li className="flex items-center gap-2"><CheckCircle className="w-4 h-4 text-green-500 shrink-0" /> תורים ללא הגבלה</li>

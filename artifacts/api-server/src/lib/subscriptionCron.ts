@@ -9,7 +9,10 @@ import { and, isNotNull, isNull, lte, eq } from "drizzle-orm";
 import { chargeToken } from "./tranzilaCharge";
 import { logger } from "./logger";
 
-const RENEWAL_PRICE_ILS = 1;
+// ₪100/mo — matches the STO amount. Only relevant if/when this cron is
+// used as a manual fallback; normally Tranzila charges the card itself
+// via the STO registered on signup.
+const RENEWAL_PRICE_ILS = 100;
 
 export async function runSubscriptionBilling() {
   const now             = new Date();

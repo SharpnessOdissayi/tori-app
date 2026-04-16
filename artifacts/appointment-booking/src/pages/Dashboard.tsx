@@ -234,7 +234,7 @@ function SubscriptionBanner() {
         <Button size="sm" onClick={openPayment} disabled={iframeLoading}
           className="bg-gradient-to-l from-violet-600 to-indigo-600 hover:from-violet-700 hover:to-indigo-700 text-white gap-1.5 shrink-0">
           <Crown className="w-3.5 h-3.5" />
-          {iframeLoading ? "טוען..." : "שדרג לפרו — ₪50 לחודש הראשון"}
+          {iframeLoading ? "טוען..." : "שדרג לפרו — 🎉 חודש ראשון ₪50"}
         </Button>
       </div>
 
@@ -245,9 +245,15 @@ function SubscriptionBanner() {
             <DialogTitle className="flex items-center gap-2 text-xl">
               <Crown className="w-5 h-5 text-violet-600" /> שדרג למנוי פרו
             </DialogTitle>
-            <DialogDescription>
-              <span className="font-semibold text-violet-700">₪50</span> לחודש הראשון,
-              אחר כך <span className="font-semibold">₪100/חודש</span> — ביטול בכל עת
+            <DialogDescription className="flex flex-col gap-1">
+              <span>
+                <span className="inline-block px-2 py-0.5 rounded-md bg-amber-100 text-amber-700 text-xs font-bold mr-2">🎉 מבצע פתיחה -50%</span>
+              </span>
+              <span>
+                חודש ראשון: <span className="font-semibold text-violet-700 line-through opacity-60 mr-1">₪100</span><span className="font-bold text-violet-700">₪50</span>
+                &nbsp;·&nbsp;אחר כך <span className="font-semibold">₪100/חודש</span>
+                &nbsp;·&nbsp;ביטול בכל עת
+              </span>
             </DialogDescription>
           </DialogHeader>
 
