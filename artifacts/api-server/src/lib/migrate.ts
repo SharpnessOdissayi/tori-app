@@ -128,8 +128,85 @@ export async function runMigrations() {
       await db.execute(sql.raw(stmt));
     }
 
+    // ─── Unified users table ────────────────────────────────────────────
+    // Phase 1/4 of auth rework — the authoritative source for login across
+    // clients, business owners, and super admins. Created here (not via
+    // drizzle push-force) because push-force is risky for new unique
+    // constraints on populated tables.
+    await db.execute(sql.raw(`
+      CREATE TABLE IF NOT EXISTS users (
+        id            SERIAL PRIMARY KEY,
+        email         TEXT UNIQUE,
+        phone         TEXT UNIQUE,
+        password_hash TEXT,
+        full_name     TEXT NOT NULL DEFAULT '',
+        role          TEXT NOT NULL DEFAULT 'client',
+        business_id   INTEGER,
+        created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      )
+    `));
+    await db.execute(sql.raw(`CREATE INDEX IF NOT EXISTS users_role_idx ON users (role)`));
+    await db.execute(sql.raw(`CREATE INDEX IF NOT EXISTS users_business_id_idx ON users (business_id)`));
+
+    // ─── One-shot seed: import existing businesses + clients ────────────
+    // Idempotent via ON CONFLICT DO NOTHING. Safe to run every boot.
+    await seedUsersFromExistingData();
+
     logger.info("DB migrations applied successfully");
   } catch (err) {
     logger.error({ err }, "DB migration failed");
+  }
+}
+
+/**
+ * For every existing business, create a users row (role=business_owner)
+ * linked by businessId. For every distinct phone in client_sessions /
+ * client_businesses, create a users row (role=client). Both are keyed by
+ * email/phone uniqueness so repeated boots are safe.
+ *
+ * Also promotes the initial super admin based on SUPER_ADMIN_EMAIL env var
+ * (falls back to noop if not set — the first super admin can be assigned
+ * manually with a SQL update if needed).
+ */
+async function seedUsersFromExistingData() {
+  // 1. Business owners — one user per business row. Email + password come
+  //    from the business itself; the business's id is linked via business_id.
+  await db.execute(sql.raw(`
+    INSERT INTO users (email, password_hash, full_name, role, business_id)
+    SELECT b.email, b.password_hash, b.owner_name, 'business_owner', b.id
+    FROM businesses b
+    WHERE b.email IS NOT NULL
+    ON CONFLICT (email) DO NOTHING
+  `));
+
+  // 2. Clients — pull distinct phones from client_sessions (logged-in
+  //    phones) + client_businesses (phones saved by businesses). No
+  //    password (they log in via OTP).
+  await db.execute(sql.raw(`
+    INSERT INTO users (phone, full_name, role)
+    SELECT DISTINCT cs.phone_number, COALESCE(cs.client_name, ''), 'client'
+    FROM client_sessions cs
+    WHERE cs.phone_number IS NOT NULL
+    ON CONFLICT (phone) DO NOTHING
+  `));
+
+  await db.execute(sql.raw(`
+    INSERT INTO users (phone, full_name, role)
+    SELECT DISTINCT cb.phone_number, COALESCE(cb.client_name, ''), 'client'
+    FROM client_businesses cb
+    WHERE cb.phone_number IS NOT NULL
+    ON CONFLICT (phone) DO NOTHING
+  `));
+
+  // 3. Promote initial super admin if SUPER_ADMIN_EMAIL is configured and
+  //    that user already exists in the table.
+  const superAdminEmail = (process.env.SUPER_ADMIN_EMAIL ?? "").trim().toLowerCase();
+  if (superAdminEmail) {
+    await db.execute(sql.raw(`
+      UPDATE users
+      SET role = 'super_admin'
+      WHERE email = '${superAdminEmail.replace(/'/g, "''")}'
+        AND role != 'super_admin'
+    `));
   }
 }
