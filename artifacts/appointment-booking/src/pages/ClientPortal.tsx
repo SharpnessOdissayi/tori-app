@@ -614,10 +614,6 @@ export default function ClientPortal() {
           >
             {portalTheme === "dark" ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
           </button>
-          <button onClick={() => { setProfileOpen(true); }}
-            className="w-9 h-9 rounded-full bg-violet-50 flex items-center justify-center text-violet-600 hover:bg-violet-100 transition">
-            <Settings className="w-4 h-4" />
-          </button>
           <button onClick={logout}
             className="w-9 h-9 rounded-full bg-gray-100 flex items-center justify-center text-gray-500 hover:bg-gray-200 transition">
             <LogOut className="w-4 h-4" />
@@ -757,30 +753,26 @@ export default function ClientPortal() {
       {/* ── BOTTOM NAV ── */}
       <div className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-md bg-white border-t border-gray-100 px-4 pt-2 pb-safe z-20">
         <div className="flex items-end justify-between gap-2 pb-2">
-          {/* Home */}
-          <button onClick={() => { setTab("home"); setEditMode(false); }}
-            className={`flex flex-col items-center gap-1 py-2 px-4 rounded-2xl transition-all flex-1 ${tab === "home" ? "text-violet-600 bg-violet-50" : "text-gray-400 hover:text-gray-600"}`}>
-            <Home className="w-5 h-5" />
-            <span className="text-[10px] font-medium">בית</span>
-          </button>
-
-          {/* Book — prominent center */}
-          <button
-            onClick={() => {
-              if (businesses.length === 1) { navigate(`/book/${businesses[0].slug}`); }
-              else if (businesses.length > 1) { setTab("home"); }
-              else { toast({ title: "הוסיפי עסק תחילה", description: "הכנסי לקישור של עסק כדי להתחיל" }); }
-            }}
-            className="flex flex-col items-center gap-1 py-3 px-6 rounded-2xl bg-violet-600 text-white shadow-lg shadow-violet-200 active:scale-95 transition-all -translate-y-2">
-            <Plus className="w-6 h-6" />
-            <span className="text-[10px] font-bold">קבעי תור</span>
-          </button>
-
-          {/* Appointments */}
+          {/* Appointments (right in RTL) */}
           <button onClick={() => setTab("appointments")}
             className={`flex flex-col items-center gap-1 py-2 px-4 rounded-2xl transition-all flex-1 ${tab === "appointments" ? "text-violet-600 bg-violet-50" : "text-gray-400 hover:text-gray-600"}`}>
             <CalendarDays className="w-5 h-5" />
             <span className="text-[10px] font-medium">התורים שלי</span>
+          </button>
+
+          {/* Home — prominent center */}
+          <button
+            onClick={() => { setTab("home"); setEditMode(false); }}
+            className={`flex flex-col items-center gap-1 py-3 px-6 rounded-2xl shadow-lg active:scale-95 transition-all -translate-y-2 ${tab === "home" ? "bg-violet-600 text-white shadow-violet-200" : "bg-violet-100 text-violet-700 shadow-violet-100"}`}>
+            <Home className="w-6 h-6" />
+            <span className="text-[10px] font-bold">בית</span>
+          </button>
+
+          {/* Settings (left in RTL) */}
+          <button onClick={() => setProfileOpen(true)}
+            className="flex flex-col items-center gap-1 py-2 px-4 rounded-2xl transition-all flex-1 text-gray-400 hover:text-gray-600">
+            <Settings className="w-5 h-5" />
+            <span className="text-[10px] font-medium">הגדרות</span>
           </button>
         </div>
       </div>
