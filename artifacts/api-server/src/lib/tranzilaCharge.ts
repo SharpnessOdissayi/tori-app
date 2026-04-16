@@ -89,13 +89,21 @@ export async function chargeToken(
 
   // v1 STO body per docs: single `item` object (not array) + `card.token`
   // (not `card_number`). Both first_charge_date AND charge_dom are
-  // required — first_charge_date starts 30 days from now (the 1st month
-  // was already paid via the iframe on signup), charge_dom is that same
-  // day of the month, capped at 28.
-  const firstCharge = new Date();
-  firstCharge.setDate(firstCharge.getDate() + 30);
+  // required. Per product decision: every subscription renews on the
+  // 10th of each month. first_charge_date = the next upcoming 10th that
+  // is at least ~25 days away (so the customer doesn't get re-charged
+  // immediately after the signup iframe payment).
+  const CHARGE_DOM = 10;
+  const now        = new Date();
+  const firstCharge = new Date(now.getFullYear(), now.getMonth(), CHARGE_DOM);
+  // If the 10th is already past or too close (<25 days away), roll to
+  // the next month's 10th.
+  const daysUntil = Math.ceil((firstCharge.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+  if (daysUntil < 25) {
+    firstCharge.setMonth(firstCharge.getMonth() + 1);
+  }
   const firstChargeDate = firstCharge.toISOString().slice(0, 10); // YYYY-MM-DD
-  const chargeDom       = Math.min(firstCharge.getDate(), 28);
+  const chargeDom       = CHARGE_DOM;
 
   const body = {
     terminal_name:       TERMINAL,
