@@ -953,6 +953,26 @@ function AppointmentsTab() {
 
   return (
     <div className="space-y-6">
+      {profile?.slug && (
+        <div className="flex flex-wrap items-center justify-between gap-3 p-4 rounded-xl border bg-primary/5">
+          <div className="flex items-center gap-2 text-sm">
+            <Link className="w-4 h-4 text-primary" />
+            <span className="font-medium">עמוד ההזמנות שלך</span>
+            <span className="text-muted-foreground text-xs hidden sm:inline" dir="ltr">
+              {window.location.origin}/book/{profile.slug}
+            </span>
+          </div>
+          <a
+            href={`/book/${profile.slug}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-primary text-primary-foreground hover:bg-primary/90 transition"
+          >
+            פתח עמוד עסק ↗
+          </a>
+        </div>
+      )}
+
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         {[
           { title: "סה״כ פגישות", value: stats?.totalAppointments ?? 0 },
