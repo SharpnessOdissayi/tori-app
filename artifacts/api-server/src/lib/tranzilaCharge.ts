@@ -38,11 +38,13 @@ export interface ChargeResult {
 }
 
 function buildAuthHeaders(): Record<string, string> {
-  // Tranzila rep's exact formula (ticket 537114012):
-  //   CryptoJS.HmacSHA256(app_key, secret + timestamp + nonce).toString(CryptoJS.enc.Hex)
-  // i.e. data=app_key, key=secret+timestamp+nonce, digest=HEX (not base64).
+  // Tranzila rep's working Postman example (ticket 209371328):
+  //   var timestamp = Math.floor(Date.now() / 1000);  ← SECONDS, not ms
+  //   var access_key = CryptoJS.HmacSHA256(app_key, secret + timestamp + nonce)
+  //                             .toString(CryptoJS.enc.Hex);
+  // i.e. data=app_key, key=secret+timestamp+nonce, digest=HEX, time=SECONDS.
   const nonce       = crypto.randomBytes(20).toString("hex");
-  const requestTime = String(Date.now()); // plain Unix ms, UTC
+  const requestTime = String(Math.floor(Date.now() / 1000)); // Unix seconds
 
   const accessToken = crypto
     .createHmac("sha256", SECRET_KEY + requestTime + nonce)
