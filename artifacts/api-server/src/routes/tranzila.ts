@@ -11,8 +11,8 @@ const router = Router();
 const SUPPLIER   = process.env.TRANZILA_SUPPLIER ?? "";
 const JWT_SECRET = process.env.JWT_SECRET ?? "dev-secret";
 
-const TEST_MODE              = process.env.TRANZILA_TEST_MODE === "true";
-const SUBSCRIPTION_FIRST_ILS = TEST_MODE ? 1 : 50;
+// Real charges — 1 ILS until the real subscription price is set.
+const SUBSCRIPTION_FIRST_ILS = 1;
 
 // Per iframe docs: base URL is direct.tranzila.com/<terminal>/iframenew.php.
 const IFRAME_BASE = `https://direct.tranzila.com/${SUPPLIER}/iframenew.php`;
@@ -228,7 +228,7 @@ router.get("/tranzila/subscription-url", async (req, res): Promise<void> => {
 // ─── POST /api/tranzila/test-charge (authenticated) ─────────────────────────
 // Manual "charge my stored token now" button for the dashboard. Useful to
 // verify the monthly charging path works before waiting 30 days for cron.
-const TEST_CHARGE_AMOUNT_ILS = TEST_MODE ? 1 : 1; // 1 ILS test regardless
+const TEST_CHARGE_AMOUNT_ILS = 1;
 
 router.post("/tranzila/test-charge", async (req, res): Promise<void> => {
   const authHeader = req.headers.authorization ?? "";

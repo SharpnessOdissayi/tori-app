@@ -9,8 +9,7 @@ import { and, isNotNull, isNull, lte, eq } from "drizzle-orm";
 import { chargeToken } from "./tranzilaCharge";
 import { logger } from "./logger";
 
-const TEST_MODE         = process.env.TRANZILA_TEST_MODE === "true";
-const RENEWAL_PRICE_ILS = TEST_MODE ? 1 : 100;
+const RENEWAL_PRICE_ILS = 1;
 
 export async function runSubscriptionBilling() {
   const now             = new Date();
