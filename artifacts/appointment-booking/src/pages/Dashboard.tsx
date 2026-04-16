@@ -2514,23 +2514,49 @@ function BrandingTab() {
         const textMain = isDark ? "rgba(255,255,255,0.95)" : "#1a1a1a";
         const textMuted = isDark ? "rgba(255,255,255,0.6)" : "#6b7280";
         // When a gradient is enabled (e.g. the "נועז" preset) we lighten the
-        // card backgrounds so the gradient shows through — otherwise the
-        // preview looks all-white and the user misses the preset's character.
+        // card backgrounds significantly so the gradient shows through.
+        // 0.65 is low enough to let purple-pink bleed through, high enough
+        // to keep text readable.
         const cardBg = isDark
           ? "rgba(255,255,255,0.08)"
-          : (form.gradientEnabled ? "rgba(255,255,255,0.82)" : "#ffffff");
+          : (form.gradientEnabled ? "rgba(255,255,255,0.65)" : "#ffffff");
         const buttonPx = form.buttonRadius === "sharp" ? "4px" : form.buttonRadius === "rounded" ? "9999px" : "12px";
         const cardPx = form.borderRadius === "sharp" ? "4px" : form.borderRadius === "rounded" ? "24px" : "14px";
-        const pageBg = form.gradientEnabled && form.gradientFrom && form.gradientTo
-          ? `linear-gradient(${form.gradientAngle}deg, ${form.gradientFrom}, ${form.gradientTo})`
-          : (form.backgroundColor || (isDark ? "#0a0a0a" : "#fafafa"));
-        const patternStyle: React.CSSProperties = form.backgroundPattern === "dots"
-          ? { backgroundImage: "radial-gradient(rgba(0,0,0,0.08) 1px, transparent 1px)", backgroundSize: "16px 16px" }
+        // Build the preview background as layered background-images so the
+        // decorative pattern (dots/grid/circles) and the gradient can
+        // coexist. Without layering, whichever style came second in the
+        // inline-style object would silently overwrite the other — the
+        // symptom being "the 'נועז' gradient never shows when a pattern is
+        // also selected" (the bold preset uses both).
+        const patternLayer = form.backgroundPattern === "dots"
+          ? "radial-gradient(rgba(0,0,0,0.08) 1px, transparent 1px)"
           : form.backgroundPattern === "grid"
-          ? { backgroundImage: "linear-gradient(rgba(0,0,0,0.05) 1px, transparent 1px), linear-gradient(90deg, rgba(0,0,0,0.05) 1px, transparent 1px)", backgroundSize: "24px 24px" }
+          ? "linear-gradient(rgba(0,0,0,0.05) 1px, transparent 1px), linear-gradient(90deg, rgba(0,0,0,0.05) 1px, transparent 1px)"
           : form.backgroundPattern === "circles"
-          ? { backgroundImage: "radial-gradient(circle, rgba(0,0,0,0.04) 18px, transparent 19px)", backgroundSize: "60px 60px" }
-          : {};
+          ? "radial-gradient(circle, rgba(0,0,0,0.04) 18px, transparent 19px)"
+          : "";
+        const gradientLayer = form.gradientEnabled && form.gradientFrom && form.gradientTo
+          ? `linear-gradient(${form.gradientAngle}deg, ${form.gradientFrom}, ${form.gradientTo})`
+          : "";
+
+        // Stack pattern on top of gradient (first layer = top).
+        const imageLayers = [patternLayer, gradientLayer].filter(Boolean).join(", ");
+        const bgSizes = patternLayer
+          ? (form.backgroundPattern === "dots"    ? "16px 16px, cover"
+            : form.backgroundPattern === "grid"   ? "24px 24px, 24px 24px, cover"
+            : form.backgroundPattern === "circles" ? "60px 60px, cover"
+            : "cover")
+          : "cover";
+
+        const bgStyle: React.CSSProperties = imageLayers
+          ? {
+              backgroundImage: imageLayers,
+              backgroundSize:  bgSizes,
+              backgroundColor: form.backgroundColor || (isDark ? "#0a0a0a" : "#fafafa"),
+            }
+          : {
+              backgroundColor: form.backgroundColor || (isDark ? "#0a0a0a" : "#fafafa"),
+            };
 
         return (
           <Card>
@@ -2544,8 +2570,7 @@ function BrandingTab() {
                 dir="rtl"
                 style={{
                   fontFamily: `'${form.fontFamily}', sans-serif`,
-                  background: pageBg,
-                  ...patternStyle,
+                  ...bgStyle,
                   border: isDark ? "1px solid rgba(255,255,255,0.1)" : "1px solid rgba(0,0,0,0.08)",
                 }}
               >
