@@ -38,21 +38,16 @@ export interface ChargeResult {
 }
 
 function buildAuthHeaders(): Record<string, string> {
-  const nonce = crypto.randomBytes(20).toString("hex");
-
-  // Tranzila support told us "request-time must be in Israel-clock time".
-  // Unix timestamps are timezone-independent by definition, but their
-  // validator may be comparing naively against Asia/Jerusalem local time.
-  // So we add IDT offset (+3h) to ms-since-epoch. TRANZILA_TIME_UTC=true
-  // reverts to standard Unix time.
-  const ISRAEL_OFFSET_MS = 3 * 60 * 60 * 1000;
-  const useUtc           = process.env.TRANZILA_TIME_UTC === "true";
-  const requestTime      = String(Date.now() + (useUtc ? 0 : ISRAEL_OFFSET_MS));
+  // Tranzila rep's exact formula (ticket 537114012):
+  //   CryptoJS.HmacSHA256(app_key, secret + timestamp + nonce).toString(CryptoJS.enc.Hex)
+  // i.e. data=app_key, key=secret+timestamp+nonce, digest=HEX (not base64).
+  const nonce       = crypto.randomBytes(20).toString("hex");
+  const requestTime = String(Date.now()); // plain Unix ms, UTC
 
   const accessToken = crypto
     .createHmac("sha256", SECRET_KEY + requestTime + nonce)
     .update(PUBLIC_KEY)
-    .digest("base64");
+    .digest("hex");
 
   return {
     "Content-Type":                "application/json",
@@ -61,10 +56,6 @@ function buildAuthHeaders(): Record<string, string> {
     "X-tranzila-api-request-time": requestTime,
     "X-tranzila-api-nonce":        nonce,
     "X-tranzila-api-access-token": accessToken,
-    // Tranzila rep instructed us to also send the raw secret as a header.
-    // Unusual (most APIs sign with HMAC instead of sending the secret), but
-    // we're following their guidance to unblock the 401.
-    "secret-key":                  SECRET_KEY,
   };
 }
 
@@ -122,14 +113,11 @@ export async function chargeToken(
     terminal:        TERMINAL,
     businessId,
     requestTime:     headers["X-tranzila-api-request-time"],
-    reqTimeAsIL:     new Date(reqTimeMs).toISOString().replace("Z", " (UTC→read as IL wall clock)"),
-    actualUTCnow:    new Date().toISOString(),
-    serverTZoffset:  -new Date().getTimezoneOffset() / 60 + "h",
     nonce:           headers["X-tranzila-api-nonce"],
-    accessTokenHead: headers["X-tranzila-api-access-token"].slice(0, 16) + "…",
+    accessToken:     headers["X-tranzila-api-access-token"], // full hex, for debugging
+    publicKeyHead:   PUBLIC_KEY.slice(0, 20) + "…" + PUBLIC_KEY.slice(-10),
     publicKeyLen:    PUBLIC_KEY.length,
     secretLen:       SECRET_KEY.length,
-    timeMode:        process.env.TRANZILA_TIME_UTC === "true" ? "UTC" : "IL (+3h)",
   });
 
   try {
