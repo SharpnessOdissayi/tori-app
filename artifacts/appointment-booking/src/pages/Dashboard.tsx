@@ -3333,9 +3333,31 @@ function IntegrationsTab() {
         shabbatMode,
       } as any
     }, {
-      onSuccess: () => {
+      onSuccess: async (updated) => {
         toast({ title: "הגדרות הודעות נשמרו" });
-        queryClient.invalidateQueries({ queryKey: getGetBusinessProfileQueryKey() });
+        // Force-refetch the active profile query so the sticky bar's
+        // cancel-edit baseline + other tabs see the new value immediately.
+        await queryClient.invalidateQueries({ queryKey: getGetBusinessProfileQueryKey(), refetchType: "active" });
+        // Echo the server's response into local state — avoids any
+        // scenario where the toggle flips back because the local state
+        // didn't re-sync from the invalidated query.
+        if (updated) {
+          setNotificationEnabled((updated as any).notificationEnabled ?? true);
+          setSendBookingConfirmation((updated as any).sendBookingConfirmation ?? true);
+          setSendReminders((updated as any).sendReminders ?? true);
+          setAnnouncementText((updated as any).announcementText ?? "");
+          setAnnouncementValidHours((updated as any).announcementValidHours ?? 24);
+          setShabbatMode(((updated as any).shabbatMode ?? "any") as "any" | "shabbat");
+          const saved = (updated as any).reminderTriggers;
+          if (saved) { try { setReminderTriggers(JSON.parse(saved)); } catch {} }
+        }
+      },
+      onError: (err: any) => {
+        toast({
+          title: "שגיאה בשמירה",
+          description: err?.response?.data?.message ?? err?.message ?? "נסה שוב",
+          variant: "destructive",
+        });
       },
     });
   };
