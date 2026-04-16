@@ -190,7 +190,52 @@ router.post("/auth/business/register", async (req, res): Promise<void> => {
   );
 
   const token = signBusinessToken({ businessId: business.id, email: business.email });
+
+  // Send welcome email (fire-and-forget — doesn't gate the signup).
+  (async () => {
+    const { sendWelcomeEmail } = await import("../lib/emailAuth");
+    await sendWelcomeEmail({
+      email,
+      ownerName,
+      plan: subscriptionPlan as "free" | "pro",
+      slug,
+    });
+  })().catch(() => {});
+
   res.status(201).json(buildLoginResponse(business, token));
+});
+
+// POST /auth/email/send-verification — send a 6-digit code to an email
+router.post("/auth/email/send-verification", async (req, res): Promise<void> => {
+  const { email } = req.body ?? {};
+  if (!email || typeof email !== "string") {
+    res.status(400).json({ error: "Invalid email" });
+    return;
+  }
+  const { sendEmailVerificationCode } = await import("../lib/emailAuth");
+  await sendEmailVerificationCode(email.toLowerCase().trim(), "signup");
+  res.json({ success: true });
+});
+
+// POST /auth/email/verify — exchange email + code for verification success
+router.post("/auth/email/verify", async (req, res): Promise<void> => {
+  const { email, code } = req.body ?? {};
+  if (!email || !code) {
+    res.status(400).json({ error: "Missing email or code" });
+    return;
+  }
+  const { verifyEmailCode } = await import("../lib/emailAuth");
+  const ok = await verifyEmailCode(email.toLowerCase().trim(), String(code), "signup");
+  if (!ok) {
+    res.status(400).json({ error: "invalid_code", message: "הקוד שגוי או פג תוקף" });
+    return;
+  }
+  // If the email belongs to an already-registered business, flip email_verified.
+  await db
+    .update(businessesTable)
+    .set({ emailVerified: true } as any)
+    .where(eq(sql`lower(${businessesTable.email})`, email.toLowerCase().trim()));
+  res.json({ success: true });
 });
 
 // POST /auth/business/change-password — change own password

@@ -22,6 +22,76 @@ export async function runMigrations() {
       )
     `));
 
+    // Kavati's own receipts to business owners (קבלות עוסק פטור).
+    // Sequential per-issuer numbering is required by Israeli tax law.
+    // The "issuer" here is always Kavati — we use a single numbering space.
+    await db.execute(sql.raw(`
+      CREATE TABLE IF NOT EXISTS kavati_receipts (
+        id                 SERIAL PRIMARY KEY,
+        receipt_number     INTEGER NOT NULL UNIQUE,
+        business_id        INTEGER,
+        business_name      TEXT,
+        business_email     TEXT,
+        business_tax_id    TEXT,
+        amount_agorot      INTEGER NOT NULL,
+        currency           TEXT NOT NULL DEFAULT 'ILS',
+        payment_method     TEXT,
+        payment_reference  TEXT,
+        purpose            TEXT NOT NULL,
+        description        TEXT,
+        issued_at          TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      )
+    `));
+
+    // Email verification codes — persistent so a server restart doesn't
+    // strand a user mid-signup. 6-digit code, 15-minute TTL.
+    await db.execute(sql.raw(`
+      CREATE TABLE IF NOT EXISTS email_verification_codes (
+        email       TEXT PRIMARY KEY,
+        code        TEXT NOT NULL,
+        purpose     TEXT NOT NULL DEFAULT 'signup',
+        expires_at  TIMESTAMPTZ NOT NULL,
+        created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      )
+    `));
+
+    // Receipts issued BY a business owner TO their clients. Each business
+    // keeps its own sequential numbering (per-business issuer). Business
+    // owners manage these via the dashboard. Kavati is NOT the issuer —
+    // Kavati is the platform. Legal responsibility sits with the business.
+    await db.execute(sql.raw(`
+      CREATE TABLE IF NOT EXISTS business_receipts (
+        id                 SERIAL PRIMARY KEY,
+        business_id        INTEGER NOT NULL,
+        receipt_number     INTEGER NOT NULL,
+        client_name        TEXT,
+        client_phone       TEXT,
+        client_email       TEXT,
+        amount_agorot      INTEGER NOT NULL,
+        currency           TEXT NOT NULL DEFAULT 'ILS',
+        payment_method     TEXT,
+        description        TEXT,
+        appointment_id     INTEGER,
+        issued_at          TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        UNIQUE (business_id, receipt_number)
+      )
+    `));
+
+    // Business tax/invoice profile — what the business owner prints on
+    // their receipts. Separate from the public booking-page profile.
+    const receiptFields: string[] = [
+      "ALTER TABLE businesses ADD COLUMN IF NOT EXISTS business_tax_id TEXT",
+      "ALTER TABLE businesses ADD COLUMN IF NOT EXISTS business_legal_type TEXT",   // 'exempt' | 'authorized' | 'company'
+      "ALTER TABLE businesses ADD COLUMN IF NOT EXISTS business_legal_name TEXT",
+      "ALTER TABLE businesses ADD COLUMN IF NOT EXISTS invoice_address TEXT",
+      "ALTER TABLE businesses ADD COLUMN IF NOT EXISTS auto_send_receipts BOOLEAN NOT NULL DEFAULT FALSE",
+      // Email verification status for the business-owner account.
+      "ALTER TABLE businesses ADD COLUMN IF NOT EXISTS email_verified BOOLEAN NOT NULL DEFAULT FALSE",
+    ];
+    for (const stmt of receiptFields) {
+      await db.execute(sql.raw(stmt));
+    }
+
     const alterations: string[] = [
       // Booking restrictions
       `ALTER TABLE businesses ADD COLUMN IF NOT EXISTS min_lead_hours INTEGER NOT NULL DEFAULT 0`,

@@ -168,6 +168,40 @@ router.post("/tranzila/notify", async (req, res): Promise<void> => {
 
         console.log(`[Tranzila] Business ${businessId} upgraded to Pro, renews ${renewDate.toISOString()}`);
 
+        // Issue a receipt from Kavati → business owner (fire-and-forget).
+        // Distinguish initial vs. recurring via sto_external_id (presence
+        // means recurring; absence means the first, iframe-driven charge).
+        const isRecurring = !!(body.sto_external_id ?? body.stoExternalId);
+        const sumAgorot = Math.round(Number(body.sum ?? body.Amount ?? 0) * 100);
+        const confirmation = String(body.ConfirmationCode ?? body.confirmationCode ?? body.index ?? "").trim();
+
+        (async () => {
+          try {
+            const [biz] = await db
+              .select({
+                name:  businessesTable.name,
+                email: businessesTable.email,
+                taxId: (businessesTable as any).businessTaxId,
+              })
+              .from(businessesTable)
+              .where(eq(businessesTable.id, businessId));
+            if (!biz) return;
+            const { issueKavatiReceipt } = await import("../lib/receipts");
+            await issueKavatiReceipt({
+              businessId,
+              businessName:     biz.name,
+              businessEmail:    biz.email,
+              businessTaxId:    biz.taxId ?? null,
+              amountAgorot:     sumAgorot || (isRecurring ? SUBSCRIPTION_MONTHLY_ILS * 100 : SUBSCRIPTION_FIRST_ILS * 100),
+              paymentMethod:    "credit_card",
+              paymentReference: confirmation || undefined,
+              purpose:          isRecurring ? "subscription_renewal" : "subscription_initial",
+            });
+          } catch (e) {
+            console.error("[Tranzila] receipt issuance failed:", e);
+          }
+        })();
+
         // Now that we have the token, create an STO on Tranzila's side so
         // they auto-charge every month from here on out. Skip if the
         // business already has one (re-subscription after cancel).

@@ -10,6 +10,7 @@ import clientRouter from "./client";
 import tranzilaRouter from "./tranzila";
 import subscriptionRouter from "./subscription";
 import notificationsRouter from "./notifications";
+import receiptsRouter from "./receipts";
 
 const router: IRouter = Router();
 
@@ -24,5 +25,6 @@ router.use(clientRouter);
 router.use(tranzilaRouter);
 router.use(subscriptionRouter);
 router.use(notificationsRouter);
+router.use(receiptsRouter);
 
 export default router;
