@@ -41,8 +41,14 @@ interface EditFormData {
 }
 
 export default function SuperAdmin() {
-  const [username, setUsername] = useState("");
+  // Per-screen storage — admin credentials never touch the business-owner
+  // or client-portal keys.
+  const [username, setUsername] = useState(() => {
+    try { return localStorage.getItem("kavati_admin_last_username") ?? ""; }
+    catch { return ""; }
+  });
   const [password, setPassword] = useState("");
+  const [rememberMe, setRememberMe] = useState(true);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -66,12 +72,18 @@ export default function SuperAdmin() {
   useEffect(() => {
     if (loginAttempted && !isLoading && businesses && !isAuthenticated) {
       setIsAuthenticated(true);
+      // Persist the admin username for next visit when the owner checked
+      // "זכור אותי". Password is NEVER persisted — only the handle.
+      try {
+        if (rememberMe) localStorage.setItem("kavati_admin_last_username", username.trim());
+        else            localStorage.removeItem("kavati_admin_last_username");
+      } catch {}
     }
     if (loginAttempted && isError && !isAuthenticated) {
       setLoginAttempted(false);
       toast({ title: "סיסמה שגויה", variant: "destructive" });
     }
-  }, [loginAttempted, isLoading, businesses, isAuthenticated, isError, toast]);
+  }, [loginAttempted, isLoading, businesses, isAuthenticated, isError, toast, rememberMe, username]);
 
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
@@ -276,14 +288,44 @@ export default function SuperAdmin() {
               <CardDescription>גישה מוגבלת למנהלי המערכת בלבד</CardDescription>
             </CardHeader>
             <CardContent>
-              <form onSubmit={handleLogin} className="space-y-4">
+              {/* autoComplete="off" + unique input name on both fields so
+                  the browser's password manager doesn't suggest client-
+                  portal or business-owner credentials here. */}
+              <form onSubmit={handleLogin} className="space-y-4" autoComplete="off">
                 <div className="space-y-2">
                   <Label>שם משתמש</Label>
-                  <Input value={username} onChange={e => setUsername(e.target.value)} dir="ltr" placeholder="admin" autoComplete="username" />
+                  <Input
+                    value={username}
+                    onChange={e => setUsername(e.target.value)}
+                    dir="ltr"
+                    placeholder="admin"
+                    name="kavati-admin-username"
+                    autoComplete="off"
+                  />
                 </div>
                 <div className="space-y-2">
                   <Label>סיסמת מנהל</Label>
-                  <Input type="password" value={password} onChange={e => setPassword(e.target.value)} dir="ltr" placeholder="••••••••" autoComplete="current-password" />
+                  <Input
+                    type="password"
+                    value={password}
+                    onChange={e => setPassword(e.target.value)}
+                    dir="ltr"
+                    placeholder="••••••••"
+                    name="kavati-admin-password"
+                    autoComplete="new-password"
+                  />
+                </div>
+                <div className="flex items-center gap-2 py-1">
+                  <input
+                    type="checkbox"
+                    id="admin-remember-me"
+                    checked={rememberMe}
+                    onChange={e => setRememberMe(e.target.checked)}
+                    className="w-4 h-4 rounded border-border accent-primary cursor-pointer"
+                  />
+                  <label htmlFor="admin-remember-me" className="text-sm text-muted-foreground cursor-pointer select-none">
+                    זכור אותי במכשיר זה
+                  </label>
                 </div>
                 <Button type="submit" className="w-full h-11">כניסה</Button>
               </form>
@@ -741,7 +783,7 @@ function DomainReviewPanel({ adminPassword }: { adminPassword: string }) {
         </CardTitle>
         {open && (
           <CardDescription className="pt-2">
-            עסקים שביקשו להשתמש בדומיין משלהם. <b>תהליך האישור:</b> קופי את הדומיין → Railway → Settings → Domains → Add Domain → המתן 5-10 דק' ל-SSL → לחץ "אשר" כאן.
+            עסקים שהוסיפו דומיין משלהם. <b>התהליך אוטומטי לגמרי</b> — המערכת רושמת את הדומיין ב-Railway ברגע שהלקוח שומר, ה-cron בודק כל 2 דקות, וברגע שה-DNS + SSL מוכנים (2-10 דקות אחרי שהלקוח הוסיף CNAME) הדומיין עובר אוטומטית לסטטוס "פעיל". <b>אין צורך בפעולה ידנית.</b> הכפתורים "אשר / בטל" כאן קיימים רק למקרי חירום (override ידני).
           </CardDescription>
         )}
       </CardHeader>

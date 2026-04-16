@@ -82,12 +82,23 @@ function BusinessAvatar({ biz, size = 56 }: { biz: { name: string; logoUrl?: str
 // ─── Login Screen ─────────────────────────────────────────────────────────────
 
 function LoginScreen({ onLogin }: { onLogin: (token: string, name: string) => void }) {
-  const [phone, setPhone] = useState("");
+  // Pre-fill the phone with the last remembered value from a previous
+  // portal login on this device. Stored under a client-specific key so
+  // it never mixes with business-owner or super-admin credentials.
+  const [phone, setPhone] = useState(() => {
+    try { return localStorage.getItem("kavati_client_last_phone") ?? ""; }
+    catch { return ""; }
+  });
   const [code, setCode] = useState("");
   const [step, setStep] = useState<"phone" | "otp">("phone");
   const [loading, setLoading] = useState(false);
   const [remember, setRemember] = useState(true);
   const { toast } = useToast();
+
+  const rememberPhone = () => {
+    if (remember) localStorage.setItem("kavati_client_last_phone", phone.trim());
+    else          localStorage.removeItem("kavati_client_last_phone");
+  };
 
   const storeToken = (token: string) =>
     (remember ? localStorage : sessionStorage).setItem(TOKEN_KEY, token);
@@ -118,6 +129,7 @@ function LoginScreen({ onLogin }: { onLogin: (token: string, name: string) => vo
       const data = await res.json();
       if (!res.ok) throw new Error(data.error);
       storeToken(data.token);
+      rememberPhone();
       onLogin(data.token, data.clientName);
     } catch (e: any) { toast({ title: e?.message ?? "קוד שגוי", variant: "destructive" }); }
     finally { setLoading(false); }

@@ -760,7 +760,13 @@ function NotificationBell({ token }: { token: string }) {
 }
 
 function Login({ onLogin }: { onLogin: (t: string) => void }) {
-  const [identifier, setIdentifier] = useState("");
+  // Pre-fill the identifier from the last "remember me"-checked login to
+  // this same screen. Stored under a BUSINESS-SPECIFIC key so client
+  // portal and super-admin credentials never bleed over.
+  const [identifier, setIdentifier] = useState(() => {
+    try { return localStorage.getItem("kavati_biz_last_identifier") ?? ""; }
+    catch { return ""; }
+  });
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [rememberMe, setRememberMe] = useState(true);
@@ -785,10 +791,12 @@ function Login({ onLogin }: { onLogin: (t: string) => void }) {
       onSuccess: (data) => {
         if (rememberMe) {
           localStorage.setItem("biz_token", data.token);
+          localStorage.setItem("kavati_biz_last_identifier", identifier.trim());
           sessionStorage.removeItem("biz_token");
         } else {
           sessionStorage.setItem("biz_token", data.token);
           localStorage.removeItem("biz_token");
+          localStorage.removeItem("kavati_biz_last_identifier");
         }
         onLogin(data.token);
       },
