@@ -50,7 +50,7 @@ export default function Navbar({ leftContent }: { leftContent?: ReactNode }) {
             <img
               src="/logo.svg"
               alt="קבעתי"
-              className="h-10 object-contain cursor-pointer select-none"
+              className="h-[50px] object-contain cursor-pointer select-none"
             />
           </Link>
 

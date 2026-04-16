@@ -387,14 +387,18 @@ router.patch("/client/appointments/:id/reschedule", requireClientAuth, async (re
     })
     .where(eq(appointmentsTable.id, appt.id));
 
-  // Notify the business owner — client-initiated reschedule.
-  const [, month, day] = newDate.split("-");
-  const formattedDate = `${day}/${month}`;
+  // Notify the business owner — client-initiated reschedule. Owner asked
+  // to see WHO updated and FROM-WHEN → TO-WHEN, so the message quotes
+  // both the old and new appointment slots rather than just the new one.
+  const [, newMonth, newDay] = newDate.split("-");
+  const [, oldMonth, oldDay] = appt.appointmentDate.split("-");
+  const fromLabel = `${oldDay}/${oldMonth} ${appt.appointmentTime}`;
+  const toLabel   = `${newDay}/${newMonth} ${newTime}`;
   logBusinessNotification({
     businessId:   appt.businessId,
     type:         "reschedule",
     appointmentId: appt.id,
-    message:      `${appt.clientName} עדכן/ה את התור של ${appt.serviceName} ל-${formattedDate} בשעה ${newTime}`,
+    message:      `${appt.clientName} עדכן/ה את התור של ${appt.serviceName} מ-${fromLabel} ל-${toLabel}`,
     actorType:    "client",
     actorName:    appt.clientName,
   });

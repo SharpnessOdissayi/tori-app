@@ -524,7 +524,7 @@ export default function ClientPortal() {
             <img
               src="/logo.svg"
               alt="קבעתי"
-              className="h-10 object-contain"
+              className="h-[50px] object-contain"
             />
           </a>
           <div>
