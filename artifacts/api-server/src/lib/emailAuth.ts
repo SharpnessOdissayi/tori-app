@@ -47,7 +47,9 @@ export async function sendEmailVerificationCode(
     </div>`;
 
   try {
-    await sendEmail(email, "קוד האימות שלך — Kavati", html);
+    await sendEmail(email, "קוד האימות שלך — Kavati", html, {
+      from: "Kavati <verify@kavati.net>",
+    });
   } catch (e) {
     logger.error({ err: e, email }, "[emailAuth] send code failed");
   }
@@ -104,7 +106,9 @@ export async function sendWelcomeEmail(params: {
     </div>`;
 
   try {
-    await sendEmail(email, "ברוך הבא ל-Kavati", html);
+    await sendEmail(email, "ברוך הבא ל-Kavati", html, {
+      from: "Kavati <welcome@kavati.net>",
+    });
   } catch (e) {
     logger.error({ err: e, email }, "[emailAuth] welcome email failed");
   }
