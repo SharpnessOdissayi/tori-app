@@ -21,7 +21,11 @@
 import crypto from "crypto";
 import { logger } from "./logger";
 
-const TERMINAL   = process.env.TRANZILA_SUPPLIER       ?? "";
+// Monthly token charges run on the TOK terminal (lilash2tok), which is
+// configured to accept TranzilaTK without CVV or card_holder_id.
+// The initial iframe charge runs on lilash2 (TRANZILA_SUPPLIER) and returns
+// a token that is valid across sibling terminals in the same account.
+const TERMINAL   = process.env.TRANZILA_SUPPLIER_TOK   ?? "";
 const PUBLIC_KEY = process.env.TRANZILA_API_PUBLIC_KEY ?? "";
 const SECRET_KEY = process.env.TRANZILA_API_SECRET_KEY ?? "";
 
