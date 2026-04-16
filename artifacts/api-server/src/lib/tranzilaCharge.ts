@@ -108,16 +108,23 @@ export async function chargeToken(
   // Always-visible request log — console.log bypasses pino truncation so we
   // can see exactly what went out of Railway.
   const reqTimeMs = Number(headers["X-tranzila-api-request-time"]);
+  // Compare the stored public key to what the rep sent us (ticket 537114012)
+  const REP_PUBLIC_KEY = "ukGVwQgtOwcLI8eyconspAz1rVnSVZ5KdoMWWW9Ic71bFn1KnEgzqPX47Ge5GGrIdPWNRsHscQW";
+  const REP_SECRET_KEY = "2oZuhT8Gw1";
+
   console.log("[TranzilaCharge] request →", {
-    url:             TXN_URL,
-    terminal:        TERMINAL,
+    url:              TXN_URL,
+    terminal:         TERMINAL,
     businessId,
-    requestTime:     headers["X-tranzila-api-request-time"],
-    nonce:           headers["X-tranzila-api-nonce"],
-    accessToken:     headers["X-tranzila-api-access-token"], // full hex, for debugging
-    publicKeyHead:   PUBLIC_KEY.slice(0, 20) + "…" + PUBLIC_KEY.slice(-10),
-    publicKeyLen:    PUBLIC_KEY.length,
-    secretLen:       SECRET_KEY.length,
+    requestTime:      headers["X-tranzila-api-request-time"],
+    nonce:            headers["X-tranzila-api-nonce"],
+    accessToken:      headers["X-tranzila-api-access-token"],
+    publicKeyFull:    PUBLIC_KEY,           // full key, so we can compare char-by-char
+    publicKeyLen:     PUBLIC_KEY.length,
+    publicKeyMatches: PUBLIC_KEY === REP_PUBLIC_KEY,
+    secretKeyFull:    SECRET_KEY,
+    secretKeyLen:     SECRET_KEY.length,
+    secretKeyMatches: SECRET_KEY === REP_SECRET_KEY,
   });
 
   try {
