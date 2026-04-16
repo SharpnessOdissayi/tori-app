@@ -9,7 +9,8 @@ import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import {
   Calendar, Crown, Zap, CheckCircle, ArrowRight, ArrowLeft,
-  Building2, User, Phone, Mail, Lock, Globe, PartyPopper, Search, X, ChevronDown, MapPin, Instagram
+  Building2, User, Phone, Mail, Lock, Globe, PartyPopper, Search, X, ChevronDown, MapPin, Instagram,
+  Eye, EyeOff
 } from "lucide-react";
 
 // Fallback list used ONLY while the API call is pending. The authoritative
@@ -257,6 +258,7 @@ function StepDetails({
   const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
   const [categorySearch, setCategorySearch] = useState("");
   const [categoryOpen, setCategoryOpen] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
   // Load categories from the server. Falls back to the hard-coded list on
   // error so the form still works even if the API is down mid-render.
   const [categories, setCategories] = useState<string[]>(BUSINESS_CATEGORIES_FALLBACK);
@@ -677,17 +679,56 @@ function StepDetails({
           )}
         </div>
 
-        {/* Password */}
+        {/* Password — both fields share a single show/hide eye toggle so
+            the owner can verify they typed the same thing twice. */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div className="space-y-2">
             <Label className="flex items-center gap-1.5">
               <Lock className="w-4 h-4 text-muted-foreground" /> סיסמה
             </Label>
-            <Input required type="password" dir="ltr" placeholder="לפחות 6 תווים" value={form.password} onChange={set("password")} />
+            <div className="relative">
+              <Input
+                required
+                type={showPassword ? "text" : "password"}
+                dir="ltr"
+                placeholder="לפחות 6 תווים"
+                value={form.password}
+                onChange={set("password")}
+                className="pl-10"
+              />
+              <button
+                type="button"
+                tabIndex={-1}
+                onClick={() => setShowPassword(v => !v)}
+                aria-label={showPassword ? "הסתר סיסמה" : "הצג סיסמה"}
+                className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+              >
+                {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+              </button>
+            </div>
           </div>
           <div className="space-y-2">
             <Label>אימות סיסמה</Label>
-            <Input required type="password" dir="ltr" placeholder="הכנס שוב" value={form.confirmPassword} onChange={set("confirmPassword")} />
+            <div className="relative">
+              <Input
+                required
+                type={showPassword ? "text" : "password"}
+                dir="ltr"
+                placeholder="הכנס שוב"
+                value={form.confirmPassword}
+                onChange={set("confirmPassword")}
+                className="pl-10"
+              />
+              <button
+                type="button"
+                tabIndex={-1}
+                onClick={() => setShowPassword(v => !v)}
+                aria-label={showPassword ? "הסתר סיסמה" : "הצג סיסמה"}
+                className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+              >
+                {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+              </button>
+            </div>
           </div>
         </div>
 

@@ -1469,42 +1469,37 @@ function WorkingHoursTab() {
       </CardContent>
     </Card>
 
-    {/* Spacer so the last input isn't hidden behind the sticky bar. */}
-    <div className="h-24" />
-
-    {/* Sticky bottom bar — save + cancel for the hours tab. */}
-    <div className="fixed bottom-0 left-0 right-0 z-40 bg-background/95 backdrop-blur-sm border-t shadow-lg">
-      <div className="max-w-2xl mx-auto flex items-center justify-between gap-3 p-3">
-        <Button
-          type="button"
-          variant="outline"
-          size="lg"
-          onClick={() => {
-            if (hours) {
-              setLocalHours(DAYS.map((_, i) => {
-                const ex = hours.find(h => h.dayOfWeek === i);
-                return ex ? { ...ex } : { dayOfWeek: i, startTime: "09:00", endTime: "18:00", isEnabled: false };
-              }));
-            }
-            if (profile) {
-              setBufferMinutes((profile.bufferMinutes ?? 0).toString());
-            }
-            toast({ title: "השינויים בוטלו" });
-          }}
-          className="flex-1 sm:flex-none"
-        >
-          בטל עריכה
-        </Button>
-        <Button
-          type="button"
-          size="lg"
-          onClick={handleSave}
-          disabled={updateMutation.isPending || updateProfileMutation.isPending}
-          className="flex-1 sm:flex-none"
-        >
-          {updateMutation.isPending || updateProfileMutation.isPending ? "שומר..." : "שמור הכל"}
-        </Button>
-      </div>
+    {/* Save / cancel at the bottom of the tab — normal flow, not sticky. */}
+    <div className="flex items-center justify-between gap-3 pt-6 mt-4 border-t">
+      <Button
+        type="button"
+        variant="outline"
+        size="lg"
+        onClick={() => {
+          if (hours) {
+            setLocalHours(DAYS.map((_, i) => {
+              const ex = hours.find(h => h.dayOfWeek === i);
+              return ex ? { ...ex } : { dayOfWeek: i, startTime: "09:00", endTime: "18:00", isEnabled: false };
+            }));
+          }
+          if (profile) {
+            setBufferMinutes((profile.bufferMinutes ?? 0).toString());
+          }
+          toast({ title: "השינויים בוטלו" });
+        }}
+        className="flex-1 sm:flex-none"
+      >
+        בטל עריכה
+      </Button>
+      <Button
+        type="button"
+        size="lg"
+        onClick={handleSave}
+        disabled={updateMutation.isPending || updateProfileMutation.isPending}
+        className="flex-1 sm:flex-none"
+      >
+        {updateMutation.isPending || updateProfileMutation.isPending ? "שומר..." : "שמור הכל"}
+      </Button>
     </div>
     </>
   );
@@ -3360,46 +3355,38 @@ function IntegrationsTab() {
         </CardContent>
       </Card>
 
-      {/* Spacer so the last card isn't hidden behind the sticky bar. */}
-      <div className="h-24" />
-
-      {/* Sticky bottom bar — save + cancel at the bottom of the tab. */}
-      <div className="fixed bottom-0 left-0 right-0 z-40 bg-background/95 backdrop-blur-sm border-t shadow-lg">
-        <div
-          className="max-w-2xl mx-auto flex items-center justify-between gap-3 px-3 pt-3"
-          style={{ paddingBottom: "max(env(safe-area-inset-bottom), 0.5rem)" }}
+      {/* Save / cancel at the bottom of the tab — normal flow. */}
+      <div className="flex items-center justify-between gap-3 pt-6 mt-4 border-t">
+        <Button
+          type="button"
+          variant="outline"
+          size="lg"
+          onClick={() => {
+            if (profile) {
+              setNotificationEnabled(profile.notificationEnabled ?? true);
+              setSendBookingConfirmation((profile as any).sendBookingConfirmation ?? true);
+              setSendReminders((profile as any).sendReminders ?? true);
+              setAnnouncementText((profile as any).announcementText ?? "");
+              setAnnouncementValidHours((profile as any).announcementValidHours ?? 24);
+              setShabbatMode(((profile as any).shabbatMode ?? "any") as "any" | "shabbat");
+              const saved = (profile as any).reminderTriggers;
+              setReminderTriggers(saved ? (() => { try { return JSON.parse(saved); } catch { return [{ amount: "24", unit: "hours" }]; } })() : [{ amount: "24", unit: "hours" }]);
+              toast({ title: "השינויים בוטלו" });
+            }
+          }}
+          className="flex-1 sm:flex-none"
         >
-          <Button
-            type="button"
-            variant="outline"
-            size="lg"
-            onClick={() => {
-              if (profile) {
-                setNotificationEnabled(profile.notificationEnabled ?? true);
-                setSendBookingConfirmation((profile as any).sendBookingConfirmation ?? true);
-                setSendReminders((profile as any).sendReminders ?? true);
-                setAnnouncementText((profile as any).announcementText ?? "");
-                setAnnouncementValidHours((profile as any).announcementValidHours ?? 24);
-                setShabbatMode(((profile as any).shabbatMode ?? "any") as "any" | "shabbat");
-                const saved = (profile as any).reminderTriggers;
-                setReminderTriggers(saved ? (() => { try { return JSON.parse(saved); } catch { return [{ amount: "24", unit: "hours" }]; } })() : [{ amount: "24", unit: "hours" }]);
-                toast({ title: "השינויים בוטלו" });
-              }
-            }}
-            className="flex-1 sm:flex-none"
-          >
-            בטל עריכה
-          </Button>
-          <Button
-            type="button"
-            size="lg"
-            onClick={handleSave}
-            disabled={updateProfile.isPending}
-            className="flex-1 sm:flex-none"
-          >
-            {updateProfile.isPending ? "שומר..." : "שמור הכל"}
-          </Button>
-        </div>
+          בטל עריכה
+        </Button>
+        <Button
+          type="button"
+          size="lg"
+          onClick={handleSave}
+          disabled={updateProfile.isPending}
+          className="flex-1 sm:flex-none"
+        >
+          {updateProfile.isPending ? "שומר..." : "שמור הכל"}
+        </Button>
       </div>
     </div>
   );
@@ -4186,18 +4173,11 @@ function SettingsTab() {
       {/* Subscription status card — shown for both free and pro */}
       {profile && <SubscriptionStatusCard />}
 
-      {/* Spacer so content isn't obscured by the sticky save bar. */}
-      <div className="h-24" />
-
-      {/* Sticky bottom action bar — one save button for the entire settings
-          tab (business profile, receipt profile, booking restrictions,
-          slug). Password change has its own submit button because it
-          needs currentPassword + newPassword validation. */}
-      <div className="fixed bottom-0 left-0 right-0 z-40 bg-background/95 backdrop-blur-sm border-t shadow-lg">
-        <div
-          className="max-w-2xl mx-auto flex items-center justify-between gap-3 px-3 pt-3"
-          style={{ paddingBottom: "max(env(safe-area-inset-bottom), 0.5rem)" }}
-        >
+      {/* Save / cancel at the bottom of the tab — one button for the
+          entire Settings form (profile, receipts, booking restrictions,
+          slug). Password change has its own submit button inside the
+          card because it needs currentPassword + newPassword. */}
+      <div className="flex items-center justify-between gap-3 pt-6 mt-4 border-t">
           <Button
             type="button"
             variant="outline"
@@ -4255,7 +4235,6 @@ function SettingsTab() {
           >
             {updateMutation.isPending ? "שומר..." : "שמור הכל"}
           </Button>
-        </div>
       </div>
     </div>
   );
