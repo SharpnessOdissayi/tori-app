@@ -959,9 +959,13 @@ export default function Book() {
             }).catch(() => {});
           }
           if (data?.requiresPayment && data?.id) {
+            // Open the Tranzila iframe in a modal instead of navigating away.
+            // PaymentSuccess.tsx detects it runs in an iframe and posts a
+            // kavati_payment_success message back to this window, which we
+            // listen for in the useEffect above (closes modal + advances step).
             fetch(`${API_BASE}/tranzila/payment-url/${data.id}`)
               .then(r => r.json())
-              .then(({ url }) => { if (url) window.location.href = url; else setStep(5); })
+              .then(({ url }) => { if (url) setPaymentIframeUrl(url); else setStep(5); })
               .catch(() => setStep(5));
           } else {
             setStep(5);
