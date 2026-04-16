@@ -826,6 +826,7 @@ function Login({ onLogin }: { onLogin: (t: string) => void }) {
                   value={identifier}
                   onChange={e => setIdentifier(e.target.value)}
                   dir="ltr"
+                  name="kavati-biz-identifier"
                   autoComplete="username"
                 />
               </div>
@@ -838,6 +839,7 @@ function Login({ onLogin }: { onLogin: (t: string) => void }) {
                     value={password}
                     onChange={e => setPassword(e.target.value)}
                     dir="ltr"
+                    name="kavati-biz-password"
                     autoComplete="current-password"
                     className="pr-10"
                   />

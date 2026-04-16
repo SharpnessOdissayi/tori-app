@@ -288,10 +288,12 @@ export default function SuperAdmin() {
               <CardDescription>גישה מוגבלת למנהלי המערכת בלבד</CardDescription>
             </CardHeader>
             <CardContent>
-              {/* autoComplete="off" + unique input name on both fields so
-                  the browser's password manager doesn't suggest client-
-                  portal or business-owner credentials here. */}
-              <form onSubmit={handleLogin} className="space-y-4" autoComplete="off">
+              {/* Unique name= on each input keeps this credential set
+                  separate in the browser's password manager — so it
+                  WILL offer to save/autofill the admin password, without
+                  mixing it with the business-owner or client-portal
+                  credentials the same browser also remembers. */}
+              <form onSubmit={handleLogin} className="space-y-4">
                 <div className="space-y-2">
                   <Label>שם משתמש</Label>
                   <Input
@@ -300,7 +302,7 @@ export default function SuperAdmin() {
                     dir="ltr"
                     placeholder="admin"
                     name="kavati-admin-username"
-                    autoComplete="off"
+                    autoComplete="username"
                   />
                 </div>
                 <div className="space-y-2">
@@ -312,7 +314,7 @@ export default function SuperAdmin() {
                     dir="ltr"
                     placeholder="••••••••"
                     name="kavati-admin-password"
-                    autoComplete="new-password"
+                    autoComplete="current-password"
                   />
                 </div>
                 <div className="flex items-center gap-2 py-1">
