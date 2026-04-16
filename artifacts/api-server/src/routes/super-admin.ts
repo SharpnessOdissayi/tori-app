@@ -15,9 +15,19 @@ const router = Router();
 
 // Every route in this file requires super-admin credentials. The middleware
 // reads them from the X-Admin-Password header (preferred) or from the legacy
-// query/body `adminPassword` field (flagged for migration). Individual
-// routes MUST NOT rely on the adminPassword in the body/query any more.
-router.use(requireSuperAdmin);
+// query/body `adminPassword` field (flagged for migration).
+//
+// CRITICAL: scope this middleware to /super-admin/* ONLY. The router is
+// mounted at the API root (app.use(superAdminRouter)), so a bare
+// router.use(requireSuperAdmin) would reject every unrelated request
+// (e.g. /auth/business/login) with 401 — that locked every user out of
+// the system in production.
+router.use((req, res, next) => {
+  if (req.path.startsWith("/super-admin")) {
+    return requireSuperAdmin(req, res, next);
+  }
+  next();
+});
 
 function mapAdminBusiness(b: typeof businessesTable.$inferSelect) {
   return {
