@@ -110,23 +110,12 @@ export async function chargeToken(
   // Always-visible request log — console.log bypasses pino truncation so we
   // can see exactly what went out of Railway.
   const reqTimeMs = Number(headers["X-tranzila-api-request-time"]);
-  // Compare the stored public key to what the rep sent us (ticket 537114012)
-  const REP_PUBLIC_KEY = "ukGVwQgtOwcLI8eyconspAz1rVnSVZ5KdoMWWW9Ic71bFn1KnEgzqPX47Ge5GGrIdPWNRsHscQW";
-  const REP_SECRET_KEY = "2oZuhT8Gw1";
-
   console.log("[TranzilaCharge] request →", {
-    url:              TXN_URL,
-    terminal:         TERMINAL,
+    url:         TXN_URL,
+    terminal:    TERMINAL,
     businessId,
-    requestTime:      headers["X-tranzila-api-request-time"],
-    nonce:            headers["X-tranzila-api-nonce"],
-    accessToken:      headers["X-tranzila-api-access-token"],
-    publicKeyFull:    PUBLIC_KEY,           // full key, so we can compare char-by-char
-    publicKeyLen:     PUBLIC_KEY.length,
-    publicKeyMatches: PUBLIC_KEY === REP_PUBLIC_KEY,
-    secretKeyFull:    SECRET_KEY,
-    secretKeyLen:     SECRET_KEY.length,
-    secretKeyMatches: SECRET_KEY === REP_SECRET_KEY,
+    requestTime: headers["X-tranzila-api-request-time"],
+    nonce:       headers["X-tranzila-api-nonce"],
   });
 
   try {
@@ -144,11 +133,15 @@ export async function chargeToken(
     } = {};
     try { data = JSON.parse(rawResponse); } catch {}
 
-    const responseCode = data.transaction_result?.processor_response_code
-      ?? String(data.error_code ?? res.status);
+    const processorCode = data.transaction_result?.processor_response_code;
+    const responseCode  = processorCode ?? String(data.error_code ?? res.status);
+    // "000" = SHVA approved (real charge accepted).
+    // "006" = test terminal / test card refusal — reached SHVA but rejected.
+    //   In that case Tranzila still returns error_code=0 + "הצלחה" — the
+    //   HMAC auth worked, this is ONLY a card-level decision.
     const success = res.ok
       && data.error_code === 0
-      && data.transaction_result?.processor_response_code === "000";
+      && processorCode === "000";
 
     console.log("[TranzilaCharge] response ←", {
       businessId,
