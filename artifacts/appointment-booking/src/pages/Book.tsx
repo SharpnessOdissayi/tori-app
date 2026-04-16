@@ -166,7 +166,7 @@ function makeHolidayDayButton(primaryColor: string) {
 }
 import { format } from "date-fns";
 import { he } from "date-fns/locale";
-import { Check, ChevronRight, Clock, CalendarIcon, User, Phone, CheckCircle2, ListOrdered, Globe, MapPin, Instagram } from "lucide-react";
+import { Check, ChevronRight, Clock, CalendarIcon, User, Phone, CheckCircle2, ListOrdered, Globe, MapPin, Instagram, Sun, Moon } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import "react-day-picker/dist/style.css";
 import { useToast } from "@/hooks/use-toast";
@@ -462,7 +462,22 @@ export default function Book() {
   const borderRadius = (business as any)?.borderRadius ?? "medium";
   const buttonRadius = (business as any)?.buttonRadius ?? "medium";
   const buttonRadiusPx = buttonRadius === "sharp" ? "4px" : buttonRadius === "rounded" ? "9999px" : "12px";
-  const themeMode = business?.themeMode ?? "light";
+  // Theme mode is now controlled by the CLIENT (toggle in the header),
+  // persisted in localStorage per business slug. The businesses table no
+  // longer drives it.
+  const [themeMode, setThemeMode] = useState<"light" | "dark">(() => {
+    try {
+      const v = localStorage.getItem(`kavati_theme_${businessSlug}`);
+      return v === "dark" ? "dark" : "light";
+    } catch { return "light"; }
+  });
+  const toggleTheme = () => {
+    setThemeMode(prev => {
+      const next = prev === "dark" ? "light" : "dark";
+      try { localStorage.setItem(`kavati_theme_${businessSlug}`, next); } catch {}
+      return next;
+    });
+  };
   const requireApproval = (business as any)?.requireAppointmentApproval ?? false;
   const showBusinessName = (business as any)?.showBusinessName ?? true;
   const showLogo = (business as any)?.showLogo ?? true;
@@ -1236,6 +1251,16 @@ export default function Book() {
               style={{ height: "224px", background: `linear-gradient(135deg, ${primaryColor}20, ${primaryColor}40)` }}
             />
           )}
+          {/* Dark/light toggle — top-right corner of banner */}
+          <button
+            onClick={toggleTheme}
+            aria-label={themeMode === "dark" ? "מצב בהיר" : "מצב כהה"}
+            title={themeMode === "dark" ? "מצב בהיר" : "מצב כהה"}
+            className="absolute top-3 left-3 w-10 h-10 rounded-full flex items-center justify-center bg-white/90 backdrop-blur-sm shadow-lg hover:scale-105 transition-all"
+            style={{ color: primaryColor }}
+          >
+            {themeMode === "dark" ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
+          </button>
           {/* Logo overlapping bottom edge of banner */}
           {showLogo && logoUrl && (
             <div className="absolute -bottom-12 left-1/2 -translate-x-1/2">

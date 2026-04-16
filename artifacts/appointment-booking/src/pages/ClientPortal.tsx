@@ -1,6 +1,6 @@
   import { useState, useEffect, useCallback } from "react";
 import { useLocation, useSearch } from "wouter";
-import { Home, CalendarDays, Plus, LogOut, Trash2, Edit2, X, ChevronLeft, Settings, Search, MapPin, Tag, Bell } from "lucide-react";
+import { Home, CalendarDays, Plus, LogOut, Trash2, Edit2, X, ChevronLeft, Settings, Search, MapPin, Tag, Bell, Sun, Moon } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 const API = import.meta.env.VITE_API_BASE_URL ?? "/api";
@@ -322,6 +322,25 @@ export default function ClientPortal() {
   const [hiddenApptIds, setHiddenApptIds] = useState<Set<number>>(
     () => new Set(JSON.parse(localStorage.getItem("kavati_hidden_appts") ?? "[]"))
   );
+  // Client-side dark-mode preference — lives only in the client's browser
+  const [portalTheme, setPortalTheme] = useState<"light" | "dark">(() => {
+    try { return localStorage.getItem("kavati_portal_theme") === "dark" ? "dark" : "light"; }
+    catch { return "light"; }
+  });
+  const togglePortalTheme = () => {
+    setPortalTheme(prev => {
+      const next = prev === "dark" ? "light" : "dark";
+      try { localStorage.setItem("kavati_portal_theme", next); } catch {}
+      return next;
+    });
+  };
+  useEffect(() => {
+    const root = document.documentElement;
+    if (portalTheme === "dark") root.classList.add("dark");
+    else root.classList.remove("dark");
+    return () => root.classList.remove("dark");
+  }, [portalTheme]);
+
   const [discoverOpen, setDiscoverOpen] = useState(false);
   const [discoverList, setDiscoverList] = useState<DirectoryBusiness[]>([]);
   const [discoverLoading, setDiscoverLoading] = useState(false);
@@ -503,6 +522,15 @@ export default function ClientPortal() {
               </>
             )}
           </div>
+          {/* Dark/light toggle */}
+          <button
+            onClick={togglePortalTheme}
+            aria-label={portalTheme === "dark" ? "מצב בהיר" : "מצב כהה"}
+            title={portalTheme === "dark" ? "מצב בהיר" : "מצב כהה"}
+            className="w-9 h-9 rounded-full bg-gray-100 flex items-center justify-center text-gray-600 hover:bg-gray-200 transition"
+          >
+            {portalTheme === "dark" ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
+          </button>
           <button onClick={() => { setProfileOpen(true); }}
             className="w-9 h-9 rounded-full bg-violet-50 flex items-center justify-center text-violet-600 hover:bg-violet-100 transition">
             <Settings className="w-4 h-4" />

@@ -2353,7 +2353,7 @@ function BrandingTab() {
         fontFamily: form.fontFamily || null,
         logoUrl: form.logoUrl || null,
         bannerUrl: form.bannerUrl || null,
-        themeMode: form.themeMode || null,
+        themeMode: "light",  // Deprecated — theme is now per-client via toggle buttons on Book/Portal
         borderRadius: form.borderRadius || null,
         buttonRadius: form.buttonRadius || null,
         welcomeText: null,
@@ -2685,67 +2685,6 @@ function BrandingTab() {
           <Separator />
 
           <FontPicker value={form.fontFamily} onChange={v => setForm(p => ({ ...p, fontFamily: v }))} />
-
-          <Separator />
-
-          <div className="space-y-4">
-            <h3 className="font-semibold text-base border-b pb-2">מצב תצוגה</h3>
-            <p className="text-xs text-muted-foreground">רקע בהיר / כהה / פוקסיה — משפיע על כל הצבעים של עמוד ההזמנות</p>
-            <div className="grid grid-cols-3 gap-3">
-              {/* Light */}
-              <button onClick={() => setForm(p => ({ ...p, themeMode: "light" }))}
-                className={`relative rounded-2xl overflow-hidden border-2 transition-all text-right ${form.themeMode === "light" ? "border-primary shadow-lg scale-[1.02]" : "border-border hover:border-muted-foreground"}`}>
-                <div className="bg-white p-3 space-y-1.5">
-                  <div className="h-2 w-14 bg-gray-800 rounded-full" />
-                  <div className="h-1.5 w-20 bg-gray-300 rounded-full" />
-                  <div className="h-6 w-full bg-blue-500 rounded-lg mt-2" />
-                  <div className="grid grid-cols-2 gap-1 mt-1">
-                    <div className="h-8 bg-gray-100 rounded-lg border border-gray-200" />
-                    <div className="h-8 bg-gray-100 rounded-lg border border-gray-200" />
-                  </div>
-                </div>
-                <div className={`py-2 text-center text-xs font-bold flex items-center justify-center gap-1 ${form.themeMode === "light" ? "bg-primary text-white" : "bg-muted text-foreground"}`}>
-                  ☀️ בהיר {form.themeMode === "light" && <Check className="w-3 h-3" />}
-                </div>
-              </button>
-
-              {/* Dark */}
-              <button onClick={() => setForm(p => ({ ...p, themeMode: "dark" }))}
-                className={`relative rounded-2xl overflow-hidden border-2 transition-all text-right ${form.themeMode === "dark" ? "border-primary shadow-lg scale-[1.02]" : "border-border hover:border-muted-foreground"}`}>
-                <div className="p-3 space-y-1.5" style={{ background: "#0f172a" }}>
-                  <div className="h-2 w-14 rounded-full" style={{ background: "#f8fafc" }} />
-                  <div className="h-1.5 w-20 rounded-full" style={{ background: "#334155" }} />
-                  <div className="h-6 w-full rounded-lg mt-2" style={{ background: "#6d28d9" }} />
-                  <div className="grid grid-cols-2 gap-1 mt-1">
-                    <div className="h-8 rounded-lg border" style={{ background: "#1e293b", borderColor: "#334155" }} />
-                    <div className="h-8 rounded-lg border" style={{ background: "#1e293b", borderColor: "#334155" }} />
-                  </div>
-                </div>
-                <div className={`py-2 text-center text-xs font-bold flex items-center justify-center gap-1 ${form.themeMode === "dark" ? "bg-primary text-white" : "bg-muted text-foreground"}`}>
-                  🌙 כהה {form.themeMode === "dark" && <Check className="w-3 h-3" />}
-                </div>
-              </button>
-
-              {/* Fuchsia */}
-              <button onClick={() => setForm(p => ({ ...p, themeMode: "fuchsia" }))}
-                className={`relative rounded-2xl overflow-hidden border-2 transition-all text-right ${form.themeMode === "fuchsia" ? "shadow-lg scale-[1.02]" : "border-border hover:border-fuchsia-400"}`}
-                style={{ borderColor: form.themeMode === "fuchsia" ? "#d946ef" : undefined }}>
-                <div className="p-3 space-y-1.5" style={{ background: "#0a0a0a" }}>
-                  <div className="h-2 w-14 rounded-full" style={{ background: "#f0abfc" }} />
-                  <div className="h-1.5 w-20 rounded-full" style={{ background: "#3f0049" }} />
-                  <div className="h-6 w-full rounded-lg mt-2" style={{ background: "linear-gradient(135deg,#d946ef,#a21caf)" }} />
-                  <div className="grid grid-cols-2 gap-1 mt-1">
-                    <div className="h-8 rounded-lg border" style={{ background: "#1a0020", borderColor: "#7e22ce" }} />
-                    <div className="h-8 rounded-lg border" style={{ background: "#1a0020", borderColor: "#7e22ce" }} />
-                  </div>
-                </div>
-                <div className="py-2 text-center text-xs font-bold flex items-center justify-center gap-1"
-                  style={{ background: form.themeMode === "fuchsia" ? "#d946ef" : "#1a0020", color: "#fff" }}>
-                  💜 פוקסיה {form.themeMode === "fuchsia" && <Check className="w-3 h-3" />}
-                </div>
-              </button>
-            </div>
-          </div>
 
           <Separator />
 
