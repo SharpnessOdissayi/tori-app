@@ -329,8 +329,11 @@ function formatDuration(minutes: number): string {
 }
 
 
-export default function Book() {
-  const { businessSlug } = useParams<{ businessSlug: string }>();
+export default function Book({ slugOverride }: { slugOverride?: string } = {}) {
+  const params = useParams<{ businessSlug: string }>();
+  // Custom-domain flow: HomeOrBook resolves the hostname to a slug and
+  // passes it here as `slugOverride` — there's no slug in the URL.
+  const businessSlug = slugOverride ?? params.businessSlug;
   const [, navigate] = useLocation();
   // Defensive: if VITE_API_BASE_URL is set to an empty string in Railway
   // (which ?? does NOT handle), we'd lose the /api prefix and all fetches fail.

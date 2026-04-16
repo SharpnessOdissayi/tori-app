@@ -1,7 +1,7 @@
 import { Router } from "express";
 import bcrypt from "bcryptjs";
 import { db, businessesTable, workingHoursTable } from "@workspace/db";
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { updateSto } from "../lib/tranzilaCharge";
 import {
   SuperAdminListBusinessesQueryParams,
@@ -317,6 +317,66 @@ router.post("/super-admin/businesses/:id/cancel-subscription", async (req, res):
   if (!updated) { res.status(404).json({ error: "Business not found" }); return; }
 
   res.json({ success: true, cancelledAt: new Date().toISOString() });
+});
+
+// ─── Custom-domain management (Super Admin only) ────────────────────────────
+//
+// GET  /super-admin/domains              — list all businesses that set a
+//                                          custom domain, newest first
+// POST /super-admin/domains/:id/verify   — flip customDomainVerified=true
+//                                          (call AFTER adding domain to Railway)
+// POST /super-admin/domains/:id/unverify — flip back to false (e.g. domain
+//                                          removed from Railway / CNAME changed)
+
+router.get("/super-admin/domains", async (req, res): Promise<void> => {
+  const password = String(req.query.adminPassword ?? "");
+  if (!isAdmin(password)) { res.status(401).json({ error: "Unauthorized" }); return; }
+
+  const rows = await db
+    .select({
+      id:                   businessesTable.id,
+      name:                 businessesTable.name,
+      slug:                 businessesTable.slug,
+      customDomain:         (businessesTable as any).customDomain,
+      customDomainVerified: (businessesTable as any).customDomainVerified,
+      subscriptionPlan:     businessesTable.subscriptionPlan,
+    })
+    .from(businessesTable)
+    .where(sql`${(businessesTable as any).customDomain} IS NOT NULL`);
+
+  res.json(rows);
+});
+
+router.post("/super-admin/domains/:id/verify", async (req, res): Promise<void> => {
+  const { adminPassword } = req.body ?? {};
+  if (!adminPassword || !isAdmin(adminPassword)) {
+    res.status(401).json({ error: "Unauthorized" }); return;
+  }
+  const id = Number(req.params.id);
+  if (!id || isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
+
+  await db
+    .update(businessesTable)
+    .set({ customDomainVerified: true } as any)
+    .where(eq(businessesTable.id, id));
+
+  res.json({ success: true });
+});
+
+router.post("/super-admin/domains/:id/unverify", async (req, res): Promise<void> => {
+  const { adminPassword } = req.body ?? {};
+  if (!adminPassword || !isAdmin(adminPassword)) {
+    res.status(401).json({ error: "Unauthorized" }); return;
+  }
+  const id = Number(req.params.id);
+  if (!id || isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
+
+  await db
+    .update(businessesTable)
+    .set({ customDomainVerified: false } as any)
+    .where(eq(businessesTable.id, id));
+
+  res.json({ success: true });
 });
 
 export default router;

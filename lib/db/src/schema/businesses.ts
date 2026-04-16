@@ -86,6 +86,11 @@ export const businessesTable = pgTable("businesses", {
   // Subscription billing (Tranzila token-based)
   tranzilaToken: text("tranzila_token"),          // stored card token for monthly charge
   tranzilaTokenExpiry: text("tranzila_token_expiry"), // MMYY format
+  // Custom domain (Pro-only). Business owners set a hostname they own; the
+  // public booking page is then served from that hostname. `verified`
+  // becomes true once super admin has added the domain to Railway.
+  customDomain: text("custom_domain"),
+  customDomainVerified: boolean("custom_domain_verified").notNull().default(false),
   subscriptionRenewDate: timestamp("subscription_renew_date", { withTimezone: true }),
   subscriptionCancelledAt: timestamp("subscription_cancelled_at", { withTimezone: true }),
   tranzilaStorId: integer("tranzila_sto_id"),     // Tranzila Standing Order ID (REST API) — if set, Tranzila manages billing

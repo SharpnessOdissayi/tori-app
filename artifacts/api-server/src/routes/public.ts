@@ -26,6 +26,30 @@ function israelTimeToUTC(dateStr: string, timeStr: string): Date {
   return new Date(`${dateStr}T${timeStr}:00+0${offset}:00`);
 }
 
+// GET /public/resolve-host/:hostname — front-end bootstrap lookup.
+// The SPA asks "this hostname — which business slug is it?" so the Book
+// page can load without a slug in the URL (white-label flow).
+// Returns 404 when the hostname isn't registered.
+router.get("/public/resolve-host/:hostname", async (req, res): Promise<void> => {
+  const hostname = String(req.params.hostname ?? "").toLowerCase().trim();
+  if (!hostname) { res.status(400).json({ error: "hostname required" }); return; }
+
+  const [biz] = await db
+    .select({
+      slug:                 businessesTable.slug,
+      customDomainVerified: (businessesTable as any).customDomainVerified,
+    })
+    .from(businessesTable)
+    .where(eq(sql`lower(${(businessesTable as any).customDomain})`, hostname));
+
+  if (!biz) { res.status(404).json({ error: "unknown_domain" }); return; }
+
+  res.json({
+    slug:     biz.slug,
+    verified: !!biz.customDomainVerified,
+  });
+});
+
 // GET /public/directory — must be before /:businessSlug to avoid slug capture
 router.get("/public/directory", async (req, res): Promise<void> => {
   const category = typeof req.query.category === "string" ? req.query.category : undefined;

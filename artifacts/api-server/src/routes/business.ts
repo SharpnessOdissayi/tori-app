@@ -111,6 +111,9 @@ function mapBusiness(b: typeof businessesTable.$inferSelect) {
     subscriptionCancelledAt: (b as any).subscriptionCancelledAt ? (b as any).subscriptionCancelledAt.toISOString() : null,
     // Stored card token presence (boolean only — never leak the token itself)
     hasTranzilaToken: !!((b as any).tranzilaToken),
+    // Custom domain for white-label booking page
+    customDomain:         (b as any).customDomain         ?? null,
+    customDomainVerified: (b as any).customDomainVerified ?? false,
   };
 }
 
@@ -242,6 +245,74 @@ router.patch("/business/branding", requireBusinessAuth, async (req, res): Promis
     .update(businessesTable)
     .set(updates)
     .where(eq(businessesTable.id, req.business!.businessId))
+    .returning();
+
+  res.json(mapBusiness(updated));
+});
+
+// ─── Custom domain (Pro-only) ──────────────────────────────────────────────
+//
+// PATCH /api/business/domain — set/clear the business's custom hostname.
+// Accepts { domain: string | null }. When `null`, clears the domain.
+// When a string, validates shape and stores lowercased. Setting a new
+// hostname resets the verified flag — super admin has to re-verify
+// after the CNAME is confirmed + Railway's custom-domains list is updated.
+
+router.patch("/business/domain", requireBusinessAuth, async (req, res): Promise<void> => {
+  const businessId = req.business!.businessId;
+
+  const [biz] = await db
+    .select({ subscriptionPlan: businessesTable.subscriptionPlan })
+    .from(businessesTable)
+    .where(eq(businessesTable.id, businessId));
+  if (!biz) { res.status(404).json({ error: "Not found" }); return; }
+  if (biz.subscriptionPlan !== "pro") {
+    res.status(403).json({ error: "pro_only", message: "פיצ'ר זה זמין רק במנוי פרו" });
+    return;
+  }
+
+  const raw = (req.body ?? {}).domain;
+  let domain: string | null;
+  if (raw == null || raw === "") {
+    domain = null;
+  } else if (typeof raw !== "string") {
+    res.status(400).json({ error: "Invalid domain" });
+    return;
+  } else {
+    // Strip protocol + trailing slash if the owner pasted a full URL.
+    const cleaned = raw.trim().toLowerCase().replace(/^https?:\/\//, "").replace(/\/$/, "");
+    // Basic hostname validation: label.label[.label...] with letters/digits/hyphens.
+    if (!/^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?(\.[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?)+$/.test(cleaned)) {
+      res.status(400).json({ error: "invalid_domain_format", message: "דומיין לא תקין — דוגמה תקינה: book.yoursalon.co.il" });
+      return;
+    }
+    // Block obvious self-references.
+    if (cleaned === "kavati.net" || cleaned.endsWith(".kavati.net")) {
+      res.status(400).json({ error: "reserved_domain", message: "לא ניתן להשתמש בדומיין של קבעתי" });
+      return;
+    }
+    domain = cleaned;
+  }
+
+  // Uniqueness across businesses (case-insensitive).
+  if (domain) {
+    const [existing] = await db
+      .select({ id: businessesTable.id })
+      .from(businessesTable)
+      .where(eq(sql`lower(${(businessesTable as any).customDomain})`, domain));
+    if (existing && existing.id !== businessId) {
+      res.status(409).json({ error: "domain_taken", message: "הדומיין כבר רשום לעסק אחר" });
+      return;
+    }
+  }
+
+  const [updated] = await db
+    .update(businessesTable)
+    .set({
+      customDomain:         domain,
+      customDomainVerified: false,   // every change resets verification
+    } as any)
+    .where(eq(businessesTable.id, businessId))
     .returning();
 
   res.json(mapBusiness(updated));

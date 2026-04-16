@@ -90,6 +90,13 @@ export async function runMigrations() {
       "ALTER TABLE businesses ADD COLUMN IF NOT EXISTS service_card_style TEXT",
       "ALTER TABLE businesses ADD COLUMN IF NOT EXISTS animation_style TEXT",
       "ALTER TABLE businesses ADD COLUMN IF NOT EXISTS hover_effect TEXT",
+      // Custom domain (Pro-only). Business owners point a subdomain they own
+      // (book.theirsalon.co.il) via CNAME → kavati.net. Super admin flips
+      // verified=true once the domain is added to Railway's custom-domains list.
+      "ALTER TABLE businesses ADD COLUMN IF NOT EXISTS custom_domain TEXT",
+      "ALTER TABLE businesses ADD COLUMN IF NOT EXISTS custom_domain_verified BOOLEAN NOT NULL DEFAULT FALSE",
+      // Unique index so no two businesses can register the same hostname.
+      // Uses lowercase so domain matching is case-insensitive.
     ];
 
     // Cancellation tracking
@@ -127,6 +134,14 @@ export async function runMigrations() {
     for (const stmt of alterations) {
       await db.execute(sql.raw(stmt));
     }
+
+    // Unique index on custom_domain so we can look up businesses by hostname
+    // in the routing middleware. Case-insensitive comparison via LOWER().
+    await db.execute(sql.raw(
+      `CREATE UNIQUE INDEX IF NOT EXISTS businesses_custom_domain_unique
+       ON businesses (LOWER(custom_domain))
+       WHERE custom_domain IS NOT NULL`
+    ));
 
     // ─── Unified users table ────────────────────────────────────────────
     // Phase 1/4 of auth rework — the authoritative source for login across

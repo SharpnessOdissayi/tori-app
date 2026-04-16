@@ -382,6 +382,11 @@ export default function SuperAdmin() {
           </Dialog>
         </div>
 
+        {/* Custom-domain review panel — businesses that asked for a
+            white-label hostname. Super admin adds them to Railway, then
+            clicks verify here. */}
+        <DomainReviewPanel adminPassword={password} />
+
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
           {isLoading ? (
             <div className="col-span-full p-12 text-center text-muted-foreground">טוען...</div>
@@ -656,6 +661,140 @@ function BusinessCard({ business, onToggleActive, onChangePlan, onDelete, onEdit
           )}
         </div>
       </CardContent>
+    </Card>
+  );
+}
+
+// ─── Domain review panel ───────────────────────────────────────────────────
+// Lists every business that set a custom_domain and hasn't been verified yet.
+// The super admin copies the hostname, adds it to Railway's custom-domains
+// list (Settings → Domains → Add), waits for SSL to provision, then clicks
+// "אישור" here to flip the flag on.
+
+interface DomainRow {
+  id:                    number;
+  name:                  string;
+  slug:                  string;
+  customDomain:          string;
+  customDomainVerified:  boolean;
+  subscriptionPlan:      string;
+}
+
+function DomainReviewPanel({ adminPassword }: { adminPassword: string }) {
+  const [rows, setRows]           = useState<DomainRow[]>([]);
+  const [loading, setLoading]     = useState(false);
+  const [open, setOpen]           = useState(true);
+  const { toast } = useToast();
+
+  const refresh = async () => {
+    setLoading(true);
+    try {
+      const res = await fetch(`/api/super-admin/domains?adminPassword=${encodeURIComponent(adminPassword)}`);
+      const data = await res.json();
+      if (res.ok && Array.isArray(data)) setRows(data);
+      else setRows([]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => { refresh(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [adminPassword]);
+
+  const setVerified = async (id: number, verified: boolean) => {
+    const endpoint = verified ? "verify" : "unverify";
+    try {
+      const res = await fetch(`/api/super-admin/domains/${id}/${endpoint}`, {
+        method:  "POST",
+        headers: { "Content-Type": "application/json" },
+        body:    JSON.stringify({ adminPassword }),
+      });
+      if (!res.ok) throw new Error("failed");
+      toast({ title: verified ? "הדומיין אושר" : "האישור בוטל" });
+      refresh();
+    } catch {
+      toast({ title: "שגיאה", variant: "destructive" });
+    }
+  };
+
+  const copy = async (text: string) => {
+    try { await navigator.clipboard.writeText(text); toast({ title: "הועתק" }); } catch {}
+  };
+
+  const pending  = rows.filter(r => !r.customDomainVerified);
+  const verified = rows.filter(r =>  r.customDomainVerified);
+
+  return (
+    <Card className="mb-6 border-violet-200">
+      <CardHeader className="cursor-pointer" onClick={() => setOpen(!open)}>
+        <CardTitle className="flex items-center justify-between text-base">
+          <span className="flex items-center gap-2">
+            🌐 דומיינים מותאמים אישית
+            {pending.length > 0 && (
+              <Badge className="bg-amber-100 text-amber-700 border-amber-200">{pending.length} ממתינים</Badge>
+            )}
+          </span>
+          <span className="text-xs text-muted-foreground">{open ? "▲" : "▼"}</span>
+        </CardTitle>
+        {open && (
+          <CardDescription className="pt-2">
+            עסקים שביקשו להשתמש בדומיין משלהם. <b>תהליך האישור:</b> קופי את הדומיין → Railway → Settings → Domains → Add Domain → המתן 5-10 דק' ל-SSL → לחץ "אשר" כאן.
+          </CardDescription>
+        )}
+      </CardHeader>
+      {open && (
+        <CardContent className="space-y-4">
+          {loading && <div className="text-sm text-muted-foreground text-center py-4">טוען...</div>}
+          {!loading && pending.length === 0 && verified.length === 0 && (
+            <div className="text-sm text-muted-foreground text-center py-4">אין דומיינים מותאמים כרגע.</div>
+          )}
+
+          {pending.length > 0 && (
+            <div>
+              <div className="text-xs font-semibold text-amber-700 mb-2">ממתינים לאישור</div>
+              <div className="space-y-2">
+                {pending.map(r => (
+                  <div key={r.id} className="flex items-center gap-3 border border-amber-200 bg-amber-50/50 rounded-lg p-3">
+                    <div className="flex-1 min-w-0">
+                      <div className="font-mono text-sm font-semibold" dir="ltr">{r.customDomain}</div>
+                      <div className="text-xs text-muted-foreground">
+                        {r.name} (/{r.slug}) · {r.subscriptionPlan === "pro" ? "פרו" : "חינמי"}
+                      </div>
+                    </div>
+                    <Button size="sm" variant="outline" onClick={() => copy(r.customDomain)} className="text-xs">
+                      📋 העתק
+                    </Button>
+                    <Button size="sm" onClick={() => setVerified(r.id, true)} className="text-xs bg-green-600 hover:bg-green-700">
+                      ✓ אשר
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {verified.length > 0 && (
+            <div>
+              <div className="text-xs font-semibold text-green-700 mb-2">פעילים</div>
+              <div className="space-y-2">
+                {verified.map(r => (
+                  <div key={r.id} className="flex items-center gap-3 border bg-muted/30 rounded-lg p-3">
+                    <div className="flex-1 min-w-0">
+                      <div className="font-mono text-sm" dir="ltr">{r.customDomain}</div>
+                      <div className="text-xs text-muted-foreground">{r.name} (/{r.slug})</div>
+                    </div>
+                    <a href={`https://${r.customDomain}`} target="_blank" rel="noopener noreferrer" className="text-xs text-blue-600 hover:underline">
+                      <ExternalLink className="inline w-3.5 h-3.5" />
+                    </a>
+                    <Button size="sm" variant="ghost" onClick={() => setVerified(r.id, false)} className="text-xs text-muted-foreground">
+                      בטל אישור
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </CardContent>
+      )}
     </Card>
   );
 }

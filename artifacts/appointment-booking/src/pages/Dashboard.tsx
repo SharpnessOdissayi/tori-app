@@ -3829,9 +3829,229 @@ function SettingsTab() {
         </CardContent>
       </Card>
 
+      {/* Custom domain — Pro-only */}
+      {profile && <CustomDomainCard />}
+
       {/* Subscription status card — shown for both free and pro */}
       {profile && <SubscriptionStatusCard />}
     </div>
+  );
+}
+
+// ─── Custom domain card (Pro-only) ─────────────────────────────────────────
+// Lets a Pro business register a hostname they own (e.g. book.theirsalon.co.il)
+// so their customers don't see kavati.net in the URL. Ships with step-by-step
+// instructions for both subdomain (recommended) and path-redirect (advanced)
+// setups.
+
+function CustomDomainCard() {
+  const { data: profile } = useGetBusinessProfile();
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+  const isPro = profile?.subscriptionPlan !== "free";
+
+  const currentDomain  = (profile as any)?.customDomain ?? "";
+  const isVerified     = !!(profile as any)?.customDomainVerified;
+
+  const [input, setInput]     = useState("");
+  const [saving, setSaving]   = useState(false);
+  const [mode, setMode]       = useState<"subdomain" | "path">("subdomain");
+
+  useEffect(() => { setInput(currentDomain); }, [currentDomain]);
+
+  const save = async (value: string | null) => {
+    setSaving(true);
+    try {
+      const token = localStorage.getItem("biz_token") || sessionStorage.getItem("biz_token");
+      const res = await fetch(`${API_BASE_DASH}/business/domain`, {
+        method:  "PATCH",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body:    JSON.stringify({ domain: value }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message ?? data.error ?? "שגיאה");
+      toast({ title: value ? "הדומיין נשמר" : "הדומיין הוסר", description: value ? "ממתין לאישור מצוות קבעתי (עד 24 שעות)" : undefined });
+      queryClient.invalidateQueries({ queryKey: getGetBusinessProfileQueryKey() });
+    } catch (err: any) {
+      toast({ title: "שגיאה", description: err.message, variant: "destructive" });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  if (!isPro) {
+    return (
+      <Card className="opacity-70">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Crown className="w-5 h-5 text-violet-500" /> דומיין מותאם אישית
+            <Badge variant="outline" className="text-xs">PRO</Badge>
+          </CardTitle>
+          <CardDescription>שדרג לפרו כדי שעמוד ההזמנות יופיע על הדומיין שלך (למשל book.yoursalon.co.il)</CardDescription>
+        </CardHeader>
+      </Card>
+    );
+  }
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          🌐 דומיין מותאם אישית
+          {currentDomain && (
+            isVerified
+              ? <Badge className="bg-green-100 text-green-700 border-green-200">פעיל</Badge>
+              : <Badge className="bg-amber-100 text-amber-700 border-amber-200">ממתין לאישור</Badge>
+          )}
+        </CardTitle>
+        <CardDescription>
+          רוצה שעמוד ההזמנה יהיה על הדומיין שלך? לדוגמה <b dir="ltr">book.yoursalon.co.il</b> במקום <b dir="ltr">kavati.net/book/...</b>
+        </CardDescription>
+      </CardHeader>
+
+      <CardContent className="space-y-5">
+        {/* Current value + save */}
+        <div className="space-y-2">
+          <Label>הדומיין שלך</Label>
+          <div className="flex gap-2">
+            <Input
+              dir="ltr"
+              value={input}
+              onChange={e => setInput(e.target.value)}
+              placeholder="book.yoursalon.co.il"
+              className="flex-1"
+            />
+            <Button
+              onClick={() => save(input.trim() || null)}
+              disabled={saving || input.trim() === currentDomain.trim()}
+              size="sm"
+            >
+              {saving ? "שומר..." : "שמור"}
+            </Button>
+            {currentDomain && (
+              <Button
+                onClick={() => { setInput(""); save(null); }}
+                disabled={saving}
+                variant="outline"
+                size="sm"
+                className="text-red-600 border-red-200"
+              >
+                הסר
+              </Button>
+            )}
+          </div>
+          {currentDomain && !isVerified && (
+            <p className="text-xs text-amber-700">
+              הדומיין נשמר אצלנו. הצוות של קבעתי יאשר אותו תוך 24 שעות — בד"כ תוך שעה-שעתיים. אחרי האישור העמוד יהיה פעיל על <b dir="ltr">{currentDomain}</b>.
+            </p>
+          )}
+          {currentDomain && isVerified && (
+            <p className="text-xs text-green-700">
+              ✓ הדומיין פעיל. לקוחותיך יכולים לגלוש ל-<b dir="ltr">{currentDomain}</b>
+            </p>
+          )}
+        </div>
+
+        {/* Instructions tabs */}
+        <div className="border rounded-xl p-4 bg-muted/30">
+          <div className="text-sm font-semibold mb-3">הוראות חיבור — בחר את השיטה המתאימה לך:</div>
+          <div className="flex gap-2 mb-4">
+            <button
+              type="button"
+              onClick={() => setMode("subdomain")}
+              className={`flex-1 py-2 text-xs rounded-lg border font-medium transition-all ${mode === "subdomain" ? "border-primary bg-primary/5 text-primary" : "border-border"}`}
+            >
+              Subdomain (מומלץ)
+            </button>
+            <button
+              type="button"
+              onClick={() => setMode("path")}
+              className={`flex-1 py-2 text-xs rounded-lg border font-medium transition-all ${mode === "path" ? "border-primary bg-primary/5 text-primary" : "border-border"}`}
+            >
+              Path על האתר הקיים שלך
+            </button>
+          </div>
+
+          {mode === "subdomain" ? (
+            <ol className="space-y-3 text-xs leading-relaxed">
+              <li>
+                <b>1. היכנס לחברה שבה קנית את הדומיין</b><br />
+                <span className="text-muted-foreground">דוגמאות: GoDaddy, Namecheap, Domain The Net (ישראמוניטור), One.com, Wix DNS, וכד'</span>
+              </li>
+              <li>
+                <b>2. פתח את הגדרות DNS (לפעמים "ניהול רשומות" / "DNS Zone Editor")</b>
+              </li>
+              <li>
+                <b>3. הוסף רשומה חדשה עם הפרטים הבאים:</b>
+                <div className="mt-2 bg-background border rounded-lg p-3 font-mono text-xs" dir="ltr">
+                  <div className="grid grid-cols-[auto,1fr] gap-x-4 gap-y-1">
+                    <span className="text-muted-foreground">סוג:</span> <span>CNAME</span>
+                    <span className="text-muted-foreground">שם (Name):</span> <span>book</span>
+                    <span className="text-muted-foreground">יעד (Value / Target):</span> <span>kavati.net</span>
+                    <span className="text-muted-foreground">TTL:</span> <span>3600 (שעה)</span>
+                  </div>
+                </div>
+                <p className="text-muted-foreground mt-1">
+                  💡 במקום "book" אפשר לבחור כל שם: <code dir="ltr">tor</code>, <code dir="ltr">zimnu</code>, <code dir="ltr">my</code>, וכד'. זה מה שיופיע לפני הדומיין שלך.
+                </p>
+              </li>
+              <li>
+                <b>4. שמור את הרשומה</b>
+              </li>
+              <li>
+                <b>5. חזור לכאן, הכנס את הדומיין המלא למעלה (לדוגמה <code dir="ltr">book.yoursalon.co.il</code>) ולחץ שמור</b>
+              </li>
+              <li>
+                <b>6. תקבל אישור תוך 24 שעות</b><br />
+                <span className="text-muted-foreground">לרוב הרבה יותר מהר — אנחנו מקבלים התראה ברגע שאתה שומר</span>
+              </li>
+            </ol>
+          ) : (
+            <ol className="space-y-3 text-xs leading-relaxed">
+              <li>
+                <b>לפני הכל — מה זה "path"?</b><br />
+                <span className="text-muted-foreground">Path זה מה שבא אחרי ה-"/" בכתובת. לדוגמה: <code dir="ltr">yoursalon.co.il<b>/appointment</b></code> — "appointment" הוא ה-path.</span>
+              </li>
+              <li>
+                <b>⚠️ שים לב:</b> שיטה זו דורשת גישה להגדרות השרת/האחסון של האתר הקיים שלך, וכל ספק אחסון עובד קצת אחרת. אם אתה לא בטוח — עדיף את שיטת ה-Subdomain.
+              </li>
+              <li>
+                <b>1. היכנס לפאנל הניהול של האתר שלך</b><br />
+                <span className="text-muted-foreground">WordPress, Wix, Webflow, cPanel, Plesk וכד'</span>
+              </li>
+              <li>
+                <b>2. מצא את ההגדרות של "Redirect" או "URL Forwarding"</b><br />
+                <span className="text-muted-foreground">ב-WordPress: plugin כמו Redirection. ב-cPanel: Domains → Redirects. ב-Wix: Settings → SEO → 301 Redirects.</span>
+              </li>
+              <li>
+                <b>3. הוסף הפניה (redirect) מ-</b>
+                <div className="mt-2 bg-background border rounded-lg p-3 font-mono text-xs" dir="ltr">
+                  <div className="space-y-1">
+                    <div><span className="text-muted-foreground">מ:</span> /appointment</div>
+                    <div><span className="text-muted-foreground">אל:</span> https://{currentDomain || "book.yoursalon.co.il"} או https://kavati.net/book/{profile?.slug ?? "your-slug"}</div>
+                    <div><span className="text-muted-foreground">סוג:</span> 301 (Permanent)</div>
+                  </div>
+                </div>
+              </li>
+              <li>
+                <b>4. שמור ובדוק — גלוש ל-</b><code dir="ltr">yoursalon.co.il/appointment</code> <b>ותראה שזה מפנה לעמוד ההזמנה</b>
+              </li>
+              <li>
+                <b>יתרון:</b> האתר הקיים שלך נשאר כמו שהוא, רק ה-path <code>/appointment</code> מופנה אלינו.<br />
+                <b>חיסרון:</b> בכתובת של הלקוח תופיע כתובת קבעתי (לא שם הדומיין שלך) אחרי ההפניה.
+              </li>
+              <li>
+                <b>💡 המלצה:</b> אם חשוב לך שלקוחותיך יראו את הדומיין שלך כל הזמן — שלב את שתי השיטות: Subdomain + קישור מה-<code>/appointment</code> שלך אל ה-subdomain.
+              </li>
+            </ol>
+          )}
+        </div>
+
+        <p className="text-xs text-muted-foreground">
+          🔒 אנחנו מפעילים אוטומטית תעודת HTTPS מאובטחת (SSL) — בלי עלות, תוך כמה דקות אחרי האישור.
+        </p>
+      </CardContent>
+    </Card>
   );
 }
 
