@@ -137,6 +137,20 @@ function mapBusiness(b: typeof businessesTable.$inferSelect) {
     invoiceAddress:    (b as any).invoiceAddress    ?? null,
     autoSendReceipts:  (b as any).autoSendReceipts  ?? false,
     emailVerified:     (b as any).emailVerified     ?? false,
+    // Advanced design / branding fields — these MUST be returned, otherwise
+    // the BrandingTab in the dashboard resets to defaults after every save
+    // (the form re-hydrates from the profile response and sees undefined).
+    designPreset:      (b as any).designPreset      ?? null,
+    accentColor:       (b as any).accentColor       ?? null,
+    gradientEnabled:   (b as any).gradientEnabled   ?? false,
+    gradientFrom:      (b as any).gradientFrom      ?? null,
+    gradientTo:        (b as any).gradientTo        ?? null,
+    gradientAngle:     (b as any).gradientAngle     ?? 135,
+    backgroundPattern: (b as any).backgroundPattern ?? null,
+    heroLayout:        (b as any).heroLayout        ?? null,
+    serviceCardStyle:  (b as any).serviceCardStyle  ?? null,
+    animationStyle:    (b as any).animationStyle    ?? null,
+    hoverEffect:       (b as any).hoverEffect       ?? null,
   };
 }
 

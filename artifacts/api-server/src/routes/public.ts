@@ -138,6 +138,18 @@ router.get("/public/:businessSlug", async (req, res): Promise<void> => {
     announcementText: (business as any).announcementText ?? null,
     announcementValidHours: (business as any).announcementValidHours ?? 24,
     announcementCreatedAt: (business as any).announcementCreatedAt ? (business as any).announcementCreatedAt.toISOString() : null,
+    // Advanced design / branding fields (preset + gradient + layout effects)
+    designPreset:      (business as any).designPreset      ?? null,
+    accentColor:       (business as any).accentColor       ?? null,
+    gradientEnabled:   (business as any).gradientEnabled   ?? false,
+    gradientFrom:      (business as any).gradientFrom      ?? null,
+    gradientTo:        (business as any).gradientTo        ?? null,
+    gradientAngle:     (business as any).gradientAngle     ?? 135,
+    backgroundPattern: (business as any).backgroundPattern ?? null,
+    heroLayout:        (business as any).heroLayout        ?? null,
+    serviceCardStyle:  (business as any).serviceCardStyle  ?? null,
+    animationStyle:    (business as any).animationStyle    ?? null,
+    hoverEffect:       (business as any).hoverEffect       ?? null,
   });
 });
 
