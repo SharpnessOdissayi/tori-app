@@ -234,11 +234,21 @@ router.post("/auth/email/verify", async (req, res): Promise<void> => {
     res.status(400).json({ error: "invalid_code", message: "הקוד שגוי או פג תוקף" });
     return;
   }
-  // If the email belongs to an already-registered business, flip email_verified.
-  await db
-    .update(businessesTable)
-    .set({ emailVerified: true } as any)
-    .where(eq(sql`lower(${businessesTable.email})`, email.toLowerCase().trim()));
+  // If the email belongs to an already-registered business, flip
+  // email_verified. Use raw SQL because the column isn't mirrored in the
+  // Drizzle schema yet — the typed builder can't map it to the right
+  // column name otherwise.
+  const normalized = email.toLowerCase().trim();
+  try {
+    await db.execute(sql`
+      UPDATE businesses SET email_verified = TRUE
+      WHERE LOWER(email) = ${normalized}
+    `);
+  } catch (e) {
+    // Column might be missing if migrations haven't run yet — never fail
+    // the user's verification on a secondary write.
+    console.warn("[auth] email_verified flag write failed:", e);
+  }
   res.json({ success: true });
 });
 

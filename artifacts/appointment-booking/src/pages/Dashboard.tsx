@@ -3497,6 +3497,8 @@ function SettingsTab() {
         businessLegalType: form.businessLegalType || null,
         businessLegalName: form.businessLegalName || null,
         invoiceAddress: form.invoiceAddress || null,
+        // URL slug — only send if the owner actually changed it
+        ...(form.slug && form.slug !== profile?.slug ? { slug: form.slug } : {}),
       } as any
     }, {
       onSuccess: () => {

@@ -508,20 +508,23 @@ function StepDetails({
           <Label className="flex items-center gap-1.5">
             <Globe className="w-4 h-4 text-muted-foreground" /> כתובת ייחודית לעסק
           </Label>
-          <div className="flex items-center rounded-xl border bg-muted/40 overflow-hidden focus-within:ring-2 focus-within:ring-primary">
-            <span className="px-3 text-sm text-muted-foreground whitespace-nowrap border-l bg-muted">
-              kavati.co.il/book/
-            </span>
+          <div
+            dir="ltr"
+            className="flex items-stretch rounded-xl border bg-background overflow-hidden focus-within:ring-2 focus-within:ring-primary focus-within:border-primary transition-all"
+          >
             <input
               required
               dir="ltr"
-              className="flex-1 px-3 py-2 bg-transparent text-sm outline-none"
+              className="flex-1 min-w-0 px-4 py-2.5 bg-transparent text-sm outline-none font-mono"
               placeholder="my-business"
               value={form.slug}
               onChange={handleSlugChange}
             />
+            <span className="px-4 flex items-center text-sm text-muted-foreground whitespace-nowrap border-r bg-muted/50 font-mono">
+              kavati.net/book/
+            </span>
           </div>
-          <p className="text-xs text-muted-foreground">רק אותיות באנגלית, מספרים ומקפים. לא ניתן לשנות לאחר מכן.</p>
+          <p className="text-xs text-muted-foreground">רק אותיות באנגלית, מספרים ומקפים. ניתן לשנות בהגדרות בהמשך.</p>
         </div>
 
         {/* Username */}
@@ -539,7 +542,7 @@ function StepDetails({
           <Label className="flex items-center gap-1.5">
             <User className="w-4 h-4 text-muted-foreground" /> שם מלא של בעל העסק
           </Label>
-          <Input required placeholder="ישראל ישראלי" value={form.ownerName} onChange={set("ownerName")} />
+          <Input required value={form.ownerName} onChange={set("ownerName")} />
         </div>
 
         {/* Phone */}
