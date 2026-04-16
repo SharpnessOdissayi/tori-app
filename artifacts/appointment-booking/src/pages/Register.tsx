@@ -102,7 +102,7 @@ function StepPlan({ onNext }: { onNext: (plan: Plan) => void }) {
     <div className="space-y-6">
       <div className="text-center space-y-2">
         <a href="/" className="inline-block">
-          <img src="/logo.png" alt="קבעתי" className="h-16 w-16 rounded-2xl object-cover mx-auto" />
+          <img src="/logo.svg" alt="קבעתי" className="h-16 object-contain mx-auto" />
         </a>
         <h1 className="text-3xl font-bold">ברוכים הבאים לקבעתי</h1>
         <p className="text-muted-foreground">בחר את התוכנית המתאימה לעסק שלך</p>
@@ -134,31 +134,31 @@ function StepPlan({ onNext }: { onNext: (plan: Plan) => void }) {
         {/* Pro Plan */}
         <button
           onClick={() => onNext("pro")}
-          className="text-right border-2 border-violet-400 rounded-2xl p-6 bg-violet-50 hover:bg-violet-100 hover:border-violet-600 transition-all group relative focus:outline-none focus:ring-2 focus:ring-violet-600"
+          className="text-right border-2 border-blue-400 rounded-2xl p-6 bg-blue-50 hover:bg-blue-100 hover:border-blue-500 transition-all group relative focus:outline-none focus:ring-2 focus:ring-blue-500"
         >
           <div className="absolute -top-3 left-4">
-            <Badge className="bg-violet-600 text-white px-3 py-1">מומלץ</Badge>
+            <Badge className="bg-blue-500 text-white px-3 py-1">מומלץ</Badge>
           </div>
           <div className="flex items-center gap-2 mb-3">
-            <Crown className="w-5 h-5 text-violet-600" />
-            <span className="font-bold text-lg text-violet-800">פרו</span>
+            <Crown className="w-5 h-5 text-blue-500" />
+            <span className="font-bold text-lg text-blue-700">פרו</span>
           </div>
           <div className="flex items-baseline gap-2 mb-1">
-            <span className="text-3xl font-bold text-violet-800">₪50</span>
-            <span className="text-sm text-violet-500 line-through">₪100</span>
+            <span className="text-3xl font-bold text-blue-700">₪50</span>
+            <span className="text-sm text-blue-500 line-through">₪100</span>
             <span className="text-[10px] font-bold text-amber-700 bg-amber-100 px-1.5 py-0.5 rounded">🎉 -50%</span>
           </div>
-          <div className="text-sm text-violet-600 mb-4">
+          <div className="text-sm text-blue-500 mb-4">
             <span className="font-semibold">מבצע פתיחה!</span> לחודש הראשון — לאחר מכן ₪100/חודש
           </div>
-          <ul className="space-y-2 text-sm text-right text-violet-800">
+          <ul className="space-y-2 text-sm text-right text-blue-700">
             <li className="flex items-center gap-2"><CheckCircle className="w-4 h-4 text-green-500 shrink-0" /> שירותים ללא הגבלה</li>
             <li className="flex items-center gap-2"><CheckCircle className="w-4 h-4 text-green-500 shrink-0" /> תורים ללא הגבלה</li>
             <li className="flex items-center gap-2"><CheckCircle className="w-4 h-4 text-green-500 shrink-0" /> עיצוב מותאם אישית</li>
             <li className="flex items-center gap-2"><CheckCircle className="w-4 h-4 text-green-500 shrink-0" /> אינטגרציית WhatsApp</li>
             <li className="flex items-center gap-2"><CheckCircle className="w-4 h-4 text-green-500 shrink-0" /> תמיכה מועדפת</li>
           </ul>
-          <div className="mt-5 w-full py-2 rounded-xl bg-violet-600 text-white font-semibold text-sm group-hover:bg-violet-700 transition-colors">
+          <div className="mt-5 w-full py-2 rounded-xl bg-blue-500 text-white font-semibold text-sm group-hover:bg-blue-600 transition-colors">
             בחר תוכנית פרו
           </div>
         </button>
@@ -187,7 +187,7 @@ function StepPayment({ onNext, onBack }: { onNext: () => void; onBack: () => voi
         </div>
       </div>
 
-      <Card className="border-2 border-violet-200 bg-violet-50/50">
+      <Card className="border-2 border-blue-200 bg-blue-50/50">
         <CardContent className="pt-6 space-y-4">
           <div className="flex justify-between text-sm">
             <span>תוכנית פרו — חודש ראשון</span>
@@ -199,14 +199,14 @@ function StepPayment({ onNext, onBack }: { onNext: () => void; onBack: () => voi
           </div>
           <div className="border-t pt-3 flex justify-between font-bold">
             <span>לתשלום עכשיו</span>
-            <span className="text-violet-700">₪50</span>
+            <span className="text-blue-600">₪50</span>
           </div>
         </CardContent>
       </Card>
 
-      <div className="rounded-2xl border border-violet-200 bg-white p-6 space-y-4">
+      <div className="rounded-2xl border border-blue-200 bg-white p-6 space-y-4">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-full bg-violet-100 flex items-center justify-center text-xl">🔒</div>
+          <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center text-xl">🔒</div>
           <div>
             <div className="font-semibold">תשלום מאובטח — Tranzila</div>
             <p className="text-xs text-muted-foreground">סליקה מוצפנת לפי תקן PCI-DSS</p>
@@ -219,7 +219,7 @@ function StepPayment({ onNext, onBack }: { onNext: () => void; onBack: () => voi
         </ul>
       </div>
 
-      <Button className="w-full h-11 bg-violet-600 hover:bg-violet-700 text-white gap-2" onClick={onNext}>
+      <Button className="w-full h-11 bg-blue-500 hover:bg-blue-600 text-white gap-2" onClick={onNext}>
         המשך לרישום <ArrowLeft className="w-4 h-4" />
       </Button>
     </div>
@@ -442,7 +442,7 @@ function StepDetails({
           <h2 className="text-xl font-bold">פרטי העסק</h2>
           <p className="text-sm text-muted-foreground">
             תוכנית{" "}
-            <span className={plan === "pro" ? "text-violet-600 font-semibold" : "text-blue-600 font-semibold"}>
+            <span className={plan === "pro" ? "text-blue-500 font-semibold" : "text-blue-600 font-semibold"}>
               {plan === "pro" ? "פרו" : "חינמי"}
             </span>{" "}
             נבחרה

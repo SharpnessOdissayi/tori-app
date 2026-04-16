@@ -40,7 +40,7 @@ export default function Admin() {
       <div className="min-h-[100dvh] flex flex-col bg-muted/30">
         <header className="px-6 py-4 flex items-center justify-between bg-card border-b sticky top-0 z-10">
           <Link href="/">
-            <img src="/logo.png" alt="קבעתי" className="h-14 w-14 rounded-xl object-cover cursor-pointer" />
+            <img src="/logo.svg" alt="קבעתי" className="h-14 object-contain cursor-pointer" />
           </Link>
         </header>
 
@@ -54,7 +54,7 @@ export default function Admin() {
               <div className="bg-primary h-2 w-full"></div>
               <CardHeader className="text-center pb-2">
                 <Link href="/" className="inline-block">
-                  <img src="/logo.png" alt="קבעתי" className="h-14 w-14 rounded-2xl object-cover mx-auto mb-4 cursor-pointer" />
+                  <img src="/logo.svg" alt="קבעתי" className="h-14 object-contain mx-auto mb-4 cursor-pointer" />
                 </Link>
                 <CardTitle className="text-2xl font-bold">Admin Portal</CardTitle>
                 <CardDescription>Enter your password to access the dashboard</CardDescription>
@@ -126,7 +126,7 @@ function AdminDashboard({ password, onLogout }: { password: string, onLogout: ()
     <div className="min-h-[100dvh] flex flex-col bg-muted/20">
       <header className="px-6 py-4 flex items-center justify-between bg-card border-b sticky top-0 z-20 shadow-sm">
         <Link href="/">
-          <img src="/logo.png" alt="קבעתי" className="h-14 w-14 rounded-xl object-cover cursor-pointer" />
+          <img src="/logo.svg" alt="קבעתי" className="h-14 object-contain cursor-pointer" />
         </Link>
         <div className="flex items-center gap-4">
           <Badge variant="outline" className="hidden sm:inline-flex rounded-full px-3 py-1 font-medium bg-muted/50">

@@ -71,7 +71,7 @@ function BusinessAvatar({ biz, size = 56 }: { biz: { name: string; logoUrl?: str
       style={{ width: size, height: size }} />
   );
   const initials = biz.name.slice(0, 2);
-  const color = biz.primaryColor ?? "#7C3AED";
+  const color = biz.primaryColor ?? "#3c92f0";
   return (
     <div className="rounded-full flex items-center justify-center font-bold text-white shadow border-2 border-white"
       style={{ width: size, height: size, background: color, fontSize: size * 0.32 }}>
@@ -205,7 +205,7 @@ function LoginScreen({ onLogin }: { onLogin: (token: string, name: string) => vo
   }, [onLogin]);
 
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center bg-gradient-to-br from-violet-50 to-indigo-100 p-6" dir="rtl">
+    <div className="min-h-screen flex flex-col items-center justify-center bg-gradient-to-br from-blue-50 to-blue-100 p-6" dir="rtl">
       <div className="w-full max-w-sm bg-white rounded-3xl shadow-xl p-8 space-y-6">
         <div className="text-center space-y-1">
           <div className="text-4xl mb-3">📅</div>
@@ -222,11 +222,11 @@ function LoginScreen({ onLogin }: { onLogin: (token: string, name: string) => vo
                 onChange={e => setPhone(e.target.value)}
                 onKeyDown={e => e.key === "Enter" && sendOtp()}
                 placeholder=""
-                className="w-full rounded-xl border border-gray-200 px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500 text-center"
+                className="w-full rounded-xl border border-gray-200 px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 text-center"
               />
             </div>
             <button onClick={sendOtp} disabled={loading}
-              className="w-full py-3 rounded-xl bg-violet-600 text-white font-semibold text-sm hover:bg-violet-700 disabled:opacity-50 transition-all">
+              className="w-full py-3 rounded-xl bg-blue-500 text-white font-semibold text-sm hover:bg-blue-600 disabled:opacity-50 transition-all">
               {loading ? "שולח..." : <span dir="rtl">שלח קוד <span dir="ltr">WhatsApp</span></span>}
             </button>
             <label className="flex items-center gap-2 cursor-pointer select-none justify-end mt-1">
@@ -234,7 +234,7 @@ function LoginScreen({ onLogin }: { onLogin: (token: string, name: string) => vo
               <div
                 onClick={() => setRemember(v => !v)}
                 className="relative w-10 h-5 rounded-full transition-colors duration-200 flex-shrink-0"
-                style={{ background: remember ? "#7c3aed" : "#d1d5db" }}
+                style={{ background: remember ? "#3c92f0" : "#d1d5db" }}
               >
                 <div
                   className="absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-all duration-200"
@@ -245,7 +245,7 @@ function LoginScreen({ onLogin }: { onLogin: (token: string, name: string) => vo
           </div>
         ) : (
           <div className="space-y-4">
-            <div className="p-3 bg-violet-50 rounded-xl text-center text-sm text-violet-700">
+            <div className="p-3 bg-blue-50 rounded-xl text-center text-sm text-blue-600">
               קוד נשלח לווצאפ {phone}
             </div>
             <div className="space-y-2">
@@ -255,12 +255,12 @@ function LoginScreen({ onLogin }: { onLogin: (token: string, name: string) => vo
                 onChange={e => setCode(e.target.value.replace(/\D/g, ""))}
                 onKeyDown={e => e.key === "Enter" && verifyOtp()}
                 placeholder="123456"
-                className="w-full rounded-xl border border-gray-200 px-4 py-3 text-xl font-mono text-center tracking-widest focus:outline-none focus:ring-2 focus:ring-violet-500"
+                className="w-full rounded-xl border border-gray-200 px-4 py-3 text-xl font-mono text-center tracking-widest focus:outline-none focus:ring-2 focus:ring-blue-500"
                 autoFocus
               />
             </div>
             <button onClick={verifyOtp} disabled={loading}
-              className="w-full py-3 rounded-xl bg-violet-600 text-white font-semibold text-sm hover:bg-violet-700 disabled:opacity-50 transition-all">
+              className="w-full py-3 rounded-xl bg-blue-500 text-white font-semibold text-sm hover:bg-blue-600 disabled:opacity-50 transition-all">
               {loading ? "מאמת..." : "כניסה"}
             </button>
             <button onClick={() => { setStep("phone"); setCode(""); }}
@@ -522,9 +522,9 @@ export default function ClientPortal() {
             className="shrink-0"
           >
             <img
-              src="/logo.png"
+              src="/logo.svg"
               alt="קבעתי"
-              className="h-10 w-10 rounded-xl object-cover"
+              className="h-10 object-contain"
             />
           </a>
           <div>
@@ -556,7 +556,7 @@ export default function ClientPortal() {
                   <div className="flex items-center justify-between px-4 py-3 border-b bg-gray-50 shrink-0">
                     <span className="font-bold text-sm">התראות</span>
                     <div className="flex items-center gap-3">
-                      {clientUnread > 0 && <button onClick={markClientNotifsRead} className="text-xs text-violet-600 hover:underline">סמן הכל כנקרא</button>}
+                      {clientUnread > 0 && <button onClick={markClientNotifsRead} className="text-xs text-blue-500 hover:underline">סמן הכל כנקרא</button>}
                       {clientNotifs.length > 0 && <button onClick={deleteAllClientNotifs} className="text-xs text-red-600 hover:underline">מחק הכל</button>}
                       <button onClick={() => setNotifOpen(false)} className="sm:hidden text-lg leading-none text-muted-foreground">×</button>
                     </div>
@@ -608,13 +608,13 @@ export default function ClientPortal() {
               <h2 className="font-bold text-lg text-gray-900">העסקים שלי</h2>
               <div className="flex items-center gap-2">
                 <button onClick={openDiscover}
-                  className="flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-medium bg-violet-600 text-white hover:bg-violet-700 transition">
+                  className="flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-medium bg-blue-500 text-white hover:bg-blue-600 transition">
                   <Plus className="w-3 h-3" />
                   גלה עסקים
                 </button>
                 {businesses.length > 0 && (
                   <button onClick={() => setEditMode(v => !v)}
-                    className={`flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-medium transition ${editMode ? "bg-violet-100 text-violet-700" : "bg-gray-100 text-gray-600 hover:bg-gray-200"}`}>
+                    className={`flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-medium transition ${editMode ? "bg-blue-100 text-blue-600" : "bg-gray-100 text-gray-600 hover:bg-gray-200"}`}>
                     <Edit2 className="w-3 h-3" />
                     {editMode ? "סיום עריכה" : "עריכה"}
                   </button>
@@ -645,7 +645,7 @@ export default function ClientPortal() {
                     {!editMode && (
                       <button onClick={() => navigate(`/book/${biz.slug}`)}
                         className="w-full py-2 rounded-xl text-xs font-bold text-white transition-all"
-                        style={{ background: biz.primaryColor ?? "#7C3AED" }}>
+                        style={{ background: biz.primaryColor ?? "#3c92f0" }}>
                         לפרופיל העסק
                       </button>
                     )}
@@ -732,7 +732,7 @@ export default function ClientPortal() {
         <div className="flex items-end justify-between gap-2 pb-2">
           {/* Appointments (right in RTL) */}
           <button onClick={() => setTab("appointments")}
-            className={`flex flex-col items-center gap-1 py-2 px-4 rounded-2xl transition-all flex-1 ${tab === "appointments" ? "text-violet-600 bg-violet-50" : "text-gray-400 hover:text-gray-600"}`}>
+            className={`flex flex-col items-center gap-1 py-2 px-4 rounded-2xl transition-all flex-1 ${tab === "appointments" ? "text-blue-500 bg-blue-50" : "text-gray-400 hover:text-gray-600"}`}>
             <CalendarDays className="w-5 h-5" />
             <span className="text-[10px] font-medium">התורים שלי</span>
           </button>
@@ -740,7 +740,7 @@ export default function ClientPortal() {
           {/* Home — prominent center */}
           <button
             onClick={() => { setTab("home"); setEditMode(false); }}
-            className={`flex flex-col items-center gap-1 py-3 px-6 rounded-2xl shadow-lg active:scale-95 transition-all -translate-y-2 ${tab === "home" ? "bg-violet-600 text-white shadow-violet-200" : "bg-violet-100 text-violet-700 shadow-violet-100"}`}>
+            className={`flex flex-col items-center gap-1 py-3 px-6 rounded-2xl shadow-lg active:scale-95 transition-all -translate-y-2 ${tab === "home" ? "bg-blue-500 text-white shadow-blue-200" : "bg-blue-100 text-blue-600 shadow-blue-100"}`}>
             <Home className="w-6 h-6" />
             <span className="text-[10px] font-bold">בית</span>
           </button>
@@ -766,12 +766,12 @@ export default function ClientPortal() {
               <div className="space-y-1.5">
                 <label className="text-sm font-medium text-gray-700">שם מלא</label>
                 <input value={profileName} onChange={e => setProfileName(e.target.value)}
-                  className="w-full rounded-xl border border-gray-200 px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500" />
+                  className="w-full rounded-xl border border-gray-200 px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
               </div>
               <div className="space-y-1.5">
                 <label className="text-sm font-medium text-gray-700">טלפון</label>
                 <input type="tel" dir="ltr" value={profilePhone} onChange={e => setProfilePhone(e.target.value)}
-                  className="w-full rounded-xl border border-gray-200 px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500 text-right" />
+                  className="w-full rounded-xl border border-gray-200 px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 text-right" />
               </div>
               <div className="space-y-1.5">
                 <label className="text-sm font-medium text-gray-700">מין</label>
@@ -780,9 +780,9 @@ export default function ClientPortal() {
                     <button key={v} type="button" onClick={() => setProfileGender(v)}
                       className="flex-1 py-2 rounded-xl text-sm font-medium border transition-all"
                       style={{
-                        background: profileGender === v ? "#7c3aed" : "transparent",
+                        background: profileGender === v ? "#3c92f0" : "transparent",
                         color: profileGender === v ? "#fff" : "#6b7280",
-                        borderColor: profileGender === v ? "#7c3aed" : "#e5e7eb",
+                        borderColor: profileGender === v ? "#3c92f0" : "#e5e7eb",
                       }}>
                       {l}
                     </button>
@@ -797,7 +797,7 @@ export default function ClientPortal() {
                 <div
                   onClick={() => setProfileReceiveNotifications(v => !v)}
                   className="relative w-10 h-5 rounded-full transition-colors duration-200 cursor-pointer flex-shrink-0"
-                  style={{ background: profileReceiveNotifications ? "#7c3aed" : "#d1d5db" }}
+                  style={{ background: profileReceiveNotifications ? "#3c92f0" : "#d1d5db" }}
                 >
                   <div
                     className="absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-all duration-200"
@@ -807,7 +807,7 @@ export default function ClientPortal() {
               </div>
             </div>
             <button onClick={saveProfile} disabled={loading}
-              className="w-full py-3 rounded-xl bg-violet-600 text-white font-semibold text-sm hover:bg-violet-700 disabled:opacity-50 transition">
+              className="w-full py-3 rounded-xl bg-blue-500 text-white font-semibold text-sm hover:bg-blue-600 disabled:opacity-50 transition">
               {loading ? "שומר..." : "שמור"}
             </button>
           </div>
@@ -860,7 +860,7 @@ export default function ClientPortal() {
                   placeholder="חפש שם עסק..."
                   value={discoverSearch}
                   onChange={e => setDiscoverSearch(e.target.value)}
-                  className="w-full pr-9 pl-4 py-2 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500 bg-gray-50"
+                  className="w-full pr-9 pl-4 py-2 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-gray-50"
                 />
               </div>
               <div className="flex gap-2">
@@ -870,7 +870,7 @@ export default function ClientPortal() {
                     <select
                       value={discoverCategory}
                       onChange={e => setDiscoverCategory(e.target.value)}
-                      className="w-full appearance-none pr-8 pl-3 py-2 rounded-xl border border-gray-200 text-sm bg-gray-50 focus:outline-none focus:ring-2 focus:ring-violet-500"
+                      className="w-full appearance-none pr-8 pl-3 py-2 rounded-xl border border-gray-200 text-sm bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500"
                     >
                       <option value="">כל הסוגים</option>
                       {allCategories.map(c => <option key={c} value={c}>{c}</option>)}
@@ -883,7 +883,7 @@ export default function ClientPortal() {
                     <select
                       value={discoverCity}
                       onChange={e => setDiscoverCity(e.target.value)}
-                      className="w-full appearance-none pr-8 pl-3 py-2 rounded-xl border border-gray-200 text-sm bg-gray-50 focus:outline-none focus:ring-2 focus:ring-violet-500"
+                      className="w-full appearance-none pr-8 pl-3 py-2 rounded-xl border border-gray-200 text-sm bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500"
                     >
                       <option value="">כל הערים</option>
                       {allCities.map(c => <option key={c} value={c}>{c}</option>)}
@@ -910,7 +910,7 @@ export default function ClientPortal() {
                       <button
                         onClick={() => navigate(`/book/${biz.slug}`)}
                         className="w-full py-2 rounded-xl text-xs font-bold text-white transition-all mt-1"
-                        style={{ background: biz.primaryColor ?? "#7C3AED" }}>
+                        style={{ background: biz.primaryColor ?? "#3c92f0" }}>
                         לפרופיל העסק
                       </button>
                     </div>

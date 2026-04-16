@@ -577,12 +577,12 @@ export default function SuperAdmin() {
                 ))}
                 <button type="button"
                   onClick={() => setGrantProDays(null)}
-                  className={`py-2 text-sm rounded-lg border font-medium transition-all col-span-3 ${grantProDays === null ? "border-violet-500 bg-violet-50 text-violet-700" : "border-border hover:border-violet-300"}`}>
+                  className={`py-2 text-sm rounded-lg border font-medium transition-all col-span-3 ${grantProDays === null ? "border-blue-500 bg-blue-50 text-blue-600" : "border-border hover:border-blue-300"}`}>
                   ♾️ ללא הגבלת זמן
                 </button>
               </div>
             </div>
-            <Button className="w-full bg-violet-600 hover:bg-violet-700 text-white"
+            <Button className="w-full bg-blue-500 hover:bg-blue-600 text-white"
               onClick={handleGrantPro} disabled={grantProLoading}>
               {grantProLoading ? "מעניק..." : "הענק מנוי פרו"}
             </Button>
@@ -674,7 +674,7 @@ function BusinessCard({ business, onToggleActive, onChangePlan, onDelete, onEdit
 
         {/* Subscription details */}
         {business.subscriptionPlan === "pro" && (
-          <div className="text-xs text-muted-foreground space-y-0.5 border rounded-lg px-3 py-2 bg-violet-50/50">
+          <div className="text-xs text-muted-foreground space-y-0.5 border rounded-lg px-3 py-2 bg-blue-50/50">
             {renewDate && (
               <div>חידוש: <span className="font-medium text-foreground">{renewDate.toLocaleDateString("he-IL")}</span></div>
             )}
@@ -691,7 +691,7 @@ function BusinessCard({ business, onToggleActive, onChangePlan, onDelete, onEdit
         {/* Grant/Revoke Pro */}
         <div className="flex gap-2 pt-1">
           <Button size="sm" variant="outline"
-            className="flex-1 text-xs border-violet-300 text-violet-700 hover:bg-violet-50"
+            className="flex-1 text-xs border-blue-300 text-blue-600 hover:bg-blue-50"
             onClick={onGrantPro}>
             👑 הענק פרו
           </Button>
@@ -772,7 +772,7 @@ function DomainReviewPanel({ adminPassword }: { adminPassword: string }) {
   const verified = rows.filter(r =>  r.customDomainVerified);
 
   return (
-    <Card className="mb-6 border-violet-200">
+    <Card className="mb-6 border-blue-200">
       <CardHeader className="cursor-pointer" onClick={() => setOpen(!open)}>
         <CardTitle className="flex items-center justify-between text-base">
           <span className="flex items-center gap-2">

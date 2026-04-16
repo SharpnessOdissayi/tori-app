@@ -88,7 +88,10 @@
   --popover-foreground: 224 71% 10%;
   --popover-border: 214 32% 91%;
 
-  --primary: 224 64% 33%;
+  /* Kavati brand blue — taken from the new icon (#3c92f0 → hsl(211 86% 59%)).
+     Whole app's primary colour, focus rings, charts, sidebar and the default
+     /book/:slug accent all follow this hue so the brand feels cohesive. */
+  --primary: 211 86% 59%;
   --primary-foreground: 0 0% 100%;
 
   --secondary: 210 40% 96.1%;
@@ -97,7 +100,7 @@
   --muted: 210 40% 96.1%;
   --muted-foreground: 215.4 16.3% 46.9%;
 
-  --accent: 32 95% 44%;
+  --accent: 211 86% 59%;
   --accent-foreground: 0 0% 100%;
 
   --destructive: 0 84.2% 60.2%;
@@ -105,9 +108,9 @@
 
   --border: 214.3 31.8% 91.4%;
   --input: 214.3 31.8% 91.4%;
-  --ring: 224 64% 33%;
+  --ring: 211 86% 59%;
 
-  --chart-1: 224 64% 33%;
+  --chart-1: 211 86% 59%;
   --chart-2: 32 95% 44%;
   --chart-3: 216 92% 60%;
   --chart-4: 210 98% 78%;
@@ -116,11 +119,11 @@
   --sidebar: 0 0% 100%;
   --sidebar-foreground: 224 71% 10%;
   --sidebar-border: 214 32% 91%;
-  --sidebar-primary: 224 64% 33%;
+  --sidebar-primary: 211 86% 59%;
   --sidebar-primary-foreground: 0 0% 100%;
   --sidebar-accent: 210 40% 96.1%;
   --sidebar-accent-foreground: 224 71% 10%;
-  --sidebar-ring: 224 64% 33%;
+  --sidebar-ring: 211 86% 59%;
 
   --app-font-sans: 'Heebo', sans-serif;
   --app-font-serif: Georgia, serif;
@@ -150,7 +153,9 @@
   --popover-foreground: 0 0% 98%;
   --popover-border: 0 0% 15%;
 
-  --primary: 224 64% 50%;
+  /* Dark variant of the Kavati brand blue — slightly lighter for contrast
+     on near-black backgrounds (hsl(211 86% 65%) ≈ #5ba5f3). */
+  --primary: 211 86% 65%;
   --primary-foreground: 0 0% 100%;
 
   --secondary: 0 0% 12%;
@@ -159,7 +164,7 @@
   --muted: 0 0% 12%;
   --muted-foreground: 0 0% 65%;
 
-  --accent: 32 95% 54%;
+  --accent: 211 86% 65%;
   --accent-foreground: 0 0% 100%;
 
   --destructive: 0 62.8% 30.6%;
@@ -167,9 +172,9 @@
 
   --border: 0 0% 15%;
   --input: 0 0% 15%;
-  --ring: 0 0% 30%;
+  --ring: 211 86% 65%;
 
-  --chart-1: 224 64% 50%;
+  --chart-1: 211 86% 65%;
   --chart-2: 32 95% 54%;
   --chart-3: 216 92% 60%;
   --chart-4: 210 98% 78%;
@@ -178,11 +183,11 @@
   --sidebar: 0 0% 7%;
   --sidebar-foreground: 0 0% 98%;
   --sidebar-border: 0 0% 15%;
-  --sidebar-primary: 0 0% 30%;
+  --sidebar-primary: 211 86% 65%;
   --sidebar-primary-foreground: 0 0% 100%;
   --sidebar-accent: 0 0% 12%;
   --sidebar-accent-foreground: 0 0% 100%;
-  --sidebar-ring: 0 0% 30%;
+  --sidebar-ring: 211 86% 65%;
 }
 
 /* ─── Client Portal dark-mode overrides ─────────────────────────────────
@@ -205,7 +210,7 @@
 .dark .portal-dark-scope .bg-gray-50       { background-color: #0a0a0a !important; }
 .dark .portal-dark-scope .bg-gray-100      { background-color: #171717 !important; }
 .dark .portal-dark-scope .bg-gray-200      { background-color: #262626 !important; }
-.dark .portal-dark-scope .bg-violet-50     { background-color: rgba(124, 58, 237, 0.15) !important; }
+.dark .portal-dark-scope .bg-blue-50       { background-color: rgba(60, 146, 240, 0.15) !important; }
 .dark .portal-dark-scope .bg-blue-50       { background-color: rgba(59, 130, 246, 0.15) !important; }
 .dark .portal-dark-scope .bg-red-50        { background-color: rgba(239, 68, 68, 0.15) !important; }
 .dark .portal-dark-scope .bg-green-50      { background-color: rgba(34, 197, 94, 0.15) !important; }
@@ -233,9 +238,10 @@
 .dark .portal-dark-scope .divide-gray-100 > * + *,
 .dark .portal-dark-scope .divide-gray-200 > * + * { border-top-color: #262626 !important; }
 
-/* Make the violet accent pop a bit brighter on dark backgrounds. */
-.dark .portal-dark-scope .text-violet-600  { color: #a78bfa !important; }
-.dark .portal-dark-scope .bg-violet-100    { background-color: rgba(167, 139, 250, 0.2) !important; }
+/* Make the brand blue accent pop a bit brighter on dark backgrounds. */
+.dark .portal-dark-scope .text-blue-500    { color: #5ba5f3 !important; }
+.dark .portal-dark-scope .text-blue-600    { color: #7ab8f5 !important; }
+.dark .portal-dark-scope .bg-blue-100      { background-color: rgba(60, 146, 240, 0.2) !important; }
 
 @layer base {
   * {

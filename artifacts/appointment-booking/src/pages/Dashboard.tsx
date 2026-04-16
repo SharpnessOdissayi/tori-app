@@ -92,7 +92,7 @@ const HEBREW_FONTS = [
 ];
 
 const PRESET_COLORS = [
-  "#2563eb", "#7c3aed", "#db2777", "#dc2626",
+  "#2563eb", "#3c92f0", "#db2777", "#dc2626",
   "#ea580c", "#16a34a", "#0891b2", "#0f172a",
 ];
 
@@ -196,7 +196,7 @@ function SubscriptionBanner() {
     const cancelledAt: Date | null = (profile as any)?.subscriptionCancelledAt ? new Date((profile as any).subscriptionCancelledAt) : null;
 
     let timerText = "ללא הגבלת זמן";
-    let timerColor = "text-violet-500";
+    let timerColor = "text-blue-500";
     if (renewDate) {
       const daysLeft = Math.ceil((renewDate.getTime() - Date.now()) / (1000 * 60 * 60 * 24));
       if (cancelledAt) {
@@ -204,14 +204,14 @@ function SubscriptionBanner() {
         timerColor = daysLeft <= 7 ? "text-red-500" : "text-amber-500";
       } else {
         timerText = daysLeft > 0 ? `מתחדש בעוד ${daysLeft} ימים` : "מתחדש היום";
-        timerColor = daysLeft <= 3 ? "text-amber-500" : "text-violet-500";
+        timerColor = daysLeft <= 3 ? "text-amber-500" : "text-blue-500";
       }
     }
 
     return (
-      <div className="flex flex-wrap items-center gap-2 px-4 py-2.5 bg-gradient-to-l from-violet-50 to-indigo-50 border border-violet-200 rounded-xl mb-4 text-sm">
-        <Crown className="w-4 h-4 text-violet-600 shrink-0" />
-        <span className="text-violet-800 font-medium">מנוי פרו פעיל</span>
+      <div className="flex flex-wrap items-center gap-2 px-4 py-2.5 bg-gradient-to-l from-blue-50 to-blue-50 border border-blue-200 rounded-xl mb-4 text-sm">
+        <Crown className="w-4 h-4 text-blue-500 shrink-0" />
+        <span className="text-blue-700 font-medium">מנוי פרו פעיל</span>
         <span className={`text-xs font-medium ${timerColor}`}>{timerText}</span>
       </div>
     );
@@ -233,7 +233,7 @@ function SubscriptionBanner() {
           </div>
         </div>
         <Button size="sm" onClick={openPayment} disabled={iframeLoading}
-          className="bg-gradient-to-l from-violet-600 to-indigo-600 hover:from-violet-700 hover:to-indigo-700 text-white gap-1.5 shrink-0">
+          className="bg-gradient-to-l from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white gap-1.5 shrink-0">
           <Crown className="w-3.5 h-3.5" />
           {iframeLoading ? "טוען..." : "שדרג לפרו — 🎉 חודש ראשון ₪50"}
         </Button>
@@ -244,21 +244,21 @@ function SubscriptionBanner() {
         <DialogContent dir="rtl" className="max-w-lg p-0 overflow-hidden">
           <DialogHeader className="p-5 pb-3 border-b">
             <DialogTitle className="flex items-center gap-2 text-xl">
-              <Crown className="w-5 h-5 text-violet-600" /> שדרג למנוי פרו
+              <Crown className="w-5 h-5 text-blue-500" /> שדרג למנוי פרו
             </DialogTitle>
             <DialogDescription className="flex flex-col gap-1">
               <span>
                 <span className="inline-block px-2 py-0.5 rounded-md bg-amber-100 text-amber-700 text-xs font-bold mr-2">🎉 מבצע פתיחה -50%</span>
               </span>
               <span>
-                חודש ראשון: <span className="font-semibold text-violet-700 line-through opacity-60 mr-1">₪100</span><span className="font-bold text-violet-700">₪50</span>
+                חודש ראשון: <span className="font-semibold text-blue-600 line-through opacity-60 mr-1">₪100</span><span className="font-bold text-blue-600">₪50</span>
                 &nbsp;·&nbsp;אחר כך <span className="font-semibold">₪100/חודש</span>
                 &nbsp;·&nbsp;ביטול בכל עת
               </span>
             </DialogDescription>
           </DialogHeader>
 
-          <div className="px-5 py-3 bg-violet-50/50 border-b">
+          <div className="px-5 py-3 bg-blue-50/50 border-b">
             <div className="grid grid-cols-2 gap-2 text-sm">
               {[
                 "שירותים ללא הגבלה",
@@ -266,7 +266,7 @@ function SubscriptionBanner() {
                 "עיצוב מותאם אישית",
                 "אינטגרציות WhatsApp",
               ].map(f => (
-                <div key={f} className="flex items-center gap-1.5 text-violet-800">
+                <div key={f} className="flex items-center gap-1.5 text-blue-700">
                   <CheckCircle className="w-3.5 h-3.5 text-green-500 shrink-0" /> {f}
                 </div>
               ))}
@@ -361,7 +361,7 @@ function OnboardingTour({ onComplete, onTabChange }: { onComplete: () => void; o
       {/* Bubble */}
       <div className="bg-white rounded-2xl shadow-2xl border border-border/60 overflow-hidden">
         {/* Top gradient strip */}
-        <div className="h-1 bg-gradient-to-l from-violet-500 to-primary" />
+        <div className="h-1 bg-gradient-to-l from-blue-500 to-primary" />
 
         <div className="p-4 space-y-3">
           {/* Header */}
@@ -1426,7 +1426,7 @@ function ServicesTab() {
             variant={atLimit ? "outline" : "default"}
           >
             <Plus className="w-4 h-4" /> הוסף שירות
-            {atLimit && <Crown className="w-3.5 h-3.5 text-violet-500 mr-1" />}
+            {atLimit && <Crown className="w-3.5 h-3.5 text-blue-500 mr-1" />}
           </Button>
         )}
       </CardHeader>
@@ -2894,8 +2894,8 @@ function BrandingTab() {
   if (profile && !isPro) {
     return (
       <div className="flex flex-col items-center justify-center py-20 gap-6 text-center">
-        <div className="w-20 h-20 rounded-full bg-violet-100 flex items-center justify-center">
-          <Crown className="w-10 h-10 text-violet-600" />
+        <div className="w-20 h-20 rounded-full bg-blue-100 flex items-center justify-center">
+          <Crown className="w-10 h-10 text-blue-500" />
         </div>
         <div>
           <h2 className="text-xl font-bold mb-2">עיצוב אישי — מנוי PRO בלבד</h2>
@@ -2907,7 +2907,7 @@ function BrandingTab() {
           <div className="px-4 py-2 rounded-xl bg-muted text-sm text-muted-foreground">✓ לוגו ובאנר</div>
           <div className="px-4 py-2 rounded-xl bg-muted text-sm text-muted-foreground">✓ עיצוב כפתורים</div>
         </div>
-        <Button size="lg" className="gap-2 bg-violet-600 hover:bg-violet-700 text-white" onClick={() => toast({ title: "צור קשר לשדרוג", description: "פנה אלינו כדי לשדרג למנוי PRO" })}>
+        <Button size="lg" className="gap-2 bg-blue-500 hover:bg-blue-600 text-white" onClick={() => toast({ title: "צור קשר לשדרוג", description: "פנה אלינו כדי לשדרג למנוי PRO" })}>
           <Crown className="w-4 h-4" /> שדרג ל-PRO
         </Button>
       </div>
@@ -2920,7 +2920,7 @@ function BrandingTab() {
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <span className="w-8 h-8 rounded-lg bg-gradient-to-br from-violet-500 to-fuchsia-500 flex items-center justify-center text-white text-sm">✨</span>
+            <span className="w-8 h-8 rounded-lg bg-gradient-to-br from-blue-500 to-fuchsia-500 flex items-center justify-center text-white text-sm">✨</span>
             עיצובים מוכנים
           </CardTitle>
           <CardDescription>בחרו עיצוב — תוכלו להשאיר אותו כמו שהוא או לשנות כל פרט בהמשך העמוד (צבע ראשי, פונט, פינות, כפתורים ועוד).</CardDescription>
@@ -4662,7 +4662,7 @@ function CustomDomainCard() {
       <Card className="opacity-70">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <Crown className="w-5 h-5 text-violet-500" /> דומיין מותאם אישית
+            <Crown className="w-5 h-5 text-blue-500" /> דומיין מותאם אישית
             <Badge variant="outline" className="text-xs">PRO</Badge>
           </CardTitle>
           <CardDescription>שדרג לפרו כדי שעמוד ההזמנות יופיע על הדומיין שלך (למשל book.yoursalon.co.il)</CardDescription>
@@ -4884,10 +4884,10 @@ function SubscriptionStatusCard() {
 
   return (
     <>
-      <Card className={isPro ? "border-violet-200" : "border-slate-200"}>
+      <Card className={isPro ? "border-blue-200" : "border-slate-200"}>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <Crown className={`w-5 h-5 ${isPro ? "text-violet-600" : "text-slate-400"}`} />
+            <Crown className={`w-5 h-5 ${isPro ? "text-blue-500" : "text-slate-400"}`} />
             סטטוס מנוי
           </CardTitle>
           <CardDescription>
@@ -4895,9 +4895,9 @@ function SubscriptionStatusCard() {
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className={`flex items-center justify-between p-4 border rounded-xl ${isPro ? "bg-violet-50/50" : "bg-slate-50"}`}>
+          <div className={`flex items-center justify-between p-4 border rounded-xl ${isPro ? "bg-blue-50/50" : "bg-slate-50"}`}>
             <div className="space-y-1">
-              <div className={`font-medium text-sm ${isPro ? "text-violet-900" : "text-slate-900"}`}>
+              <div className={`font-medium text-sm ${isPro ? "text-blue-800" : "text-slate-900"}`}>
                 {isPro
                   ? (cancelledAt ? "מנוי פרו — בוטל" : "מנוי פרו פעיל")
                   : "מנוי חינמי"}
@@ -4940,7 +4940,7 @@ function SubscriptionStatusCard() {
             <Badge className={
               !isPro ? "bg-slate-100 text-slate-700 border-slate-200"
               : cancelledAt ? "bg-amber-100 text-amber-700 border-amber-200"
-              : "bg-violet-100 text-violet-700 border-violet-200"
+              : "bg-blue-100 text-blue-600 border-blue-200"
             }>
               {!isPro ? "חינמי" : cancelledAt ? "מבוטל" : "פעיל"}
             </Badge>
@@ -4950,7 +4950,7 @@ function SubscriptionStatusCard() {
             <Button
               onClick={handleUpgrade}
               disabled={loadingUpgrade}
-              className="bg-violet-600 hover:bg-violet-700 text-white gap-2"
+              className="bg-blue-500 hover:bg-blue-600 text-white gap-2"
             >
               <Crown className="w-4 h-4" />
               {loadingUpgrade ? "טוען..." : "שדרג למנוי פרו — ₪100/חודש"}
@@ -5018,7 +5018,7 @@ function EmptyState({ text, className = "" }: { text: string; className?: string
 function ProShine() {
   return (
     <span
-      className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-md text-[10px] font-bold text-white bg-gradient-to-r from-violet-500 via-fuchsia-500 to-amber-400 shadow-[0_0_8px_rgba(168,85,247,0.5)] animate-pulse"
+      className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-md text-[10px] font-bold text-white bg-gradient-to-r from-blue-500 via-fuchsia-500 to-amber-400 shadow-[0_0_8px_rgba(168,85,247,0.5)] animate-pulse"
       title="זמין במנוי PRO"
     >
       <Crown className="w-2.5 h-2.5" />
@@ -5032,8 +5032,8 @@ function ProUpgradePrompt({ title, desc }: { title: string; desc: string }) {
   const { toast } = useToast();
   return (
     <div className="flex flex-col items-center justify-center py-20 gap-6 text-center">
-      <div className="w-20 h-20 rounded-full bg-gradient-to-br from-violet-100 to-fuchsia-100 flex items-center justify-center shadow-[0_0_24px_rgba(168,85,247,0.35)]">
-        <Crown className="w-10 h-10 text-violet-600" />
+      <div className="w-20 h-20 rounded-full bg-gradient-to-br from-blue-100 to-fuchsia-100 flex items-center justify-center shadow-[0_0_24px_rgba(168,85,247,0.35)]">
+        <Crown className="w-10 h-10 text-blue-500" />
       </div>
       <div>
         <h2 className="text-xl font-bold mb-2">{title}</h2>
@@ -5041,7 +5041,7 @@ function ProUpgradePrompt({ title, desc }: { title: string; desc: string }) {
       </div>
       <Button
         size="lg"
-        className="gap-2 bg-gradient-to-r from-violet-600 to-fuchsia-600 hover:from-violet-700 hover:to-fuchsia-700 text-white shadow-lg"
+        className="gap-2 bg-gradient-to-r from-blue-500 to-fuchsia-600 hover:from-blue-600 hover:to-fuchsia-700 text-white shadow-lg"
         onClick={() => toast({ title: "שדרוג למנוי PRO", description: "פתח את לשונית ההגדרות → סטטוס מנוי → שדרג" })}
       >
         <Crown className="w-4 h-4" /> שדרג למנוי PRO

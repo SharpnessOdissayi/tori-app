@@ -454,10 +454,17 @@ export default function Book({ slugOverride }: { slugOverride?: string } = {}) {
   const animationStyle = (business as any)?.animationStyle ?? "none";
   const hoverEffect = (business as any)?.hoverEffect ?? "none";
 
-  // Page background: gradient > solid color > default
+  // Page background — precedence: explicit gradient > explicit solid
+  // backgroundColor > SUBTLE tint from the business's primary color. Fall
+  // back to the last option so a business that only picked a primary
+  // colour (no gradient, no explicit bg) still gets a visibly-branded
+  // profile page instead of a default white/black background that looks
+  // like the design "didn't apply".
   const pageBackground = gradientEnabled && gradientFrom && gradientTo
     ? `linear-gradient(${gradientAngle}deg, ${gradientFrom}, ${gradientTo})`
-    : backgroundColor || undefined;
+    : backgroundColor
+    ? backgroundColor
+    : `linear-gradient(180deg, ${primaryColor}12 0%, ${primaryColor}03 220px, transparent 520px)`;
 
   // Optional decorative SVG patterns as CSS background-image
   const patternSvg = backgroundPattern === "dots"
@@ -722,7 +729,7 @@ export default function Book({ slugOverride }: { slugOverride?: string } = {}) {
   // ─── Login gate (full-screen, shown before booking page if no token) ────────
   if (showLoginGate && !businessLoading && business) {
     return (
-      <div dir="rtl" className="min-h-screen flex flex-col items-center justify-center bg-gradient-to-br from-violet-50 to-indigo-50 px-4 py-8"
+      <div dir="rtl" className="min-h-screen flex flex-col items-center justify-center bg-gradient-to-br from-blue-50 to-blue-50 px-4 py-8"
         style={{ fontFamily: `'${business.fontFamily ?? "Heebo"}', sans-serif` }}>
         <div className="w-full max-w-sm">
           {/* Logo / business name */}

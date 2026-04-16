@@ -9,195 +9,149 @@ const NAV_LINKS = [
   { label: "כניסה לבעלי עסקים", href: "/dashboard" },
 ];
 
-// 8 stars: top%, left%, size, delay, duration, drift (horizontal drift px)
-const STARS = [
-  { top: -20, left: 8,   size: 20, delay: "0s",   dur: "4.5s", drift: 15  },
-  { top: -20, left: 18,  size: 16, delay: "0.7s",  dur: "5.2s", drift: -10 },
-  { top: -20, left: 32,  size: 22, delay: "1.3s",  dur: "4.8s", drift: 12  },
-  { top: -20, left: 47,  size: 18, delay: "0.3s",  dur: "5.5s", drift: -8  },
-  { top: -20, left: 58,  size: 14, delay: "1.8s",  dur: "4.2s", drift: 18  },
-  { top: -20, left: 70,  size: 20, delay: "0.9s",  dur: "5.0s", drift: -14 },
-  { top: -20, left: 82,  size: 16, delay: "2.2s",  dur: "4.6s", drift: 10  },
-  { top: -20, left: 92,  size: 18, delay: "1.5s",  dur: "5.3s", drift: -12 },
-];
-
-function StarIcon({ size }: { size: number }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor">
-      <path d="M12 2l2.4 7.4H22l-6.2 4.5 2.4 7.4L12 17l-6.2 4.3 2.4-7.4L2 9.4h7.6z" />
-    </svg>
-  );
-}
-
+/**
+ * Kavati site header — flat, brand-blue accent, no hard separator line.
+ * Previous design was dark + gold stars; we dropped that look when the
+ * brand switched to a single-hue blue identity (hsl(211 86% 59%)). A soft
+ * shadow takes the place of the old border-bottom so the header blends
+ * into the page instead of visually cutting it in half.
+ */
 export default function Navbar({ leftContent }: { leftContent?: ReactNode }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [location] = useLocation();
+  const brand = "hsl(211 86% 59%)";
 
   return (
-    <>
-      <style>{`
-        @keyframes starFall {
-          0%   { transform: translateY(-20px) translateX(0px) rotate(0deg);  opacity: 0; }
-          10%  { opacity: 0.7; }
-          85%  { opacity: 0.5; }
-          100% { transform: translateY(80px) translateX(var(--drift)) rotate(180deg); opacity: 0; }
-        }
-        .star-fall {
-          animation: starFall var(--dur) ease-in infinite;
-          animation-delay: var(--delay);
-        }
-      `}</style>
+    <header
+      dir="rtl"
+      className="sticky top-0 z-50 w-full backdrop-blur-md"
+      style={{
+        background: "rgba(255,255,255,0.85)",
+        boxShadow: "0 1px 0 rgba(0,0,0,0.03), 0 8px 24px -18px rgba(60,146,240,0.35)",
+      }}
+    >
+      <div className="relative w-full px-4 sm:px-6 h-16 flex items-center justify-between">
 
-      <header
-        dir="rtl"
-        className="sticky top-0 z-50 w-full overflow-hidden"
-        style={{
-          background: "linear-gradient(135deg, #0a0a0a 0%, #1a1a1a 100%)",
-          borderBottom: "1px solid #2a2a2a",
-        }}
-      >
-        {/* Falling stars */}
-        <div className="absolute inset-0 pointer-events-none">
-          {STARS.map((s, i) => (
-            <span
-              key={i}
-              className="absolute star-fall"
-              style={{
-                top: `${s.top}px`,
-                left: `${s.left}%`,
-                color: "#d4af37",
-                "--dur": s.dur,
-                "--delay": s.delay,
-                "--drift": `${s.drift}px`,
-              } as React.CSSProperties}
-            >
-              <StarIcon size={s.size} />
-            </span>
-          ))}
-        </div>
+        {/* Mobile hamburger — rendered FIRST so in RTL it sits on the right
+            edge of the screen per owner's earlier request. Desktop hides it
+            via md:hidden, so desktop layout is untouched. */}
+        <button
+          className="md:hidden p-2 rounded-lg order-1 transition-colors hover:bg-black/5"
+          style={{ color: brand }}
+          onClick={() => setMenuOpen(v => !v)}
+          aria-label="תפריט"
+        >
+          {menuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
+        </button>
 
-        <div className="relative w-full px-4 sm:px-6 h-16 flex items-center justify-between">
+        {/* Logo + nav links + CTAs (desktop-right, mobile-left) */}
+        <div className="flex items-center flex-1 order-2 md:order-1 justify-end md:justify-start gap-3">
+          <Link href="/">
+            <img
+              src="/logo.svg"
+              alt="קבעתי"
+              className="h-10 object-contain cursor-pointer select-none"
+            />
+          </Link>
 
-          {/* Mobile hamburger — rendered FIRST so in RTL it sits on the
-              right edge of the screen per owner's request. Desktop hides
-              it via md:hidden, so desktop layout is untouched. */}
-          <button
-            className="md:hidden p-2 rounded-lg order-1"
-            style={{ color: "#d4af37" }}
-            onClick={() => setMenuOpen(v => !v)}
-            aria-label="תפריט"
-          >
-            {menuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
-          </button>
-
-          {/* Logo + nav links + CTAs (desktop-right, mobile-left) */}
-          <div className="flex items-center flex-1 order-2 md:order-1 justify-end md:justify-start">
-            <Link href="/">
-              <img
-                src="/logo.png"
-                alt="קבעתי"
-                className="h-12 w-12 rounded-xl object-cover cursor-pointer select-none"
-              />
-            </Link>
-
-            <nav className="hidden md:flex items-center gap-0 mr-3">
-              {NAV_LINKS.filter(l => !l.highlight).map((link) => {
-                const isActive = location === link.href;
-                return (
-                  <Link key={link.href} href={link.href}>
-                    <span
-                      className="px-3 py-2 text-sm font-medium cursor-pointer transition-all whitespace-nowrap"
-                      style={{
-                        color: isActive ? "#d4af37" : "#c0c0c0",
-                        borderBottom: isActive ? "2px solid #d4af37" : "2px solid transparent",
-                      }}
-                      onMouseEnter={e => (e.currentTarget.style.color = "#d4af37")}
-                      onMouseLeave={e => (e.currentTarget.style.color = isActive ? "#d4af37" : "#c0c0c0")}
-                    >
-                      {link.label}
-                    </span>
-                  </Link>
-                );
-              })}
-
-              {/* CTAs pinned right after nav links */}
-              {!leftContent && (
-                <>
-                  <Link href="/portal">
-                    <span
-                      className="px-3 py-2 text-sm font-medium cursor-pointer transition-all whitespace-nowrap"
-                      style={{
-                        color: location === "/portal" ? "#d4af37" : "#c0c0c0",
-                        borderBottom: location === "/portal" ? "2px solid #d4af37" : "2px solid transparent",
-                      }}
-                      onMouseEnter={e => (e.currentTarget.style.color = "#d4af37")}
-                      onMouseLeave={e => (e.currentTarget.style.color = location === "/portal" ? "#d4af37" : "#c0c0c0")}
-                    >
-                      כניסה ללקוחות
-                    </span>
-                  </Link>
-                  <Link href="/register">
-                    <span
-                      className="mr-2 px-5 py-2.5 rounded-xl text-sm font-bold cursor-pointer transition-all whitespace-nowrap"
-                      style={{
-                        background: "linear-gradient(135deg, #d4af37, #f0c040)",
-                        color: "#0a0a0a",
-                        boxShadow: "0 0 14px rgba(212,175,55,0.35)",
-                      }}
-                    >
-                      הצטרפות למערכת קבעתי
-                    </span>
-                  </Link>
-                </>
-              )}
-            </nav>
-          </div>
-
-          {/* LEFT: custom content (dashboard logout etc.) — desktop only */}
-          {leftContent && (
-            <div className="hidden md:flex items-center gap-2 md:order-2">
-              {leftContent}
-            </div>
-          )}
-        </div>
-
-        {/* Mobile dropdown */}
-        {menuOpen && (
-          <div className="md:hidden border-t relative" style={{ background: "#111", borderColor: "#2a2a2a" }}>
-            <nav className="flex flex-col px-4 py-3 gap-1">
-              {NAV_LINKS.map((link) => (
+          <nav className="hidden md:flex items-center gap-1 mr-2">
+            {NAV_LINKS.map((link) => {
+              const isActive = location === link.href;
+              return (
                 <Link key={link.href} href={link.href}>
                   <span
-                    className="block px-4 py-3 rounded-xl text-sm font-medium cursor-pointer"
-                    style={{ color: "#c0c0c0" }}
-                    onClick={() => setMenuOpen(false)}
+                    className="px-3 py-2 text-sm font-medium cursor-pointer rounded-lg transition-colors whitespace-nowrap"
+                    style={{
+                      color: isActive ? brand : "#475569",
+                      background: isActive ? "rgba(60,146,240,0.10)" : "transparent",
+                    }}
+                    onMouseEnter={e => {
+                      if (!isActive) e.currentTarget.style.background = "rgba(60,146,240,0.06)";
+                    }}
+                    onMouseLeave={e => {
+                      if (!isActive) e.currentTarget.style.background = "transparent";
+                    }}
                   >
                     {link.label}
                   </span>
                 </Link>
-              ))}
-              <Link href="/portal">
-                <span
-                  className="block px-4 py-3 rounded-xl text-sm font-medium cursor-pointer"
-                  style={{ color: "#d4af37" }}
-                  onClick={() => setMenuOpen(false)}
-                >
-                  כניסה ללקוחות
-                </span>
-              </Link>
-              <Link href="/register">
-                <span
-                  className="block px-4 py-3 rounded-xl text-sm font-bold cursor-pointer"
-                  style={{ background: "linear-gradient(135deg, #d4af37, #f0c040)", color: "#0a0a0a" }}
-                  onClick={() => setMenuOpen(false)}
-                >
-                  הצטרפות למערכת קבעתי
-                </span>
-              </Link>
-            </nav>
+              );
+            })}
+
+            {/* CTAs — visible when no page-specific leftContent is injected */}
+            {!leftContent && (
+              <>
+                <Link href="/portal">
+                  <span
+                    className="px-3 py-2 text-sm font-medium cursor-pointer rounded-lg transition-colors whitespace-nowrap"
+                    style={{
+                      color: location === "/portal" ? brand : "#475569",
+                      background: location === "/portal" ? "rgba(60,146,240,0.10)" : "transparent",
+                    }}
+                  >
+                    כניסה ללקוחות
+                  </span>
+                </Link>
+                <Link href="/register">
+                  <span
+                    className="mr-2 px-5 py-2.5 rounded-full text-sm font-semibold cursor-pointer transition-all whitespace-nowrap text-white"
+                    style={{
+                      background: "linear-gradient(135deg, #3c92f0 0%, #1e6fcf 100%)",
+                      boxShadow: "0 6px 16px -6px rgba(60,146,240,0.6)",
+                    }}
+                  >
+                    הצטרפות למערכת קבעתי
+                  </span>
+                </Link>
+              </>
+            )}
+          </nav>
+        </div>
+
+        {/* LEFT: page-specific content (dashboard logout etc.) — desktop only */}
+        {leftContent && (
+          <div className="hidden md:flex items-center gap-2 md:order-2">
+            {leftContent}
           </div>
         )}
-      </header>
-    </>
+      </div>
+
+      {/* Mobile dropdown */}
+      {menuOpen && (
+        <div className="md:hidden" style={{ background: "rgba(255,255,255,0.98)", borderTop: "1px solid rgba(60,146,240,0.15)" }}>
+          <nav className="flex flex-col px-4 py-3 gap-1">
+            {NAV_LINKS.map((link) => (
+              <Link key={link.href} href={link.href}>
+                <span
+                  className="block px-4 py-3 rounded-xl text-sm font-medium cursor-pointer transition-colors"
+                  style={{ color: location === link.href ? brand : "#475569", background: location === link.href ? "rgba(60,146,240,0.08)" : "transparent" }}
+                  onClick={() => setMenuOpen(false)}
+                >
+                  {link.label}
+                </span>
+              </Link>
+            ))}
+            <Link href="/portal">
+              <span
+                className="block px-4 py-3 rounded-xl text-sm font-medium cursor-pointer"
+                style={{ color: brand }}
+                onClick={() => setMenuOpen(false)}
+              >
+                כניסה ללקוחות
+              </span>
+            </Link>
+            <Link href="/register">
+              <span
+                className="block px-4 py-3 rounded-xl text-sm font-bold cursor-pointer text-white text-center mt-1"
+                style={{ background: "linear-gradient(135deg, #3c92f0 0%, #1e6fcf 100%)", boxShadow: "0 6px 16px -6px rgba(60,146,240,0.6)" }}
+                onClick={() => setMenuOpen(false)}
+              >
+                הצטרפות למערכת קבעתי
+              </span>
+            </Link>
+          </nav>
+        </div>
+      )}
+    </header>
   );
 }

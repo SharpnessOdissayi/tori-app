@@ -85,8 +85,8 @@ const DASHBOARD_TABS = [
     desc: "רשימה מלאה של כל התורים הקרובים — ניתן לאשר, לבטל או לסמן הגעה לכל תור. מוצג לפי תאריך עם שם הלקוח, שירות ושעה.",
   },
   {
-    icon: <Briefcase className="w-6 h-6 text-violet-600" />,
-    color: "bg-violet-50 border-violet-200",
+    icon: <Briefcase className="w-6 h-6 text-blue-500" />,
+    color: "bg-blue-50 border-blue-200",
     title: "שירותים",
     desc: "הוספת שירותים, עריכת מחירים ומשך זמן, הגדרת תיאור — הכל מתעדכן מיידית בעמוד ההזמנה של הלקוחות.",
   },
@@ -133,8 +133,8 @@ const DASHBOARD_TABS = [
     desc: "צבע ראשי, פונט, לוגו, באנר, גלריה, תיאור, כתובת, אתר, אינסטגרם — כל מה שקשור למראה הפרופיל שלך.",
   },
   {
-    icon: <Send className="w-6 h-6 text-indigo-600" />,
-    color: "bg-indigo-50 border-indigo-200",
+    icon: <Send className="w-6 h-6 text-blue-600" />,
+    color: "bg-blue-50 border-blue-200",
     title: "הודעות",
     desc: "שלח הודעת broadcast לכל הלקוחות שלך בבת אחת — עדכון, מבצע, שינוי שעות. עד 150 הודעות בחודש בתוכנית פרו.",
   },
@@ -175,8 +175,8 @@ const PLANS = [
     name: "פרו",
     price: "₪50",
     sub: "לחודש הראשון • לאחר מכן ₪100/חודש",
-    icon: <Crown className="w-6 h-6 text-violet-600" />,
-    color: "border-violet-400",
+    icon: <Crown className="w-6 h-6 text-blue-500" />,
+    color: "border-blue-400",
     badge: "מומלץ — 50% הנחה לחודש ראשון",
     items: [
       "שירותים ללא הגבלה",
@@ -281,10 +281,10 @@ export default function Details() {
           <p className="text-center text-muted-foreground mb-12">ניתן לשדרג בכל עת מלוח הבקרה</p>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
             {PLANS.map((plan, i) => (
-              <div key={i} className={`rounded-2xl border-2 p-8 space-y-6 relative ${plan.color} ${i === 1 ? "bg-violet-50/50 dark:bg-violet-950/20" : ""}`}>
+              <div key={i} className={`rounded-2xl border-2 p-8 space-y-6 relative ${plan.color} ${i === 1 ? "bg-blue-50/50 dark:bg-blue-950/20" : ""}`}>
                 {plan.badge && (
                   <div className="absolute -top-3 right-6">
-                    <Badge className="bg-violet-600 text-white px-3 py-1 text-xs">{plan.badge}</Badge>
+                    <Badge className="bg-blue-500 text-white px-3 py-1 text-xs">{plan.badge}</Badge>
                   </div>
                 )}
                 <div className="flex items-center gap-2">
