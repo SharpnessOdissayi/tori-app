@@ -77,6 +77,45 @@ export async function runMigrations() {
       )
     `));
 
+    // Business category catalog — used to populate the "סוג עסק" picker
+    // on the registration form and the public directory filter. Rows are
+    // editable from the super-admin panel; "sort_order" controls display.
+    await db.execute(sql.raw(`
+      CREATE TABLE IF NOT EXISTS business_categories (
+        id          SERIAL PRIMARY KEY,
+        name        TEXT NOT NULL UNIQUE,
+        sort_order  INTEGER NOT NULL DEFAULT 100,
+        created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      )
+    `));
+
+    // Seed initial list — idempotent. If rows already exist (prior boot
+    // or super-admin edits), we don't touch them.
+    const seedRows = await db.execute(sql.raw(`SELECT COUNT(*)::int AS n FROM business_categories`));
+    const currentCount = Number((seedRows.rows[0] as any)?.n ?? 0);
+    if (currentCount === 0) {
+      const defaults = [
+        "ספרות גברים","מספרת נשים","מספרה כללית","החלקות שיער","צביעת שיער","עיצוב שיער ופאות",
+        "מלחימת ריסים","מלחימת גבות","עיצוב גבות","טיפולי פנים","מניקור ופדיקור","ציפורניים ג'ל / אקריליק",
+        "מסאז'","הסרת שיער בלייזר","שעוות / הסרת שיער","ספא וטיפולי גוף","איפור ועיצוב","סולריום",
+        "קעקוע","פירסינג","תכשיטי שיניים",
+        "רפואה כללית","רפואת שיניים","פסיכולוגיה / טיפול רגשי","פיזיותרפיה",
+        "רפואה טבעית / אלטרנטיבית","תזונה ודיאטה","אופטומטריה","נטורופתיה","רפלקסולוגיה",
+        "אימון אישי","יוגה / פילאטיס","אומנויות לחימה","שחייה","ריקוד",
+        "שיעורים פרטיים","ייעוץ עסקי","ייעוץ משכנתאות","ייעוץ משפטי","אימון אישי (קואצ'ינג)",
+        "תיקון מחשבים ונייד","תיקון רכב","שיפוצים ובנייה","חשמלאי","שרברב",
+        "צילום","עיצוב גרפי","שיעורי נגינה",
+        "וטרינר","קייטרינג ואירועים","אחר",
+      ];
+      for (let i = 0; i < defaults.length; i++) {
+        await db.execute(sql`
+          INSERT INTO business_categories (name, sort_order)
+          VALUES (${defaults[i]}, ${(i + 1) * 10})
+          ON CONFLICT (name) DO NOTHING
+        `);
+      }
+    }
+
     // Business tax/invoice profile — what the business owner prints on
     // their receipts. Separate from the public booking-page profile.
     const receiptFields: string[] = [

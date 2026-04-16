@@ -387,6 +387,10 @@ export default function SuperAdmin() {
             clicks verify here. */}
         <DomainReviewPanel adminPassword={password} />
 
+        {/* Business category catalog — edit the list that fills the
+            registration form's "סוג עסק" picker. */}
+        <CategoryManagementPanel adminPassword={password} />
+
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
           {isLoading ? (
             <div className="col-span-full p-12 text-center text-muted-foreground">טוען...</div>
@@ -791,6 +795,169 @@ function DomainReviewPanel({ adminPassword }: { adminPassword: string }) {
                   </div>
                 ))}
               </div>
+            </div>
+          )}
+        </CardContent>
+      )}
+    </Card>
+  );
+}
+
+// ─── Category management panel ─────────────────────────────────────────────
+// Lists every business_categories row and lets the super admin add, rename,
+// delete, and reorder them. The catalog feeds the Register page's "סוג עסק"
+// picker, so changes propagate to the next registration automatically.
+
+interface CategoryRow {
+  id:         number;
+  name:       string;
+  sort_order: number;
+}
+
+function CategoryManagementPanel({ adminPassword }: { adminPassword: string }) {
+  const [rows, setRows]       = useState<CategoryRow[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [open, setOpen]       = useState(false);
+  const [newName, setNewName] = useState("");
+  const [editId, setEditId]   = useState<number | null>(null);
+  const [editName, setEditName] = useState("");
+  const { toast } = useToast();
+
+  const refresh = async () => {
+    setLoading(true);
+    try {
+      const res = await fetch(`/api/super-admin/categories`, {
+        headers: { "X-Admin-Password": adminPassword },
+      });
+      const data = await res.json();
+      setRows(res.ok && Array.isArray(data) ? data : []);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => { if (open) refresh(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [open, adminPassword]);
+
+  const add = async () => {
+    const name = newName.trim();
+    if (!name) return;
+    const res = await fetch(`/api/super-admin/categories`, {
+      method:  "POST",
+      headers: { "Content-Type": "application/json", "X-Admin-Password": adminPassword },
+      body:    JSON.stringify({ name }),
+    });
+    const data = await res.json();
+    if (res.ok) {
+      setNewName("");
+      toast({ title: `"${data.name}" נוסף` });
+      refresh();
+    } else {
+      toast({ title: "שגיאה", description: data.message ?? "לא ניתן להוסיף", variant: "destructive" });
+    }
+  };
+
+  const rename = async (id: number, name: string) => {
+    if (!name.trim()) return;
+    const res = await fetch(`/api/super-admin/categories/${id}`, {
+      method:  "PATCH",
+      headers: { "Content-Type": "application/json", "X-Admin-Password": adminPassword },
+      body:    JSON.stringify({ name: name.trim() }),
+    });
+    if (res.ok) {
+      setEditId(null);
+      toast({ title: "נשמר" });
+      refresh();
+    } else {
+      const data = await res.json().catch(() => ({}));
+      toast({ title: "שגיאה", description: data.message ?? "", variant: "destructive" });
+    }
+  };
+
+  const remove = async (id: number, name: string) => {
+    if (!confirm(`למחוק את "${name}"?`)) return;
+    const res = await fetch(`/api/super-admin/categories/${id}`, {
+      method:  "DELETE",
+      headers: { "X-Admin-Password": adminPassword },
+    });
+    if (res.ok) {
+      toast({ title: "נמחק" });
+      refresh();
+    }
+  };
+
+  return (
+    <Card className="mb-6">
+      <CardHeader
+        className="cursor-pointer select-none"
+        onClick={() => setOpen(o => !o)}
+      >
+        <CardTitle className="flex items-center gap-2">
+          <span>📁</span>
+          סוגי עסקים
+          <Badge variant="outline" className="text-xs">{rows.length}</Badge>
+          <span className="mr-auto text-xs text-muted-foreground">
+            {open ? "סגור ▲" : "פתח ▼"}
+          </span>
+        </CardTitle>
+        <CardDescription>עריכת הרשימה שמופיעה בטופס ההרשמה כשבעל עסק בוחר "סוג עסק".</CardDescription>
+      </CardHeader>
+      {open && (
+        <CardContent>
+          {/* Add form */}
+          <div className="flex gap-2 mb-4">
+            <Input
+              value={newName}
+              onChange={e => setNewName(e.target.value)}
+              onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); add(); } }}
+              placeholder="הוסף סוג עסק חדש..."
+              className="flex-1"
+            />
+            <Button onClick={add} disabled={!newName.trim()}>הוסף</Button>
+          </div>
+
+          {loading ? (
+            <p className="text-sm text-muted-foreground text-center py-4">טוען...</p>
+          ) : rows.length === 0 ? (
+            <p className="text-sm text-muted-foreground text-center py-4">אין עדיין קטגוריות — הוסף את הראשונה.</p>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 max-h-96 overflow-y-auto">
+              {rows.map(r => (
+                <div
+                  key={r.id}
+                  className="flex items-center gap-2 px-3 py-2 border rounded-lg bg-muted/20"
+                >
+                  {editId === r.id ? (
+                    <>
+                      <Input
+                        value={editName}
+                        onChange={e => setEditName(e.target.value)}
+                        onKeyDown={e => {
+                          if (e.key === "Enter") { e.preventDefault(); rename(r.id, editName); }
+                          if (e.key === "Escape") { setEditId(null); }
+                        }}
+                        autoFocus
+                        className="flex-1 h-8"
+                      />
+                      <Button size="sm" variant="ghost" onClick={() => rename(r.id, editName)} className="h-8 px-2">✓</Button>
+                      <Button size="sm" variant="ghost" onClick={() => setEditId(null)} className="h-8 px-2">✕</Button>
+                    </>
+                  ) : (
+                    <>
+                      <span className="flex-1 text-sm truncate">{r.name}</span>
+                      <button
+                        onClick={() => { setEditId(r.id); setEditName(r.name); }}
+                        className="text-xs text-muted-foreground hover:text-primary"
+                        title="ערוך"
+                      >ערוך</button>
+                      <button
+                        onClick={() => remove(r.id, r.name)}
+                        className="text-xs text-destructive hover:underline"
+                        title="מחק"
+                      >מחק</button>
+                    </>
+                  )}
+                </div>
+              ))}
             </div>
           )}
         </CardContent>

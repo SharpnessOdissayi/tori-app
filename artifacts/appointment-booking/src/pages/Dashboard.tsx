@@ -574,12 +574,9 @@ export default function Dashboard() {
               {[
                 { value: "appointments", icon: <Calendar className="w-6 h-6" />, label: "פגישות", proOnly: false },
                 { value: "services", icon: <Briefcase className="w-6 h-6" />, label: "שירותים", proOnly: false },
-                { value: "hours", icon: <Clock className="w-6 h-6" />, label: "שעות", proOnly: false },
-                { value: "timeoff", icon: <Umbrella className="w-6 h-6" />, label: "ימי חופש", proOnly: false },
+                { value: "hours", icon: <Clock className="w-6 h-6" />, label: "שעות עבודה", proOnly: false },
                 { value: "customers", icon: <Users className="w-6 h-6" />, label: "לקוחות", proOnly: false },
                 { value: "waitlist", icon: <ListOrdered className="w-6 h-6" />, label: "המתנה", proOnly: false },
-                { value: "analytics", icon: <TrendingUp className="w-6 h-6" />, label: "נתונים", proOnly: true },
-                { value: "revenue", icon: <DollarSign className="w-6 h-6" />, label: "כסף", proOnly: true },
                 { value: "receipts", icon: <FileText className="w-6 h-6" />, label: "קבלות", proOnly: false },
                 { value: "branding", icon: <Palette className="w-6 h-6" />, label: "עיצוב", proOnly: false },
                 { value: "integrations", icon: <Phone className="w-6 h-6" />, label: "הודעות", proOnly: true },
@@ -606,12 +603,26 @@ export default function Dashboard() {
 
           <TabsContent value="appointments"><AppointmentsTab /></TabsContent>
           <TabsContent value="services"><ServicesTab /></TabsContent>
-          <TabsContent value="hours"><WorkingHoursTab /></TabsContent>
-          <TabsContent value="timeoff"><DayOffTab /></TabsContent>
-          <TabsContent value="customers"><CustomersTab /></TabsContent>
+          <TabsContent value="hours">
+            <div className="space-y-10">
+              <WorkingHoursTab />
+              <div className="pt-6 border-t">
+                <DayOffTab />
+              </div>
+            </div>
+          </TabsContent>
+          <TabsContent value="customers">
+            <div className="space-y-10">
+              <CustomersTab />
+              <div className="pt-6 border-t">
+                {isProPlan ? <RevenueTab /> : <ProUpgradePrompt title="נתוני כסף — מנוי PRO בלבד" desc="שדרג למנוי PRO כדי לעקוב אחרי הכנסות, תשלומי מקדמה ודוחות כספיים" />}
+              </div>
+              <div className="pt-6 border-t">
+                {isProPlan ? <AnalyticsTab /> : <ProUpgradePrompt title="ניתוח נתונים — מנוי PRO בלבד" desc="שדרג למנוי PRO כדי לראות סטטיסטיקות, גרפים ומגמות על העסק שלך" />}
+              </div>
+            </div>
+          </TabsContent>
           <TabsContent value="waitlist"><WaitlistTab /></TabsContent>
-          <TabsContent value="analytics">{isProPlan ? <AnalyticsTab /> : <ProUpgradePrompt title="נתונים — מנוי PRO בלבד" desc="שדרג למנוי PRO כדי לראות סטטיסטיקות מפורטות, גרפים ומגמות של העסק שלך" />}</TabsContent>
-          <TabsContent value="revenue">{isProPlan ? <RevenueTab /> : <ProUpgradePrompt title="כסף — מנוי PRO בלבד" desc="שדרג למנוי PRO כדי לעקוב אחרי הכנסות, תשלומים מקדמה ודוחות כספיים" />}</TabsContent>
           <TabsContent value="receipts"><ReceiptsTab /></TabsContent>
           <TabsContent value="branding"><BrandingTab /></TabsContent>
           <TabsContent value="integrations">{isProPlan ? <IntegrationsTab /> : <ProUpgradePrompt title="הודעות — מנוי PRO בלבד" desc="שדרג למנוי PRO כדי לנהל תבניות WhatsApp אישיות, הודעות ברודקאסט ותזכורות מתוזמנות" />}</TabsContent>
@@ -3415,6 +3426,8 @@ function SettingsTab() {
     businessLegalType: "exempt" as "exempt" | "authorized" | "company",
     businessLegalName: "",
     invoiceAddress: "",
+    // URL slug
+    slug: "",
   });
   const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
   const [categorySearch, setCategorySearch] = useState("");
@@ -3455,6 +3468,7 @@ function SettingsTab() {
         businessLegalType: ((profile as any).businessLegalType ?? "exempt") as "exempt" | "authorized" | "company",
         businessLegalName: (profile as any).businessLegalName ?? "",
         invoiceAddress: (profile as any).invoiceAddress ?? "",
+        slug: profile.slug ?? "",
       });
       try {
         const cats = (profile as any).businessCategories;
@@ -3579,9 +3593,33 @@ function SettingsTab() {
                   <Label>אימייל</Label>
                   <Input type="email" dir="ltr" value={form.email} onChange={e => setForm(p => ({ ...p, email: e.target.value }))} />
                 </div>
-                <div className="space-y-2">
+                <div className="space-y-2 sm:col-span-2">
                   <Label>לינק לקביעת תור</Label>
                   <CopyLinkButton slug={profile.slug} />
+                  <p className="text-xs text-muted-foreground">
+                    זה הלינק שמקבלים מאיתנו. ניתן לשנות את הכתובת הייחודית של העסק בהמשך העמוד.
+                  </p>
+                </div>
+                <div className="space-y-2 sm:col-span-2">
+                  <Label>כתובת ייחודית של העסק (Slug)</Label>
+                  <div
+                    dir="ltr"
+                    className="flex items-stretch rounded-xl border bg-background overflow-hidden focus-within:ring-2 focus-within:ring-primary focus-within:border-primary transition-all"
+                  >
+                    <input
+                      dir="ltr"
+                      className="flex-1 min-w-0 px-4 py-2.5 bg-transparent text-sm outline-none font-mono"
+                      placeholder="my-business"
+                      value={form.slug ?? ""}
+                      onChange={e => setForm(p => ({ ...p, slug: e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, "") }))}
+                    />
+                    <span className="px-4 flex items-center text-sm text-muted-foreground whitespace-nowrap border-r bg-muted/50 font-mono">
+                      kavati.net/book/
+                    </span>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    רק אותיות באנגלית, מספרים ומקפים. שינוי הכתובת ישנה את הלינק להזמנת תור — לקוחות ישנים צריכים את הלינק החדש.
+                  </p>
                 </div>
               </div>
             </div>

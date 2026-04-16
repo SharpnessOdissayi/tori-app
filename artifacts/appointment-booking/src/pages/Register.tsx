@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useLocation } from "wouter";
 import Navbar from "@/components/Navbar";
 import { Button } from "@/components/ui/button";
@@ -12,7 +12,10 @@ import {
   Building2, User, Phone, Mail, Lock, Globe, PartyPopper, Search, X, ChevronDown, MapPin, Instagram
 } from "lucide-react";
 
-const BUSINESS_CATEGORIES = [
+// Fallback list used ONLY while the API call is pending. The authoritative
+// list lives in the DB (business_categories table) and is editable from
+// super-admin. If the API call fails, we fall back to this.
+const BUSINESS_CATEGORIES_FALLBACK = [
   // מספרות ועיצוב שיער
   "ספרות גברים",
   "מספרת נשים",
@@ -254,6 +257,20 @@ function StepDetails({
   const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
   const [categorySearch, setCategorySearch] = useState("");
   const [categoryOpen, setCategoryOpen] = useState(false);
+  // Load categories from the server. Falls back to the hard-coded list on
+  // error so the form still works even if the API is down mid-render.
+  const [categories, setCategories] = useState<string[]>(BUSINESS_CATEGORIES_FALLBACK);
+  useEffect(() => {
+    fetch(`${API_BASE}/public/categories`)
+      .then(r => (r.ok ? r.json() : null))
+      .then((rows: Array<{ name: string }> | null) => {
+        if (Array.isArray(rows) && rows.length > 0) {
+          setCategories(rows.map(r => r.name));
+        }
+      })
+      .catch(() => {});
+  }, []);
+
   const [form, setForm] = useState<DetailsForm>({
     businessName: "",
     slug: "",
@@ -325,7 +342,7 @@ function StepDetails({
     }
   };
 
-  const filteredCategories = BUSINESS_CATEGORIES.filter(c =>
+  const filteredCategories = categories.filter(c =>
     c.includes(categorySearch)
   );
 
