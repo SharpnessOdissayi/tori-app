@@ -1239,6 +1239,7 @@ function ServicesTab() {
   };
 
   return (
+    <>
     <Card>
       <CardHeader className="flex flex-row items-center justify-between pb-4">
         <div>
@@ -1390,6 +1391,174 @@ function ServicesTab() {
             </div>
           ))}
           {!services?.length && !isAdding && <EmptyState text="אין שירותים מוגדרים עדיין" className="col-span-full" />}
+        </div>
+      </CardContent>
+      </Card>
+
+      {/* Booking restrictions — moved here from Settings per owner's
+          request (it belongs with services, not under general settings). */}
+      <BookingRestrictionsCard />
+    </>
+  );
+}
+
+function BookingRestrictionsCard() {
+  const { data: profile } = useGetBusinessProfile();
+  const updateMutation = useUpdateBusinessProfile();
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+
+  const [form, setForm] = useState({
+    minLeadHours:                "0",
+    cancellationHours:           "0",
+    maxFutureWeeks:              "15",
+    futureBookingMode:           "weeks" as "weeks" | "date",
+    maxFutureDate:               "",
+    maxAppointmentsPerCustomer:  "",
+    requireActiveSubscription:   false,
+    maxAppointmentsPerDay:       "",
+  });
+
+  useEffect(() => {
+    if (profile) {
+      setForm({
+        minLeadHours:                ((profile as any).minLeadHours ?? 0).toString(),
+        cancellationHours:           ((profile as any).cancellationHours ?? 0).toString(),
+        maxFutureWeeks:              ((profile as any).maxFutureWeeks ?? 15).toString(),
+        futureBookingMode:           ((profile as any).futureBookingMode ?? "weeks") as "weeks" | "date",
+        maxFutureDate:               (profile as any).maxFutureDate ?? "",
+        maxAppointmentsPerCustomer:  ((profile as any).maxAppointmentsPerCustomer ?? "").toString(),
+        requireActiveSubscription:   (profile as any).requireActiveSubscription ?? false,
+        maxAppointmentsPerDay:       ((profile as any).maxAppointmentsPerDay ?? "").toString(),
+      });
+    }
+  }, [profile]);
+
+  const save = () => {
+    updateMutation.mutate({
+      data: {
+        minLeadHours:               parseInt(form.minLeadHours) || 0,
+        cancellationHours:          parseInt(form.cancellationHours) || 0,
+        maxFutureWeeks:             parseInt(form.maxFutureWeeks) || 15,
+        futureBookingMode:          form.futureBookingMode,
+        maxFutureDate:              form.maxFutureDate || null,
+        maxAppointmentsPerCustomer: form.maxAppointmentsPerCustomer ? parseInt(form.maxAppointmentsPerCustomer) : null,
+        requireActiveSubscription:  form.requireActiveSubscription,
+        maxAppointmentsPerDay:      form.maxAppointmentsPerDay ? parseInt(form.maxAppointmentsPerDay) : null,
+      } as any,
+    }, {
+      onSuccess: () => {
+        toast({ title: "הגבלות נשמרו" });
+        queryClient.invalidateQueries({ queryKey: getGetBusinessProfileQueryKey() });
+      },
+    });
+  };
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <span className="text-xl">🚫</span> הגבלות בקביעת תורים
+        </CardTitle>
+        <CardDescription>קבע מגבלות זמן וכמות עבור לקוחות</CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-5">
+        {/* Lead time */}
+        <div className="p-4 border rounded-xl bg-muted/20 space-y-3">
+          <div className="font-medium text-sm">זמן לפני קביעה</div>
+          <p className="text-xs text-muted-foreground">לקוחות צריכים לקבוע תור מינימום <strong>{form.minLeadHours} שעות</strong> מראש</p>
+          <div className="flex items-center gap-3">
+            <Input type="number" min="0" max="168" step="1" value={form.minLeadHours}
+              onChange={e => setForm(p => ({ ...p, minLeadHours: e.target.value }))}
+              className="w-28 text-center" />
+            <span className="text-sm text-muted-foreground">שעות</span>
+          </div>
+        </div>
+
+        {/* Cancellation */}
+        <div className="p-4 border rounded-xl bg-muted/20 space-y-3">
+          <div className="font-medium text-sm">זמן ביטול</div>
+          <p className="text-xs text-muted-foreground">לקוחות יכולים לבטל תור עד <strong>{form.cancellationHours} שעות</strong> לפני התור</p>
+          <div className="flex items-center gap-3">
+            <Input type="number" min="0" max="168" step="1" value={form.cancellationHours}
+              onChange={e => setForm(p => ({ ...p, cancellationHours: e.target.value }))}
+              className="w-28 text-center" />
+            <span className="text-sm text-muted-foreground">שעות</span>
+          </div>
+        </div>
+
+        {/* Future booking */}
+        <div className="p-4 border rounded-xl bg-muted/20 space-y-3">
+          <div className="font-medium text-sm">קביעה עתידית</div>
+          <div className="flex gap-2">
+            <button type="button"
+              onClick={() => setForm(p => ({ ...p, futureBookingMode: "weeks" }))}
+              className={`flex-1 py-2 px-3 rounded-lg border-2 text-sm font-medium transition-all ${form.futureBookingMode === "weeks" ? "border-primary bg-primary/5 text-primary" : "border-border"}`}>
+              שבועות קדימה
+            </button>
+            <button type="button"
+              onClick={() => setForm(p => ({ ...p, futureBookingMode: "date" }))}
+              className={`flex-1 py-2 px-3 rounded-lg border-2 text-sm font-medium transition-all ${form.futureBookingMode === "date" ? "border-primary bg-primary/5 text-primary" : "border-border"}`}>
+              עד תאריך (כולל)
+            </button>
+          </div>
+          {form.futureBookingMode === "weeks" ? (
+            <div className="space-y-1">
+              <p className="text-xs text-muted-foreground">לקוחות יכולים לקבוע תורים עד <strong>{form.maxFutureWeeks} שבועות</strong> מהיום</p>
+              <div className="flex items-center gap-3">
+                <Input type="number" min="1" max="52" value={form.maxFutureWeeks}
+                  onChange={e => setForm(p => ({ ...p, maxFutureWeeks: e.target.value }))}
+                  className="w-28 text-center" />
+                <span className="text-sm text-muted-foreground">שבועות</span>
+              </div>
+            </div>
+          ) : (
+            <div className="space-y-1">
+              <p className="text-xs text-muted-foreground">לקוחות יכולים לקבוע תורים עד התאריך הנבחר</p>
+              <Input type="date" value={form.maxFutureDate}
+                onChange={e => setForm(p => ({ ...p, maxFutureDate: e.target.value }))}
+                className="w-48" dir="ltr" />
+            </div>
+          )}
+        </div>
+
+        {/* Per customer limit */}
+        <div className="p-4 border rounded-xl bg-muted/20 space-y-3">
+          <div className="font-medium text-sm">הגבלת תור ללקוחות</div>
+          <p className="text-xs text-muted-foreground">מספר מקסימלי של תורים פעילים לכל לקוח (ריק = ללא הגבלה)</p>
+          <div className="flex items-center gap-3">
+            <Input type="number" min="1" max="99" placeholder="ללא הגבלה" value={form.maxAppointmentsPerCustomer}
+              onChange={e => setForm(p => ({ ...p, maxAppointmentsPerCustomer: e.target.value }))}
+              className="w-28 text-center" />
+            <span className="text-sm text-muted-foreground">תורים ללקוח</span>
+          </div>
+        </div>
+
+        {/* Require active subscription */}
+        <div className="flex items-center justify-between p-4 border rounded-xl bg-muted/20">
+          <div>
+            <div className="font-medium text-sm">חובת מנוי או כרטיסיה פעילה</div>
+            <div className="text-xs text-muted-foreground mt-0.5">יחייב את הלקוח להחזיק במנוי או כרטיסיה פעילה כדי לקבוע תור, אחרת יוצג לו מסך ליצירת קשר עימכם</div>
+          </div>
+          <Switch checked={form.requireActiveSubscription} onCheckedChange={v => setForm(p => ({ ...p, requireActiveSubscription: v }))} />
+        </div>
+
+        {/* Max per day */}
+        <div className="p-4 border rounded-xl bg-muted/20 space-y-3">
+          <div className="font-medium text-sm">מקסימום תורים ליום</div>
+          <p className="text-xs text-muted-foreground">הגבלת כמות תורים שניתן לקבוע ליום ל-<strong>{form.maxAppointmentsPerDay || "ללא הגבלה"}</strong></p>
+          <div className="flex items-center gap-3">
+            <Input type="number" min="1" max="999" value={form.maxAppointmentsPerDay}
+              onChange={e => setForm(p => ({ ...p, maxAppointmentsPerDay: e.target.value }))}
+              className="w-28 text-center" />
+            <span className="text-sm text-muted-foreground">תורים ליום</span>
+          </div>
+        </div>
+
+        <div className="flex justify-end pt-2">
+          <Button onClick={save} disabled={updateMutation.isPending} size="lg">
+            {updateMutation.isPending ? "שומר..." : "שמור הגבלות"}
+          </Button>
         </div>
       </CardContent>
     </Card>
@@ -4062,110 +4231,7 @@ function SettingsTab() {
         </CardContent>
       </Card>
 
-      {/* Booking Restrictions Card */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <span className="text-xl">🚫</span> הגבלות בקביעת תורים
-          </CardTitle>
-          <CardDescription>קבע מגבלות זמן וכמות עבור לקוחות</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-5">
-          {/* Lead time */}
-          <div className="p-4 border rounded-xl bg-muted/20 space-y-3">
-            <div className="font-medium text-sm">זמן לפני קביעה</div>
-            <p className="text-xs text-muted-foreground">לקוחות צריכים לקבוע תור מינימום <strong>{form.minLeadHours} שעות</strong> מראש</p>
-            <div className="flex items-center gap-3">
-              <Input type="number" min="0" max="168" step="1" value={form.minLeadHours}
-                onChange={e => setForm(p => ({ ...p, minLeadHours: e.target.value }))}
-                className="w-28 text-center" />
-              <span className="text-sm text-muted-foreground">שעות</span>
-            </div>
-          </div>
-
-          {/* Cancellation */}
-          <div className="p-4 border rounded-xl bg-muted/20 space-y-3">
-            <div className="font-medium text-sm">זמן ביטול</div>
-            <p className="text-xs text-muted-foreground">לקוחות יכולים לבטל תור עד <strong>{form.cancellationHours} שעות</strong> לפני התור</p>
-            <div className="flex items-center gap-3">
-              <Input type="number" min="0" max="168" step="1" value={form.cancellationHours}
-                onChange={e => setForm(p => ({ ...p, cancellationHours: e.target.value }))}
-                className="w-28 text-center" />
-              <span className="text-sm text-muted-foreground">שעות</span>
-            </div>
-          </div>
-
-          {/* Future booking */}
-          <div className="p-4 border rounded-xl bg-muted/20 space-y-3">
-            <div className="font-medium text-sm">קביעה עתידית</div>
-            <div className="flex gap-2">
-              <button type="button"
-                onClick={() => setForm(p => ({ ...p, futureBookingMode: "weeks" }))}
-                className={`flex-1 py-2 px-3 rounded-lg border-2 text-sm font-medium transition-all ${form.futureBookingMode === "weeks" ? "border-primary bg-primary/5 text-primary" : "border-border"}`}>
-                שבועות קדימה
-              </button>
-              <button type="button"
-                onClick={() => setForm(p => ({ ...p, futureBookingMode: "date" }))}
-                className={`flex-1 py-2 px-3 rounded-lg border-2 text-sm font-medium transition-all ${form.futureBookingMode === "date" ? "border-primary bg-primary/5 text-primary" : "border-border"}`}>
-                עד תאריך (כולל)
-              </button>
-            </div>
-            {form.futureBookingMode === "weeks" ? (
-              <div className="space-y-1">
-                <p className="text-xs text-muted-foreground">לקוחות יכולים לקבוע תורים עד <strong>{form.maxFutureWeeks} שבועות</strong> מהיום</p>
-                <div className="flex items-center gap-3">
-                  <Input type="number" min="1" max="52" value={form.maxFutureWeeks}
-                    onChange={e => setForm(p => ({ ...p, maxFutureWeeks: e.target.value }))}
-                    className="w-28 text-center" />
-                  <span className="text-sm text-muted-foreground">שבועות</span>
-                </div>
-              </div>
-            ) : (
-              <div className="space-y-1">
-                <p className="text-xs text-muted-foreground">לקוחות יכולים לקבוע תורים עד התאריך הנבחר</p>
-                <Input type="date" value={form.maxFutureDate}
-                  onChange={e => setForm(p => ({ ...p, maxFutureDate: e.target.value }))}
-                  className="w-48" dir="ltr" />
-              </div>
-            )}
-          </div>
-
-          {/* Per customer limit */}
-          <div className="p-4 border rounded-xl bg-muted/20 space-y-3">
-            <div className="font-medium text-sm">הגבלת תור ללקוחות</div>
-            <p className="text-xs text-muted-foreground">מספר מקסימלי של תורים פעילים לכל לקוח (ריק = ללא הגבלה)</p>
-            <div className="flex items-center gap-3">
-              <Input type="number" min="1" max="99" placeholder="ללא הגבלה" value={form.maxAppointmentsPerCustomer}
-                onChange={e => setForm(p => ({ ...p, maxAppointmentsPerCustomer: e.target.value }))}
-                className="w-28 text-center" />
-              <span className="text-sm text-muted-foreground">תורים ללקוח</span>
-            </div>
-          </div>
-
-          {/* Require active subscription */}
-          <div className="flex items-center justify-between p-4 border rounded-xl bg-muted/20">
-            <div>
-              <div className="font-medium text-sm">חובת מנוי או כרטיסיה פעילה</div>
-              <div className="text-xs text-muted-foreground mt-0.5">יחייב את הלקוח להחזיק במנוי או כרטיסיה פעילה כדי לקבוע תור, אחרת יוצג לו מסך ליצירת קשר עימכם</div>
-            </div>
-            <Switch checked={form.requireActiveSubscription} onCheckedChange={v => setForm(p => ({ ...p, requireActiveSubscription: v }))} />
-          </div>
-
-          {/* Max per day */}
-          <div className="p-4 border rounded-xl bg-muted/20 space-y-3">
-            <div className="font-medium text-sm">מקסימום תורים ליום</div>
-            <p className="text-xs text-muted-foreground">הגבלת כמות תורים שניתן לקבוע ליום ל-<strong>{form.maxAppointmentsPerDay}</strong></p>
-            <div className="flex items-center gap-3">
-              <Input type="number" min="1" max="999" value={form.maxAppointmentsPerDay}
-                onChange={e => setForm(p => ({ ...p, maxAppointmentsPerDay: e.target.value }))}
-                className="w-28 text-center" />
-              <span className="text-sm text-muted-foreground">תורים ליום</span>
-            </div>
-          </div>
-
-        </CardContent>
-      </Card>
-
+      {/* Booking restrictions moved to the Services tab. */}
 
       {/* Custom domain — Pro-only */}
       {profile && <CustomDomainCard />}

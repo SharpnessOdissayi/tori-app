@@ -10,12 +10,14 @@ import { Moon, Sun } from "lucide-react";
  * across the entire page.
  */
 export default function ThemeToggleFab() {
+  // Default to DARK mode — reads light-mode only when the user
+  // explicitly set it. Null / undefined / any other value → dark.
   const [theme, setTheme] = useState<"light" | "dark">(() => {
-    if (typeof window === "undefined") return "light";
+    if (typeof window === "undefined") return "dark";
     try {
-      return localStorage.getItem("kavati_theme") === "dark" ? "dark" : "light";
+      return localStorage.getItem("kavati_theme") === "light" ? "light" : "dark";
     } catch {
-      return "light";
+      return "dark";
     }
   });
 
