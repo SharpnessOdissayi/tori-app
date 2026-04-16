@@ -482,11 +482,25 @@ export default function ClientPortal() {
           bottom nav's z-20 stacking context. Sticky elements create their
           own stacking context, so the child z-[100] alone isn't enough. */}
       <div className="bg-white border-b px-4 py-3 flex items-center justify-between sticky top-0 z-30">
-        <div>
-          <p className="font-bold text-base text-gray-900">
-            {session.clientName ? `שלום, ${session.clientName.split(" ")[0]}!` : "פורטל לקוח"}
-          </p>
-          <p className="text-xs text-gray-400">{session.phone ?? session.email ?? ""}</p>
+        <div className="flex items-center gap-3">
+          {/* Kavati logo — click returns to the marketing homepage. */}
+          <a
+            href="/"
+            aria-label="חזרה לעמוד הראשי של קבעתי"
+            className="shrink-0"
+          >
+            <img
+              src="/logo.png"
+              alt="קבעתי"
+              className="h-10 w-10 rounded-xl object-cover"
+            />
+          </a>
+          <div>
+            <p className="font-bold text-base text-gray-900">
+              {session.clientName ? `שלום, ${session.clientName.split(" ")[0]}!` : "פורטל לקוח"}
+            </p>
+            <p className="text-xs text-gray-400">{session.phone ?? session.email ?? ""}</p>
+          </div>
         </div>
         <div className="flex gap-2 items-center">
           {/* Notification bell */}
