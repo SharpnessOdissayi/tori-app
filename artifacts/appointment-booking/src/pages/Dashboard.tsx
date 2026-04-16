@@ -541,20 +541,14 @@ export default function Dashboard() {
               <TabsTrigger value="hours" className="gap-1.5 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground whitespace-nowrap">
                 <Clock className="w-4 h-4" /> שעות עבודה
               </TabsTrigger>
-              <TabsTrigger value="timeoff" className="gap-1.5 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground whitespace-nowrap">
-                <Umbrella className="w-4 h-4" /> ימי חופש
-              </TabsTrigger>
               <TabsTrigger value="customers" className="gap-1.5 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground whitespace-nowrap">
                 <Users className="w-4 h-4" /> לקוחות
               </TabsTrigger>
               <TabsTrigger value="waitlist" className="gap-1.5 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground whitespace-nowrap">
                 <ListOrdered className="w-4 h-4" /> רשימת המתנה
               </TabsTrigger>
-              <TabsTrigger value="analytics" className="gap-1.5 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground whitespace-nowrap">
-                <TrendingUp className="w-4 h-4" /> נתונים {!isProPlan && <ProShine />}
-              </TabsTrigger>
-              <TabsTrigger value="revenue" className="gap-1.5 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground whitespace-nowrap">
-                <DollarSign className="w-4 h-4" /> כסף {!isProPlan && <ProShine />}
+              <TabsTrigger value="receipts" className="gap-1.5 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground whitespace-nowrap">
+                <FileText className="w-4 h-4" /> קבלות
               </TabsTrigger>
               <TabsTrigger value="branding" className="gap-1.5 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground whitespace-nowrap">
                 <Palette className="w-4 h-4" /> עיצוב
@@ -2519,7 +2513,12 @@ function BrandingTab() {
         const isDark = form.themeMode === "dark" || form.themeMode === "fuchsia";
         const textMain = isDark ? "rgba(255,255,255,0.95)" : "#1a1a1a";
         const textMuted = isDark ? "rgba(255,255,255,0.6)" : "#6b7280";
-        const cardBg = isDark ? "rgba(255,255,255,0.08)" : "#ffffff";
+        // When a gradient is enabled (e.g. the "נועז" preset) we lighten the
+        // card backgrounds so the gradient shows through — otherwise the
+        // preview looks all-white and the user misses the preset's character.
+        const cardBg = isDark
+          ? "rgba(255,255,255,0.08)"
+          : (form.gradientEnabled ? "rgba(255,255,255,0.82)" : "#ffffff");
         const buttonPx = form.buttonRadius === "sharp" ? "4px" : form.buttonRadius === "rounded" ? "9999px" : "12px";
         const cardPx = form.borderRadius === "sharp" ? "4px" : form.borderRadius === "rounded" ? "24px" : "14px";
         const pageBg = form.gradientEnabled && form.gradientFrom && form.gradientTo
@@ -3831,9 +3830,6 @@ function SettingsTab() {
               </div>
             </div>
 
-            <div className="flex justify-end">
-              <Button type="submit" disabled={updateMutation.isPending} size="lg">שמור הגדרות</Button>
-            </div>
           </form>
 
           {/* ── Password change — nested here so it lives at the bottom of
@@ -3984,9 +3980,6 @@ function SettingsTab() {
             </div>
           </div>
 
-          <div className="flex justify-end pt-2">
-            <Button onClick={handleSave} disabled={updateMutation.isPending} size="lg">שמירה</Button>
-          </div>
         </CardContent>
       </Card>
 
@@ -3996,6 +3989,75 @@ function SettingsTab() {
 
       {/* Subscription status card — shown for both free and pro */}
       {profile && <SubscriptionStatusCard />}
+
+      {/* Spacer so content isn't obscured by the sticky save bar. */}
+      <div className="h-24" />
+
+      {/* Sticky bottom action bar — one save button for the entire settings
+          tab (business profile, receipt profile, booking restrictions,
+          slug). Password change has its own submit button because it
+          needs currentPassword + newPassword validation. */}
+      <div className="fixed bottom-0 left-0 right-0 z-40 bg-background/95 backdrop-blur-sm border-t shadow-lg">
+        <div className="max-w-2xl mx-auto flex items-center justify-between gap-3 p-3">
+          <Button
+            type="button"
+            variant="outline"
+            size="lg"
+            onClick={() => {
+              // Revert all form fields from the last-loaded profile.
+              if (profile) {
+                setForm({
+                  name: profile.name,
+                  ownerName: profile.ownerName,
+                  phone: (profile as any).phone ?? "",
+                  email: (profile as any).email ?? "",
+                  requireAppointmentApproval: (profile as any).requireAppointmentApproval ?? false,
+                  requirePhoneVerification: (profile as any).requirePhoneVerification ?? false,
+                  tranzilaEnabled: (profile as any).tranzilaEnabled ?? false,
+                  depositAmount: (((profile as any).depositAmountAgorot ?? 0) / 100).toString(),
+                  minLeadHours: ((profile as any).minLeadHours ?? 0).toString(),
+                  cancellationHours: ((profile as any).cancellationHours ?? 0).toString(),
+                  maxFutureWeeks: ((profile as any).maxFutureWeeks ?? 15).toString(),
+                  futureBookingMode: (profile as any).futureBookingMode ?? "weeks",
+                  maxFutureDate: (profile as any).maxFutureDate ?? "",
+                  maxAppointmentsPerCustomer: ((profile as any).maxAppointmentsPerCustomer ?? "").toString(),
+                  requireActiveSubscription: (profile as any).requireActiveSubscription ?? false,
+                  maxAppointmentsPerDay: ((profile as any).maxAppointmentsPerDay ?? 3).toString(),
+                  businessDescription: (profile as any).businessDescription ?? "",
+                  contactPhone: (profile as any).contactPhone ?? "",
+                  address: (profile as any).address ?? "",
+                  city: (profile as any).city ?? "",
+                  websiteUrl: (profile as any).websiteUrl ?? "",
+                  instagramHandle: ((profile as any).instagramUrl ?? "").replace(/^https?:\/\/(www\.)?instagram\.com\//, "").replace(/\/$/, ""),
+                  wazeUrl: (profile as any).wazeUrl ?? "",
+                  businessTaxId: (profile as any).businessTaxId ?? "",
+                  businessLegalType: ((profile as any).businessLegalType ?? "exempt") as "exempt" | "authorized" | "company",
+                  businessLegalName: (profile as any).businessLegalName ?? "",
+                  invoiceAddress: (profile as any).invoiceAddress ?? "",
+                  slug: profile.slug ?? "",
+                });
+                try {
+                  const cats = (profile as any).businessCategories;
+                  setSelectedCategories(cats ? JSON.parse(cats) : []);
+                } catch { setSelectedCategories([]); }
+                toast({ title: "השינויים בוטלו" });
+              }
+            }}
+            className="flex-1 sm:flex-none"
+          >
+            בטל עריכה
+          </Button>
+          <Button
+            type="button"
+            size="lg"
+            onClick={e => handleSave(e as any)}
+            disabled={updateMutation.isPending}
+            className="flex-1 sm:flex-none"
+          >
+            {updateMutation.isPending ? "שומר..." : "שמור הכל"}
+          </Button>
+        </div>
+      </div>
     </div>
   );
 }

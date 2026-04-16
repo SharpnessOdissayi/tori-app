@@ -186,6 +186,22 @@ router.patch("/business/profile", requireBusinessAuth, async (req, res): Promise
   // Tranzila
   if (d.tranzilaEnabled !== undefined) (updates as any).tranzilaEnabled = d.tranzilaEnabled;
   if (d.depositAmountAgorot !== undefined) (updates as any).depositAmountAgorot = d.depositAmountAgorot ?? null;
+  // Slug (URL). Let the owner change it from Settings. Normalize and
+  // check uniqueness against other businesses before writing.
+  if (d.slug !== undefined) {
+    const rawSlug = String(d.slug ?? "").toLowerCase().replace(/[^a-z0-9-]/g, "").trim();
+    if (rawSlug && rawSlug !== "admin" && rawSlug.length >= 2) {
+      const [conflict] = await db
+        .select({ id: businessesTable.id })
+        .from(businessesTable)
+        .where(eq(businessesTable.slug, rawSlug));
+      if (conflict && conflict.id !== req.business!.businessId) {
+        res.status(409).json({ error: "slug_taken", message: "הכתובת כבר תפוסה — בחר אחרת" });
+        return;
+      }
+      updates.slug = rawSlug;
+    }
+  }
   // Receipt / invoice profile
   if (d.businessTaxId !== undefined)     (updates as any).businessTaxId     = d.businessTaxId     || null;
   if (d.businessLegalType !== undefined) (updates as any).businessLegalType = d.businessLegalType || null;
