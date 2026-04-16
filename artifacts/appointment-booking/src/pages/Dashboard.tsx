@@ -2420,7 +2420,7 @@ function BrandingTab() {
             <span className="w-8 h-8 rounded-lg bg-gradient-to-br from-violet-500 to-fuchsia-500 flex items-center justify-center text-white text-sm">✨</span>
             עיצובים מוכנים
           </CardTitle>
-          <CardDescription>בחר תבנית — כל אחת מחילה צבעים, פונט, פריסה ואפקטים יחד. אפשר לערוך אחר-כך.</CardDescription>
+          <CardDescription>בחרו עיצוב — תוכלו להשאיר אותו כמו שהוא או לשנות כל פרט בהמשך העמוד (צבע ראשי, פונט, פינות, כפתורים ועוד).</CardDescription>
         </CardHeader>
         <CardContent>
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
@@ -2505,14 +2505,6 @@ function BrandingTab() {
               );
             })}
           </div>
-          {form.designPreset && (
-            <button
-              onClick={() => setForm(p => ({ ...p, designPreset: "" }))}
-              className="mt-4 text-xs text-muted-foreground underline hover:text-foreground"
-            >
-              נקה בחירה (המשך עם התאמה אישית)
-            </button>
-          )}
         </CardContent>
       </Card>
 
@@ -3045,15 +3037,6 @@ function BrandingTab() {
           <Button onClick={handleSave} disabled={updateBranding.isPending} size="lg">שמור עיצוב</Button>
         </div>
       </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2"><Link className="w-5 h-5" /> לינק לעמוד ההזמנות</CardTitle>
-        </CardHeader>
-        <CardContent>
-          {profile && <CopyLinkButton slug={profile.slug} />}
-        </CardContent>
-      </Card>
     </div>
   );
 }
@@ -3453,11 +3436,11 @@ function SettingsTab() {
 
   return (
     <div className="space-y-6 max-w-2xl">
-      {/* General settings card */}
+      {/* General settings card — merged with business profile and password change */}
       <Card>
         <CardHeader>
-          <CardTitle>הגדרות עסק</CardTitle>
-          <CardDescription>עדכן פרטים כלליים ואפשרויות קבלת תורים</CardDescription>
+          <CardTitle>הגדרות כלליות</CardTitle>
+          <CardDescription>פרטי עסק, פרטי הפרופיל הציבורי, אפשרויות קבלת תורים ושינוי סיסמה</CardDescription>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSave} className="space-y-8">
@@ -3536,20 +3519,9 @@ function SettingsTab() {
               )}
             </div>
 
-            <div className="flex justify-end">
-              <Button type="submit" disabled={updateMutation.isPending} size="lg">שמור הגדרות</Button>
-            </div>
-          </form>
-        </CardContent>
-      </Card>
-
-      {/* Business profile card (moved from Design tab) */}
-      <Card>
-        <CardHeader>
-          <CardTitle>פרטי העסק לעמוד הפרופיל</CardTitle>
-          <CardDescription>מה שלקוחות רואים בעמוד ההזמנות שלך — קטגוריה, תיאור, דרכי יצירת קשר, קישורים</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-5">
+            <div className="space-y-4">
+              <h3 className="font-medium text-base border-b pb-2">פרטי העסק לעמוד הפרופיל</h3>
+              <p className="text-xs text-muted-foreground -mt-2">מה שלקוחות רואים בעמוד ההזמנות שלך — קטגוריה, תיאור, דרכי יצירת קשר, קישורים</p>
           {/* Categories */}
           <div className="space-y-2">
             <Label className="flex items-center gap-1.5">
@@ -3660,10 +3632,12 @@ function SettingsTab() {
             <p className="text-xs text-muted-foreground">אם ריק — ניווט יופעל אוטומטית לפי הכתובת שהוזנה</p>
             <Input dir="ltr" value={form.wazeUrl} onChange={e => setForm(p => ({ ...p, wazeUrl: e.target.value }))} placeholder="https://waze.com/ul/..." />
           </div>
+            </div>
 
-          <div className="flex justify-end pt-2">
-            <Button onClick={handleSave as any} disabled={updateMutation.isPending} size="lg">שמור פרטי עסק</Button>
-          </div>
+            <div className="flex justify-end">
+              <Button type="submit" disabled={updateMutation.isPending} size="lg">שמור הגדרות</Button>
+            </div>
+          </form>
         </CardContent>
       </Card>
 
@@ -4014,13 +3988,6 @@ function CustomDomainCard() {
             </ol>
           ) : (
             <ol className="space-y-3 text-xs leading-relaxed">
-              <li>
-                <b>לפני הכל — מה זה "path"?</b><br />
-                <span className="text-muted-foreground">Path זה מה שבא אחרי ה-"/" בכתובת. לדוגמה: <code dir="ltr">yoursalon.co.il<b>/appointment</b></code> — "appointment" הוא ה-path.</span>
-              </li>
-              <li>
-                <b>⚠️ שים לב:</b> שיטה זו דורשת גישה להגדרות השרת/האחסון של האתר הקיים שלך, וכל ספק אחסון עובד קצת אחרת. אם אתה לא בטוח — עדיף את שיטת ה-Subdomain.
-              </li>
               <li>
                 <b>1. היכנס לפאנל הניהול של האתר שלך</b><br />
                 <span className="text-muted-foreground">WordPress, Wix, Webflow, cPanel, Plesk וכד'</span>
