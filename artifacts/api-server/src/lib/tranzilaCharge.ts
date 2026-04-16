@@ -108,11 +108,15 @@ export async function chargeToken(
 
   // Always-visible request log — console.log bypasses pino truncation so we
   // can see exactly what went out of Railway.
+  const reqTimeMs = Number(headers["X-tranzila-api-request-time"]);
   console.log("[TranzilaCharge] request →", {
     url:             TXN_URL,
     terminal:        TERMINAL,
     businessId,
     requestTime:     headers["X-tranzila-api-request-time"],
+    reqTimeAsIL:     new Date(reqTimeMs).toISOString().replace("Z", " (UTC→read as IL wall clock)"),
+    actualUTCnow:    new Date().toISOString(),
+    serverTZoffset:  -new Date().getTimezoneOffset() / 60 + "h",
     nonce:           headers["X-tranzila-api-nonce"],
     accessTokenHead: headers["X-tranzila-api-access-token"].slice(0, 16) + "…",
     publicKeyLen:    PUBLIC_KEY.length,
