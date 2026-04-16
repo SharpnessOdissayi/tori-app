@@ -1,0 +1,29 @@
+{
+  "name": "@workspace/mobile-owner-app",
+  "version": "0.0.1",
+  "private": true,
+  "description": "Kavati business-owner mobile app (iOS + Android, Capacitor shell around www.kavati.net/dashboard).",
+  "scripts": {
+    "cap:sync":    "cap sync",
+    "cap:open:ios":     "cap open ios",
+    "cap:open:android": "cap open android",
+    "cap:add:ios":     "cap add ios",
+    "cap:add:android": "cap add android",
+    "ios:build":     "cap sync ios     && cap open ios",
+    "android:build": "cap sync android && cap open android"
+  },
+  "dependencies": {
+    "@capacitor/android":         "^6.2.0",
+    "@capacitor/app":             "^6.0.2",
+    "@capacitor/core":            "^6.2.0",
+    "@capacitor/haptics":         "^6.0.2",
+    "@capacitor/ios":             "^6.2.0",
+    "@capacitor/keyboard":        "^6.0.3",
+    "@capacitor/push-notifications": "^6.0.3",
+    "@capacitor/splash-screen":   "^6.0.3",
+    "@capacitor/status-bar":      "^6.0.2"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "^6.2.0"
+  }
+}
