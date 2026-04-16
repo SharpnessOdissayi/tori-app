@@ -1235,7 +1235,18 @@ function ServicesTab() {
     } as any;
     if (editingId) {
       updateMutation.mutate({ id: editingId, data: { ...data, isActive: form.isActive } as any }, {
-        onSuccess: () => { toast({ title: "עודכן" }); queryClient.invalidateQueries({ queryKey: getListBusinessServicesQueryKey() }); reset(); },
+        onSuccess: async () => {
+          toast({ title: "עודכן" });
+          await queryClient.invalidateQueries({ queryKey: getListBusinessServicesQueryKey(), refetchType: "active" });
+          reset();
+        },
+        onError: (err: any) => {
+          toast({
+            title: "שגיאה בעדכון שירות",
+            description: err?.response?.data?.message ?? err?.message ?? "נסה שוב",
+            variant: "destructive",
+          });
+        },
       });
     } else {
       createMutation.mutate({ data }, {
@@ -1457,9 +1468,30 @@ function BookingRestrictionsCard() {
         maxAppointmentsPerDay:      form.maxAppointmentsPerDay ? parseInt(form.maxAppointmentsPerDay) : null,
       } as any,
     }, {
-      onSuccess: () => {
+      onSuccess: async (updated) => {
         toast({ title: "הגבלות נשמרו" });
-        queryClient.invalidateQueries({ queryKey: getGetBusinessProfileQueryKey() });
+        await queryClient.invalidateQueries({ queryKey: getGetBusinessProfileQueryKey(), refetchType: "active" });
+        // Echo server response into local state so UI reflects exactly what was saved
+        if (updated) {
+          const u = updated as any;
+          setForm({
+            minLeadHours:                (u.minLeadHours ?? 0).toString(),
+            cancellationHours:           (u.cancellationHours ?? 0).toString(),
+            maxFutureWeeks:              (u.maxFutureWeeks ?? 15).toString(),
+            futureBookingMode:           (u.futureBookingMode ?? "weeks") as "weeks" | "date",
+            maxFutureDate:               u.maxFutureDate ?? "",
+            maxAppointmentsPerCustomer:  (u.maxAppointmentsPerCustomer ?? "").toString(),
+            requireActiveSubscription:   u.requireActiveSubscription ?? false,
+            maxAppointmentsPerDay:       (u.maxAppointmentsPerDay ?? "").toString(),
+          });
+        }
+      },
+      onError: (err: any) => {
+        toast({
+          title: "שגיאה בשמירה",
+          description: err?.response?.data?.message ?? err?.message ?? "נסה שוב",
+          variant: "destructive",
+        });
       },
     });
   };
@@ -1600,12 +1632,31 @@ function WorkingHoursTab() {
 
   const handleSave = () => {
     updateMutation.mutate({ data: { hours: localHours.map(h => ({ dayOfWeek: h.dayOfWeek, startTime: h.startTime, endTime: h.endTime, isEnabled: h.isEnabled })) } }, {
-      onSuccess: () => { queryClient.invalidateQueries({ queryKey: getGetWorkingHoursQueryKey() }); },
+      onSuccess: async () => {
+        await queryClient.invalidateQueries({ queryKey: getGetWorkingHoursQueryKey(), refetchType: "active" });
+      },
+      onError: (err: any) => {
+        toast({
+          title: "שגיאה בשמירת שעות עבודה",
+          description: err?.response?.data?.message ?? err?.message ?? "נסה שוב",
+          variant: "destructive",
+        });
+      },
     });
     updateProfileMutation.mutate({ data: { bufferMinutes: parseInt(bufferMinutes) || 0 } as any }, {
-      onSuccess: () => {
+      onSuccess: async (updated) => {
         toast({ title: "הגדרות שעות עבודה נשמרו" });
-        queryClient.invalidateQueries({ queryKey: getGetBusinessProfileQueryKey() });
+        await queryClient.invalidateQueries({ queryKey: getGetBusinessProfileQueryKey(), refetchType: "active" });
+        if (updated) {
+          setBufferMinutes(((updated as any).bufferMinutes ?? 0).toString());
+        }
+      },
+      onError: (err: any) => {
+        toast({
+          title: "שגיאה בשמירת הפסקה",
+          description: err?.response?.data?.message ?? err?.message ?? "נסה שוב",
+          variant: "destructive",
+        });
       },
     });
   };
@@ -2647,7 +2698,17 @@ function BrandingTab() {
         hoverEffect: form.hoverEffect === "none" ? null : form.hoverEffect,
       } as any
     }, {
-      onSuccess: () => { toast({ title: "עיצוב נשמר" }); queryClient.invalidateQueries({ queryKey: getGetBusinessProfileQueryKey() }); },
+      onSuccess: async () => {
+        toast({ title: "עיצוב נשמר" });
+        await queryClient.invalidateQueries({ queryKey: getGetBusinessProfileQueryKey(), refetchType: "active" });
+      },
+      onError: (err: any) => {
+        toast({
+          title: "שגיאה בשמירת העיצוב",
+          description: err?.response?.data?.message ?? err?.message ?? "נסה שוב",
+          variant: "destructive",
+        });
+      },
     });
   };
 
@@ -3955,9 +4016,16 @@ function SettingsTab() {
         ...(form.slug && form.slug !== profile?.slug ? { slug: form.slug } : {}),
       } as any
     }, {
-      onSuccess: () => {
+      onSuccess: async () => {
         toast({ title: "הגדרות נשמרו" });
-        queryClient.invalidateQueries({ queryKey: getGetBusinessProfileQueryKey() });
+        await queryClient.invalidateQueries({ queryKey: getGetBusinessProfileQueryKey(), refetchType: "active" });
+      },
+      onError: (err: any) => {
+        toast({
+          title: "שגיאה בשמירה",
+          description: err?.response?.data?.message ?? err?.message ?? "נסה שוב",
+          variant: "destructive",
+        });
       },
     });
   };
