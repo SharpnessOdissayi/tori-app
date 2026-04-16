@@ -8,6 +8,7 @@ import { seedDemoBusiness } from "./lib/seedDemo";
 import { runMigrations } from "./lib/migrate";
 import { runSubscriptionBilling } from "./lib/subscriptionCron";
 import { cleanupStalePendingPayment } from "./lib/pendingPaymentCleanup";
+import { pollPendingDomains } from "./lib/domainPoller";
 
 const rawPort = process.env["PORT"];
 
@@ -59,6 +60,14 @@ app.listen(port, (err) => {
     cleanupStalePendingPayment().catch(e => logger.error(e, "Pending-payment cleanup failed"));
   });
   logger.info("Pending-payment cleanup cron started (every 30 minutes)");
+
+  // Poll Railway every 2 minutes for pending custom-domain verifications.
+  // Businesses that added a domain but haven't finished DNS propagation
+  // get auto-verified here once Railway reports "active".
+  cron.schedule("*/2 * * * *", () => {
+    pollPendingDomains().catch(e => logger.error(e, "Domain poller failed"));
+  });
+  logger.info("Domain poller cron started (every 2 minutes)");
 
 });
 

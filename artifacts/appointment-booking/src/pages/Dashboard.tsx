@@ -3850,7 +3850,7 @@ function CustomDomainCard() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.message ?? data.error ?? "שגיאה");
-      toast({ title: value ? "הדומיין נשמר" : "הדומיין הוסר", description: value ? "ממתין לאישור מצוות קבעתי (עד 24 שעות)" : undefined });
+      toast({ title: value ? "הדומיין נשמר" : "הדומיין הוסר", description: value ? "ממתין לאימות DNS אוטומטי (עד 5 דקות אחרי שה-CNAME יתפרסם)" : undefined });
       queryClient.invalidateQueries({ queryKey: getGetBusinessProfileQueryKey() });
     } catch (err: any) {
       toast({ title: "שגיאה", description: err.message, variant: "destructive" });
@@ -3982,8 +3982,8 @@ function CustomDomainCard() {
                 <b>5. חזור לכאן, הכנס את הדומיין המלא למעלה (לדוגמה <code dir="ltr">book.yoursalon.co.il</code>) ולחץ שמור</b>
               </li>
               <li>
-                <b>6. תקבל אישור תוך 24 שעות</b><br />
-                <span className="text-muted-foreground">לרוב הרבה יותר מהר — אנחנו מקבלים התראה ברגע שאתה שומר</span>
+                <b>6. המתן כ-5 דקות — המערכת מאמתת לבד</b><br />
+                <span className="text-muted-foreground">ברגע ש-DNS מתפרסם ותעודת SSL מונפקת, הסטטוס מתעדכן אוטומטית מ"ממתין" ל"פעיל"</span>
               </li>
             </ol>
           ) : (

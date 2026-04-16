@@ -253,16 +253,20 @@ router.patch("/business/branding", requireBusinessAuth, async (req, res): Promis
 // ─── Custom domain (Pro-only) ──────────────────────────────────────────────
 //
 // PATCH /api/business/domain — set/clear the business's custom hostname.
-// Accepts { domain: string | null }. When `null`, clears the domain.
-// When a string, validates shape and stores lowercased. Setting a new
-// hostname resets the verified flag — super admin has to re-verify
-// after the CNAME is confirmed + Railway's custom-domains list is updated.
+// Accepts { domain: string | null }. When `null`, clears the domain (also
+// removes it from Railway). When a string, validates shape, stores it
+// lowercased, and registers it with Railway's custom-domains API. The
+// `verified` flag flips to true later once the domainPoller cron job
+// confirms Railway finished DNS verification + SSL provisioning.
 
 router.patch("/business/domain", requireBusinessAuth, async (req, res): Promise<void> => {
   const businessId = req.business!.businessId;
 
   const [biz] = await db
-    .select({ subscriptionPlan: businessesTable.subscriptionPlan })
+    .select({
+      subscriptionPlan: businessesTable.subscriptionPlan,
+      currentDomain:    (businessesTable as any).customDomain,
+    })
     .from(businessesTable)
     .where(eq(businessesTable.id, businessId));
   if (!biz) { res.status(404).json({ error: "Not found" }); return; }
@@ -314,6 +318,24 @@ router.patch("/business/domain", requireBusinessAuth, async (req, res): Promise<
     } as any)
     .where(eq(businessesTable.id, businessId))
     .returning();
+
+  // Railway-side update — fire-and-forget so the HTTP response doesn't wait
+  // on Railway's network. If it fails the domainPoller will retry.
+  const previous = (biz.currentDomain as string | null) ?? null;
+  (async () => {
+    const { addCustomDomain, removeCustomDomain } = await import("../lib/railwayApi");
+    if (previous && previous !== domain) {
+      await removeCustomDomain(previous).catch(() => {});
+    }
+    if (domain) {
+      const result = await addCustomDomain(domain);
+      if (!result.ok) {
+        console.warn(`[domain] Railway add failed for "${domain}": ${result.error}`);
+      } else {
+        console.log(`[domain] Registered "${domain}" on Railway (id=${result.id ?? "n/a"})`);
+      }
+    }
+  })().catch(err => console.error("[domain] Railway sync error:", err));
 
   res.json(mapBusiness(updated));
 });
