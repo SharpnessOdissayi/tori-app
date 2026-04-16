@@ -78,8 +78,20 @@ export default function Navbar({ leftContent }: { leftContent?: ReactNode }) {
 
         <div className="relative w-full px-4 sm:px-6 h-16 flex items-center justify-between">
 
-          {/* RIGHT: logo + nav links + CTAs all on the right side */}
-          <div className="flex items-center flex-1">
+          {/* Mobile hamburger — rendered FIRST so in RTL it sits on the
+              right edge of the screen per owner's request. Desktop hides
+              it via md:hidden, so desktop layout is untouched. */}
+          <button
+            className="md:hidden p-2 rounded-lg order-1"
+            style={{ color: "#d4af37" }}
+            onClick={() => setMenuOpen(v => !v)}
+            aria-label="תפריט"
+          >
+            {menuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
+          </button>
+
+          {/* Logo + nav links + CTAs (desktop-right, mobile-left) */}
+          <div className="flex items-center flex-1 order-2 md:order-1 justify-end md:justify-start">
             <Link href="/">
               <img
                 src="/logo.png"
@@ -141,22 +153,12 @@ export default function Navbar({ leftContent }: { leftContent?: ReactNode }) {
             </nav>
           </div>
 
-          {/* LEFT: custom content (dashboard logout etc.) */}
+          {/* LEFT: custom content (dashboard logout etc.) — desktop only */}
           {leftContent && (
-            <div className="hidden md:flex items-center gap-2">
+            <div className="hidden md:flex items-center gap-2 md:order-2">
               {leftContent}
             </div>
           )}
-
-          {/* Mobile hamburger */}
-          <button
-            className="md:hidden p-2 rounded-lg"
-            style={{ color: "#d4af37" }}
-            onClick={() => setMenuOpen(v => !v)}
-            aria-label="תפריט"
-          >
-            {menuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
-          </button>
         </div>
 
         {/* Mobile dropdown */}
