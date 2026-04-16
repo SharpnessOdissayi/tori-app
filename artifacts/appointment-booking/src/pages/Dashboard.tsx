@@ -2855,10 +2855,14 @@ function BrandingTab() {
             };
 
         return (
-          <Card>
-            <CardHeader>
-              <CardTitle>תצוגה מקדימה</CardTitle>
-              <CardDescription>כך יראה עמוד ההזמנות של הלקוחות — מתעדכן בזמן אמת</CardDescription>
+          // Sticky under the top nav so the preview stays on screen as the
+          // owner scrolls through color/font/logo/button controls. Scales
+          // down on desktop; on mobile it returns to the normal flow so it
+          // doesn't eat the viewport.
+          <Card className="md:sticky md:top-4 md:z-20 md:scale-[0.9] md:origin-top md:max-w-md md:mx-auto">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-base">תצוגה מקדימה</CardTitle>
+              <CardDescription className="text-xs">מתעדכנת בזמן אמת בזמן שמגללים את ההגדרות למטה</CardDescription>
             </CardHeader>
             <CardContent>
               <div
