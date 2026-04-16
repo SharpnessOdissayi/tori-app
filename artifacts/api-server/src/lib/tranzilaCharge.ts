@@ -1,19 +1,21 @@
 /**
- * Monthly subscription charge via Tranzila REST.
+ * Monthly subscription — create a Standing Order (STO) on Tranzila.
  *
- * Docs: https://docs.tranzila.com/docs/payments-billing/xsy729b5dsfct-create-a-credit-card-transaction
+ * Docs: https://docs.tranzila.com/docs/payments-billing/3wsj0fk3dkhqa-create-a-standing-order (v1)
  *
- * Flow:
- *   1. 1st month: lilash2 iframe with tranmode=AK charges the card AND
+ * Flow (per Tranzila rep guidance 2026-04-16):
+ *   1. 1st month: lilash2 iframe with tranmode=AK charges the card and
  *      returns a TranzilaTK token via the notify webhook.
- *   2. Monthly: this module POSTs to /v1/transaction/credit_card/create
- *      with card_number=<TranzilaTK>. No CVV, no card_holder_id — the
- *      terminal is configured to accept token-based recurring charges.
+ *   2. From the dashboard test button OR the monthly cron: we hit
+ *      POST https://api.tranzila.com/v1/sto/create with the stored
+ *      TranzilaTK. Tranzila then auto-charges the card every month on
+ *      charge_dom without us having to do anything.
  *
- * Auth: HMAC-SHA256 (same across all Tranzila REST endpoints).
+ * Auth: HMAC-SHA256 — identical to all other Tranzila REST endpoints
+ *       (worked on /v1/transaction/credit_card/create, reused verbatim).
  *
  * Env:
- *   TRANZILA_SUPPLIER        — lilash2
+ *   TRANZILA_SUPPLIER_TOK    — lilash2tok (token terminal)
  *   TRANZILA_API_PUBLIC_KEY
  *   TRANZILA_API_SECRET_KEY
  */
@@ -29,7 +31,7 @@ const TERMINAL   = process.env.TRANZILA_SUPPLIER_TOK   ?? "";
 const PUBLIC_KEY = process.env.TRANZILA_API_PUBLIC_KEY ?? "";
 const SECRET_KEY = process.env.TRANZILA_API_SECRET_KEY ?? "";
 
-const TXN_URL = "https://api.tranzila.com/v1/transaction/credit_card/create";
+const TXN_URL = "https://api.tranzila.com/v1/sto/create";
 
 export interface ChargeResult {
   success:      boolean;
@@ -85,27 +87,27 @@ export async function chargeToken(
   const expireMonth = parseInt(expiry.slice(0, 2), 10);
   const expireYear  = 2000 + parseInt(expiry.slice(2, 4), 10);
 
+  // v1 STO body per docs: single `item` object (not array) + `card.token`
+  // (not `card_number`). charge_dom = today capped at 28.
   const body = {
-    terminal_name:     TERMINAL,
-    txn_currency_code: "ILS",
-    txn_type:          "debit",
-    expire_month:      expireMonth,
-    expire_year:       expireYear,
-    card_number:       token,   // TranzilaTK in place of PAN
-    // NO cvv, NO card_holder_id — terminal accepts token without them.
-    // pan_entry_mode="50" tells SHVA "card not present" so the CVV check
-    // is skipped. Must be a STRING per Tranzila's validation schema.
-    pan_entry_mode:    "50",
-    items: [{
-      name:         `חידוש מנוי פרו קבעתי - ${businessId}`,
-      type:         "I",
-      unit_price:   amountILS,
-      units_number: 1,
-      price_type:   "G",
-    }],
+    terminal_name:       TERMINAL,
+    sto_payments_number: 12,
+    charge_frequency:    "monthly",
+    charge_dom:          Math.min(new Date().getDate(), 28),
+    item: {
+      name:           `מנוי פרו קבעתי - ${businessId}`,
+      unit_price:     amountILS,
+      units_number:   1,
+      price_currency: "ILS",
+      price_type:     "G",
+    },
+    card: {
+      token:        token,
+      expire_month: expireMonth,
+      expire_year:  expireYear,
+    },
     response_language: "hebrew",
     created_by_user:   "kavati-cron",
-    created_by_system: "kavati",
   };
 
   const headers = buildAuthHeaders();
@@ -130,29 +132,26 @@ export async function chargeToken(
     const rawResponse = await res.text();
 
     let data: {
-      error_code?:         number;
-      message?:            string;
-      transaction_result?: { processor_response_code?: string };
+      error_code?: number;
+      message?:    string;
+      sto_id?:     number;
     } = {};
     try { data = JSON.parse(rawResponse); } catch {}
 
-    const processorCode = data.transaction_result?.processor_response_code;
-    const responseCode  = processorCode ?? String(data.error_code ?? res.status);
-    // Real success requires BOTH:
-    //   error_code === 0             → Tranzila accepted the request
-    //   processor_response_code "000" → SHVA authorised the actual charge
-    // Any other combo means money didn't move (ConfirmationCode=0000000).
-    const success = res.ok && data.error_code === 0 && processorCode === "000";
+    // STO success = error_code 0 + a numeric sto_id returned.
+    // No SHVA processor code here — Tranzila handles charging the card
+    // itself later on the configured schedule.
+    const success      = res.ok && data.error_code === 0 && !!data.sto_id;
+    const responseCode = String(data.error_code ?? res.status);
 
-    console.log("[TranzilaCharge] response ←", {
+    console.log("[TranzilaCharge] STO response ←", {
       businessId,
-      status:        res.status,
+      status:    res.status,
       success,
-      errorCode:     data.error_code,
-      message:       data.message,
-      responseCode,
-      processorCode: data.transaction_result?.processor_response_code,
-      rawBody:       rawResponse.slice(0, 500),
+      errorCode: data.error_code,
+      message:   data.message,
+      stoId:     data.sto_id,
+      rawBody:   rawResponse.slice(0, 500),
     });
 
     return { success, responseCode, rawResponse };
