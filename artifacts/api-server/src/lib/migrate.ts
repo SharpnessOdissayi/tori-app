@@ -154,6 +154,14 @@ export async function runMigrations() {
 
     logger.info("DB migrations applied successfully");
   } catch (err) {
+    // Log the full error so we can actually see what failed.
+    const e = err as { message?: string; code?: string; detail?: string; stack?: string };
+    console.error("[Migrate] DB migration failed", {
+      message: e?.message,
+      code:    e?.code,
+      detail:  e?.detail,
+      stack:   e?.stack?.split("\n").slice(0, 5).join("\n"),
+    });
     logger.error({ err }, "DB migration failed");
   }
 }

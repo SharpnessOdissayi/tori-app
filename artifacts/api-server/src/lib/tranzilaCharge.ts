@@ -160,14 +160,16 @@ export async function chargeToken(
     let data: {
       error_code?: number;
       message?:    string;
-      sto_id?:     number;
+      sto_id?:     number | string;   // Tranzila returns it as a string in practice
     } = {};
     try { data = JSON.parse(rawResponse); } catch {}
 
-    // STO success = error_code 0 + a numeric sto_id returned.
-    // No SHVA processor code here — Tranzila handles charging the card
-    // itself later on the configured schedule.
-    const success      = res.ok && data.error_code === 0 && !!data.sto_id;
+    // Coerce sto_id to number — Tranzila returns it quoted.
+    const stoIdNum = data.sto_id != null ? Number(data.sto_id) : undefined;
+    const stoIdOk  = typeof stoIdNum === "number" && !Number.isNaN(stoIdNum) && stoIdNum > 0;
+
+    // STO success = error_code 0 + a valid numeric sto_id returned.
+    const success      = res.ok && data.error_code === 0 && stoIdOk;
     const responseCode = String(data.error_code ?? res.status);
 
     console.log("[TranzilaCharge] STO response ←", {
@@ -176,11 +178,11 @@ export async function chargeToken(
       success,
       errorCode: data.error_code,
       message:   data.message,
-      stoId:     data.sto_id,
+      stoId:     stoIdNum,
       rawBody:   rawResponse.slice(0, 500),
     });
 
-    return { success, responseCode, rawResponse, stoId: data.sto_id };
+    return { success, responseCode, rawResponse, stoId: stoIdOk ? stoIdNum : undefined };
   } catch (err) {
     logger.error({ err, businessId }, "[TranzilaCharge] Token charge failed");
     return { success: false, responseCode: "ERR", rawResponse: String(err) };
