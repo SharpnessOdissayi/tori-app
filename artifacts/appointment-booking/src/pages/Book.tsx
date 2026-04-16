@@ -1273,13 +1273,15 @@ export default function Book() {
             </div>
           )}
 
-          {/* Social links row */}
+          {/* Social links row — icons use the business primaryColor so they
+              remain visible regardless of the preset's background. */}
           {(contactPhone || websiteUrl || instagramUrl || wazeUrl) && (
             <div className="flex justify-center gap-3 mb-6 flex-wrap">
               {contactPhone && (
                 <a href={`tel:${contactPhone}`} aria-label="התקשר">
                   <button
-                    className="w-11 h-11 rounded-full border-2 border-white flex items-center justify-center text-white bg-transparent transition-all hover:bg-white/10"
+                    className="w-11 h-11 rounded-full border-2 flex items-center justify-center bg-transparent transition-all hover:opacity-80"
+                    style={{ borderColor: primaryColor, color: primaryColor }}
                     title="התקשר"
                   >
                     <Phone className="w-5 h-5" />
@@ -1294,7 +1296,7 @@ export default function Book() {
                   aria-label="WhatsApp"
                 >
                   <button
-                    className="w-11 h-11 rounded-full border-2 flex items-center justify-center border-green-200 hover:border-green-400 transition-all overflow-hidden"
+                    className="w-11 h-11 rounded-full border-2 flex items-center justify-center border-green-500 hover:border-green-600 transition-all overflow-hidden bg-white"
                     title="WhatsApp"
                   >
                     {/* Real WhatsApp SVG logo */}
@@ -1308,7 +1310,8 @@ export default function Book() {
               {instagramUrl && (
                 <a href={instagramUrl} target="_blank" rel="noopener noreferrer" aria-label="אינסטגרם">
                   <button
-                    className="w-11 h-11 rounded-full border-2 flex items-center justify-center text-muted-foreground hover:text-foreground hover:border-foreground/40 transition-all"
+                    className="w-11 h-11 rounded-full border-2 flex items-center justify-center bg-transparent transition-all hover:opacity-80"
+                    style={{ borderColor: primaryColor, color: primaryColor }}
                     title="אינסטגרם"
                   >
                     <Instagram className="w-5 h-5" />
@@ -1318,7 +1321,8 @@ export default function Book() {
               {websiteUrl && (
                 <a href={websiteUrl} target="_blank" rel="noopener noreferrer" aria-label="אתר">
                   <button
-                    className="w-11 h-11 rounded-full border-2 flex items-center justify-center text-muted-foreground hover:text-foreground hover:border-foreground/40 transition-all"
+                    className="w-11 h-11 rounded-full border-2 flex items-center justify-center bg-transparent transition-all hover:opacity-80"
+                    style={{ borderColor: primaryColor, color: primaryColor }}
                     title="אתר"
                   >
                     <Globe className="w-5 h-5" />
@@ -1328,7 +1332,8 @@ export default function Book() {
               {wazeUrl && (
                 <a href={wazeUrl} target="_blank" rel="noopener noreferrer" aria-label="ניווט בוויז">
                   <button
-                    className="w-11 h-11 rounded-full border-2 flex items-center justify-center text-muted-foreground hover:text-foreground hover:border-foreground/40 transition-all"
+                    className="w-11 h-11 rounded-full border-2 flex items-center justify-center bg-transparent transition-all hover:opacity-80"
+                    style={{ borderColor: primaryColor, color: primaryColor }}
                     title="Waze"
                   >
                     <MapPin className="w-5 h-5" />
