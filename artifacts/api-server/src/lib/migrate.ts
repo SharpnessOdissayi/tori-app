@@ -177,8 +177,11 @@ export async function runMigrations() {
  * manually with a SQL update if needed).
  */
 async function seedUsersFromExistingData() {
-  // 1. Business owners — one user per business row. Email + password come
-  //    from the business itself; the business's id is linked via business_id.
+  // 1. Business owners — one users row per existing business. Email +
+  //    passwordHash come from the business row itself; businessId links
+  //    back to it. The app is only for business owners and super admins
+  //    (customers of the shops do NOT log in — they book via the public
+  //    /book/<slug> page), so we don't seed any client users.
   await db.execute(sql.raw(`
     INSERT INTO users (email, password_hash, full_name, role, business_id)
     SELECT b.email, b.password_hash, b.owner_name, 'business_owner', b.id
@@ -187,27 +190,8 @@ async function seedUsersFromExistingData() {
     ON CONFLICT (email) DO NOTHING
   `));
 
-  // 2. Clients — pull distinct phones from client_sessions (logged-in
-  //    phones) + client_businesses (phones saved by businesses). No
-  //    password (they log in via OTP).
-  await db.execute(sql.raw(`
-    INSERT INTO users (phone, full_name, role)
-    SELECT DISTINCT cs.phone_number, COALESCE(cs.client_name, ''), 'client'
-    FROM client_sessions cs
-    WHERE cs.phone_number IS NOT NULL
-    ON CONFLICT (phone) DO NOTHING
-  `));
-
-  await db.execute(sql.raw(`
-    INSERT INTO users (phone, full_name, role)
-    SELECT DISTINCT cb.phone_number, COALESCE(cb.client_name, ''), 'client'
-    FROM client_businesses cb
-    WHERE cb.phone_number IS NOT NULL
-    ON CONFLICT (phone) DO NOTHING
-  `));
-
-  // 3. Promote initial super admin if SUPER_ADMIN_EMAIL is configured and
-  //    that user already exists in the table.
+  // 2. Promote the initial super admin if SUPER_ADMIN_EMAIL is configured
+  //    and that user already exists in the table.
   const superAdminEmail = (process.env.SUPER_ADMIN_EMAIL ?? "").trim().toLowerCase();
   if (superAdminEmail) {
     await db.execute(sql.raw(`
