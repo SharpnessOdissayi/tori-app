@@ -61,6 +61,10 @@ function buildAuthHeaders(): Record<string, string> {
     "X-tranzila-api-request-time": requestTime,
     "X-tranzila-api-nonce":        nonce,
     "X-tranzila-api-access-token": accessToken,
+    // Tranzila rep instructed us to also send the raw secret as a header.
+    // Unusual (most APIs sign with HMAC instead of sending the secret), but
+    // we're following their guidance to unblock the 401.
+    "secret-key":                  SECRET_KEY,
   };
 }
 
