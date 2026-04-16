@@ -362,13 +362,38 @@ export default function Book({ slugOverride }: { slugOverride?: string } = {}) {
     { query: { enabled: !!dateStr && !!selectedServiceId } }
   );
 
-  // Availability for reschedule flow
+  // Availability for reschedule flow. The serviceId drives the slot
+  // duration and buffer — without it the backend can't return real
+  // availability. The client portal hand-off writes `serviceId` into the
+  // booking payload; for legacy entries we fall back to 0 (which produces
+  // an empty slot list but at least doesn't crash).
+  const rescheduleServiceId = Number(existingBooking?.serviceId ?? 0);
   const rescheduleDateStr = rescheduleDate?.toISOString().split("T")[0] ?? "";
   const { data: rescheduleAvailability } = useGetPublicAvailability(
     businessSlug || "",
-    { date: rescheduleDateStr, serviceId: 0 },
-    { query: { enabled: !!rescheduleDateStr && rescheduleStep === "picking" } }
+    { date: rescheduleDateStr, serviceId: rescheduleServiceId },
+    { query: { enabled: !!rescheduleDateStr && rescheduleStep === "picking" && rescheduleServiceId > 0 } }
   );
+
+  // "תורים קרובים" for the reschedule dialog — same /next-slots endpoint
+  // the first-booking flow uses. Owner request: when a client opens
+  // 'עדכון תור', show these suggestions first; only fall back to the
+  // calendar if none of them fit.
+  const [rescheduleNextSlots, setRescheduleNextSlots] = useState<Array<{ date: string; time: string }>>([]);
+  const [rescheduleNextSlotsLoading, setRescheduleNextSlotsLoading] = useState(false);
+  const [rescheduleUseCalendar, setRescheduleUseCalendar] = useState(false);
+  useEffect(() => {
+    if (!businessSlug || rescheduleStep !== "picking" || !rescheduleServiceId) {
+      setRescheduleNextSlots([]);
+      return;
+    }
+    setRescheduleNextSlotsLoading(true);
+    fetch(`${API_BASE}/public/${businessSlug}/next-slots?serviceId=${rescheduleServiceId}&count=8`)
+      .then(r => r.ok ? r.json() : [])
+      .then(data => setRescheduleNextSlots(Array.isArray(data) ? data : []))
+      .catch(() => setRescheduleNextSlots([]))
+      .finally(() => setRescheduleNextSlotsLoading(false));
+  }, [businessSlug, rescheduleStep, rescheduleServiceId, API_BASE]);
 
   const createMutation = useCreatePublicAppointment();
   const waitlistMutation = useJoinWaitlist();
@@ -1105,39 +1130,91 @@ export default function Book({ slugOverride }: { slugOverride?: string } = {}) {
                     </Button>
                   </div>
                 ) : (
-                  /* Reschedule picker */
+                  /* Reschedule picker — next-slots first, calendar on demand */
                   <div className="space-y-3">
-                    <div className="text-sm font-medium">בחר תאריך ושעה חדשים:</div>
-                    <DayPicker
-                      mode="single"
-                      selected={rescheduleDate}
-                      onSelect={d => { setRescheduleDate(d); setRescheduleTime(null); }}
-                      locale={he}
-                      disabled={[{ before: new Date() }]}
-                      className="rounded-xl border p-2 mx-auto"
-                    />
-                    {rescheduleDate && (() => {
-                      const available: string[] = rescheduleAvailability?.slots ?? [];
-                      return available.length > 0 ? (
-                        <div className="grid grid-cols-3 gap-2">
-                          {available.map((t: string) => (
-                            <button
-                              key={t}
-                              onClick={() => setRescheduleTime(t)}
-                              className={`py-2 rounded-xl border text-sm font-medium transition-all ${rescheduleTime === t ? "text-white border-transparent" : "border-border hover:border-primary/50"}`}
-                              style={rescheduleTime === t ? { backgroundColor: primaryColor } : {}}
-                            >
-                              {t}
-                            </button>
-                          ))}
+                    {!rescheduleUseCalendar ? (
+                      <>
+                        <div className="text-sm font-medium">בחר מועד חדש מהמוצעים:</div>
+                        {rescheduleNextSlotsLoading ? (
+                          <div className="text-center text-sm text-muted-foreground py-4">טוען זמנים פנויים...</div>
+                        ) : rescheduleNextSlots.length === 0 ? (
+                          <div className="text-center text-sm text-muted-foreground py-3">אין זמנים פנויים בקרוב — עבור ללוח השנה לבחור תאריך ספציפי.</div>
+                        ) : (
+                          <div className="grid grid-cols-2 gap-2">
+                            {rescheduleNextSlots.map((s, i) => {
+                              const iso = s.date;
+                              const picked = rescheduleDate?.toISOString().split("T")[0] === iso && rescheduleTime === s.time;
+                              const [, mm, dd] = iso.split("-");
+                              return (
+                                <button
+                                  key={i}
+                                  onClick={() => {
+                                    const [y, mo, da] = iso.split("-").map(Number);
+                                    setRescheduleDate(new Date(y, mo - 1, da));
+                                    setRescheduleTime(s.time);
+                                  }}
+                                  className={`py-2 px-2 rounded-xl border text-xs font-medium transition-all flex flex-col items-center gap-0.5 ${picked ? "text-white border-transparent" : "border-border hover:border-primary/50"}`}
+                                  style={picked ? { backgroundColor: primaryColor } : {}}
+                                >
+                                  <span className="font-semibold">{dd}/{mm}</span>
+                                  <span dir="ltr">{s.time}</span>
+                                </button>
+                              );
+                            })}
+                          </div>
+                        )}
+                        <button
+                          type="button"
+                          onClick={() => setRescheduleUseCalendar(true)}
+                          className="w-full text-center text-xs text-primary font-semibold underline pt-1"
+                        >
+                          העדפת תאריך ספציפי? עבור ללוח שנה
+                        </button>
+                      </>
+                    ) : (
+                      <>
+                        <div className="flex items-center justify-between">
+                          <div className="text-sm font-medium">בחר תאריך ושעה חדשים:</div>
+                          <button
+                            type="button"
+                            onClick={() => { setRescheduleUseCalendar(false); setRescheduleDate(undefined); setRescheduleTime(null); }}
+                            className="text-xs text-primary font-semibold underline"
+                          >
+                            חזרה למוצעים
+                          </button>
                         </div>
-                      ) : <div className="text-center text-sm text-muted-foreground py-2">אין זמנים פנויים ביום זה</div>;
-                    })()}
+                        <DayPicker
+                          mode="single"
+                          selected={rescheduleDate}
+                          onSelect={d => { setRescheduleDate(d); setRescheduleTime(null); }}
+                          locale={he}
+                          disabled={[{ before: new Date() }]}
+                          className="rounded-xl border p-2 mx-auto"
+                        />
+                        {rescheduleDate && (() => {
+                          const available: string[] = rescheduleAvailability?.slots ?? [];
+                          return available.length > 0 ? (
+                            <div className="grid grid-cols-3 gap-2">
+                              {available.map((t: string) => (
+                                <button
+                                  key={t}
+                                  onClick={() => setRescheduleTime(t)}
+                                  className={`py-2 rounded-xl border text-sm font-medium transition-all ${rescheduleTime === t ? "text-white border-transparent" : "border-border hover:border-primary/50"}`}
+                                  style={rescheduleTime === t ? { backgroundColor: primaryColor } : {}}
+                                >
+                                  {t}
+                                </button>
+                              ))}
+                            </div>
+                          ) : <div className="text-center text-sm text-muted-foreground py-2">אין זמנים פנויים ביום זה</div>;
+                        })()}
+                      </>
+                    )}
                     <div className="flex gap-2 pt-1">
                       <Button
                         variant="outline"
                         className="flex-1"
-                        onClick={() => { setRescheduleStep("idle"); setRescheduleDate(undefined); setRescheduleTime(null); }}
+                        onClick={() => { setRescheduleStep("idle"); setRescheduleDate(undefined); setRescheduleTime(null); setRescheduleUseCalendar(false); }}
                       >
                         חזור
                       </Button>

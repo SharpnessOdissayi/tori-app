@@ -34,6 +34,7 @@ type DirectoryBusiness = {
 
 type Appointment = {
   id: number;
+  serviceId?: number | null;
   clientName: string;
   serviceName: string;
   appointmentDate: string;
@@ -471,13 +472,14 @@ export default function ClientPortal() {
     // with the new slot anyway so the stored string is cosmetic.
     const [y, m, d] = appt.appointmentDate.split("-");
     localStorage.setItem(`kavati_booking_${appt.businessSlug}`, JSON.stringify({
-      id:      appt.id,
-      service: appt.serviceName,
-      date:    `${d}/${m}`,
-      time:    appt.appointmentTime,
-      name:    appt.clientName,
+      id:        appt.id,
+      serviceId: appt.serviceId ?? null,
+      service:   appt.serviceName,
+      date:      `${d}/${m}`,
+      time:      appt.appointmentTime,
+      name:      appt.clientName,
       phone,
-      year:    y,
+      year:      y,
     }));
     navigate(`/book/${appt.businessSlug}?reschedule=1`);
   };

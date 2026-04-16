@@ -308,6 +308,9 @@ router.get("/client/appointments", requireClientAuth, async (req, res): Promise<
   const appointments = await db
     .select({
       id: appointmentsTable.id,
+      // Needed by the client portal's reschedule hand-off so Book.tsx can
+      // query the availability endpoint with the right service.
+      serviceId: appointmentsTable.serviceId,
       clientName: appointmentsTable.clientName,
       serviceName: appointmentsTable.serviceName,
       appointmentDate: appointmentsTable.appointmentDate,
