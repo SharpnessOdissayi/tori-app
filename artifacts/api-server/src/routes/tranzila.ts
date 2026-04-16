@@ -2,7 +2,7 @@ import { Router } from "express";
 import { db, appointmentsTable, businessesTable } from "@workspace/db";
 import { eq, and } from "drizzle-orm";
 import jwt from "jsonwebtoken";
-import { chargeToken } from "../lib/tranzilaCharge";
+import { chargeToken, getSto, updateSto } from "../lib/tranzilaCharge";
 
 const router = Router();
 
@@ -12,7 +12,8 @@ const SUPPLIER   = process.env.TRANZILA_SUPPLIER ?? "";
 const JWT_SECRET = process.env.JWT_SECRET ?? "dev-secret";
 
 // Real charges — 1 ILS until the real subscription price is set.
-const SUBSCRIPTION_FIRST_ILS = 1;
+const SUBSCRIPTION_FIRST_ILS   = 1;
+const SUBSCRIPTION_MONTHLY_ILS = 1;
 
 // Per iframe docs: base URL is direct.tranzila.com/<terminal>/iframenew.php.
 const IFRAME_BASE = `https://direct.tranzila.com/${SUPPLIER}/iframenew.php`;
@@ -113,6 +114,34 @@ router.post("/tranzila/notify", async (req, res): Promise<void> => {
           .where(eq(businessesTable.id, businessId));
 
         console.log(`[Tranzila] Business ${businessId} upgraded to Pro, renews ${renewDate.toISOString()}`);
+
+        // Now that we have the token, create an STO on Tranzila's side so
+        // they auto-charge every month from here on out. Skip if the
+        // business already has one (re-subscription after cancel).
+        if (token && expdate) {
+          const [existing] = await db
+            .select({ existingStoId: (businessesTable as any).tranzilaStorId })
+            .from(businessesTable)
+            .where(eq(businessesTable.id, businessId));
+
+          if (!existing?.existingStoId) {
+            const sto = await chargeToken(
+              token,
+              expdate,
+              SUBSCRIPTION_MONTHLY_ILS,
+              businessId,
+            );
+            if (sto.success && sto.stoId) {
+              await db
+                .update(businessesTable)
+                .set({ tranzilaStorId: sto.stoId } as any)
+                .where(eq(businessesTable.id, businessId));
+              console.log(`[Tranzila] STO ${sto.stoId} created for business ${businessId}`);
+            } else {
+              console.warn(`[Tranzila] STO create failed for business ${businessId}: ${sto.responseCode}`);
+            }
+          }
+        }
       } else {
         console.log(`[Tranzila] Subscription payment failed business=${businessId} code=${responsecode}`);
       }
@@ -225,51 +254,71 @@ router.get("/tranzila/subscription-url", async (req, res): Promise<void> => {
   res.json({ url, firstCharge: SUBSCRIPTION_FIRST_ILS, monthlyCharge: SUBSCRIPTION_MONTHLY_ILS });
 });
 
-// ─── POST /api/tranzila/test-charge (authenticated) ─────────────────────────
-// Manual "charge my stored token now" button for the dashboard. Useful to
-// verify the monthly charging path works before waiting 30 days for cron.
-const TEST_CHARGE_AMOUNT_ILS = 1;
+// ─── Helper: require a valid business token on the request ──────────────────
 
-router.post("/tranzila/test-charge", async (req, res): Promise<void> => {
+function requireBusinessId(req: any): number | null {
   const authHeader = req.headers.authorization ?? "";
   const rawToken   = authHeader.startsWith("Bearer ") ? authHeader.slice(7) : "";
-  if (!rawToken) { res.status(401).json({ error: "Unauthorized" }); return; }
-
-  let businessId: number;
+  if (!rawToken) return null;
   try {
     const payload = jwt.verify(rawToken, JWT_SECRET) as { businessId?: number; id?: number };
-    businessId = payload.businessId ?? payload.id ?? 0;
-    if (!businessId) throw new Error("No businessId");
+    return payload.businessId ?? payload.id ?? null;
   } catch {
-    res.status(401).json({ error: "Unauthorized" }); return;
+    return null;
   }
+}
+
+// ─── GET /api/tranzila/subscription-status ──────────────────────────────────
+// Pulls the live STO from Tranzila so we can show the owner:
+//   - next_charge_date_time ("החיוב הבא: 16.05.2026")
+//   - last_charge_date_time ("החיוב האחרון: 16.04.2026")
+//   - charge_amount          (sum)
+//   - sto_status             (active / inactive)
+//
+// Returns 404 if no STO is linked to the business yet.
+
+router.get("/tranzila/subscription-status", async (req, res): Promise<void> => {
+  const businessId = requireBusinessId(req);
+  if (!businessId) { res.status(401).json({ error: "Unauthorized" }); return; }
 
   const [biz] = await db
-    .select({
-      tranzilaToken:       (businessesTable as any).tranzilaToken,
-      tranzilaTokenExpiry: (businessesTable as any).tranzilaTokenExpiry,
-    })
+    .select({ stoId: (businessesTable as any).tranzilaStorId })
     .from(businessesTable)
     .where(eq(businessesTable.id, businessId));
 
-  if (!biz?.tranzilaToken || !biz?.tranzilaTokenExpiry) {
-    res.status(400).json({ error: "אין טוקן שמור — יש לבצע תשלום ראשון כדי ליצור טוקן" });
-    return;
-  }
+  if (!biz?.stoId) { res.status(404).json({ error: "no_sto" }); return; }
 
-  const result = await chargeToken(
-    biz.tranzilaToken,
-    biz.tranzilaTokenExpiry,
-    TEST_CHARGE_AMOUNT_ILS,
-    businessId,
-  );
+  const info = await getSto(biz.stoId);
+  if (!info) { res.status(502).json({ error: "sto_fetch_failed" }); return; }
 
-  res.json({
-    success:      result.success,
-    responseCode: result.responseCode,
-    amount:       TEST_CHARGE_AMOUNT_ILS,
-    rawBody:      result.rawResponse.slice(0, 500),
-  });
+  res.json(info);
+});
+
+// ─── POST /api/tranzila/subscription-cancel ─────────────────────────────────
+// Marks the STO inactive on Tranzila's side so they stop charging, AND
+// flags the business as cancelled in our DB. Access stays Pro until the
+// next renewal date (customer paid for the current period).
+
+router.post("/tranzila/subscription-cancel", async (req, res): Promise<void> => {
+  const businessId = requireBusinessId(req);
+  if (!businessId) { res.status(401).json({ error: "Unauthorized" }); return; }
+
+  const [biz] = await db
+    .select({ stoId: (businessesTable as any).tranzilaStorId })
+    .from(businessesTable)
+    .where(eq(businessesTable.id, businessId));
+
+  if (!biz?.stoId) { res.status(404).json({ error: "no_sto" }); return; }
+
+  const ok = await updateSto(biz.stoId, "inactive");
+  if (!ok) { res.status(502).json({ error: "sto_update_failed" }); return; }
+
+  await db
+    .update(businessesTable)
+    .set({ subscriptionCancelledAt: new Date() } as any)
+    .where(eq(businessesTable.id, businessId));
+
+  res.json({ success: true });
 });
 
 export default router;

@@ -193,7 +193,6 @@ function SubscriptionBanner() {
   if (isPro) {
     const renewDate: Date | null = (profile as any)?.subscriptionRenewDate ? new Date((profile as any).subscriptionRenewDate) : null;
     const cancelledAt: Date | null = (profile as any)?.subscriptionCancelledAt ? new Date((profile as any).subscriptionCancelledAt) : null;
-    const hasToken = !!(profile as any)?.hasTranzilaToken || !!(profile as any)?.tranzilaToken;
 
     let timerText = "ללא הגבלת זמן";
     let timerColor = "text-violet-500";
@@ -208,42 +207,11 @@ function SubscriptionBanner() {
       }
     }
 
-    const testCharge = async () => {
-      const authToken = localStorage.getItem("biz_token") || sessionStorage.getItem("biz_token");
-      try {
-        const res  = await fetch(`${API_BASE_SUB}/tranzila/test-charge`, {
-          method:  "POST",
-          headers: { Authorization: `Bearer ${authToken}` },
-        });
-        const data = await res.json();
-        if (data.success) {
-          toast({ title: `✅ חויב ${data.amount} ₪ בהצלחה`, description: `קוד: ${data.responseCode}` });
-        } else {
-          toast({
-            title:       `❌ החיוב נכשל`,
-            description: `קוד: ${data.responseCode}${data.rawBody ? " — " + data.rawBody.slice(0, 120) : ""}`,
-            variant:     "destructive",
-          });
-        }
-      } catch (err: any) {
-        toast({ title: "שגיאה", description: err.message, variant: "destructive" });
-      }
-    };
-
     return (
       <div className="flex flex-wrap items-center gap-2 px-4 py-2.5 bg-gradient-to-l from-violet-50 to-indigo-50 border border-violet-200 rounded-xl mb-4 text-sm">
         <Crown className="w-4 h-4 text-violet-600 shrink-0" />
         <span className="text-violet-800 font-medium">מנוי פרו פעיל</span>
         <span className={`text-xs font-medium ${timerColor}`}>{timerText}</span>
-        {hasToken && (
-          <button
-            onClick={testCharge}
-            className="mr-auto text-xs px-2.5 py-1 rounded-md bg-violet-600 text-white hover:bg-violet-700 transition"
-            title="מחייב 1 ₪ דרך הטוקן השמור כדי לוודא שהחיוב החודשי יעבוד"
-          >
-            ⚡ בדיקת חיוב (1 ₪)
-          </button>
-        )}
       </div>
     );
   }
@@ -3948,9 +3916,23 @@ function SubscriptionStatusCard() {
                   פעיל מאז {format(subscriptionStartDate, "d בMMM yyyy", { locale: he })}
                 </div>
               )}
-              {isPro && renewDate && !cancelledAt && (
+              {/* Live Tranzila STO info — "next charge" line shows the real
+                  date from Tranzila when available, else falls back to our
+                  renewDate estimate. */}
+              {isPro && (status as any)?.stoInfo?.nextChargeDateTime && !cancelledAt && (
+                <div className="text-xs text-muted-foreground">
+                  חיוב הבא: {format(new Date((status as any).stoInfo.nextChargeDateTime), "d בMMM yyyy", { locale: he })}
+                  {(status as any).stoInfo.chargeAmount ? ` — ₪${(status as any).stoInfo.chargeAmount}/חודש` : ""}
+                </div>
+              )}
+              {isPro && !((status as any)?.stoInfo?.nextChargeDateTime) && renewDate && !cancelledAt && (
                 <div className="text-xs text-muted-foreground">
                   חידוש אוטומטי ב-{format(renewDate, "d בMMM yyyy", { locale: he })} — ₪100/חודש
+                </div>
+              )}
+              {isPro && (status as any)?.stoInfo?.lastChargeDateTime && (
+                <div className="text-xs text-muted-foreground">
+                  חיוב אחרון: {format(new Date((status as any).stoInfo.lastChargeDateTime), "d בMMM yyyy", { locale: he })}
                 </div>
               )}
               {isPro && cancelledAt && renewDate && (

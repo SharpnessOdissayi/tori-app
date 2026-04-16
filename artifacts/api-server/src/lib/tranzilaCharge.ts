@@ -37,6 +37,19 @@ export interface ChargeResult {
   success:      boolean;
   responseCode: string;
   rawResponse:  string;
+  stoId?:       number;   // populated on createSto success
+}
+
+export interface StoInfo {
+  stoId:              number;
+  stoStatus:          string;            // "active" | "inactive"
+  chargeAmount:       number;
+  chargeFrequency:    string;            // "monthly" etc.
+  chargeDom:          number;
+  firstChargeDate:    string | null;     // YYYY-MM-DD
+  lastChargeDateTime: string | null;     // ISO timestamp (null if never charged)
+  nextChargeDateTime: string | null;     // ISO timestamp
+  stoPaymentsNumber:  number;
 }
 
 function buildAuthHeaders(): Record<string, string> {
@@ -167,9 +180,111 @@ export async function chargeToken(
       rawBody:   rawResponse.slice(0, 500),
     });
 
-    return { success, responseCode, rawResponse };
+    return { success, responseCode, rawResponse, stoId: data.sto_id };
   } catch (err) {
     logger.error({ err, businessId }, "[TranzilaCharge] Token charge failed");
     return { success: false, responseCode: "ERR", rawResponse: String(err) };
+  }
+}
+
+// ─── STO retrieval (POST /v1/stos/get) ──────────────────────────────────────
+// Same HMAC headers, query-style body. Returns the full STO record
+// including `next_charge_date_time` so we can show the customer when
+// they'll be charged next.
+
+const STO_GET_URL = "https://api.tranzila.com/v1/stos/get";
+
+export async function getSto(stoId: number): Promise<StoInfo | null> {
+  if (!TERMINAL || !PUBLIC_KEY || !SECRET_KEY) return null;
+
+  const body = {
+    terminal_name: TERMINAL,
+    sto_id:        stoId,
+  };
+
+  try {
+    const res = await fetch(STO_GET_URL, {
+      method:  "POST",
+      headers: buildAuthHeaders(),
+      body:    JSON.stringify(body),
+    });
+    const rawResponse = await res.text();
+
+    let data: {
+      error_code?: number;
+      stos?: Array<{
+        sto_id?:                number;
+        sto_status?:            string;
+        charge_amount?:         number;
+        charge_frequency?:      string;
+        charge_dom?:            number;
+        first_charge_date?:     string;
+        last_charge_date_time?: string;
+        next_charge_date_time?: string;
+        sto_payments_number?:  number;
+      }>;
+    } = {};
+    try { data = JSON.parse(rawResponse); } catch {}
+
+    if (!res.ok || data.error_code !== 0 || !data.stos?.[0]) {
+      console.warn("[TranzilaSTO.get] failed", {
+        stoId, status: res.status, errorCode: data.error_code, rawBody: rawResponse.slice(0, 300),
+      });
+      return null;
+    }
+
+    const s = data.stos[0];
+    return {
+      stoId:              s.sto_id              ?? stoId,
+      stoStatus:          s.sto_status          ?? "unknown",
+      chargeAmount:       s.charge_amount       ?? 0,
+      chargeFrequency:    s.charge_frequency    ?? "",
+      chargeDom:          s.charge_dom          ?? 0,
+      firstChargeDate:    s.first_charge_date    ?? null,
+      lastChargeDateTime: s.last_charge_date_time ?? null,
+      nextChargeDateTime: s.next_charge_date_time ?? null,
+      stoPaymentsNumber:  s.sto_payments_number ?? 0,
+    };
+  } catch (err) {
+    logger.error({ err, stoId }, "[TranzilaSTO.get] request failed");
+    return null;
+  }
+}
+
+// ─── STO update (POST /v1/sto/update) ───────────────────────────────────────
+// Primarily used to cancel a subscription — set sto_status to "inactive".
+
+const STO_UPDATE_URL = "https://api.tranzila.com/v1/sto/update";
+
+export async function updateSto(stoId: number, status: "active" | "inactive"): Promise<boolean> {
+  if (!TERMINAL || !PUBLIC_KEY || !SECRET_KEY) return false;
+
+  const body = {
+    terminal_name:   TERMINAL,
+    sto_id:          stoId,
+    sto_status:      status,
+    response_language: "hebrew",
+    updated_by_user: "kavati",
+  };
+
+  try {
+    const res = await fetch(STO_UPDATE_URL, {
+      method:  "POST",
+      headers: buildAuthHeaders(),
+      body:    JSON.stringify(body),
+    });
+    const rawResponse = await res.text();
+
+    let data: { error_code?: number; message?: string } = {};
+    try { data = JSON.parse(rawResponse); } catch {}
+
+    const ok = res.ok && data.error_code === 0;
+    console.log("[TranzilaSTO.update]", {
+      stoId, status, httpStatus: res.status, ok, message: data.message,
+    });
+    return ok;
+  } catch (err) {
+    logger.error({ err, stoId }, "[TranzilaSTO.update] request failed");
+    return false;
   }
 }
