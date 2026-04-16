@@ -93,9 +93,9 @@ export async function chargeToken(
     expire_year:       expireYear,
     card_number:       token,   // TranzilaTK in place of PAN
     // NO cvv, NO card_holder_id — terminal accepts token without them.
-    // pan_entry_mode=50 tells SHVA "card not present" so the CVV check is
-    // skipped. Without this SHVA returns Responsecvv=2 + processor_code=006.
-    pan_entry_mode:    50,
+    // pan_entry_mode="50" tells SHVA "card not present" so the CVV check
+    // is skipped. Must be a STRING per Tranzila's validation schema.
+    pan_entry_mode:    "50",
     items: [{
       name:         `חידוש מנוי פרו קבעתי - ${businessId}`,
       type:         "I",
