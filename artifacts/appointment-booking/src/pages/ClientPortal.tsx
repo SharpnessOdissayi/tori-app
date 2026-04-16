@@ -718,14 +718,8 @@ export default function ClientPortal() {
               </div>
               <div className="space-y-1.5">
                 <label className="text-sm font-medium text-gray-700">טלפון</label>
-                {session.phone ? (
-                  <div className="w-full rounded-xl border border-gray-100 bg-gray-50 px-4 py-2.5 text-sm text-gray-500 text-right" dir="ltr">
-                    {session.phone}
-                  </div>
-                ) : (
-                  <input type="tel" dir="ltr" value={profilePhone} onChange={e => setProfilePhone(e.target.value)}
-                    className="w-full rounded-xl border border-gray-200 px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500 text-right" />
-                )}
+                <input type="tel" dir="ltr" value={profilePhone} onChange={e => setProfilePhone(e.target.value)}
+                  className="w-full rounded-xl border border-gray-200 px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500 text-right" />
               </div>
               <div className="space-y-1.5">
                 <label className="text-sm font-medium text-gray-700">מין</label>

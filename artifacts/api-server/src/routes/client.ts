@@ -197,7 +197,17 @@ router.get("/client/businesses", requireClientAuth, async (req, res): Promise<vo
     .innerJoin(businessesTable, eq(clientBusinessesTable.businessId, businessesTable.id))
     .where(identCondition(ident));
 
-  res.json(rows);
+  // De-duplicate on businessId — legacy data can contain multiple
+  // client_businesses rows that point at the same business (pre-uniqueness
+  // insertions). Return the first occurrence per business.
+  const seen = new Set<number>();
+  const unique = rows.filter(r => {
+    if (seen.has(r.businessId)) return false;
+    seen.add(r.businessId);
+    return true;
+  });
+
+  res.json(unique);
 });
 
 router.post("/client/businesses/:slug", requireClientAuth, async (req, res): Promise<void> => {

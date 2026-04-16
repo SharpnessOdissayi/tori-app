@@ -960,14 +960,7 @@ function AppointmentsTab() {
   return (
     <div className="space-y-6">
       {profile?.slug && (
-        <div className="flex flex-wrap items-center justify-between gap-3 p-4 rounded-xl border bg-primary/5">
-          <div className="flex items-center gap-2 text-sm">
-            <Link className="w-4 h-4 text-primary" />
-            <span className="font-medium">עמוד ההזמנות שלך</span>
-            <span className="text-muted-foreground text-xs hidden sm:inline" dir="ltr">
-              {window.location.origin}/book/{profile.slug}
-            </span>
-          </div>
+        <div className="flex justify-end">
           <a
             href={`/book/${profile.slug}`}
             target="_blank"
