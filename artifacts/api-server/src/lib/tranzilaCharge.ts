@@ -34,8 +34,17 @@ export interface ChargeResult {
 }
 
 function buildAuthHeaders(): Record<string, string> {
-  const nonce       = crypto.randomBytes(20).toString("hex");
-  const requestTime = String(Date.now());
+  const nonce = crypto.randomBytes(20).toString("hex");
+
+  // Tranzila support told us "request-time must be in Israel-clock time".
+  // Unix timestamps are timezone-independent by definition, but their
+  // validator may be comparing naively against Asia/Jerusalem local time.
+  // So we add IDT offset (+3h) to ms-since-epoch. TRANZILA_TIME_UTC=true
+  // reverts to standard Unix time.
+  const ISRAEL_OFFSET_MS = 3 * 60 * 60 * 1000;
+  const useUtc           = process.env.TRANZILA_TIME_UTC === "true";
+  const requestTime      = String(Date.now() + (useUtc ? 0 : ISRAEL_OFFSET_MS));
+
   const accessToken = crypto
     .createHmac("sha256", SECRET_KEY + requestTime + nonce)
     .update(PUBLIC_KEY)
@@ -95,10 +104,26 @@ export async function chargeToken(
     created_by_system: "kavati",
   };
 
+  const headers = buildAuthHeaders();
+
+  // Always-visible request log — console.log bypasses pino truncation so we
+  // can see exactly what went out of Railway.
+  console.log("[TranzilaCharge] request →", {
+    url:             TXN_URL,
+    terminal:        TERMINAL,
+    businessId,
+    requestTime:     headers["X-tranzila-api-request-time"],
+    nonce:           headers["X-tranzila-api-nonce"],
+    accessTokenHead: headers["X-tranzila-api-access-token"].slice(0, 16) + "…",
+    publicKeyLen:    PUBLIC_KEY.length,
+    secretLen:       SECRET_KEY.length,
+    timeMode:        process.env.TRANZILA_TIME_UTC === "true" ? "UTC" : "IL (+3h)",
+  });
+
   try {
-    const res  = await fetch(TXN_URL, {
+    const res         = await fetch(TXN_URL, {
       method:  "POST",
-      headers: buildAuthHeaders(),
+      headers,
       body:    JSON.stringify(body),
     });
     const rawResponse = await res.text();
@@ -116,10 +141,17 @@ export async function chargeToken(
       && data.error_code === 0
       && data.transaction_result?.processor_response_code === "000";
 
-    logger.info(
-      { businessId, status: res.status, responseCode, success },
-      "[TranzilaCharge] Token charge result",
-    );
+    console.log("[TranzilaCharge] response ←", {
+      businessId,
+      status:        res.status,
+      success,
+      errorCode:     data.error_code,
+      message:       data.message,
+      responseCode,
+      processorCode: data.transaction_result?.processor_response_code,
+      rawBody:       rawResponse.slice(0, 500),
+    });
+
     return { success, responseCode, rawResponse };
   } catch (err) {
     logger.error({ err, businessId }, "[TranzilaCharge] Token charge failed");
