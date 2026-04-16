@@ -45,8 +45,8 @@ app.listen(port, (err) => {
   });
   logger.info("Reminders cron started (every 15 minutes)");
 
-  // Subscription monthly charges are handled by Tranzila itself via
-  // recur_transaction in the iframe — no cron on our side.
+  // Monthly subscription charges are handled by Tranzila via the STO we
+  // create on first payment — no cron on our side.
 
   // Release pending_payment slots whose webhook never arrived (every 30 min)
   cron.schedule("*/30 * * * *", () => {

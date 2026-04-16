@@ -84,8 +84,9 @@ router.post("/tranzila/notify", async (req, res): Promise<void> => {
     console.log("[Tranzila] Notify received:", { responsecode, pdesc, body });
 
     // ── Subscription payment ─────────────────────────────────────────────
-    // Initial: TranzilaTK + expmonth/expyear populated, no sto_external_id.
-    // Recurring STO: Tranzila includes sto_external_id.
+    // Initial iframe charge (tranmode=AK) → no sto_external_id yet.
+    //   Store token + call /v1/sto/create. Tranzila then auto-charges monthly.
+    // Recurring STO charge → body includes sto_external_id. Just extend renewal.
     const subscriptionMatch = pdesc.match(/מנוי פרו קבעתי - (\d+)/);
     if (subscriptionMatch) {
       const businessId    = parseInt(subscriptionMatch[1]);
@@ -96,14 +97,14 @@ router.post("/tranzila/notify", async (req, res): Promise<void> => {
         renewDate.setDate(renewDate.getDate() + 30);
 
         if (stoExternalId) {
-          // Recurring STO charge — just extend renewal.
+          // Recurring STO charge — Tranzila handled the charge, extend renewal.
           await db
             .update(businessesTable)
             .set({ subscriptionRenewDate: renewDate } as any)
             .where(eq(businessesTable.id, businessId));
           console.log(`[Tranzila] Recurring STO charge business=${businessId} sto=${stoExternalId}`);
         } else {
-          // Initial charge (tranmode=AK). Store token and create STO.
+          // Initial iframe charge. Store token, mark Pro, create STO.
           const token   = String(body.TranzilaTK ?? body.tranzilatk ?? body.token ?? "").trim();
           const mm      = String(body.expmonth ?? "").padStart(2, "0").slice(0, 2);
           const yy      = String(body.expyear  ?? "").padStart(2, "0").slice(-2);
@@ -125,6 +126,7 @@ router.post("/tranzila/notify", async (req, res): Promise<void> => {
 
           console.log(`[Tranzila] Business ${businessId} upgraded to Pro, renews ${renewDate.toISOString()}`);
 
+          // Create STO so Tranzila handles all future monthly charges.
           if (token && mm && yy) {
             const [biz] = await db
               .select({

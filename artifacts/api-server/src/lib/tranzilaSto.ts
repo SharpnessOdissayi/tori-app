@@ -1,24 +1,14 @@
 /**
  * Tranzila Standing Order (STO) creation — v1 API.
  *
- * Flow:
- *   1. Customer pays 1st month via lilash2 iframe with tranmode=AK →
- *      notify callback delivers `TranzilaTK` + expdate.
- *   2. We call POST /v1/sto/create with the token. Tranzila then
- *      auto-charges monthly based on charge_dom + charge_frequency.
- *
  * Docs: https://docs.tranzila.com/docs/payments-billing/3wsj0fk3dkhqa-create-a-standing-order
- *       (v1 is deprecated in favor of v2, but v2 REST auth has been
- *       rejecting our keys — v1 is the fallback path.)
  *
- * Auth headers (identical across all Tranzila REST endpoints):
- *   X-tranzila-api-app-key, X-tranzila-api-request-time,
- *   X-tranzila-api-nonce, X-tranzila-api-access-token
+ * Called once after the initial iframe charge (tranmode=AK) to register a
+ * monthly STO on Tranzila's side. If creation succeeds → Tranzila itself
+ * charges every month. If it fails → subscriptionCron falls back to
+ * manual monthly charges via /v1/transaction/credit_card/create.
  *
- * Env vars:
- *   TRANZILA_SUPPLIER        — terminal name (lilash2)
- *   TRANZILA_API_PUBLIC_KEY  — REST public key
- *   TRANZILA_API_SECRET_KEY  — REST secret for HMAC
+ * Auth: HMAC-SHA256 (key=secret+time+nonce, data=publicKey, base64 digest).
  */
 
 import crypto from "crypto";
@@ -39,7 +29,6 @@ export interface CreateStoResult {
 function buildAuthHeaders(): Record<string, string> {
   const nonce       = crypto.randomBytes(20).toString("hex");
   const requestTime = String(Date.now());
-  // PHP-literal reading of spec: hash_hmac(algo, data=publicKey, key=secret+time+nonce) → base64
   const accessToken = crypto
     .createHmac("sha256", SECRET_KEY + requestTime + nonce)
     .update(PUBLIC_KEY)
@@ -68,7 +57,7 @@ export async function createStandingOrder(params: {
     return { success: false, error: "Tranzila REST env vars missing" };
   }
 
-  // v1 schema: single `item` object (not `items` array like v2).
+  // v1 STO schema uses a single `item` object (not `items` array).
   const body = {
     terminal_name:       TERMINAL,
     sto_payments_number: 9999,
