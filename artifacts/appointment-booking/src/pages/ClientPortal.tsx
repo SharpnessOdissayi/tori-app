@@ -452,59 +452,34 @@ export default function ClientPortal() {
     else toast({ title: "שגיאה בביטול", variant: "destructive" });
   };
 
-  // ── Reschedule ("עדכון תור") state ───────────────────────────────────────
-  const [rescheduleAppt, setRescheduleAppt] = useState<any | null>(null);
-  const [rescheduleDate, setRescheduleDate] = useState("");
-  const [rescheduleSlots, setRescheduleSlots] = useState<string[]>([]);
-  const [rescheduleTime, setRescheduleTime] = useState("");
-  const [rescheduleLoading, setRescheduleLoading] = useState(false);
-  const [rescheduleSlotsLoading, setRescheduleSlotsLoading] = useState(false);
-
-  const openReschedule = (appt: any) => {
-    setRescheduleAppt(appt);
-    setRescheduleDate(appt.appointmentDate);
-    setRescheduleTime(appt.appointmentTime);
-    setRescheduleSlots([]);
-  };
-
-  // When user picks a new date, fetch available slots from the business.
-  useEffect(() => {
-    if (!rescheduleAppt || !rescheduleDate) return;
-    setRescheduleSlotsLoading(true);
-    fetch(`${API}/public/${rescheduleAppt.businessSlug}/availability/${rescheduleDate}?serviceId=${rescheduleAppt.serviceId ?? ""}`)
-      .then(r => (r.ok ? r.json() : { slots: [] }))
-      .then((data: any) => {
-        const slots: string[] = Array.isArray(data?.slots) ? data.slots : [];
-        // Keep the CURRENT appointment time visible as an option even if
-        // the system filtered it out (it's "taken" by this same appt).
-        if (rescheduleAppt.appointmentDate === rescheduleDate && !slots.includes(rescheduleAppt.appointmentTime)) {
-          slots.unshift(rescheduleAppt.appointmentTime);
-        }
-        setRescheduleSlots(slots);
-      })
-      .catch(() => setRescheduleSlots([]))
-      .finally(() => setRescheduleSlotsLoading(false));
-  }, [rescheduleAppt, rescheduleDate]);
-
-  const submitReschedule = async () => {
-    if (!rescheduleAppt || !rescheduleDate || !rescheduleTime) return;
-    setRescheduleLoading(true);
-    try {
-      const res = await fetch(`${API}/client/appointments/${rescheduleAppt.id}/reschedule`, {
-        method:  "PATCH",
-        headers: { "Content-Type": "application/json", ...authHeaders() },
-        body:    JSON.stringify({ newDate: rescheduleDate, newTime: rescheduleTime }),
+  // ── Reschedule ("עדכון תור") ──
+  // Rather than open a cramped modal here, we hand off to the full booking
+  // page. Book.tsx already has a polished reschedule picker (calendar +
+  // slot grid); we just write the existing booking into the same
+  // localStorage key it reads from and deep-link with ?reschedule=1.
+  const openReschedule = (appt: Appointment) => {
+    const phone = session?.phone;
+    if (!phone) {
+      toast({
+        title: "חסר מספר טלפון בפרופיל",
+        description: "הוסיפי מספר טלפון בהגדרות הפרופיל כדי לעדכן תור",
+        variant: "destructive",
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.message ?? data.error ?? "שגיאה");
-      toast({ title: "התור עודכן" });
-      setRescheduleAppt(null);
-      loadAppointments();
-    } catch (err: any) {
-      toast({ title: "שגיאה בעדכון", description: err.message, variant: "destructive" });
-    } finally {
-      setRescheduleLoading(false);
+      return;
     }
+    // Book.tsx expects date as DD/MM for display; it calls the backend
+    // with the new slot anyway so the stored string is cosmetic.
+    const [y, m, d] = appt.appointmentDate.split("-");
+    localStorage.setItem(`kavati_booking_${appt.businessSlug}`, JSON.stringify({
+      id:      appt.id,
+      service: appt.serviceName,
+      date:    `${d}/${m}`,
+      time:    appt.appointmentTime,
+      name:    appt.clientName,
+      phone,
+      year:    y,
+    }));
+    navigate(`/book/${appt.businessSlug}?reschedule=1`);
   };
 
   const saveProfile = async () => {
@@ -777,74 +752,6 @@ export default function ClientPortal() {
         </div>
       </div>
 
-      {/* ── RESCHEDULE SHEET ── Opens when the client clicks "עדכון תור"
-           on an upcoming appointment. Picks a new date via native date
-           input, fetches free slots from the public availability endpoint,
-           sends PATCH /client/appointments/:id/reschedule on submit. */}
-      {rescheduleAppt && (
-        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/30" onClick={() => setRescheduleAppt(null)}>
-          <div className="w-full max-w-md bg-white rounded-t-3xl p-6 space-y-5" onClick={e => e.stopPropagation()}>
-            <div className="flex items-center justify-between">
-              <h3 className="font-bold text-lg">עדכון תור</h3>
-              <button onClick={() => setRescheduleAppt(null)} className="text-gray-400 hover:text-gray-600"><X className="w-5 h-5" /></button>
-            </div>
-
-            <div className="p-3 rounded-xl bg-gray-50 text-sm">
-              <div className="font-semibold">{rescheduleAppt.businessName}</div>
-              <div className="text-gray-600">{rescheduleAppt.serviceName}</div>
-              <div className="text-xs text-gray-400 mt-1">
-                התור הנוכחי: {formatDate(rescheduleAppt.appointmentDate)} · {rescheduleAppt.appointmentTime}
-              </div>
-            </div>
-
-            <div className="space-y-2">
-              <label className="text-sm font-medium text-gray-700">תאריך חדש</label>
-              <input
-                type="date"
-                dir="ltr"
-                value={rescheduleDate}
-                min={new Date().toISOString().slice(0, 10)}
-                onChange={e => { setRescheduleDate(e.target.value); setRescheduleTime(""); }}
-                className="w-full rounded-xl border border-gray-200 px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500"
-              />
-            </div>
-
-            <div className="space-y-2">
-              <label className="text-sm font-medium text-gray-700">שעה</label>
-              {rescheduleSlotsLoading ? (
-                <p className="text-sm text-gray-400 text-center py-4">טוען שעות פנויות...</p>
-              ) : rescheduleSlots.length === 0 ? (
-                <p className="text-sm text-gray-500 text-center py-4">אין שעות פנויות בתאריך הזה — בחר תאריך אחר.</p>
-              ) : (
-                <div className="grid grid-cols-4 gap-1.5 max-h-48 overflow-y-auto">
-                  {rescheduleSlots.map(slot => (
-                    <button
-                      key={slot}
-                      onClick={() => setRescheduleTime(slot)}
-                      className={`py-2 rounded-lg text-xs font-medium transition-all border ${
-                        rescheduleTime === slot
-                          ? "border-violet-600 bg-violet-600 text-white"
-                          : "border-gray-200 text-gray-700 hover:border-violet-300"
-                      }`}
-                    >
-                      {slot}
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
-
-            <button
-              onClick={submitReschedule}
-              disabled={rescheduleLoading || !rescheduleDate || !rescheduleTime}
-              className="w-full py-3 rounded-xl bg-violet-600 text-white font-semibold text-sm hover:bg-violet-700 disabled:opacity-50 transition"
-            >
-              {rescheduleLoading ? "שומר..." : "אשר עדכון"}
-            </button>
-          </div>
-        </div>
-      )}
-
       {/* ── PROFILE SHEET ── */}
       {profileOpen && (
         <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/30" onClick={() => setProfileOpen(false)}>
@@ -939,7 +846,7 @@ export default function ClientPortal() {
               </button>
               <div className="flex-1">
                 <h2 className="font-bold text-base text-gray-900">גלה עסקים בקבעתי</h2>
-                <p className="text-xs text-gray-400">עסקים שעובדים עם קבעתי בלבד</p>
+                <p className="text-xs text-gray-400">מנויי פרו בקבעתי</p>
               </div>
             </div>
 

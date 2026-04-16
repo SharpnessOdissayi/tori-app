@@ -494,6 +494,23 @@ export default function Book({ slugOverride }: { slugOverride?: string } = {}) {
     }
   }, [businessSlug]);
 
+  // ── Portal-initiated reschedule deep-link ──
+  // The client portal's "עדכון תור" button navigates here with ?reschedule=1
+  // after it has written the appointment details into
+  // localStorage[`kavati_booking_${slug}`]. Open the existing-booking dialog
+  // directly in "picking" mode so the owner can pick a new slot without an
+  // extra click, then strip the query so a refresh doesn't re-trigger.
+  useEffect(() => {
+    if (!existingBooking?.id) return;
+    const qs = new URLSearchParams(window.location.search);
+    if (qs.get("reschedule") !== "1") return;
+    setShowExistingBooking(true);
+    setRescheduleStep("picking");
+    qs.delete("reschedule");
+    const newUrl = window.location.pathname + (qs.toString() ? `?${qs}` : "");
+    window.history.replaceState({}, "", newUrl);
+  }, [existingBooking?.id]);
+
   // When logged in, check if client has an upcoming appointment for this business in the portal
   useEffect(() => {
     if (!clientToken || !businessSlug) { setPortalBookingExists(false); return; }

@@ -49,8 +49,9 @@ import {
 } from "lucide-react";
 import { useLocation } from "wouter";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
-import { format, parseISO } from "date-fns";
+import { format, parseISO, addDays, startOfWeek } from "date-fns";
 import { he } from "date-fns/locale";
+import { HebrewCalendar } from "@hebcal/core";
 import Navbar from "@/components/Navbar";
 
 const DAYS = ["ראשון", "שני", "שלישי", "רביעי", "חמישי", "שישי", "שבת"];
@@ -896,6 +897,148 @@ function Login({ onLogin }: { onLogin: (t: string) => void }) {
   );
 }
 
+// ─── Weekly calendar ─────────────────────────────────────────────────────────
+//
+// Seven-day grid for the appointments tab. Groups appointments by date, paints
+// each day as a tile, and overlays Israeli holidays (Jewish religious holidays
+// + secular Israeli observances) from @hebcal/core. The goal is a clean,
+// non-crowded overview of "what does the week actually look like" — not a
+// drag-and-drop scheduler.
+
+type WeeklyAppt = {
+  id: number;
+  appointmentDate: string;
+  appointmentTime: string;
+  clientName: string;
+  serviceName: string;
+  status: string;
+};
+
+function useIsraeliHolidaysForWeek(weekStart: Date): Map<string, string[]> {
+  // Recompute when the week changes. Returns a map keyed by yyyy-MM-dd →
+  // array of Hebrew holiday titles. We pass il:true for Israeli observances
+  // and disable parsha / omer / candle-lighting so the map only contains
+  // actual holidays, not weekly informational events.
+  const key = format(weekStart, "yyyy-MM-dd");
+  const [cache] = useState(() => new Map<string, Map<string, string[]>>());
+  if (!cache.has(key)) {
+    const weekEnd = addDays(weekStart, 6);
+    const events = HebrewCalendar.calendar({
+      start:  weekStart,
+      end:    weekEnd,
+      il:     true,
+      locale: "he",
+      sedrot:         false,
+      omer:           false,
+      candlelighting: false,
+    } as any);
+    const m = new Map<string, string[]>();
+    for (const ev of events) {
+      const d = ev.getDate().greg();
+      const k = format(d, "yyyy-MM-dd");
+      const existing = m.get(k) ?? [];
+      existing.push(ev.render("he"));
+      m.set(k, existing);
+    }
+    cache.set(key, m);
+  }
+  return cache.get(key)!;
+}
+
+function WeeklyCalendar({ appointments }: { appointments: WeeklyAppt[] }) {
+  // Default to the current calendar week (Sunday → Saturday per Israeli locale).
+  const [weekStart, setWeekStart] = useState<Date>(() => startOfWeek(new Date(), { weekStartsOn: 0 }));
+
+  const days = Array.from({ length: 7 }, (_, i) => addDays(weekStart, i));
+  const holidays = useIsraeliHolidaysForWeek(weekStart);
+
+  // Group appointments by date once, so each tile lookup is O(1).
+  const byDate = new Map<string, WeeklyAppt[]>();
+  for (const a of appointments) {
+    if (a.status === "cancelled") continue;
+    const arr = byDate.get(a.appointmentDate) ?? [];
+    arr.push(a);
+    byDate.set(a.appointmentDate, arr);
+  }
+  for (const arr of byDate.values()) arr.sort((x, y) => x.appointmentTime.localeCompare(y.appointmentTime));
+
+  const weekLabel = `${format(weekStart, "d בMMMM", { locale: he })} — ${format(addDays(weekStart, 6), "d בMMMM yyyy", { locale: he })}`;
+  const today = format(new Date(), "yyyy-MM-dd");
+
+  return (
+    <Card>
+      <CardHeader className="flex flex-row items-center justify-between gap-3 flex-wrap">
+        <div>
+          <CardTitle className="flex items-center gap-2">📆 לוח שבועי</CardTitle>
+          <CardDescription>{weekLabel}</CardDescription>
+        </div>
+        <div className="flex items-center gap-2">
+          <Button size="sm" variant="outline" onClick={() => setWeekStart(w => addDays(w, -7))}>
+            <ChevronRight className="w-4 h-4" /> שבוע קודם
+          </Button>
+          <Button size="sm" variant="outline" onClick={() => setWeekStart(startOfWeek(new Date(), { weekStartsOn: 0 }))}>
+            השבוע
+          </Button>
+          <Button size="sm" variant="outline" onClick={() => setWeekStart(w => addDays(w, 7))}>
+            שבוע הבא <ChevronLeft className="w-4 h-4" />
+          </Button>
+        </div>
+      </CardHeader>
+      <CardContent>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-7 gap-3">
+          {days.map(d => {
+            const key    = format(d, "yyyy-MM-dd");
+            const list   = byDate.get(key) ?? [];
+            const dayHolidays = holidays.get(key) ?? [];
+            const isToday = key === today;
+            const dayName = format(d, "EEEE", { locale: he });
+            const dateLabel = format(d, "d בMMMM", { locale: he });
+
+            return (
+              <div
+                key={key}
+                className={`rounded-2xl border-2 p-3 flex flex-col gap-2 min-h-[140px] transition-colors ${isToday ? "border-primary bg-primary/5" : "border-border bg-card"}`}
+              >
+                <div className="flex items-baseline justify-between">
+                  <span className={`text-sm font-bold ${isToday ? "text-primary" : "text-foreground"}`}>{dayName}</span>
+                  <span className="text-xs text-muted-foreground">{dateLabel}</span>
+                </div>
+                {dayHolidays.length > 0 && (
+                  <div className="flex flex-wrap gap-1">
+                    {dayHolidays.map((h, i) => (
+                      <span key={i} className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-amber-100 text-amber-800 border border-amber-200">
+                        ✡ {h}
+                      </span>
+                    ))}
+                  </div>
+                )}
+                {list.length === 0 ? (
+                  <div className="flex-1 flex items-center justify-center text-xs text-muted-foreground">— אין תורים —</div>
+                ) : (
+                  <div className="space-y-1.5 flex-1">
+                    {list.map(a => (
+                      <div
+                        key={a.id}
+                        className={`rounded-lg px-2 py-1.5 text-xs border ${a.status === "pending" ? "bg-yellow-50 border-yellow-200" : a.status === "pending_payment" ? "bg-blue-50 border-blue-200" : "bg-muted/40 border-border"}`}
+                      >
+                        <div className="flex items-center justify-between gap-1">
+                          <span className="font-mono font-semibold" dir="ltr">{a.appointmentTime}</span>
+                          <span className="truncate font-medium" dir="auto">{a.clientName}</span>
+                        </div>
+                        <div className="text-muted-foreground truncate" dir="auto">{a.serviceName}</div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
 function AppointmentsTab() {
   const { data: stats } = useGetBusinessStats();
   const { data: appointments } = useListBusinessAppointments();
@@ -1111,6 +1254,9 @@ function AppointmentsTab() {
           ) : <EmptyState text="אין פגישות קרובות" />}
         </CardContent>
       </Card>
+
+      {/* Weekly calendar — 7-day overview with Israeli holidays */}
+      <WeeklyCalendar appointments={aptList as unknown as WeeklyAppt[]} />
 
       {past.length > 0 && (
         <Card>
