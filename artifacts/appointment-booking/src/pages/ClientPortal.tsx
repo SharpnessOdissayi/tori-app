@@ -1,4 +1,4 @@
-  import { useState, useEffect, useCallback } from "react";
+  import { useState, useEffect, useCallback, useRef } from "react";
 import { useLocation, useSearch } from "wouter";
 import { Home, CalendarDays, Plus, LogOut, Trash2, Edit2, X, ChevronLeft, Settings, Search, MapPin, Tag, Bell, Sun, Moon } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
@@ -25,11 +25,17 @@ type DirectoryBusiness = {
   slug: string;
   name: string;
   logoUrl?: string | null;
+  bannerUrl?: string | null;
   primaryColor?: string | null;
   address?: string | null;
   city?: string | null;
   businessCategories?: string | null;
   businessDescription?: string | null;
+  accentColor?: string | null;
+  gradientEnabled?: boolean | null;
+  gradientFrom?: string | null;
+  gradientTo?: string | null;
+  gradientAngle?: number | null;
 };
 
 type Appointment = {
@@ -166,6 +172,14 @@ function LoginScreen({ onLogin }: { onLogin: (token: string, name: string) => vo
     }, { scope: "public_profile,email" });
   };
 
+  // Keep the latest onLogin callback in a ref so the Google Sign-In init
+  // effect can run exactly once. Previously [onLogin] in deps re-created a
+  // Google SDK initialisation every parent render, which (a) was wasteful
+  // and (b) occasionally left two callbacks racing for the same credential
+  // response.
+  const onLoginRef = useRef(onLogin);
+  useEffect(() => { onLoginRef.current = onLogin; }, [onLogin]);
+
   useEffect(() => {
     const handleCredential = async (response: any) => {
       setLoading(true);
@@ -177,7 +191,7 @@ function LoginScreen({ onLogin }: { onLogin: (token: string, name: string) => vo
         const data = await res.json();
         if (!res.ok) throw new Error(data.error);
         storeToken(data.token);
-        onLogin(data.token, data.clientName);
+        onLoginRef.current(data.token, data.clientName);
       } catch (e: any) { toast({ title: e?.message ?? "שגיאת Google", variant: "destructive" }); }
       finally { setLoading(false); }
     };
@@ -202,7 +216,7 @@ function LoginScreen({ onLogin }: { onLogin: (token: string, name: string) => vo
         document.head.appendChild(script);
       }
     }
-  }, [onLogin]);
+  }, []);
 
   return (
     <div className="min-h-screen flex flex-col items-center justify-center bg-gradient-to-br from-blue-50 to-blue-100 p-6" dir="rtl">
@@ -900,21 +914,46 @@ export default function ClientPortal() {
                 <div className="text-center py-16 text-gray-400 text-sm">לא נמצאו עסקים</div>
               ) : (
                 <div className="grid grid-cols-2 gap-3">
-                  {filtered.map(biz => (
-                    <div key={biz.slug} className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 flex flex-col items-center gap-2">
-                      <BusinessAvatar biz={{ name: biz.name, logoUrl: biz.logoUrl, primaryColor: biz.primaryColor }} size={56} />
-                      <p className="font-semibold text-sm text-center text-gray-900 leading-tight" dir="auto">{biz.name}</p>
-                      {(biz.city || biz.address) && (
-                        <p className="text-xs text-gray-400 text-center">{biz.city ?? biz.address}</p>
-                      )}
-                      <button
-                        onClick={() => navigate(`/book/${biz.slug}`)}
-                        className="w-full py-2 rounded-xl text-xs font-bold text-white transition-all mt-1"
-                        style={{ background: biz.primaryColor ?? "#3c92f0" }}>
-                        לפרופיל העסק
-                      </button>
-                    </div>
-                  ))}
+                  {filtered.map(biz => {
+                    // Each directory tile mirrors a miniature of the business's
+                    // /book/:slug page — top banner in their gradient (or
+                    // primary-tinted fallback), logo overlapping the banner,
+                    // name + CTA tinted in the brand colour. Gives each card
+                    // an instantly recognisable look per owner.
+                    const primary = biz.primaryColor ?? "#3c92f0";
+                    const accent  = biz.accentColor  ?? primary;
+                    const banner  = biz.bannerUrl
+                      ? `url("${biz.bannerUrl}") center/cover`
+                      : biz.gradientEnabled && biz.gradientFrom && biz.gradientTo
+                      ? `linear-gradient(${biz.gradientAngle ?? 135}deg, ${biz.gradientFrom}, ${biz.gradientTo})`
+                      : `linear-gradient(135deg, ${primary}, ${accent})`;
+                    return (
+                      <div
+                        key={biz.slug}
+                        className="rounded-2xl shadow-sm border overflow-hidden flex flex-col bg-white"
+                        style={{ borderColor: `${primary}33` }}
+                      >
+                        {/* Brand banner */}
+                        <div className="w-full h-16 relative" style={{ background: banner }}>
+                          <div className="absolute -bottom-5 left-1/2 -translate-x-1/2">
+                            <BusinessAvatar biz={{ name: biz.name, logoUrl: biz.logoUrl, primaryColor: primary }} size={44} />
+                          </div>
+                        </div>
+                        <div className="pt-7 pb-3 px-3 flex flex-col items-center gap-1.5 flex-1">
+                          <p className="font-semibold text-sm text-center text-gray-900 leading-tight" dir="auto">{biz.name}</p>
+                          {(biz.city || biz.address) && (
+                            <p className="text-[11px] text-gray-400 text-center">{biz.city ?? biz.address}</p>
+                          )}
+                          <button
+                            onClick={() => navigate(`/book/${biz.slug}`)}
+                            className="w-full py-2 rounded-xl text-xs font-bold text-white transition-all mt-auto"
+                            style={{ background: `linear-gradient(135deg, ${primary}, ${accent})` }}>
+                            לפרופיל העסק
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
               )}
             </div>

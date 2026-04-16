@@ -15,28 +15,36 @@ export default function AccessibilityFab({ primaryColor }: { primaryColor?: stri
   const [largeLinks, setLargeLinks] = useState(false);
   const [letterSpacing, setLetterSpacing] = useState(false);
 
+  // Each a11y effect now has a cleanup that reverts the change on unmount.
+  // Previously, navigating away with (say) high-contrast active left the
+  // <html> element stuck with the .a11y-* classes because nothing removed
+  // them — the next mount added them again but the old ones never cleared.
   useEffect(() => {
     const root = document.documentElement;
     const base = 16 + fontSize * 2;
     root.style.setProperty("font-size", `${base}px`);
+    return () => { root.style.removeProperty("font-size"); };
   }, [fontSize]);
 
   useEffect(() => {
     const root = document.documentElement;
     if (highContrast) root.classList.add("a11y-high-contrast");
     else              root.classList.remove("a11y-high-contrast");
+    return () => { root.classList.remove("a11y-high-contrast"); };
   }, [highContrast]);
 
   useEffect(() => {
     const root = document.documentElement;
     if (largeLinks) root.classList.add("a11y-large-links");
     else            root.classList.remove("a11y-large-links");
+    return () => { root.classList.remove("a11y-large-links"); };
   }, [largeLinks]);
 
   useEffect(() => {
     const root = document.documentElement;
     if (letterSpacing) root.classList.add("a11y-letter-spacing");
     else               root.classList.remove("a11y-letter-spacing");
+    return () => { root.classList.remove("a11y-letter-spacing"); };
   }, [letterSpacing]);
 
   const handleReset = () => {

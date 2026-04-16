@@ -2,7 +2,7 @@ import { Router, Request, Response, NextFunction } from "express";
 import { logBusinessNotification } from "./notifications";
 import { db, appointmentsTable, businessesTable, clientSessionsTable, clientBusinessesTable } from "@workspace/db";
 import { eq, and, or, gt, desc, sql } from "drizzle-orm";
-import { sendOtp, verifyOtp } from "../lib/whatsapp";
+import { sendOtp, verifyOtp, OtpRateLimitError } from "../lib/whatsapp";
 import { randomUUID } from "crypto";
 
 const router = Router();
@@ -53,6 +53,10 @@ router.post("/client/send-otp", async (req, res): Promise<void> => {
     await sendOtp(phone.trim(), "client_login");
     res.json({ success: true });
   } catch (e) {
+    if (e instanceof OtpRateLimitError) {
+      res.status(429).json({ error: "יותר מדי בקשות — נסה שוב בעוד כמה דקות" });
+      return;
+    }
     res.status(500).json({ error: "שגיאה בשליחת קוד" });
   }
 });

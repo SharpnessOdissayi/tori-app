@@ -662,6 +662,7 @@ function NotificationBell({ token }: { token: string }) {
   const [notifications, setNotifications] = useState<any[]>([]);
   const [unread, setUnread] = useState(0);
   const ref = useRef<HTMLDivElement>(null);
+  const { toast } = useToast();
 
   const fetchNotifs = async () => {
     try {
@@ -682,16 +683,26 @@ function NotificationBell({ token }: { token: string }) {
   }, []);
 
   const markAllRead = async () => {
-    await fetch(`${API_BASE}/notifications/business/read-all`, { method: "POST", headers: { Authorization: `Bearer ${token}` } });
-    setUnread(0);
-    setNotifications(prev => prev.map(n => ({ ...n, is_read: true })));
+    try {
+      const res = await fetch(`${API_BASE}/notifications/business/read-all`, { method: "POST", headers: { Authorization: `Bearer ${token}` } });
+      if (!res.ok) throw new Error();
+      setUnread(0);
+      setNotifications(prev => prev.map(n => ({ ...n, is_read: true })));
+    } catch {
+      toast({ title: "שגיאה בסימון כנקרא", variant: "destructive" });
+    }
   };
 
   const deleteAll = async () => {
     if (!confirm("למחוק את כל ההתראות? לא ניתן לשחזר.")) return;
-    await fetch(`${API_BASE}/notifications/business/all`, { method: "DELETE", headers: { Authorization: `Bearer ${token}` } });
-    setNotifications([]);
-    setUnread(0);
+    try {
+      const res = await fetch(`${API_BASE}/notifications/business/all`, { method: "DELETE", headers: { Authorization: `Bearer ${token}` } });
+      if (!res.ok) throw new Error();
+      setNotifications([]);
+      setUnread(0);
+    } catch {
+      toast({ title: "שגיאה במחיקת ההתראות", variant: "destructive" });
+    }
   };
 
   const typeIcon = (type: string) => type === "new_booking" ? "📅" : type === "cancellation" ? "❌" : "🔄";
@@ -1548,7 +1559,10 @@ function ServicesTab() {
                     <Edit className="w-3 h-3" /> ערוך
                   </button>
                   <button
-                    onClick={() => { if (confirm("למחוק שירות?")) deleteMutation.mutate({ id: s.id }, { onSuccess: () => queryClient.invalidateQueries({ queryKey: getListBusinessServicesQueryKey() }) }); }}
+                    onClick={() => { if (confirm("למחוק שירות?")) deleteMutation.mutate({ id: s.id }, {
+                      onSuccess: () => { toast({ title: "שירות נמחק" }); queryClient.invalidateQueries({ queryKey: getListBusinessServicesQueryKey() }); },
+                      onError: (err: any) => toast({ title: "שגיאה במחיקה", description: err?.response?.data?.message ?? err?.message ?? "נסה שוב", variant: "destructive" }),
+                    }); }}
                     className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium bg-red-50 hover:bg-red-100 text-red-500 border border-red-100 transition-all"
                   >
                     <Trash2 className="w-3 h-3" /> מחק
@@ -2036,9 +2050,15 @@ function DayOffTab() {
 
   const handleDelete = async (id: number) => {
     if (!confirm("למחוק?")) return;
-    await fetch(`/api/business/time-off/${id}`, { method: "DELETE", headers: authHeaders() });
-    if (editingId === id) resetForm();
-    load();
+    try {
+      const res = await fetch(`/api/business/time-off/${id}`, { method: "DELETE", headers: authHeaders() });
+      if (!res.ok) throw new Error();
+      toast({ title: "יום החופש נמחק" });
+      if (editingId === id) resetForm();
+      load();
+    } catch {
+      toast({ title: "שגיאה במחיקה", variant: "destructive" });
+    }
   };
 
   const formatDate = (d: string) => {
@@ -2157,8 +2177,12 @@ function AnalyticsTab() {
   const token = localStorage.getItem("biz_token") || sessionStorage.getItem("biz_token");
 
   const loadAnalytics = () => {
+    setLoading(true);
     fetch("/api/business/analytics", { headers: { authorization: `Bearer ${token}` } })
-      .then(r => r.json()).then(setData).finally(() => setLoading(false));
+      .then(r => r.ok ? r.json() : Promise.reject(r.status))
+      .then(setData)
+      .catch(() => toast({ title: "שגיאה בטעינת סטטיסטיקות", variant: "destructive" }))
+      .finally(() => setLoading(false));
   };
 
   const openDrilldown = (person: { name: string; phone: string }) => {
@@ -2167,8 +2191,9 @@ function AnalyticsTab() {
     fetch(`/api/business/appointments/by-phone?phone=${encodeURIComponent(person.phone)}`, {
       headers: { authorization: `Bearer ${token}` },
     })
-      .then(r => r.json())
+      .then(r => r.ok ? r.json() : Promise.reject(r.status))
       .then(appts => setDrilldownAppts(Array.isArray(appts) ? appts : []))
+      .catch(() => setDrilldownAppts([]))
       .finally(() => setDrilldownLoading(false));
   };
 
@@ -2324,11 +2349,15 @@ function AnalyticsTab() {
 function RevenueTab() {
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const { toast } = useToast();
 
   useEffect(() => {
     const token = localStorage.getItem("biz_token") || sessionStorage.getItem("biz_token");
     fetch("/api/business/revenue", { headers: { authorization: `Bearer ${token}` } })
-      .then(r => r.json()).then(setData).finally(() => setLoading(false));
+      .then(r => r.ok ? r.json() : Promise.reject(r.status))
+      .then(setData)
+      .catch(() => toast({ title: "שגיאה בטעינת דוח הכנסות", variant: "destructive" }))
+      .finally(() => setLoading(false));
   }, []);
 
   if (loading) return <div className="text-center py-12 text-muted-foreground">טוען נתונים...</div>;
@@ -2556,6 +2585,7 @@ function WaitlistTab() {
   const handleRemove = (id: number) => {
     removeMutation.mutate({ id }, {
       onSuccess: () => { toast({ title: "הוסר מרשימת ההמתנה" }); queryClient.invalidateQueries({ queryKey: getListBusinessWaitlistQueryKey() }); },
+      onError: (err: any) => toast({ title: "שגיאה בהסרה", description: err?.response?.data?.message ?? err?.message ?? "נסה שוב", variant: "destructive" }),
     });
   };
 
@@ -4909,21 +4939,23 @@ function SubscriptionStatusCard() {
               )}
               {/* Live Tranzila STO info — "next charge" line shows the real
                   date from Tranzila when available, else falls back to our
-                  renewDate estimate. */}
-              {isPro && (status as any)?.stoInfo?.nextChargeDateTime && !cancelledAt && (
+                  renewDate estimate. `status` was a ReferenceError here; the
+                  intent is to read the stoInfo embedded in the business
+                  profile response. */}
+              {isPro && (profile as any)?.stoInfo?.nextChargeDateTime && !cancelledAt && (
                 <div className="text-xs text-muted-foreground">
-                  חיוב הבא: {format(new Date((status as any).stoInfo.nextChargeDateTime), "d בMMM yyyy", { locale: he })}
-                  {(status as any).stoInfo.chargeAmount ? ` — ₪${(status as any).stoInfo.chargeAmount}/חודש` : ""}
+                  חיוב הבא: {format(new Date((profile as any).stoInfo.nextChargeDateTime), "d בMMM yyyy", { locale: he })}
+                  {(profile as any).stoInfo.chargeAmount ? ` — ₪${(profile as any).stoInfo.chargeAmount}/חודש` : ""}
                 </div>
               )}
-              {isPro && !((status as any)?.stoInfo?.nextChargeDateTime) && renewDate && !cancelledAt && (
+              {isPro && !((profile as any)?.stoInfo?.nextChargeDateTime) && renewDate && !cancelledAt && (
                 <div className="text-xs text-muted-foreground">
                   חידוש אוטומטי ב-{format(renewDate, "d בMMM yyyy", { locale: he })} — ₪100/חודש
                 </div>
               )}
-              {isPro && (status as any)?.stoInfo?.lastChargeDateTime && (
+              {isPro && (profile as any)?.stoInfo?.lastChargeDateTime && (
                 <div className="text-xs text-muted-foreground">
-                  חיוב אחרון: {format(new Date((status as any).stoInfo.lastChargeDateTime), "d בMMM yyyy", { locale: he })}
+                  חיוב אחרון: {format(new Date((profile as any).stoInfo.lastChargeDateTime), "d בMMM yyyy", { locale: he })}
                 </div>
               )}
               {isPro && cancelledAt && renewDate && (

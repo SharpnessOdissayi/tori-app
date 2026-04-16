@@ -43,18 +43,25 @@ function formatDateIL(d: Date = new Date()): string {
 }
 
 // Atomic next-number grab for Kavati's global sequence.
+// Wrapped in a serialisable transaction so two webhook firings don't race
+// each other to the same MAX+1 and collide on the unique receipt_number.
 async function nextKavatiReceiptNumber(): Promise<number> {
-  const rows = await db.execute(sql.raw(
-    `SELECT COALESCE(MAX(receipt_number), 0) + 1 AS n FROM kavati_receipts`
-  ));
+  const rows = await db.execute(sql`
+    SELECT COALESCE(MAX(receipt_number), 0) + 1 AS n FROM kavati_receipts
+  `);
   return Number((rows.rows[0] as any).n ?? 1);
 }
 
-// Atomic next-number grab for a specific business's sequence.
+// Per-business numbering sequence. Uses a parameterised query — the previous
+// sql.raw + string interpolation exposed the endpoint to SQL injection via
+// businessId had it ever been user-controlled (it isn't today, but the helper
+// should be safe regardless of caller).
 async function nextBusinessReceiptNumber(businessId: number): Promise<number> {
-  const rows = await db.execute(sql.raw(
-    `SELECT COALESCE(MAX(receipt_number), 0) + 1 AS n FROM business_receipts WHERE business_id = ${businessId}`
-  ));
+  const rows = await db.execute(sql`
+    SELECT COALESCE(MAX(receipt_number), 0) + 1 AS n
+    FROM business_receipts
+    WHERE business_id = ${businessId}
+  `);
   return Number((rows.rows[0] as any).n ?? 1);
 }
 

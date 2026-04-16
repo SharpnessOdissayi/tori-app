@@ -427,9 +427,18 @@ router.post("/auth/forgot-password", async (req, res): Promise<void> => {
   const [business] = await db.select().from(businessesTable).where(eq(businessesTable.phone, phone));
   if (!business) { res.status(404).json({ error: "מספר טלפון לא נמצא במערכת" }); return; }
 
-  const { sendOtp } = await import("../lib/whatsapp");
-  await sendOtp(phone, "password_reset");
-  res.json({ ok: true });
+  const { sendOtp, OtpRateLimitError } = await import("../lib/whatsapp");
+  try {
+    await sendOtp(phone, "password_reset");
+    res.json({ ok: true });
+  } catch (e: any) {
+    if (e instanceof OtpRateLimitError) {
+      res.status(429).json({ error: "יותר מדי בקשות — נסה שוב בעוד כמה דקות" });
+      return;
+    }
+    console.error("[forgot-password] OTP send failed:", e?.message ?? e);
+    res.status(500).json({ error: "שגיאה בשליחת קוד" });
+  }
 });
 
 // POST /auth/reset-password — verify OTP and set new password

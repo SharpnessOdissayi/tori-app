@@ -13,7 +13,7 @@ import {
   JoinWaitlistBody,
 } from "@workspace/api-zod";
 import { computeAvailableSlots } from "../lib/availability";
-import { sendOtp, verifyOtp, notifyBusinessOwner, sendClientConfirmation, sendClientCancellation, sendTemplate } from "../lib/whatsapp";
+import { sendOtp, verifyOtp, notifyBusinessOwner, sendClientConfirmation, sendClientCancellation, sendTemplate, OtpRateLimitError } from "../lib/whatsapp";
 import { isPhoneVerified, consumeVerification, markPhoneVerified, normalizePhone } from "../lib/otpStore";
 import { signPhoneVerificationToken, verifyPhoneVerificationToken } from "../lib/phoneVerificationJwt";
 
@@ -64,11 +64,21 @@ router.get("/public/directory", async (req, res): Promise<void> => {
       slug: businessesTable.slug,
       name: businessesTable.name,
       logoUrl: businessesTable.logoUrl,
+      bannerUrl: businessesTable.bannerUrl,
       primaryColor: businessesTable.primaryColor,
       address: businessesTable.address,
       city: (businessesTable as any).city,
       businessCategories: (businessesTable as any).businessCategories,
       businessDescription: (businessesTable as any).businessDescription,
+      // Advanced design fields so directory cards can render each business
+      // in its own brand: gradient banner, accent color, etc. Otherwise the
+      // 'גלה עסקים' grid looked identical for every business — just white
+      // cards with a differently-colored CTA button.
+      accentColor:     (businessesTable as any).accentColor,
+      gradientEnabled: (businessesTable as any).gradientEnabled,
+      gradientFrom:    (businessesTable as any).gradientFrom,
+      gradientTo:      (businessesTable as any).gradientTo,
+      gradientAngle:   (businessesTable as any).gradientAngle,
     })
     .from(businessesTable)
     .where(and(
@@ -271,7 +281,14 @@ router.post("/public/:businessSlug/otp/send", async (req, res): Promise<void> =>
     await sendOtp(phone, "booking_verify");
     res.json({ success: true });
   } catch (e: any) {
-    res.status(500).json({ error: e.message ?? "Failed to send OTP" });
+    if (e instanceof OtpRateLimitError) {
+      res.status(429).json({ error: "יותר מדי בקשות — נסה שוב בעוד כמה דקות" });
+      return;
+    }
+    // Don't leak internal error messages (WhatsApp API errors, network
+    // failures) to the client — they get an actionable, generic message.
+    console.error("[OTP send] failed:", e?.message ?? e);
+    res.status(500).json({ error: "שגיאה בשליחת קוד" });
   }
 });
 
@@ -597,6 +614,9 @@ router.post("/public/:businessSlug/appointments/:id/cancel", async (req, res): P
 
   if (!phoneNumber) { res.status(400).json({ error: "phoneNumber required" }); return; }
 
+  const apptId = parseInt(id);
+  if (!apptId || isNaN(apptId)) { res.status(400).json({ error: "id לא תקין" }); return; }
+
   const [appt] = await db
     .select({
       id: appointmentsTable.id,
@@ -610,7 +630,7 @@ router.post("/public/:businessSlug/appointments/:id/cancel", async (req, res): P
     .from(appointmentsTable)
     .innerJoin(businessesTable, eq(appointmentsTable.businessId, businessesTable.id))
     .where(and(
-      eq(appointmentsTable.id, parseInt(id)),
+      eq(appointmentsTable.id, apptId),
       eq(businessesTable.slug, businessSlug),
       eq(appointmentsTable.phoneNumber, phoneNumber),
     ));
@@ -656,6 +676,9 @@ router.patch("/public/:businessSlug/appointments/:id/reschedule", async (req, re
     return;
   }
 
+  const apptId = parseInt(id);
+  if (!apptId || isNaN(apptId)) { res.status(400).json({ error: "id לא תקין" }); return; }
+
   const [appt] = await db
     .select({
       id: appointmentsTable.id,
@@ -669,7 +692,7 @@ router.patch("/public/:businessSlug/appointments/:id/reschedule", async (req, re
     .from(appointmentsTable)
     .innerJoin(businessesTable, eq(appointmentsTable.businessId, businessesTable.id))
     .where(and(
-      eq(appointmentsTable.id, parseInt(id)),
+      eq(appointmentsTable.id, apptId),
       eq(businessesTable.slug, businessSlug),
       eq(appointmentsTable.phoneNumber, phoneNumber),
     ));

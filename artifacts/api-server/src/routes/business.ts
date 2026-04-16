@@ -509,6 +509,11 @@ router.delete("/business/services/:id", requireBusinessAuth, async (req, res): P
     return;
   }
 
+  // Hard delete is OK here — historical appointments carry both serviceId
+  // AND a snapshot serviceName, and the one JOIN against servicesTable in
+  // the codebase uses leftJoin so missing service rows are tolerated.
+  // CLAUDE.md's soft-delete rule is scoped to appointments (status=cancelled),
+  // not services.
   const deleted = await db
     .delete(servicesTable)
     .where(and(eq(servicesTable.id, paramsParsed.data.id), eq(servicesTable.businessId, req.business!.businessId)))
@@ -1041,7 +1046,9 @@ router.patch("/business/time-off/:id", requireBusinessAuth, async (req, res): Pr
 
 // DELETE /business/time-off/:id
 router.delete("/business/time-off/:id", requireBusinessAuth, async (req, res): Promise<void> => {
-  await db.delete(timeOffTable).where(and(eq(timeOffTable.id, Number(req.params.id)), eq(timeOffTable.businessId, req.business!.businessId)));
+  const id = Number(req.params.id);
+  if (!id || isNaN(id)) { res.status(400).json({ error: "id לא תקין" }); return; }
+  await db.delete(timeOffTable).where(and(eq(timeOffTable.id, id), eq(timeOffTable.businessId, req.business!.businessId)));
   res.json({ ok: true });
 });
 

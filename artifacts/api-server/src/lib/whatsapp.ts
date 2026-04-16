@@ -121,7 +121,54 @@ export type OtpPurpose = "client_login" | "password_reset" | "booking_verify" | 
 
 const otpStore = new Map<string, { code: string; expiresAt: number; purpose: OtpPurpose }>();
 
+// Per-phone rate limiter. Stops an attacker from spamming /send-otp to
+// flood a victim's WhatsApp with verification codes (SMS cost + harassment).
+// Allows RATE_LIMIT_MAX codes per RATE_LIMIT_WINDOW_MS for a single phone.
+// Counters live alongside the OTP store and get swept by the periodic
+// cleanup below so we don't accumulate stale entries forever.
+const RATE_LIMIT_MAX = 5;
+const RATE_LIMIT_WINDOW_MS = 15 * 60 * 1000; // 15 minutes
+const otpRateLimit = new Map<string, { count: number; windowStart: number }>();
+
+function checkOtpRateLimit(phone: string): boolean {
+  const now = Date.now();
+  const existing = otpRateLimit.get(phone);
+  if (!existing || now - existing.windowStart > RATE_LIMIT_WINDOW_MS) {
+    otpRateLimit.set(phone, { count: 1, windowStart: now });
+    return true;
+  }
+  if (existing.count >= RATE_LIMIT_MAX) return false;
+  existing.count += 1;
+  return true;
+}
+
+// Periodic sweep: both otpStore and otpRateLimit are in-memory Maps. Without
+// cleanup they grow monotonically — an attacker could exhaust memory by
+// sending fake OTP requests to random phone numbers. Every 5 minutes we
+// drop expired entries. The server runs for weeks on Railway; without this
+// we'd OOM long before a restart.
+const OTP_CLEANUP_INTERVAL_MS = 5 * 60 * 1000;
+setInterval(() => {
+  const now = Date.now();
+  for (const [phone, entry] of otpStore.entries()) {
+    if (now > entry.expiresAt) otpStore.delete(phone);
+  }
+  for (const [phone, entry] of otpRateLimit.entries()) {
+    if (now - entry.windowStart > RATE_LIMIT_WINDOW_MS) otpRateLimit.delete(phone);
+  }
+}, OTP_CLEANUP_INTERVAL_MS).unref(); // .unref so it doesn't keep the process alive on shutdown.
+
+export class OtpRateLimitError extends Error {
+  constructor() {
+    super("OTP rate limit exceeded");
+    this.name = "OtpRateLimitError";
+  }
+}
+
 export async function sendOtp(phone: string, purpose: OtpPurpose = "generic"): Promise<void> {
+  if (!checkOtpRateLimit(phone)) {
+    throw new OtpRateLimitError();
+  }
   const code = String(Math.floor(100000 + Math.random() * 900000));
   otpStore.set(phone, { code, expiresAt: Date.now() + 5 * 60 * 1000, purpose });
 

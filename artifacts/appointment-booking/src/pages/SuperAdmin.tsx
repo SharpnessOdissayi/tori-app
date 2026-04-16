@@ -129,6 +129,7 @@ export default function SuperAdmin() {
   const handleToggleActive = (id: number, isActive: boolean) => {
     updateMutation.mutate({ id, params: { adminPassword: password }, data: { isActive: !isActive } }, {
       onSuccess: () => { toast({ title: !isActive ? "עסק הופעל" : "עסק הושהה" }); invalidate(); },
+      onError: (err: any) => toast({ title: "שגיאה בשינוי סטטוס", description: err?.response?.data?.message ?? err?.message ?? "נסה שוב", variant: "destructive" }),
     });
   };
 
@@ -137,6 +138,7 @@ export default function SuperAdmin() {
     const maxAppts = plan === "pro" ? 9999 : 20;
     updateMutation.mutate({ id, params: { adminPassword: password }, data: { subscriptionPlan: plan as any, maxServicesAllowed: maxServices, maxAppointmentsPerMonth: maxAppts } }, {
       onSuccess: () => { toast({ title: "מנוי עודכן" }); invalidate(); },
+      onError: (err: any) => toast({ title: "שגיאה בעדכון מנוי", description: err?.response?.data?.message ?? err?.message ?? "נסה שוב", variant: "destructive" }),
     });
   };
 

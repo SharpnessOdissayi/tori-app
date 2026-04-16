@@ -455,16 +455,21 @@ export default function Book({ slugOverride }: { slugOverride?: string } = {}) {
   const hoverEffect = (business as any)?.hoverEffect ?? "none";
 
   // Page background — precedence: explicit gradient > explicit solid
-  // backgroundColor > SUBTLE tint from the business's primary color. Fall
+  // backgroundColor > VISIBLE tint from the business's primary color. Fall
   // back to the last option so a business that only picked a primary
   // colour (no gradient, no explicit bg) still gets a visibly-branded
-  // profile page instead of a default white/black background that looks
-  // like the design "didn't apply".
+  // profile page instead of a default white/black background.
+  //
+  // Owner feedback: the earlier 12%→transparent fade was too subtle —
+  // users literally couldn't tell a design had been applied. The current
+  // fallback is a stronger top tint that settles into a soft bottom wash
+  // so the primary colour is always on screen (on scroll too), not just
+  // in the first 500px.
   const pageBackground = gradientEnabled && gradientFrom && gradientTo
     ? `linear-gradient(${gradientAngle}deg, ${gradientFrom}, ${gradientTo})`
     : backgroundColor
     ? backgroundColor
-    : `linear-gradient(180deg, ${primaryColor}12 0%, ${primaryColor}03 220px, transparent 520px)`;
+    : `linear-gradient(180deg, ${primaryColor}2a 0%, ${primaryColor}10 360px, ${primaryColor}06 100%)`;
 
   // Optional decorative SVG patterns as CSS background-image
   const patternSvg = backgroundPattern === "dots"
