@@ -529,20 +529,11 @@ router.post("/public/:businessSlug/appointments", async (req, res): Promise<void
       .catch((e: any) => console.error("[WhatsApp] notifyBusinessOwner failed:", e?.response?.data ?? e?.message));
   }
 
-  // Send confirmation to client only if business is Pro, enabled it, and appointment is immediately confirmed (non-blocking).
-  // Free plan never sends WhatsApp messages to clients.
-  if (isPro && appointmentStatus === "confirmed" && (business as any).sendBookingConfirmation !== false) {
-    // Check if client has opted out of notifications
-    const [clientPref] = await db
-      .select({ receiveNotifications: clientSessionsTable.receiveNotifications })
-      .from(clientSessionsTable)
-      .where(eq(clientSessionsTable.phoneNumber, phoneNumber))
-      .limit(1);
-    if (!clientPref || clientPref.receiveNotifications !== false) {
-      sendClientConfirmation(phoneNumber, clientName, business.name, service.name, formattedDate, appointmentTime, business.slug)
-        .catch((e: any) => console.error("[WhatsApp] sendClientConfirmation failed:", e?.response?.data ?? e?.message));
-    }
-  }
+  // Owner request: on auto-approval businesses, the booking is confirmed
+  // immediately and the client sees an on-screen confirmation — a WhatsApp
+  // "booking confirmed" ping right after is redundant and annoying. We only
+  // send a WA confirmation in the approval flow (business.ts → /approve)
+  // once the owner manually approves a pending appointment.
 
   res.status(201).json({
     ...appointment,

@@ -1904,9 +1904,15 @@ export default function Book({ slugOverride }: { slugOverride?: string } = {}) {
                       <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium" style={{ backgroundColor: "#fef9c3", color: "#92400e" }}>
                         ⏳ ממתין לאישור בעל העסק
                       </div>
-                      <p className="text-muted-foreground max-w-xs mx-auto">
-                        בקשת התור שלך ל<strong className="text-foreground">{selectedService?.name}</strong> אצל <strong className="text-foreground">{business.name}</strong> התקבלה ותאושר בקרוב.
+                      <p className="text-muted-foreground max-w-sm mx-auto">
+                        בקשת התור שלך ל<strong className="text-foreground">{selectedService?.name}</strong> אצל <strong className="text-foreground">{business.name}</strong> התקבלה.
                       </p>
+                      <div className="max-w-sm mx-auto p-4 rounded-2xl border text-sm leading-relaxed" style={{ backgroundColor: "rgba(139, 92, 246, 0.08)", borderColor: "rgba(139, 92, 246, 0.2)" }}>
+                        <p className="font-semibold mb-1">⚠️ חשוב לדעת</p>
+                        <p className="text-muted-foreground">
+                          בעל העסק מאשר תורים <strong className="text-foreground">באופן ידני</strong>. יש להמתין עד לקבלת הודעת אישור התור ב<strong className="text-foreground">וואטסאפ</strong> — רק לאחר מכן התור מאושר סופית.
+                        </p>
+                      </div>
                     </>
                   ) : (
                     <>

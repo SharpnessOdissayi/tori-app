@@ -628,8 +628,8 @@ export default function Dashboard() {
 
         {/* Suggestion banner */}
         <div className="mt-6 p-4 rounded-2xl bg-muted/40 border text-center text-sm text-muted-foreground">
-          💡 יש לך הצעה לשיפור לוח הניהול?{" "}
-          <a href="/contact" className="font-semibold text-primary underline">צור איתנו קשר</a>
+          💡 יש לך הצעה לשיפור או מצאת באג בלוח הניהול?{" "}
+          <a href="/contact" className="font-semibold text-primary underline">אשמח שתשאיר לי הודעה על כך</a>
         </div>
       </main>
     </div>
@@ -3375,7 +3375,13 @@ function IntegrationsTab() {
       setAnnouncementValidHours((profile as any).announcementValidHours ?? 24);
       setShabbatMode(((profile as any).shabbatMode ?? "any") as "any" | "shabbat");
       const saved = (profile as any).reminderTriggers;
-      if (saved) { try { setReminderTriggers(JSON.parse(saved)); } catch {} }
+      if (saved) { try {
+        const arr = JSON.parse(saved);
+        // Cap at 2 — older data may have up to 3 entries from before the
+        // limit was tightened; drop the extras so the UI doesn't allow
+        // the owner to stay out-of-policy.
+        setReminderTriggers(Array.isArray(arr) ? arr.slice(0, 2) : []);
+      } catch {} }
     }
   }, [profile]);
 
@@ -3390,7 +3396,8 @@ function IntegrationsTab() {
         sendReminders,
         announcementText: announcementText || null,
         announcementValidHours,
-        reminderTriggers: JSON.stringify(reminderTriggers),
+        // Hard cap at 2 reminders per booking on the write path too.
+        reminderTriggers: JSON.stringify(reminderTriggers.slice(0, 2)),
         shabbatMode,
       } as any
     }, {
@@ -3602,7 +3609,7 @@ function IntegrationsTab() {
             <div className="p-4 border rounded-xl bg-muted/20 space-y-4">
               <div className="flex items-center justify-between border-b pb-2">
                 <span className="font-medium text-sm">מתי לשלוח תזכורות?</span>
-                <span className="text-xs text-muted-foreground">{reminderTriggers.length} / 3 תזכורות</span>
+                <span className="text-xs text-muted-foreground">{reminderTriggers.length} / 2 תזכורות</span>
               </div>
               {reminderTriggers.length > 0 && (
                 <div className="flex flex-wrap gap-2">
@@ -3646,7 +3653,7 @@ function IntegrationsTab() {
                     )}
                   </div>
                 ))}
-                {reminderTriggers.length < 3 && (
+                {reminderTriggers.length < 2 && (
                   <button type="button"
                     onClick={() => setReminderTriggers(prev => [...prev, { amount: "1", unit: "hours" }])}
                     className="w-full py-2.5 border-2 border-dashed border-border rounded-xl text-sm text-muted-foreground hover:border-primary hover:text-primary transition-all"

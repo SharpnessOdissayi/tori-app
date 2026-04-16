@@ -203,6 +203,11 @@
 .dark .bg-red-50           { background-color: rgba(239, 68, 68, 0.15) !important; }
 .dark .bg-green-50         { background-color: rgba(34, 197, 94, 0.15) !important; }
 .dark .bg-amber-50         { background-color: rgba(245, 158, 11, 0.15) !important; }
+.dark .bg-orange-50        { background-color: rgba(249, 115, 22, 0.12) !important; }
+.dark .bg-orange-100       { background-color: rgba(249, 115, 22, 0.2) !important; }
+.dark .border-orange-100   { border-color: rgba(249, 115, 22, 0.25) !important; }
+.dark .text-orange-400     { color: #fb923c !important; }
+.dark .text-orange-600     { color: #fdba74 !important; }
 
 .dark .text-gray-900       { color: #f1f5f9 !important; }
 .dark .text-gray-800       { color: #e2e8f0 !important; }
