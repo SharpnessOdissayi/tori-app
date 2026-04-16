@@ -193,7 +193,7 @@ function SubscriptionBanner() {
   if (isPro) {
     const renewDate: Date | null = (profile as any)?.subscriptionRenewDate ? new Date((profile as any).subscriptionRenewDate) : null;
     const cancelledAt: Date | null = (profile as any)?.subscriptionCancelledAt ? new Date((profile as any).subscriptionCancelledAt) : null;
-    const hasToken = !!(profile as any)?.tranzilaToken;
+    const hasToken = !!(profile as any)?.hasTranzilaToken || !!(profile as any)?.tranzilaToken;
 
     let timerText = "ללא הגבלת זמן";
     let timerColor = "text-violet-500";

@@ -109,6 +109,8 @@ function mapBusiness(b: typeof businessesTable.$inferSelect) {
     // Subscription timing
     subscriptionRenewDate: (b as any).subscriptionRenewDate ? (b as any).subscriptionRenewDate.toISOString() : null,
     subscriptionCancelledAt: (b as any).subscriptionCancelledAt ? (b as any).subscriptionCancelledAt.toISOString() : null,
+    // Stored card token presence (boolean only — never leak the token itself)
+    hasTranzilaToken: !!((b as any).tranzilaToken),
   };
 }
 
