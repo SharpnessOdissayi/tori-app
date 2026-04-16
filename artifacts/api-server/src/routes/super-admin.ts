@@ -137,7 +137,27 @@ router.patch("/super-admin/businesses/:id", async (req, res): Promise<void> => {
 
   const updates: Partial<typeof businessesTable.$inferInsert> = {};
   if (bodyParsed.data.isActive !== undefined) updates.isActive = bodyParsed.data.isActive;
-  if (bodyParsed.data.subscriptionPlan !== undefined) updates.subscriptionPlan = bodyParsed.data.subscriptionPlan;
+  if (bodyParsed.data.subscriptionPlan !== undefined) {
+    updates.subscriptionPlan = bodyParsed.data.subscriptionPlan;
+    // Demoting pro → free: stop the Tranzila STO and clear all billing
+    // state so re-subscription later creates a fresh STO. Otherwise the
+    // old sto_id lingers and the notify handler will skip creating a new
+    // one on next signup.
+    if (bodyParsed.data.subscriptionPlan === "free") {
+      const [before] = await db
+        .select({ stoId: (businessesTable as any).tranzilaStorId })
+        .from(businessesTable)
+        .where(eq(businessesTable.id, paramsParsed.data.id));
+      if (before?.stoId) {
+        await updateSto(before.stoId, "inactive").catch(() => {});
+      }
+      (updates as any).tranzilaStorId          = null;
+      (updates as any).tranzilaToken           = null;
+      (updates as any).tranzilaTokenExpiry     = null;
+      (updates as any).subscriptionRenewDate   = null;
+      (updates as any).subscriptionCancelledAt = null;
+    }
+  }
   if (bodyParsed.data.maxServicesAllowed !== undefined) updates.maxServicesAllowed = bodyParsed.data.maxServicesAllowed;
   if (bodyParsed.data.name !== undefined) updates.name = bodyParsed.data.name;
   if (bodyParsed.data.slug !== undefined) updates.slug = bodyParsed.data.slug;
