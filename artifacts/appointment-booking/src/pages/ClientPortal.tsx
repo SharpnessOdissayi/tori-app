@@ -466,8 +466,10 @@ export default function ClientPortal() {
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col max-w-md mx-auto relative" dir="rtl">
 
-      {/* Header */}
-      <div className="bg-white border-b px-4 py-3 flex items-center justify-between sticky top-0 z-10">
+      {/* Header — z-30 so the notifications panel rendered inside beats the
+          bottom nav's z-20 stacking context. Sticky elements create their
+          own stacking context, so the child z-[100] alone isn't enough. */}
+      <div className="bg-white border-b px-4 py-3 flex items-center justify-between sticky top-0 z-30">
         <div>
           <p className="font-bold text-base text-gray-900">
             {session.clientName ? `שלום, ${session.clientName.split(" ")[0]}!` : "פורטל לקוח"}
