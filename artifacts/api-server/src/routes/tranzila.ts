@@ -118,11 +118,15 @@ router.post("/tranzila/notify", async (req, res): Promise<void> => {
         // Now that we have the token, create an STO on Tranzila's side so
         // they auto-charge every month from here on out. Skip if the
         // business already has one (re-subscription after cancel).
+        console.log(`[Tranzila] STO gate — token=${token ? "yes" : "NO"} expdate=${expdate || "NO"}`);
+
         if (token && expdate) {
           const [existing] = await db
             .select({ existingStoId: (businessesTable as any).tranzilaStorId })
             .from(businessesTable)
             .where(eq(businessesTable.id, businessId));
+
+          console.log(`[Tranzila] STO check — existingStoId=${existing?.existingStoId ?? "null"}`);
 
           if (!existing?.existingStoId) {
             const sto = await chargeToken(
@@ -138,8 +142,10 @@ router.post("/tranzila/notify", async (req, res): Promise<void> => {
                 .where(eq(businessesTable.id, businessId));
               console.log(`[Tranzila] STO ${sto.stoId} created for business ${businessId}`);
             } else {
-              console.warn(`[Tranzila] STO create failed for business ${businessId}: ${sto.responseCode}`);
+              console.warn(`[Tranzila] STO create failed for business ${businessId}: ${sto.responseCode}`, sto.rawResponse.slice(0, 300));
             }
+          } else {
+            console.log(`[Tranzila] Skipping STO create — business ${businessId} already has STO ${existing.existingStoId}`);
           }
         }
       } else {
