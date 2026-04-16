@@ -2,6 +2,7 @@ import { Router } from "express";
 import bcrypt from "bcryptjs";
 import { db, businessesTable, workingHoursTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
+import { updateSto } from "../lib/tranzilaCharge";
 import {
   SuperAdminListBusinessesQueryParams,
   SuperAdminCreateBusinessBody,
@@ -227,6 +228,8 @@ router.post("/super-admin/businesses/:id/grant-pro", async (req, res): Promise<v
 });
 
 // POST /super-admin/businesses/:id/revoke-pro — revert to free
+// Also deactivates the Tranzila STO (if any) and clears the stored id
+// so a re-subscription later creates a fresh active STO.
 router.post("/super-admin/businesses/:id/revoke-pro", async (req, res): Promise<void> => {
   const { adminPassword } = req.body ?? {};
   if (!adminPassword || !isAdmin(adminPassword)) {
@@ -236,14 +239,24 @@ router.post("/super-admin/businesses/:id/revoke-pro", async (req, res): Promise<
   const id = Number(req.params.id);
   if (!id || isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
 
+  // Grab existing sto_id first so we can ask Tranzila to stop charging.
+  const [before] = await db
+    .select({ stoId: (businessesTable as any).tranzilaStorId })
+    .from(businessesTable)
+    .where(eq(businessesTable.id, id));
+  if (before?.stoId) {
+    await updateSto(before.stoId, "inactive").catch(() => {});
+  }
+
   const [updated] = await db
     .update(businessesTable)
     .set({
-      subscriptionPlan: "free",
-      maxServicesAllowed: 3,
+      subscriptionPlan:        "free",
+      maxServicesAllowed:      3,
       maxAppointmentsPerMonth: 20,
-      subscriptionRenewDate: null,
+      subscriptionRenewDate:   null,
       subscriptionCancelledAt: null,
+      tranzilaStorId:          null,
     } as any)
     .where(eq(businessesTable.id, id))
     .returning();
@@ -253,7 +266,8 @@ router.post("/super-admin/businesses/:id/revoke-pro", async (req, res): Promise<
   res.json({ success: true });
 });
 
-// POST /super-admin/businesses/:id/cancel-subscription — soft cancel (access stays until renewDate)
+// POST /super-admin/businesses/:id/cancel-subscription — soft cancel
+// (access stays until renewDate, but future charges stop immediately)
 router.post("/super-admin/businesses/:id/cancel-subscription", async (req, res): Promise<void> => {
   const { adminPassword } = req.body ?? {};
   if (!adminPassword || !isAdmin(adminPassword)) {
@@ -263,9 +277,20 @@ router.post("/super-admin/businesses/:id/cancel-subscription", async (req, res):
   const id = Number(req.params.id);
   if (!id || isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
 
+  const [before] = await db
+    .select({ stoId: (businessesTable as any).tranzilaStorId })
+    .from(businessesTable)
+    .where(eq(businessesTable.id, id));
+  if (before?.stoId) {
+    await updateSto(before.stoId, "inactive").catch(() => {});
+  }
+
   const [updated] = await db
     .update(businessesTable)
-    .set({ subscriptionCancelledAt: new Date() } as any)
+    .set({
+      subscriptionCancelledAt: new Date(),
+      tranzilaStorId:          null,
+    } as any)
     .where(eq(businessesTable.id, id))
     .returning();
 

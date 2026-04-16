@@ -100,7 +100,13 @@ router.post("/subscription/cancel", async (req, res): Promise<void> => {
 
   await db
     .update(businessesTable)
-    .set({ subscriptionCancelledAt: new Date() } as any)
+    .set({
+      subscriptionCancelledAt: new Date(),
+      // Clear the STO id so that if the owner re-subscribes later we
+      // create a fresh active STO (the cancelled one is inactive and
+      // Tranzila won't charge on it again).
+      tranzilaStorId: null,
+    } as any)
     .where(eq(businessesTable.id, businessId));
 
   res.json({ success: true, message: "מנוי בוטל — גישה לפרו נשמרת עד תאריך החידוש הקרוב" });
