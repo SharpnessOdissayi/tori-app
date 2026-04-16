@@ -1771,43 +1771,76 @@ function DayOffTab() {
   const [endTime, setEndTime] = useState("17:00");
   const [note, setNote] = useState("");
   const [loading, setLoading] = useState(false);
+  const [editingId, setEditingId] = useState<number | null>(null);
+
+  const authHeaders = () => ({
+    authorization: `Bearer ${localStorage.getItem("biz_token") || sessionStorage.getItem("biz_token")}`,
+  });
 
   const load = async () => {
     try {
-      const r = await fetch("/api/business/time-off", { headers: { authorization: `Bearer ${localStorage.getItem("biz_token") || sessionStorage.getItem("biz_token")}` } });
+      const r = await fetch("/api/business/time-off", { headers: authHeaders() });
       if (r.ok) setItems(await r.json());
     } catch {}
   };
 
   useEffect(() => { load(); }, []);
 
+  const resetForm = () => {
+    setEditingId(null);
+    setType("full");
+    setDate("");
+    setStartTime("09:00");
+    setEndTime("17:00");
+    setNote("");
+  };
+
+  const handleEditClick = (item: any) => {
+    setEditingId(item.id);
+    setType(item.fullDay ? "full" : "partial");
+    setDate(item.date);
+    setStartTime(item.startTime ?? "09:00");
+    setEndTime(item.endTime ?? "17:00");
+    setNote(item.note ?? "");
+  };
+
   const handleAdd = async () => {
     if (!date) { toast({ title: "יש לבחור תאריך", variant: "destructive" }); return; }
     setLoading(true);
     try {
-      const token = localStorage.getItem("biz_token") || sessionStorage.getItem("biz_token");
-      const r = await fetch("/api/business/time-off", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", authorization: `Bearer ${token}` },
-        body: JSON.stringify({
-          date,
-          fullDay: type === "full",
-          startTime: type === "partial" ? startTime : null,
-          endTime: type === "partial" ? endTime : null,
-          note: note || null,
-        }),
+      const body = {
+        date,
+        fullDay: type === "full",
+        // Omit (undefined) rather than null so the server-side parser
+        // doesn't reject the request. Same for note.
+        ...(type === "partial" ? { startTime, endTime } : {}),
+        ...(note.trim() ? { note: note.trim() } : {}),
+      };
+      const url    = editingId ? `/api/business/time-off/${editingId}` : "/api/business/time-off";
+      const method = editingId ? "PATCH" : "POST";
+      const r = await fetch(url, {
+        method,
+        headers: { "Content-Type": "application/json", ...authHeaders() },
+        body: JSON.stringify(body),
       });
       if (r.ok) {
-        toast({ title: "יום החופש נוסף" });
-        setDate(""); setNote("");
+        toast({ title: editingId ? "יום החופש עודכן" : "יום החופש נוסף" });
+        resetForm();
         load();
+      } else {
+        toast({ title: "שגיאה בשמירה", variant: "destructive" });
       }
-    } catch {} finally { setLoading(false); }
+    } catch {
+      toast({ title: "שגיאת רשת", variant: "destructive" });
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleDelete = async (id: number) => {
-    const token = localStorage.getItem("biz_token") || sessionStorage.getItem("biz_token");
-    await fetch(`/api/business/time-off/${id}`, { method: "DELETE", headers: { authorization: `Bearer ${token}` } });
+    if (!confirm("למחוק?")) return;
+    await fetch(`/api/business/time-off/${id}`, { method: "DELETE", headers: authHeaders() });
+    if (editingId === id) resetForm();
     load();
   };
 
@@ -1861,9 +1894,16 @@ function DayOffTab() {
             <Input value={note} onChange={e => setNote(e.target.value)} placeholder="לדוגמה: חופשה משפחתית" />
           </div>
 
-          <Button onClick={handleAdd} disabled={loading} className="w-full gap-2">
-            <Plus className="w-4 h-4" /> הוסף יום חופש
-          </Button>
+          <div className="flex gap-2">
+            {editingId && (
+              <Button type="button" variant="outline" onClick={resetForm} className="flex-1">
+                בטל עריכה
+              </Button>
+            )}
+            <Button onClick={handleAdd} disabled={loading} className="flex-1 gap-2">
+              <Plus className="w-4 h-4" /> {editingId ? "שמור שינויים" : "הוסף יום חופש"}
+            </Button>
+          </div>
         </CardContent>
       </Card>
 
@@ -1873,17 +1913,33 @@ function DayOffTab() {
           <CardHeader><CardTitle className="text-base">ימי חופש מתוכננים</CardTitle></CardHeader>
           <CardContent className="space-y-2">
             {items.map(item => (
-              <div key={item.id} className="flex items-center justify-between py-2 border-b last:border-0">
-                <div>
+              <div
+                key={item.id}
+                className={`flex items-center justify-between py-2 border-b last:border-0 transition-colors ${editingId === item.id ? "bg-primary/5 rounded-lg px-2 -mx-2" : ""}`}
+              >
+                <div className="flex-1 min-w-0">
                   <div className="font-medium text-sm">{formatDate(item.date)}</div>
                   <div className="text-xs text-muted-foreground">
                     {item.fullDay ? "יום חופש מלא" : `${item.startTime} — ${item.endTime}`}
                     {item.note && ` • ${item.note}`}
                   </div>
                 </div>
-                <button onClick={() => handleDelete(item.id)} className="text-red-400 hover:text-red-600 p-1.5 rounded-lg hover:bg-red-50 transition-all">
-                  <Trash2 className="w-4 h-4" />
-                </button>
+                <div className="flex items-center gap-1 shrink-0">
+                  <button
+                    onClick={() => handleEditClick(item)}
+                    className="text-muted-foreground hover:text-primary p-1.5 rounded-lg hover:bg-muted transition-all"
+                    title="ערוך"
+                  >
+                    <Edit className="w-4 h-4" />
+                  </button>
+                  <button
+                    onClick={() => handleDelete(item.id)}
+                    className="text-red-400 hover:text-red-600 p-1.5 rounded-lg hover:bg-red-50 transition-all"
+                    title="מחק"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                </div>
               </div>
             ))}
           </CardContent>
@@ -2228,12 +2284,9 @@ function CustomersTab() {
             <div className="text-3xl font-bold">{totalVisits}</div>
           </CardContent>
         </Card>
-        <Card className="bg-primary/5 border-primary/10">
-          <CardContent className="p-5">
-            <div className="text-sm text-muted-foreground mb-1">סה״כ הכנסות</div>
-            <div className="text-3xl font-bold">₪{(totalRevenue / 100).toFixed(0)}</div>
-          </CardContent>
-        </Card>
+        {/* 'סה״כ הכנסות' moved to RevenueTab below (also displayed here in the
+            merged Customers tab) — avoid duplicating the same number twice
+            in the same scroll. */}
       </div>
 
       <Card>

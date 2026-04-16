@@ -28,7 +28,23 @@ function parseCreateTimeOffBody(raw: any) {
   if (startTime !== undefined && startTime !== null && typeof startTime !== "string") return { success: false as const };
   if (endTime !== undefined && endTime !== null && typeof endTime !== "string") return { success: false as const };
   if (fullDay !== undefined && typeof fullDay !== "boolean") return { success: false as const };
-  if (note !== undefined && typeof note !== "string") return { success: false as const };
+  // Accept null as "no note" just like undefined. The frontend sends
+  // { note: note || null } for empty fields; rejecting null was why the
+  // 'הוסף יום חופש' button silently did nothing.
+  if (note !== undefined && note !== null && typeof note !== "string") return { success: false as const };
+  return { success: true as const, data: { date, startTime, endTime, fullDay, note } };
+}
+
+// Partial update body for PATCH /business/time-off/:id — same shape as
+// the create body but every field is optional.
+function parseUpdateTimeOffBody(raw: any) {
+  if (!raw || typeof raw !== "object") return { success: false as const };
+  const { date, startTime, endTime, fullDay, note } = raw;
+  if (date !== undefined && typeof date !== "string") return { success: false as const };
+  if (startTime !== undefined && startTime !== null && typeof startTime !== "string") return { success: false as const };
+  if (endTime !== undefined && endTime !== null && typeof endTime !== "string") return { success: false as const };
+  if (fullDay !== undefined && typeof fullDay !== "boolean") return { success: false as const };
+  if (note !== undefined && note !== null && typeof note !== "string") return { success: false as const };
   return { success: true as const, data: { date, startTime, endTime, fullDay, note } };
 }
 
@@ -983,6 +999,30 @@ router.post("/business/time-off", requireBusinessAuth, async (req, res): Promise
     note: parsed.data.note ?? undefined,
   }).returning();
   res.json({ id: item.id, date: item.date, startTime: item.startTime ?? null, endTime: item.endTime ?? null, fullDay: item.fullDay, note: item.note ?? null });
+});
+
+// PATCH /business/time-off/:id — edit a scheduled day off / partial off.
+router.patch("/business/time-off/:id", requireBusinessAuth, async (req, res): Promise<void> => {
+  const id = Number(req.params.id);
+  if (!id || isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
+
+  const parsed = parseUpdateTimeOffBody(req.body);
+  if (!parsed.success) { res.status(400).json({ error: "Invalid data" }); return; }
+
+  const updates: any = {};
+  if (parsed.data.date     !== undefined) updates.date      = parsed.data.date;
+  if (parsed.data.fullDay  !== undefined) updates.fullDay   = parsed.data.fullDay;
+  if (parsed.data.startTime !== undefined) updates.startTime = parsed.data.startTime;
+  if (parsed.data.endTime  !== undefined) updates.endTime   = parsed.data.endTime;
+  if (parsed.data.note     !== undefined) updates.note      = parsed.data.note;
+
+  const [updated] = await db.update(timeOffTable)
+    .set(updates)
+    .where(and(eq(timeOffTable.id, id), eq(timeOffTable.businessId, req.business!.businessId)))
+    .returning();
+
+  if (!updated) { res.status(404).json({ error: "Not found" }); return; }
+  res.json({ id: updated.id, date: updated.date, startTime: updated.startTime ?? null, endTime: updated.endTime ?? null, fullDay: updated.fullDay, note: updated.note ?? null });
 });
 
 // DELETE /business/time-off/:id
