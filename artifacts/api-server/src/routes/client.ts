@@ -1,7 +1,7 @@
 import { Router, Request, Response, NextFunction } from "express";
 import { logBusinessNotification } from "./notifications";
 import { db, appointmentsTable, businessesTable, clientSessionsTable, clientBusinessesTable } from "@workspace/db";
-import { eq, and, or, gt } from "drizzle-orm";
+import { eq, and, or, gt, sql } from "drizzle-orm";
 import { sendOtp, verifyOtp } from "../lib/whatsapp";
 import { randomUUID } from "crypto";
 
@@ -281,6 +281,75 @@ router.get("/client/appointments", requireClientAuth, async (req, res): Promise<
     .orderBy(appointmentsTable.appointmentDate, appointmentsTable.appointmentTime);
 
   res.json(appointments.map(a => ({ ...a, createdAt: a.createdAt.toISOString() })));
+});
+
+// PATCH /client/appointments/:id/reschedule — the "עדכון תור" button in
+// the portal calls this. We verify the appointment phone matches the
+// client's session phone, confirm the target slot is actually free
+// (same rules as the public booking endpoint), and flip the timestamps.
+// Reminder-sent flags are reset so the user still gets the reminder for
+// the new time.
+router.patch("/client/appointments/:id/reschedule", requireClientAuth, async (req, res): Promise<void> => {
+  const session = (req as any).clientSession;
+  const phone = session.phoneNumber;
+  if (!phone) { res.status(403).json({ error: "עדכון אפשרי רק עם מספר טלפון" }); return; }
+
+  const id = Number(req.params.id);
+  if (!id || isNaN(id)) { res.status(400).json({ error: "id לא תקין" }); return; }
+
+  const { newDate, newTime } = req.body ?? {};
+  if (!newDate || !newTime || typeof newDate !== "string" || typeof newTime !== "string") {
+    res.status(400).json({ error: "newDate + newTime חובה" });
+    return;
+  }
+
+  const [appt] = await db
+    .select()
+    .from(appointmentsTable)
+    .where(and(eq(appointmentsTable.id, id), eq(appointmentsTable.phoneNumber, phone)));
+
+  if (!appt) { res.status(404).json({ error: "תור לא נמצא" }); return; }
+  if (appt.status === "cancelled") { res.status(400).json({ error: "לא ניתן לעדכן תור שבוטל" }); return; }
+
+  // Make sure the target slot isn't already taken by someone else.
+  const [clash] = await db
+    .select({ id: appointmentsTable.id })
+    .from(appointmentsTable)
+    .where(and(
+      eq(appointmentsTable.businessId, appt.businessId),
+      eq(appointmentsTable.appointmentDate, newDate),
+      eq(appointmentsTable.appointmentTime, newTime),
+      sql`${appointmentsTable.status} != 'cancelled'`,
+    ));
+  if (clash && clash.id !== appt.id) {
+    res.status(409).json({ error: "slot_taken", message: "השעה הזו כבר תפוסה — בחר שעה אחרת" });
+    return;
+  }
+
+  await db
+    .update(appointmentsTable)
+    .set({
+      appointmentDate:       newDate,
+      appointmentTime:       newTime,
+      reminder24hSent:       false,
+      reminder1hSent:        false,
+      reminderMorningSent:   false,
+    })
+    .where(eq(appointmentsTable.id, appt.id));
+
+  // Notify the business owner — client-initiated reschedule.
+  const [, month, day] = newDate.split("-");
+  const formattedDate = `${day}/${month}`;
+  logBusinessNotification({
+    businessId:   appt.businessId,
+    type:         "reschedule",
+    appointmentId: appt.id,
+    message:      `${appt.clientName} עדכן/ה את התור של ${appt.serviceName} ל-${formattedDate} בשעה ${newTime}`,
+    actorType:    "client",
+    actorName:    appt.clientName,
+  });
+
+  res.json({ success: true, newDate, newTime });
 });
 
 router.patch("/client/appointments/:id/cancel", requireClientAuth, async (req, res): Promise<void> => {
