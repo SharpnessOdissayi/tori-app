@@ -100,14 +100,18 @@ router.post("/auth/business/login", async (req, res): Promise<void> => {
     return;
   }
 
-  if (!business.isActive) {
-    res.status(403).json({ error: "account_suspended", message: "החשבון מושהה. צור קשר עם התמיכה." });
-    return;
-  }
-
+  // Verify password BEFORE disclosing account-status. Otherwise an attacker
+  // can enumerate valid accounts by probing for the "account_suspended"
+  // error message. With this ordering, the suspended-account message only
+  // reaches callers who actually know the password.
   const valid = await bcrypt.compare(password, business.passwordHash);
   if (!valid) {
     res.status(401).json({ error: "Invalid credentials" });
+    return;
+  }
+
+  if (!business.isActive) {
+    res.status(403).json({ error: "account_suspended", message: "החשבון מושהה. צור קשר עם התמיכה." });
     return;
   }
 

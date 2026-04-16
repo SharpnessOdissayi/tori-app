@@ -45,7 +45,10 @@ export function buildTranzilaUrl(params: {
   clientName:       string;
   requiresApproval?: boolean;
 }): string {
-  const successUrl = `https://www.kavati.net/payment/success?appt=${params.appointmentId}${params.requiresApproval ? "&approval=1" : ""}`;
+  // Prefer an env-configured base URL (so dev/staging don't redirect back
+  // to production), fall back to the production hostname.
+  const baseUrl = (process.env.BOOKING_BASE_URL ?? "https://www.kavati.net").replace(/\/$/, "");
+  const successUrl = `${baseUrl}/payment/success?appt=${params.appointmentId}${params.requiresApproval ? "&approval=1" : ""}`;
   const p = new URLSearchParams({
     sum:                 params.sum.toFixed(2),
     currency:            "1",
@@ -56,7 +59,7 @@ export function buildTranzilaUrl(params: {
     contact:             params.clientName,
     myid:                String(params.appointmentId),
     success_url_address: successUrl,
-    fail_url_address:    `https://www.kavati.net/payment/fail?appt=${params.appointmentId}`,
+    fail_url_address:    `${baseUrl}/payment/fail?appt=${params.appointmentId}`,
     notify_url_address:  `https://www.kavati.net/api/tranzila/notify`,
     nologo:              "1",
   });
@@ -142,6 +145,11 @@ router.post("/tranzila/notify", async (req, res): Promise<void> => {
     const subscriptionMatch = pdesc.match(/מנוי פרו קבעתי - (\d+)/);
     if (subscriptionMatch) {
       const businessId = parseInt(subscriptionMatch[1]);
+      if (!businessId || isNaN(businessId)) {
+        console.error(`[Tranzila] subscription webhook: invalid businessId in pdesc: ${pdesc}`);
+        res.status(200).send("OK");
+        return;
+      }
 
       if (responsecode === "000") {
         const token   = String(body.TranzilaTK ?? body.tranzilatk ?? body.token ?? "").trim();
@@ -173,6 +181,14 @@ router.post("/tranzila/notify", async (req, res): Promise<void> => {
         // means recurring; absence means the first, iframe-driven charge).
         const isRecurring = !!(body.sto_external_id ?? body.stoExternalId);
         const sumAgorot = Math.round(Number(body.sum ?? body.Amount ?? 0) * 100);
+        // Guard against malformed/negative/absurd amounts from the webhook
+        // body — Tranzila always sends ≥ 0 but a spoofed request could
+        // carry anything. Silently bail instead of writing garbage.
+        if (!Number.isFinite(sumAgorot) || sumAgorot <= 0 || sumAgorot > 100_000_00) {
+          console.warn(`[Tranzila] subscription webhook with invalid sum: ${body.sum ?? body.Amount}`);
+          res.status(200).send("OK");
+          return;
+        }
         const confirmation = String(body.ConfirmationCode ?? body.confirmationCode ?? body.index ?? "").trim();
 
         (async () => {
@@ -245,9 +261,10 @@ router.post("/tranzila/notify", async (req, res): Promise<void> => {
 
     // ── Appointment deposit ──────────────────────────────────────────────
     const pdescMatch = pdesc.match(/תור מספר (\d+)/);
-    const apptId = pdescMatch
+    const apptIdRaw = pdescMatch
       ? parseInt(pdescMatch[1])
       : body.myid ? parseInt(String(body.myid)) : null;
+    const apptId = apptIdRaw && !isNaN(apptIdRaw) ? apptIdRaw : null;
 
     if (apptId) {
       if (responsecode === "000") {

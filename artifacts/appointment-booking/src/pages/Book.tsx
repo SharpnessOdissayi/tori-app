@@ -1594,14 +1594,21 @@ export default function Book({ slugOverride }: { slugOverride?: string } = {}) {
                     />
                   ))}
                 </div>
-                {/* Lightbox */}
+                {/* Lightbox — Escape-to-close + ARIA for screen readers. */}
                 {lightboxUrl && (
                   <div
-                    className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 p-4"
+                    role="dialog"
+                    aria-modal="true"
+                    aria-label="תצוגה מורחבת של תמונה"
+                    tabIndex={-1}
+                    className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 p-4 focus:outline-none"
                     onClick={() => setLightboxUrl(null)}
+                    onKeyDown={e => { if (e.key === "Escape") setLightboxUrl(null); }}
+                    ref={el => el?.focus()}
                   >
                     <img src={lightboxUrl} alt="gallery-full" className="max-w-full max-h-full rounded-xl object-contain shadow-2xl" />
                     <button
+                      aria-label="סגור תמונה"
                       className="absolute top-4 left-4 text-white bg-black/50 rounded-full w-9 h-9 flex items-center justify-center text-xl"
                       onClick={() => setLightboxUrl(null)}
                     >×</button>
@@ -1940,6 +1947,10 @@ export default function Book({ slugOverride }: { slugOverride?: string } = {}) {
                         <Input
                           required
                           type="tel"
+                          inputMode="tel"
+                          pattern="^(\+?972|0)?-?5\d-?\d{3}-?\d{4}$"
+                          placeholder="05X-XXX-XXXX"
+                          title="מספר טלפון ישראלי (למשל 052-1234567)"
                           value={clientData.phone}
                           onChange={e => { setClientData(p => ({ ...p, phone: e.target.value })); setOtpSent(false); setPhoneVerified(false); setOtpCode(""); setPhoneVerificationToken(null); }}
                           className="h-12 text-base flex-1"

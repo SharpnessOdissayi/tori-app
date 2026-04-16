@@ -344,8 +344,11 @@ function StepDetails({
     }
   };
 
+  // Case-insensitive match so "מספר" matches "מספרה" regardless of casing
+  // differences. For Hebrew this rarely matters, but toLowerCase also
+  // normalises English fallback categories like "Barber shop".
   const filteredCategories = categories.filter(c =>
-    c.includes(categorySearch)
+    c.toLowerCase().includes(categorySearch.toLowerCase())
   );
 
   const toggleCategory = (cat: string) => {
