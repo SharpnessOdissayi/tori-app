@@ -251,7 +251,7 @@ router.post("/public/:businessSlug/otp/send", async (req, res): Promise<void> =>
     return;
   }
   try {
-    await sendOtp(phone);
+    await sendOtp(phone, "booking_verify");
     res.json({ success: true });
   } catch (e: any) {
     res.status(500).json({ error: e.message ?? "Failed to send OTP" });
@@ -265,7 +265,7 @@ router.post("/public/:businessSlug/otp/verify", async (req, res): Promise<void> 
     res.status(400).json({ error: "Missing phone or code" });
     return;
   }
-  const ok = await verifyOtp(phone, String(code));
+  const ok = await verifyOtp(phone, String(code), "booking_verify");
   if (!ok) {
     res.status(400).json({ error: "invalid_code", message: "הקוד שגוי או פג תוקף" });
     return;

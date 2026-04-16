@@ -62,7 +62,7 @@ export const SuperAdminUpdateBusinessBody = zod.object({
   ownerName: zod.string().optional(),
   email: zod.string().email().optional(),
   password: zod.string().optional(),
-});
+}).passthrough();
 
 export const SuperAdminUpdateBusinessResponse = zod.object({
   id: zod.number(),
@@ -157,7 +157,7 @@ export const UpdateBusinessProfileBody = zod.object({
   bufferMinutes: zod.number().optional(),
   notificationEnabled: zod.boolean().optional(),
   notificationMessage: zod.string().nullish(),
-});
+}).passthrough();
 
 export const UpdateBusinessProfileResponse = zod.object({
   id: zod.number(),
@@ -227,7 +227,7 @@ export const UpdateBusinessIntegrationsBody = zod.object({
   googleCalendarEnabled: zod.boolean().optional(),
   stripeEnabled: zod.boolean().optional(),
   stripePublicKey: zod.string().nullish(),
-});
+}).passthrough();
 
 export const UpdateBusinessIntegrationsResponse = zod.object({
   id: zod.number(),
@@ -293,7 +293,7 @@ export const UpdateBusinessServiceBody = zod.object({
   bufferMinutes: zod.number().optional(),
   imageUrl: zod.string().nullish(),
   isActive: zod.boolean().optional(),
-});
+}).passthrough();
 
 export const UpdateBusinessServiceResponse = zod.object({
   id: zod.number(),

@@ -283,7 +283,6 @@ schedule-manager-main/
 ├── scripts/                    # Operational scripts
 ├── migrate-*.js                # One-off migration helpers
 ├── CLAUDE.md                   # Agent coding guidelines
-├── replit.md                   # Technical project notes
 └── README.md                   # This file
 ```
 

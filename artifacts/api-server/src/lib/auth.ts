@@ -1,6 +1,15 @@
 import jwt from "jsonwebtoken";
 
-const JWT_SECRET = process.env.JWT_SECRET ?? "appointment-saas-secret-key-change-in-prod";
+// JWT_SECRET is required. No fallback — a weak/known fallback in production
+// would allow anyone who reads the repo to forge tokens for any business.
+// If this env var is missing the server must refuse to boot.
+const rawJwtSecret = process.env.JWT_SECRET;
+if (!rawJwtSecret) {
+  throw new Error(
+    "JWT_SECRET environment variable is required. Set it on Railway."
+  );
+}
+export const JWT_SECRET: string = rawJwtSecret;
 
 // ─── Legacy business token (kept for backward compatibility) ───────────────
 

@@ -31,7 +31,7 @@ router.post("/client/send-otp", async (req, res): Promise<void> => {
   const { phone } = req.body;
   if (!phone || typeof phone !== "string") { res.status(400).json({ error: "מספר טלפון נדרש" }); return; }
   try {
-    await sendOtp(phone.trim());
+    await sendOtp(phone.trim(), "client_login");
     res.json({ success: true });
   } catch (e) {
     res.status(500).json({ error: "שגיאה בשליחת קוד" });
@@ -42,28 +42,26 @@ router.post("/client/verify-otp", async (req, res): Promise<void> => {
   const { phone, code } = req.body;
   if (!phone || !code) { res.status(400).json({ error: "שדות חסרים" }); return; }
 
-  const ok = await verifyOtp(phone.trim(), String(code));
+  const ok = await verifyOtp(phone.trim(), String(code), "client_login");
   if (!ok) { res.status(400).json({ error: "קוד שגוי או פג תוקף" }); return; }
 
-  // Get name from latest appointment
-  const [latest] = await db
-    .select({ clientName: appointmentsTable.clientName })
-    .from(appointmentsTable)
-    .where(eq(appointmentsTable.phoneNumber, phone.trim()))
-    .orderBy(appointmentsTable.createdAt)
-    .limit(1);
-
+  // SECURITY: do NOT auto-fill clientName from any prior appointment that
+  // ever used this phone number. Israeli mobile numbers are recycled by
+  // carriers within ~6 months of disconnection — populating the new
+  // session with the previous owner's name leaks PII to whoever happens
+  // to be holding the SIM today. The client can re-enter their name in
+  // the portal UI; if no prior appointments exist the session is empty.
   const token = randomUUID();
   const expiresAt = new Date(Date.now() + SESSION_DAYS * 24 * 60 * 60 * 1000);
 
   await db.insert(clientSessionsTable).values({
     token,
     phoneNumber: phone.trim(),
-    clientName: latest?.clientName ?? "",
+    clientName: "",
     expiresAt,
   });
 
-  res.json({ token, clientName: latest?.clientName ?? "", phone: phone.trim() });
+  res.json({ token, clientName: "", phone: phone.trim() });
 });
 
 // ─── Google OAuth ─────────────────────────────────────────────────────────────

@@ -369,7 +369,7 @@ router.post("/auth/forgot-password", async (req, res): Promise<void> => {
   if (!business) { res.status(404).json({ error: "מספר טלפון לא נמצא במערכת" }); return; }
 
   const { sendOtp } = await import("../lib/whatsapp");
-  await sendOtp(phone);
+  await sendOtp(phone, "password_reset");
   res.json({ ok: true });
 });
 
@@ -378,10 +378,20 @@ router.post("/auth/reset-password", async (req, res): Promise<void> => {
   const { phone, code, newPassword } = req.body;
   if (!phone || !code || !newPassword) { res.status(400).json({ error: "Missing fields" }); return; }
 
+  // Mirror the email-reset path's min-length check. A 1-character password
+  // after a password-reset was previously accepted, making credential-
+  // stuffing trivial post-reset.
+  if (typeof newPassword !== "string" || newPassword.length < 6) {
+    res.status(400).json({ error: "הסיסמה חייבת להכיל לפחות 6 תווים" });
+    return;
+  }
+
   const { verifyOtp } = await import("../lib/whatsapp");
   const { consumeVerification } = await import("../lib/otpStore");
 
-  const valid = await verifyOtp(phone, code);
+  // Purpose-tagged — only OTPs minted via /auth/forgot-password will pass.
+  // An OTP minted for /client/send-otp (portal login) cannot be replayed here.
+  const valid = await verifyOtp(phone, code, "password_reset");
   if (!valid) { res.status(400).json({ error: "קוד שגוי או פג תוקף" }); return; }
 
   consumeVerification(phone);

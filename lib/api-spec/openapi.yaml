@@ -913,7 +913,12 @@ components:
       required: [id, slug, name, ownerName, email, isActive, subscriptionPlan, maxServicesAllowed, createdAt]
 
     AdminUpdateBusinessBody:
+      # Handler reads extra fields via (data as any): phone, address, city,
+      # websiteUrl, instagramUrl, businessDescription, businessCategories,
+      # username, tranzilaStorId, etc. Without passthrough Zod silently
+      # drops them and super-admin edits to those fields never stick.
       type: object
+      additionalProperties: true
       properties:
         isActive:
           type: boolean
@@ -1059,7 +1064,14 @@ components:
         - createdAt
 
     UpdateBusinessProfileBody:
+      # additionalProperties: true causes Orval to emit zod.object({...}).passthrough()
+      # which lets the 25+ settings fields (tranzilaEnabled, depositAmountAgorot,
+      # minLeadHours, shabbatMode, ...) that the handler reads via (data as any)
+      # actually arrive. Without it Zod's default `strip` mode silently drops
+      # every unknown field, so save-on-toggle appears to succeed but the DB
+      # value never changes and a refresh shows the stale value.
       type: object
+      additionalProperties: true
       properties:
         name:
           type: string
@@ -1087,7 +1099,9 @@ components:
           type: ["string", "null"]
 
     UpdateIntegrationsBody:
+      # See UpdateBusinessProfileBody comment — same passthrough requirement.
       type: object
+      additionalProperties: true
       properties:
         whatsappApiKey:
           type: ["string", "null"]
@@ -1182,7 +1196,9 @@ components:
       required: [name, price, durationMinutes]
 
     UpdateServiceBody:
+      # See UpdateBusinessProfileBody comment — same passthrough requirement.
       type: object
+      additionalProperties: true
       properties:
         name:
           type: string

@@ -4,7 +4,12 @@ import { eq } from "drizzle-orm";
 import { logger } from "./logger";
 
 export async function seedAdminUser() {
-  const ADMIN_PASSWORD = (process.env.SUPER_ADMIN_PASSWORD ?? "superadmin123").trim();
+  // Mirror the requireSuperAdmin middleware check — no fallback password.
+  const ADMIN_PASSWORD = (process.env.SUPER_ADMIN_PASSWORD ?? "").trim();
+  if (!ADMIN_PASSWORD) {
+    logger.error("SUPER_ADMIN_PASSWORD env var missing — admin seed SKIPPED.");
+    return;
+  }
 
   try {
     // Check if admin account already exists

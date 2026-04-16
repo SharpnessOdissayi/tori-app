@@ -31,9 +31,18 @@ export function requireUserAuth(req: Request, res: Response, next: NextFunction)
 }
 
 /**
- * Gates a route to one of the given roles. Super admins always have access
- * regardless of what's requested (business_owner routes are reachable by
- * super_admin too — handy for impersonation / support workflows).
+ * Gates a route to one of the given roles.
+ *
+ * Super admins are NOT auto-admitted to business_owner/client routes — a
+ * super-admin JWT has `businessId: null`, and handlers that derive the
+ * tenant from `req.user.businessId` would either crash or silently
+ * read/write across tenants. If a super-admin needs to act on a specific
+ * business they should go through a dedicated "impersonate" endpoint
+ * that sets businessId explicitly.
+ *
+ * Callers that want to allow both roles should list them explicitly:
+ *   router.get(..., requireUserAuth, requireRole("business_owner", "super_admin"), handler)
+ * — and in that case the handler MUST null-check req.user.businessId.
  */
 export function requireRole(...allowed: UserRole[]) {
   return (req: Request, res: Response, next: NextFunction): void => {
@@ -41,7 +50,7 @@ export function requireRole(...allowed: UserRole[]) {
       res.status(401).json({ error: "Unauthorized" });
       return;
     }
-    if (req.user.role === "super_admin" || allowed.includes(req.user.role)) {
+    if (allowed.includes(req.user.role)) {
       next();
       return;
     }

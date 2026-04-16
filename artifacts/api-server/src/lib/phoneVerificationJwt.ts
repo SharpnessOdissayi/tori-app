@@ -1,6 +1,5 @@
 import jwt from "jsonwebtoken";
-
-const JWT_SECRET = process.env.JWT_SECRET ?? "appointment-saas-secret-key-change-in-prod";
+import { JWT_SECRET } from "./auth";
 
 function normalizePhone(phone: string): string {
   return phone.replace(/\D/g, "");

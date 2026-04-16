@@ -112,17 +112,24 @@ export async function sendWhatsApp(phone: string, message: string): Promise<void
 }
 
 // ── OTP (in-memory, 5 minutes) ──────────────────────────────────────────────
-const otpStore = new Map<string, { code: string; expiresAt: number }>();
+//
+// Purpose-tagged OTPs. An OTP minted for "client_login" CANNOT be consumed
+// by a "password_reset" verifier — without this, a client-portal login OTP
+// sent to a business-owner's phone could be used by the same actor to take
+// over the business owner's account at /auth/reset-password.
+export type OtpPurpose = "client_login" | "password_reset" | "booking_verify" | "generic";
 
-export async function sendOtp(phone: string): Promise<void> {
+const otpStore = new Map<string, { code: string; expiresAt: number; purpose: OtpPurpose }>();
+
+export async function sendOtp(phone: string, purpose: OtpPurpose = "generic"): Promise<void> {
   const code = String(Math.floor(100000 + Math.random() * 900000));
-  otpStore.set(phone, { code, expiresAt: Date.now() + 5 * 60 * 1000 });
+  otpStore.set(phone, { code, expiresAt: Date.now() + 5 * 60 * 1000, purpose });
 
   // Authentication template: verify_code_1 — body + copy-code button both receive the OTP code
   await sendAuthTemplate(phone, "verify_code_1", [code], code);
 }
 
-export async function verifyOtp(phone: string, code: string): Promise<boolean> {
+export async function verifyOtp(phone: string, code: string, purpose: OtpPurpose = "generic"): Promise<boolean> {
   const entry = otpStore.get(phone);
   if (!entry) return false;
   if (Date.now() > entry.expiresAt) {
@@ -130,6 +137,7 @@ export async function verifyOtp(phone: string, code: string): Promise<boolean> {
     return false;
   }
   if (entry.code !== String(code)) return false;
+  if (entry.purpose !== purpose) return false;
   otpStore.delete(phone);
   return true;
 }

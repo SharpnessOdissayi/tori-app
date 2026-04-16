@@ -10,9 +10,9 @@ import { db, businessesTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
 import jwt from "jsonwebtoken";
 import { getSto, updateSto } from "../lib/tranzilaCharge";
+import { JWT_SECRET } from "../lib/auth";
 
 const router = Router();
-const JWT_SECRET = process.env.JWT_SECRET ?? "dev-secret";
 
 function getBusinessId(authHeader: string): number | null {
   const token = authHeader.startsWith("Bearer ") ? authHeader.slice(7) : "";

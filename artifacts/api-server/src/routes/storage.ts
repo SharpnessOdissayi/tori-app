@@ -6,9 +6,24 @@ import {
 } from "@workspace/api-zod";
 import { ObjectStorageService, ObjectNotFoundError } from "../lib/objectStorage";
 import { ObjectPermission } from "../lib/objectAcl";
+import { requireBusinessAuth } from "../middlewares/business-auth";
 
 const router: IRouter = Router();
 const objectStorageService = new ObjectStorageService();
+
+// Minting a presigned GCS upload URL without auth lets any anonymous
+// caller use our bucket as a free file host (unlimited objects, no per-
+// object cap visible here). Restrict to authenticated business owners —
+// the only legitimate upload path today is logos/banners from the design
+// tab. Extend to authenticated clients only if a client upload feature
+// ships (none today).
+const ALLOWED_CONTENT_TYPES = new Set([
+  "image/png",
+  "image/jpeg",
+  "image/webp",
+  "image/gif",
+  "image/svg+xml",
+]);
 
 /**
  * POST /storage/uploads/request-url
@@ -17,7 +32,7 @@ const objectStorageService = new ObjectStorageService();
  * The client sends JSON metadata (name, size, contentType) — NOT the file.
  * Then uploads the file directly to the returned presigned URL.
  */
-router.post("/storage/uploads/request-url", async (req: Request, res: Response) => {
+router.post("/storage/uploads/request-url", requireBusinessAuth, async (req: Request, res: Response) => {
   const parsed = RequestUploadUrlBody.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: "Missing or invalid required fields" });
@@ -26,6 +41,11 @@ router.post("/storage/uploads/request-url", async (req: Request, res: Response) 
 
   try {
     const { name, size, contentType } = parsed.data;
+
+    if (typeof contentType !== "string" || !ALLOWED_CONTENT_TYPES.has(contentType)) {
+      res.status(400).json({ error: "Unsupported content type" });
+      return;
+    }
 
     const uploadURL = await objectStorageService.getObjectEntityUploadURL();
     const objectPath = objectStorageService.normalizeObjectEntityPath(uploadURL);

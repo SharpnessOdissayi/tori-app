@@ -3,23 +3,21 @@ import bcrypt from "bcryptjs";
 import { db, businessesTable, workingHoursTable } from "@workspace/db";
 import { eq, sql } from "drizzle-orm";
 import { updateSto } from "../lib/tranzilaCharge";
+import { requireSuperAdmin } from "../middlewares/requireSuperAdmin";
 import {
-  SuperAdminListBusinessesQueryParams,
   SuperAdminCreateBusinessBody,
-  SuperAdminCreateBusinessQueryParams,
   SuperAdminDeleteBusinessParams,
-  SuperAdminDeleteBusinessQueryParams,
   SuperAdminUpdateBusinessParams,
-  SuperAdminUpdateBusinessQueryParams,
   SuperAdminUpdateBusinessBody,
 } from "@workspace/api-zod";
 
 const router = Router();
-const SUPER_ADMIN_PASSWORD = (process.env.SUPER_ADMIN_PASSWORD ?? "superadmin123").trim();
 
-function isAdmin(password: string): boolean {
-  return password.trim() === SUPER_ADMIN_PASSWORD;
-}
+// Every route in this file requires super-admin credentials. The middleware
+// reads them from the X-Admin-Password header (preferred) or from the legacy
+// query/body `adminPassword` field (flagged for migration). Individual
+// routes MUST NOT rely on the adminPassword in the body/query any more.
+router.use(requireSuperAdmin);
 
 function mapAdminBusiness(b: typeof businessesTable.$inferSelect) {
   return {
@@ -48,13 +46,7 @@ function mapAdminBusiness(b: typeof businessesTable.$inferSelect) {
   };
 }
 
-router.get("/super-admin/businesses", async (req, res): Promise<void> => {
-  const parsed = SuperAdminListBusinessesQueryParams.safeParse(req.query);
-  if (!parsed.success || !isAdmin(parsed.data.adminPassword)) {
-    res.status(401).json({ error: "Unauthorized" });
-    return;
-  }
-
+router.get("/super-admin/businesses", async (_req, res): Promise<void> => {
   const businesses = await db
     .select()
     .from(businessesTable)
@@ -64,12 +56,6 @@ router.get("/super-admin/businesses", async (req, res): Promise<void> => {
 });
 
 router.post("/super-admin/businesses", async (req, res): Promise<void> => {
-  const queryParsed = SuperAdminCreateBusinessQueryParams.safeParse(req.query);
-  if (!queryParsed.success || !isAdmin(queryParsed.data.adminPassword)) {
-    res.status(401).json({ error: "Unauthorized" });
-    return;
-  }
-
   const bodyParsed = SuperAdminCreateBusinessBody.safeParse(req.body);
   if (!bodyParsed.success) {
     res.status(400).json({ error: bodyParsed.error.message });
@@ -116,12 +102,6 @@ router.post("/super-admin/businesses", async (req, res): Promise<void> => {
 });
 
 router.patch("/super-admin/businesses/:id", async (req, res): Promise<void> => {
-  const queryParsed = SuperAdminUpdateBusinessQueryParams.safeParse(req.query);
-  if (!queryParsed.success || !isAdmin(queryParsed.data.adminPassword)) {
-    res.status(401).json({ error: "Unauthorized" });
-    return;
-  }
-
   const rawId = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
   const paramsParsed = SuperAdminUpdateBusinessParams.safeParse({ id: Number(rawId) });
   if (!paramsParsed.success) {
@@ -190,12 +170,6 @@ router.patch("/super-admin/businesses/:id", async (req, res): Promise<void> => {
 });
 
 router.delete("/super-admin/businesses/:id", async (req, res): Promise<void> => {
-  const queryParsed = SuperAdminDeleteBusinessQueryParams.safeParse(req.query);
-  if (!queryParsed.success || !isAdmin(queryParsed.data.adminPassword)) {
-    res.status(401).json({ error: "Unauthorized" });
-    return;
-  }
-
   const rawId = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
   const paramsParsed = SuperAdminDeleteBusinessParams.safeParse({ id: Number(rawId) });
   if (!paramsParsed.success) {
@@ -218,10 +192,7 @@ router.delete("/super-admin/businesses/:id", async (req, res): Promise<void> => 
 
 // POST /super-admin/businesses/:id/grant-pro — grant/revoke Pro subscription
 router.post("/super-admin/businesses/:id/grant-pro", async (req, res): Promise<void> => {
-  const { adminPassword, durationDays } = req.body ?? {};
-  if (!adminPassword || !isAdmin(adminPassword)) {
-    res.status(401).json({ error: "Unauthorized" }); return;
-  }
+  const { durationDays } = req.body ?? {};
 
   const id = Number(req.params.id);
   if (!id || isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
@@ -251,11 +222,6 @@ router.post("/super-admin/businesses/:id/grant-pro", async (req, res): Promise<v
 // Also deactivates the Tranzila STO (if any) and clears the stored id
 // so a re-subscription later creates a fresh active STO.
 router.post("/super-admin/businesses/:id/revoke-pro", async (req, res): Promise<void> => {
-  const { adminPassword } = req.body ?? {};
-  if (!adminPassword || !isAdmin(adminPassword)) {
-    res.status(401).json({ error: "Unauthorized" }); return;
-  }
-
   const id = Number(req.params.id);
   if (!id || isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
 
@@ -289,11 +255,6 @@ router.post("/super-admin/businesses/:id/revoke-pro", async (req, res): Promise<
 // POST /super-admin/businesses/:id/cancel-subscription — soft cancel
 // (access stays until renewDate, but future charges stop immediately)
 router.post("/super-admin/businesses/:id/cancel-subscription", async (req, res): Promise<void> => {
-  const { adminPassword } = req.body ?? {};
-  if (!adminPassword || !isAdmin(adminPassword)) {
-    res.status(401).json({ error: "Unauthorized" }); return;
-  }
-
   const id = Number(req.params.id);
   if (!id || isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
 
@@ -328,10 +289,7 @@ router.post("/super-admin/businesses/:id/cancel-subscription", async (req, res):
 // POST /super-admin/domains/:id/unverify — flip back to false (e.g. domain
 //                                          removed from Railway / CNAME changed)
 
-router.get("/super-admin/domains", async (req, res): Promise<void> => {
-  const password = String(req.query.adminPassword ?? "");
-  if (!isAdmin(password)) { res.status(401).json({ error: "Unauthorized" }); return; }
-
+router.get("/super-admin/domains", async (_req, res): Promise<void> => {
   const rows = await db
     .select({
       id:                   businessesTable.id,
@@ -348,10 +306,6 @@ router.get("/super-admin/domains", async (req, res): Promise<void> => {
 });
 
 router.post("/super-admin/domains/:id/verify", async (req, res): Promise<void> => {
-  const { adminPassword } = req.body ?? {};
-  if (!adminPassword || !isAdmin(adminPassword)) {
-    res.status(401).json({ error: "Unauthorized" }); return;
-  }
   const id = Number(req.params.id);
   if (!id || isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
 
@@ -364,10 +318,6 @@ router.post("/super-admin/domains/:id/verify", async (req, res): Promise<void> =
 });
 
 router.post("/super-admin/domains/:id/unverify", async (req, res): Promise<void> => {
-  const { adminPassword } = req.body ?? {};
-  if (!adminPassword || !isAdmin(adminPassword)) {
-    res.status(401).json({ error: "Unauthorized" }); return;
-  }
   const id = Number(req.params.id);
   if (!id || isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
 
