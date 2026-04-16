@@ -51,6 +51,10 @@ router.get("/public/resolve-host/:hostname", async (req, res): Promise<void> => 
 });
 
 // GET /public/directory — must be before /:businessSlug to avoid slug capture
+//
+// Owner decision: the directory is a Pro-only perk. Free businesses still
+// get their own /book/:slug page, but they don't appear in "גלה עסקים"
+// until they upgrade. This doubles as a concrete reason to upgrade.
 router.get("/public/directory", async (req, res): Promise<void> => {
   const category = typeof req.query.category === "string" ? req.query.category : undefined;
   const city = typeof req.query.city === "string" ? req.query.city : undefined;
@@ -69,6 +73,7 @@ router.get("/public/directory", async (req, res): Promise<void> => {
     .from(businessesTable)
     .where(and(
       eq(businessesTable.isActive, true),
+      eq(businessesTable.subscriptionPlan, "pro"),
       sql`${businessesTable.slug} != 'admin'`,
     ));
 

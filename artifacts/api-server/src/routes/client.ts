@@ -1,7 +1,7 @@
 import { Router, Request, Response, NextFunction } from "express";
 import { logBusinessNotification } from "./notifications";
 import { db, appointmentsTable, businessesTable, clientSessionsTable, clientBusinessesTable } from "@workspace/db";
-import { eq, and, or, gt, sql } from "drizzle-orm";
+import { eq, and, or, gt, desc, sql } from "drizzle-orm";
 import { sendOtp, verifyOtp } from "../lib/whatsapp";
 import { randomUUID } from "crypto";
 
@@ -23,6 +23,25 @@ async function requireClientAuth(req: Request, res: Response, next: NextFunction
   if (!session) { res.status(401).json({ error: "פגה תוקף ההתחברות" }); return; }
   (req as any).clientSession = session;
   next();
+}
+
+// Find the most recent prior session belonging to the same client so we can
+// carry their phone number + preferences forward when they log in via a new
+// auth method. Matches on whichever identifier we have (googleId, facebookId,
+// or email). The caller should pass only truthy identifiers.
+async function findPriorSession(ids: { googleId?: string; facebookId?: string; email?: string }): Promise<typeof clientSessionsTable.$inferSelect | undefined> {
+  const conds = [] as any[];
+  if (ids.googleId)   conds.push(eq(clientSessionsTable.googleId,   ids.googleId));
+  if (ids.facebookId) conds.push(eq(clientSessionsTable.facebookId, ids.facebookId));
+  if (ids.email)      conds.push(eq(clientSessionsTable.email,      ids.email));
+  if (conds.length === 0) return undefined;
+  const [row] = await db
+    .select()
+    .from(clientSessionsTable)
+    .where(or(...conds))
+    .orderBy(desc(clientSessionsTable.createdAt))
+    .limit(1);
+  return row;
 }
 
 // ─── OTP ─────────────────────────────────────────────────────────────────────
@@ -85,7 +104,22 @@ router.post("/client/google-auth", async (req, res): Promise<void> => {
     const token = randomUUID();
     const expiresAt = new Date(Date.now() + SESSION_DAYS * 24 * 60 * 60 * 1000);
 
-    await db.insert(clientSessionsTable).values({ token, googleId, email, clientName, expiresAt });
+    // Carry over phone + preferences from any previous session for the
+    // same google/email identity — otherwise the user sees their portal
+    // header "lose" its phone number every time they sign in via Google
+    // (they typically verified phone once via OTP on a prior session).
+    const prior = await findPriorSession({ googleId, email });
+
+    await db.insert(clientSessionsTable).values({
+      token,
+      googleId,
+      email,
+      clientName: clientName || prior?.clientName || "",
+      phoneNumber: prior?.phoneNumber ?? undefined,
+      receiveNotifications: prior?.receiveNotifications ?? true,
+      gender: prior?.gender ?? undefined,
+      expiresAt,
+    });
 
     res.json({ token, clientName, email });
   } catch {
@@ -129,7 +163,20 @@ router.post("/client/facebook-auth", async (req, res): Promise<void> => {
     const token = randomUUID();
     const expiresAt = new Date(Date.now() + SESSION_DAYS * 24 * 60 * 60 * 1000);
 
-    await db.insert(clientSessionsTable).values({ token, facebookId, email, clientName, expiresAt });
+    // Same rationale as Google: pull phone + prefs forward so logging in
+    // via Facebook doesn't wipe a phone the user saved on a prior session.
+    const prior = await findPriorSession({ facebookId, email });
+
+    await db.insert(clientSessionsTable).values({
+      token,
+      facebookId,
+      email,
+      clientName: clientName || prior?.clientName || "",
+      phoneNumber: prior?.phoneNumber ?? undefined,
+      receiveNotifications: prior?.receiveNotifications ?? true,
+      gender: prior?.gender ?? undefined,
+      expiresAt,
+    });
 
     res.json({ token, clientName, email });
   } catch {
