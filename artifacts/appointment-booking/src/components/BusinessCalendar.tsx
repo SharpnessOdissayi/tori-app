@@ -633,9 +633,14 @@ function ApptCard({
   // the service had a brand colour set.
   const useCustomColour = !!serviceColor && tone === "confirmed";
 
+  // Shrink the text a hair when the card is in a narrow lane so the
+  // full client name + service can still wrap and stay readable at
+  // 50%/33% column width, instead of being ellipsis-cut.
+  const narrow = laneCount > 1;
+  const textClass = narrow ? "text-[9px]" : "text-[10px]";
   const className = useCustomColour
-    ? "absolute rounded-lg border px-1.5 py-1 text-[10px] leading-tight cursor-grab active:cursor-grabbing select-none overflow-hidden shadow-sm"
-    : `absolute rounded-lg border px-1.5 py-1 text-[10px] leading-tight cursor-grab active:cursor-grabbing select-none overflow-hidden shadow-sm ${
+    ? `absolute rounded-lg border px-1 py-0.5 ${textClass} leading-tight cursor-grab active:cursor-grabbing select-none overflow-hidden shadow-sm`
+    : `absolute rounded-lg border px-1 py-0.5 ${textClass} leading-tight cursor-grab active:cursor-grabbing select-none overflow-hidden shadow-sm ${
         tone === "pending"   ? "bg-pink-100 text-rose-900 border-pink-300"
         : tone === "cancelled" ? "bg-gray-100 text-gray-500 border-gray-200 line-through"
         : "bg-rose-600 text-white border-rose-700"
@@ -664,10 +669,15 @@ function ApptCard({
       className={`${className} ${isDragging ? "opacity-70 ring-2 ring-primary" : ""}`}
       style={customStyle}
     >
-      <div className="font-bold truncate">{appt.clientName}</div>
-      <div className="truncate opacity-90">{appt.serviceName}</div>
-      <div className="opacity-75 font-mono text-[9px]" dir="ltr">
-        {appt.appointmentTime} — {minutesToTime(timeToMinutes(appt.appointmentTime) + appt.durationMinutes)}
+      {/* Let names + service + time wrap to multiple lines — owner
+          preference: everything should stay readable even when the
+          card is squeezed into a half/third-width lane. break-words
+          handles long wordmark-style Hebrew names; leading-[1.05]
+          packs the lines tight so two names + time still fit. */}
+      <div className="font-bold break-words leading-[1.05]">{appt.clientName}</div>
+      <div className="opacity-90 break-words leading-[1.05]">{appt.serviceName}</div>
+      <div className="opacity-75 font-mono text-[9px] leading-[1.05]" dir="ltr">
+        {appt.appointmentTime}–{minutesToTime(timeToMinutes(appt.appointmentTime) + appt.durationMinutes)}
       </div>
     </div>
   );
@@ -792,9 +802,11 @@ function TimeOffBlock({
       style={{ top, height, ...laneStyle, background: TIME_OFF_STRIPES, touchAction: interactive ? "none" : undefined }}
       title={label}
     >
-      <div className="px-1.5 py-1 text-[10px] font-bold text-red-800 leading-tight truncate flex items-center gap-1">
-        <Ban className="w-3 h-3 shrink-0" />
-        <span className="truncate">{fullDay ? "אילוץ — יום שלם" : label}</span>
+      {/* Label + icon allowed to wrap so a long note ("חופשה משפחתית")
+          or a narrow (split-lane) block still shows the whole text. */}
+      <div className={`px-1 py-0.5 ${laneCount > 1 ? "text-[9px]" : "text-[10px]"} font-bold text-red-800 leading-[1.05] flex items-start gap-1`}>
+        <Ban className="w-3 h-3 shrink-0 mt-0.5" />
+        <span className="break-words">{fullDay ? "אילוץ — יום שלם" : label}</span>
       </div>
     </div>
   );
