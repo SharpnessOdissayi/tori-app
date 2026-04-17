@@ -118,7 +118,10 @@ export function ServiceSortableList({
             className={`border rounded-xl overflow-hidden transition-all select-none ${
               !s.isActive ? "opacity-50 bg-muted/20" : "bg-card"
             } ${isDragging ? "opacity-60 scale-[1.02] ring-2 ring-primary shadow-xl" : "hover:border-primary/40"}`}
-            style={{ touchAction: "none" }}
+            // touch-action is set only on the drag handle (and only while
+            // actively dragging) — applying it to the whole card blocked
+            // vertical scroll across the entire services list on mobile.
+            style={isDragging ? { touchAction: "none" } : undefined}
           >
             {s.imageUrl && (
               <div className="h-32 overflow-hidden">
@@ -135,6 +138,7 @@ export function ServiceSortableList({
                 className="p-1.5 rounded-lg cursor-grab active:cursor-grabbing text-muted-foreground hover:text-foreground hover:bg-muted/60 shrink-0"
                 aria-label="גרור להזזה"
                 title="גרור כדי להזיז"
+                style={{ touchAction: "none" }}
               >
                 <GripVertical className="w-4 h-4" />
               </button>

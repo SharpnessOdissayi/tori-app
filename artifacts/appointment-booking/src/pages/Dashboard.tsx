@@ -3613,21 +3613,25 @@ function BrandingTab() {
   const logoRef = useRef<HTMLInputElement>(null);
   const bannerRef = useRef<HTMLInputElement>(null);
 
-  // Preview mockup pulls the first active service so the card reads
-  // like the owner's actual profile — name, price (with "החל מ-"
-  // flag if set), and duration all come from the real row. Falls
-  // back to a generic "דוגמא" sample for brand-new accounts.
-  const previewService = (() => {
+  // Preview mockup pulls real services so the card reads like the
+  // owner's actual profile — name, price (with "החל מ-" flag if set),
+  // and duration all come from real rows. Grid style uses two services
+  // when available. Falls back to a generic "דוגמא" sample for
+  // brand-new accounts.
+  const previewServiceList = (() => {
     const list = Array.isArray(brandingServices) ? brandingServices : [];
-    return list.find(s => (s as any).isActive) ?? list[0] ?? null;
+    const active = list.filter(s => (s as any).isActive);
+    const pool = active.length > 0 ? active : list;
+    return pool.slice(0, 2);
   })();
+  const fmtServicePrice = (s: any) =>
+    `${s.priceStartsFrom ? "החל מ-" : ""}₪${(s.price / 100).toFixed(0)}`;
+  const fmtServiceDuration = (s: any) => formatDuration(s.durationMinutes ?? 30);
+  const previewService = previewServiceList[0] ?? null;
   const previewServiceName = (previewService as any)?.name || "דוגמא";
-  const previewPriceStr = previewService
-    ? `${(previewService as any).priceStartsFrom ? "החל מ-" : ""}₪${((previewService as any).price / 100).toFixed(0)}`
-    : "{previewPriceStr}";
-  const previewDurationStr = previewService
-    ? formatDuration((previewService as any).durationMinutes ?? 30)
-    : "30 דקות";
+  const previewPriceStr = previewService ? fmtServicePrice(previewService) : "₪0";
+  const previewDurationStr = previewService ? fmtServiceDuration(previewService) : "30 דקות";
+  const previewServiceDescription = (previewService as any)?.description?.trim() || null;
 
   // Live-apply the picked font to the whole dashboard. The outer useEffect
   // in the Dashboard root applies whatever's SAVED on the profile; this
@@ -3898,7 +3902,7 @@ function BrandingTab() {
           >
             <CardHeader className="pb-2">
               <CardTitle className="text-base">תצוגה מקדימה</CardTitle>
-              <CardDescription className="text-xs">מתעדכנת בזמן אמת בזמן שמגללים את ההגדרות למטה</CardDescription>
+              <CardDescription className="text-xs">מתעדכנת בזמן אמת תוך כדי שינוי ההגדרות למטה</CardDescription>
             </CardHeader>
             <CardContent>
               <div
@@ -3924,17 +3928,21 @@ function BrandingTab() {
                     <div className="text-xs" style={{ color: textMuted }}>קבע תור אונליין</div>
                   </div>
 
-                  {/* Sample service card — reflects serviceCardStyle */}
+                  {/* Sample service card — reflects serviceCardStyle. Every
+                      variant pulls real service rows (name, price, duration,
+                      description) from the owner's own services, so the
+                      preview matches the business instead of a generic barber
+                      placeholder. */}
                   {form.serviceCardStyle === "minimal" ? (
                     <div
-                      className="flex items-center justify-between py-3"
+                      className="flex items-center justify-between gap-3 py-3"
                       style={{ borderTop: `1px solid ${isDark ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.08)"}`, borderBottom: `1px solid ${isDark ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.08)"}` }}
                     >
-                      <div>
-                        <div className="font-semibold text-sm" style={{ color: textMain }}>{previewServiceName}</div>
+                      <div className="min-w-0 flex-1">
+                        <div className="font-semibold text-sm truncate" style={{ color: textMain }}>{previewServiceName}</div>
                         <div className="text-xs" style={{ color: textMuted }}>{previewDurationStr} · {previewPriceStr}</div>
                       </div>
-                      <button className="px-4 py-1.5 text-xs font-medium text-white shadow" style={{ background: form.primaryColor, borderRadius: buttonPx }}>קבע</button>
+                      <button className="shrink-0 px-4 py-1.5 text-xs font-medium text-white shadow" style={{ background: form.primaryColor, borderRadius: buttonPx }}>קבע</button>
                     </div>
                   ) : form.serviceCardStyle === "bubble" ? (
                     <button
@@ -3946,35 +3954,45 @@ function BrandingTab() {
                       }}
                     >
                       <div className="w-12 h-12 rounded-full shrink-0" style={{ background: form.primaryColor + "40" }} />
-                      <div className="flex-1 text-right">
-                        <div className="font-bold text-sm" style={{ color: textMain }}>{previewServiceName}</div>
-                        <div className="text-xs" style={{ color: textMuted }}>30 דק׳</div>
+                      <div className="flex-1 min-w-0 text-right">
+                        <div className="font-bold text-sm truncate" style={{ color: textMain }}>{previewServiceName}</div>
+                        <div className="text-xs" style={{ color: textMuted }}>{previewDurationStr}</div>
                       </div>
-                      <div className="font-bold text-lg" style={{ color: form.primaryColor }}>{previewPriceStr}</div>
+                      <div className="shrink-0 font-bold text-lg" style={{ color: form.primaryColor }}>{previewPriceStr}</div>
                     </button>
                   ) : form.serviceCardStyle === "grid" ? (
                     <div className="grid grid-cols-2 gap-3">
-                      {[1, 2].map(i => (
-                        <div key={i} className="overflow-hidden shadow-sm" style={{ background: cardBg, borderRadius: cardPx }}>
-                          <div className="h-16" style={{ background: `linear-gradient(135deg, ${form.primaryColor}40, ${(form.accentColor || form.primaryColor)}40)` }} />
-                          <div className="p-2">
-                            <div className="font-bold text-xs" style={{ color: textMain }}>{i === 1 ? "תספורת" : "צבע"}</div>
-                            <div className="flex justify-between text-xs mt-1">
-                              <span style={{ color: textMuted }}>30 דק׳</span>
-                              <span className="font-bold" style={{ color: form.primaryColor }}>₪{i === 1 ? 80 : 150}</span>
+                      {(previewServiceList.length > 0
+                        ? previewServiceList.concat(previewServiceList.length === 1 ? [previewServiceList[0]] : []).slice(0, 2)
+                        : [null, null]
+                      ).map((s, i) => {
+                        const name = (s as any)?.name || "דוגמא";
+                        const price = s ? fmtServicePrice(s as any) : "₪0";
+                        const duration = s ? fmtServiceDuration(s as any) : "30 דקות";
+                        return (
+                          <div key={i} className="overflow-hidden shadow-sm" style={{ background: cardBg, borderRadius: cardPx }}>
+                            <div className="h-16" style={{ background: `linear-gradient(135deg, ${form.primaryColor}40, ${(form.accentColor || form.primaryColor)}40)` }} />
+                            <div className="p-2">
+                              <div className="font-bold text-xs truncate" style={{ color: textMain }}>{name}</div>
+                              <div className="flex justify-between gap-1 text-xs mt-1">
+                                <span className="truncate" style={{ color: textMuted }}>{duration}</span>
+                                <span className="shrink-0 font-bold" style={{ color: form.primaryColor }}>{price}</span>
+                              </div>
                             </div>
                           </div>
-                        </div>
-                      ))}
+                        );
+                      })}
                     </div>
                   ) : (
                     <div className="overflow-hidden shadow-sm" style={{ background: cardBg, borderRadius: cardPx, border: `1px solid ${isDark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.06)"}` }}>
                       <div className="p-4">
-                        <div className="flex justify-between items-start mb-1">
-                          <div className="font-bold text-sm" style={{ color: textMain }}>{previewServiceName}</div>
-                          <div className="font-bold" style={{ color: form.primaryColor }}>{previewPriceStr}</div>
+                        <div className="flex justify-between items-start gap-3 mb-1">
+                          <div className="font-bold text-sm min-w-0 truncate" style={{ color: textMain }}>{previewServiceName}</div>
+                          <div className="shrink-0 font-bold" style={{ color: form.primaryColor }}>{previewPriceStr}</div>
                         </div>
-                        <div className="text-xs mb-3" style={{ color: textMuted }}>תספורת מקצועית לגברים · 30 דק׳</div>
+                        <div className="text-xs mb-3 line-clamp-2" style={{ color: textMuted }}>
+                          {previewServiceDescription ? `${previewServiceDescription} · ${previewDurationStr}` : previewDurationStr}
+                        </div>
                         <div className="flex justify-end">
                           <button className="px-4 py-1.5 text-xs font-medium text-white shadow" style={{ background: form.primaryColor, borderRadius: buttonPx }}>קבע תור</button>
                         </div>
@@ -5043,11 +5061,15 @@ function SettingsTab() {
                 {/* Owner name is stored as a single `ownerName` in the DB but
                     edited as two fields here. We split on whitespace on read
                     and re-join on write so the existing backend/migration
-                    doesn't need to change. */}
+                    doesn't need to change. Multi-word first name support:
+                    the LAST token is treated as the family name, everything
+                    before it is the first name — so "לילך שרה כהן" reads
+                    back as first="לילך שרה", last="כהן" instead of losing
+                    the middle name to the surname slot. */}
                 {(() => {
                   const parts = (form.ownerName || "").trim().split(/\s+/).filter(Boolean);
-                  const firstName = parts[0] ?? "";
-                  const lastName = parts.slice(1).join(" ");
+                  const firstName = parts.length > 1 ? parts.slice(0, -1).join(" ") : (parts[0] ?? "");
+                  const lastName = parts.length > 1 ? parts[parts.length - 1] : "";
                   return (
                     <>
                       <div className="space-y-2">
