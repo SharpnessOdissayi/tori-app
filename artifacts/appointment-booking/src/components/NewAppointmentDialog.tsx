@@ -163,7 +163,10 @@ export function NewAppointmentDialog({
             </select>
           </div>
 
-          <div className="grid grid-cols-2 gap-2">
+          {/* Stack on narrow phones — the native date/time picker icons eat
+              horizontal space, so two cols with gap-2 looked like the fields
+              were touching. One col below sm, two cols from sm upwards. */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div className="space-y-2">
               <Label>תאריך *</Label>
               <Input required type="date" value={date} onChange={e => setDate(e.target.value)} />
