@@ -168,6 +168,20 @@ export async function runMigrations() {
       // in the owner's calendar so different services are visually
       // distinguishable at a glance.
       `ALTER TABLE services ADD COLUMN IF NOT EXISTS color TEXT`,
+      // Public reviews left by clients. One review per (business, email).
+      `CREATE TABLE IF NOT EXISTS reviews (
+        id             SERIAL PRIMARY KEY,
+        business_id    INTEGER NOT NULL,
+        client_email   TEXT NOT NULL,
+        client_phone   TEXT,
+        client_name    TEXT NOT NULL,
+        avatar_url     TEXT,
+        rating         INTEGER NOT NULL,
+        text           TEXT,
+        created_at     TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        updated_at     TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      )`,
+      `CREATE UNIQUE INDEX IF NOT EXISTS reviews_business_email_uniq ON reviews (business_id, client_email)`,
       // Contact & address for profile page
       `ALTER TABLE businesses ADD COLUMN IF NOT EXISTS contact_phone TEXT`,
       `ALTER TABLE businesses ADD COLUMN IF NOT EXISTS address TEXT`,

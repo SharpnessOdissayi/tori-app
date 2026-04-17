@@ -261,7 +261,16 @@ export default function Book({ slugOverride }: { slugOverride?: string } = {}) {
   const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
   const [showWaitlist, setShowWaitlist] = useState(false);
   const [showExistingBooking, setShowExistingBooking] = useState(false);
-  const [activeTab, setActiveTab] = useState<"services" | "hours" | "gallery">("services");
+  const [activeTab, setActiveTab] = useState<"services" | "hours" | "gallery" | "reviews">("services");
+  // Reviews — list + composer + gating flows.
+  const [reviews, setReviews] = useState<any[]>([]);
+  const [reviewsLoading, setReviewsLoading] = useState(false);
+  const [reviewComposerOpen, setReviewComposerOpen] = useState(false);
+  const [reviewRating, setReviewRating] = useState(5);
+  const [reviewText, setReviewText] = useState("");
+  const [reviewSubmitting, setReviewSubmitting] = useState(false);
+  const [phonePopupOpen, setPhonePopupOpen] = useState(false);
+  const [phonePopupInput, setPhonePopupInput] = useState("");
   const [existingBooking, setExistingBooking] = useState<any>(null);
   const [portalBookingExists, setPortalBookingExists] = useState(false);
   const [workingHours, setWorkingHours] = useState<any[]>([]);
@@ -507,6 +516,83 @@ export default function Book({ slugOverride }: { slugOverride?: string } = {}) {
         if (data.phone) setPhoneVerified(true);
       }).catch(() => {});
   }, [clientToken, API_BASE]);
+
+  // Reviews — fetch when the tab is opened; exposes the average
+  // rating + the wall. Public endpoint, no auth needed.
+  useEffect(() => {
+    if (activeTab !== "reviews" || !businessSlug) return;
+    setReviewsLoading(true);
+    fetch(`${API_BASE}/public/${businessSlug}/reviews`)
+      .then(r => r.ok ? r.json() : [])
+      .then(d => setReviews(Array.isArray(d) ? d : []))
+      .catch(() => setReviews([]))
+      .finally(() => setReviewsLoading(false));
+  }, [activeTab, businessSlug, API_BASE]);
+
+  // Leave-review click handler — gates through login → phone → composer.
+  // Each step hands off to an existing flow: the shared login gate
+  // (Google / Facebook / OTP), the PATCH /client/me phone-attach, and
+  // finally the composer dialog defined below.
+  const onLeaveReview = () => {
+    if (!clientToken) { setShowLoginGate(true); return; }
+    if (!clientData.phone) { setPhonePopupInput(""); setPhonePopupOpen(true); return; }
+    setReviewRating(5);
+    setReviewText("");
+    setReviewComposerOpen(true);
+  };
+
+  const submitPhonePopup = async () => {
+    const phone = phonePopupInput.trim();
+    if (!/^[\d\-+() ]{7,}$/.test(phone)) { toast({ title: "מספר לא תקין", variant: "destructive" }); return; }
+    try {
+      const res = await fetch(`${API_BASE}/client/me`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", "x-client-token": clientToken! },
+        body: JSON.stringify({ phone }),
+      });
+      if (!res.ok) throw new Error();
+      setClientData(p => ({ ...p, phone }));
+      setPhonePopupOpen(false);
+      setReviewRating(5);
+      setReviewText("");
+      setReviewComposerOpen(true);
+    } catch { toast({ title: "שגיאה בשמירת הטלפון", variant: "destructive" }); }
+  };
+
+  const submitReview = async () => {
+    setReviewSubmitting(true);
+    try {
+      // Pull avatar/name from the logged-in client's Google payload
+      // if we have it in localStorage, else fall back to clientData.
+      const avatarUrl = (clientData as any).avatarUrl || null;
+      const res = await fetch(`${API_BASE}/public/${businessSlug}/reviews`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-client-token": clientToken! },
+        body: JSON.stringify({
+          rating: reviewRating,
+          text: reviewText.trim() || null,
+          clientName: clientData.name || null,
+          avatarUrl,
+        }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.message || "שגיאה");
+      }
+      toast({ title: "הביקורת נשלחה — תודה!" });
+      setReviewComposerOpen(false);
+      // Re-fetch so the new review appears right away.
+      setReviewsLoading(true);
+      fetch(`${API_BASE}/public/${businessSlug}/reviews`)
+        .then(r => r.ok ? r.json() : [])
+        .then(d => setReviews(Array.isArray(d) ? d : []))
+        .finally(() => setReviewsLoading(false));
+    } catch (e: any) {
+      toast({ title: "שליחה נכשלה", description: e?.message ?? "נסה שוב", variant: "destructive" });
+    } finally {
+      setReviewSubmitting(false);
+    }
+  };
 
   // Load working hours
   useEffect(() => {
@@ -1057,6 +1143,7 @@ export default function Book({ slugOverride }: { slugOverride?: string } = {}) {
       { id: "services" as const, label: "שירותים" },
       { id: "hours" as const, label: "שעות עבודה" },
       { id: "gallery" as const, label: "גלריה" },
+      { id: "reviews" as const, label: "ביקורות" },
     ];
 
     return (
@@ -1577,6 +1664,70 @@ export default function Book({ slugOverride }: { slugOverride?: string } = {}) {
             </div>
           )}
 
+          {/* Reviews tab — public wall. Compose button gates through
+              login → phone-attach → composer via onLeaveReview below. */}
+          {activeTab === "reviews" && (
+            <div className="space-y-4">
+              {(() => {
+                const avg = reviews.length === 0 ? 0 : reviews.reduce((s, r) => s + (r.rating || 0), 0) / reviews.length;
+                const full = Math.round(avg);
+                return (
+                  <div className="flex items-center justify-between gap-3 p-4 rounded-2xl border" style={{ borderColor: primaryColor + "30", backgroundColor: primaryColor + "08" }}>
+                    <div>
+                      <div className="text-xs text-muted-foreground">ממוצע ביקורות</div>
+                      <div className="flex items-baseline gap-2">
+                        <span className="text-3xl font-extrabold" style={{ color: primaryColor }}>{avg.toFixed(1)}</span>
+                        <span className="text-xs text-muted-foreground">({reviews.length} ביקורות)</span>
+                      </div>
+                      <div className="mt-1 text-lg" aria-label={`${full} כוכבים מתוך 5`}>
+                        {"★".repeat(full)}<span className="text-muted-foreground/40">{"★".repeat(5 - full)}</span>
+                      </div>
+                    </div>
+                    <button
+                      onClick={onLeaveReview}
+                      className="px-4 py-2.5 rounded-xl text-sm font-bold text-white shadow-sm whitespace-nowrap"
+                      style={{ background: primaryColor }}
+                    >
+                      השאר ביקורת
+                    </button>
+                  </div>
+                );
+              })()}
+
+              {reviewsLoading ? (
+                <div className="text-center py-8 text-muted-foreground text-sm">טוען...</div>
+              ) : reviews.length === 0 ? (
+                <div className="text-center py-8 text-muted-foreground text-sm">עדיין אין ביקורות — תהיה הראשון!</div>
+              ) : (
+                <ul className="space-y-3">
+                  {reviews.map(r => (
+                    <li key={r.id} className="p-4 rounded-2xl border bg-card">
+                      <div className="flex items-center gap-3">
+                        {r.avatarUrl ? (
+                          <img src={r.avatarUrl} alt={r.clientName} className="w-10 h-10 rounded-full object-cover border" />
+                        ) : (
+                          <div className="w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold text-white shrink-0" style={{ backgroundColor: primaryColor }}>
+                            {(r.clientName || "?").slice(0, 1)}
+                          </div>
+                        )}
+                        <div className="flex-1 min-w-0">
+                          <div className="font-semibold truncate">{r.clientName}</div>
+                          <div className="text-xs text-muted-foreground" dir="ltr">
+                            {new Date(r.createdAt).toLocaleDateString("he-IL", { day: "numeric", month: "numeric", year: "numeric" })}
+                          </div>
+                        </div>
+                        <div className="text-sm shrink-0" style={{ color: primaryColor }} aria-label={`${r.rating} כוכבים`}>
+                          {"★".repeat(r.rating)}<span className="text-muted-foreground/40">{"★".repeat(5 - r.rating)}</span>
+                        </div>
+                      </div>
+                      {r.text && <p className="mt-2 text-sm text-foreground/90 leading-relaxed whitespace-pre-wrap">{r.text}</p>}
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          )}
+
           {/* Gallery tab */}
           {activeTab === "gallery" && (
             galleryImages.length > 0 ? (
@@ -1642,6 +1793,81 @@ export default function Book({ slugOverride }: { slugOverride?: string } = {}) {
 
       {/* Accessibility floating button (IS 5568 / WCAG 2.1) */}
       {/* AccessibilityFab + ThemeToggleFab are mounted globally in App.tsx */}
+
+      {/* Phone-attach popup — first-time Google logins don't have a
+          phone on file. Reviews require one; no OTP (per owner) — we
+          trust the input and save it to the client session. */}
+      <Dialog open={phonePopupOpen} onOpenChange={setPhonePopupOpen}>
+        <DialogContent dir="rtl" className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle>לצירוף מספר טלפון</DialogTitle>
+            <DialogDescription>
+              כדי להשאיר ביקורת צריך מספר טלפון לזיהוי. לא נשתמש בו לצורך הודעות.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3 pt-2">
+            <input
+              type="tel"
+              dir="ltr"
+              value={phonePopupInput}
+              onChange={e => setPhonePopupInput(e.target.value)}
+              placeholder=""
+              className="w-full rounded-xl border border-input px-4 py-3 text-sm focus:outline-none focus:ring-2 text-center"
+              style={{ boxShadow: `0 0 0 0 ${primaryColor}` }}
+            />
+            <div className="flex gap-2">
+              <button onClick={() => setPhonePopupOpen(false)}
+                className="flex-1 py-2.5 rounded-xl border border-border font-medium hover:bg-muted/60">ביטול</button>
+              <button onClick={submitPhonePopup}
+                className="flex-1 py-2.5 rounded-xl font-bold text-white"
+                style={{ backgroundColor: primaryColor }}>שמור והמשך</button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Review composer — 5 tap-to-rate stars + optional text. */}
+      <Dialog open={reviewComposerOpen} onOpenChange={setReviewComposerOpen}>
+        <DialogContent dir="rtl" className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle>איך הייתה החוויה?</DialogTitle>
+            <DialogDescription>הדירוג יוצג בעמוד הציבורי של העסק</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 pt-2">
+            <div className="flex items-center justify-center gap-1 text-3xl" dir="ltr">
+              {[1, 2, 3, 4, 5].map(n => (
+                <button
+                  key={n}
+                  type="button"
+                  onClick={() => setReviewRating(n)}
+                  className="transition-transform active:scale-95"
+                  aria-label={`${n} כוכבים`}
+                  style={{ color: n <= reviewRating ? primaryColor : "#d4d4d8" }}
+                >
+                  ★
+                </button>
+              ))}
+            </div>
+            <textarea
+              value={reviewText}
+              onChange={e => setReviewText(e.target.value.slice(0, 2000))}
+              placeholder="כמה מילים על החוויה... (לא חובה)"
+              rows={4}
+              className="w-full rounded-xl border border-input px-3 py-2 text-sm focus:outline-none resize-none"
+            />
+            <div className="text-xs text-muted-foreground text-left">{reviewText.length} / 2000</div>
+            <div className="flex gap-2">
+              <button onClick={() => setReviewComposerOpen(false)}
+                className="flex-1 py-2.5 rounded-xl border border-border font-medium hover:bg-muted/60" disabled={reviewSubmitting}>ביטול</button>
+              <button onClick={submitReview} disabled={reviewSubmitting}
+                className="flex-1 py-2.5 rounded-xl font-bold text-white disabled:opacity-60"
+                style={{ backgroundColor: primaryColor }}>
+                {reviewSubmitting ? "שולח..." : "שלח ביקורת"}
+              </button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
     );
   }

@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { logBusinessNotification } from "./notifications";
-import { db, businessesTable, servicesTable, appointmentsTable, waitlistTable, workingHoursTable, clientSessionsTable } from "@workspace/db";
-import { eq, and, gte, sql, countDistinct, count, ilike, or, gt } from "drizzle-orm";
+import { db, businessesTable, servicesTable, appointmentsTable, waitlistTable, workingHoursTable, clientSessionsTable, reviewsTable } from "@workspace/db";
+import { eq, and, gte, sql, countDistinct, count, ilike, or, gt, desc } from "drizzle-orm";
 import {
   GetPublicBusinessParams,
   GetPublicServicesParams,
@@ -623,6 +623,115 @@ router.post("/public/:businessSlug/waitlist", async (req, res): Promise<void> =>
   });
 
   res.status(201).json({ success: true, message: "Added to waitlist" });
+});
+
+// ─── Reviews ────────────────────────────────────────────────────────────────
+// Public list + authenticated create/update for the business's review wall.
+// One review per (business, client email). Name + avatar are pulled from
+// the client's Google profile at submission time and denormalised into
+// the row so the review wall keeps working even if the client later
+// updates their Google avatar / display name.
+
+router.get("/public/:businessSlug/reviews", async (req, res): Promise<void> => {
+  const slug = req.params.businessSlug;
+  const [business] = await db
+    .select({ id: businessesTable.id })
+    .from(businessesTable)
+    .where(and(eq(businessesTable.slug, slug), eq(businessesTable.isActive, true)));
+  if (!business) { res.status(404).json({ error: "Business not found" }); return; }
+
+  const rows = await db
+    .select({
+      id: reviewsTable.id,
+      clientName: reviewsTable.clientName,
+      avatarUrl: reviewsTable.avatarUrl,
+      rating: reviewsTable.rating,
+      text: reviewsTable.text,
+      createdAt: reviewsTable.createdAt,
+    })
+    .from(reviewsTable)
+    .where(eq(reviewsTable.businessId, business.id))
+    .orderBy(desc(reviewsTable.createdAt));
+
+  res.json(rows.map(r => ({ ...r, createdAt: r.createdAt.toISOString() })));
+});
+
+router.post("/public/:businessSlug/reviews", async (req, res): Promise<void> => {
+  const slug = req.params.businessSlug;
+
+  // Require a valid client session — reviews are tied to an identity
+  // so a single Google account can't flood the wall with dozens of
+  // fake reviews.
+  const token = req.headers["x-client-token"] as string | undefined;
+  if (!token) { res.status(401).json({ error: "auth_required" }); return; }
+  const [session] = await db
+    .select()
+    .from(clientSessionsTable)
+    .where(and(eq(clientSessionsTable.token, token), gt(clientSessionsTable.expiresAt, new Date())));
+  if (!session) { res.status(401).json({ error: "auth_required" }); return; }
+
+  const email = (session.email ?? "").trim().toLowerCase();
+  if (!email) { res.status(400).json({ error: "email_required", message: "יש להתחבר עם חשבון Google כדי להשאיר ביקורת" }); return; }
+  if (!session.phoneNumber) { res.status(400).json({ error: "phone_required", message: "יש לצרף מספר טלפון לפני השארת ביקורת" }); return; }
+
+  const rating = Number(req.body?.rating);
+  if (!Number.isFinite(rating) || rating < 1 || rating > 5) {
+    res.status(400).json({ error: "invalid_rating" }); return;
+  }
+  const text = typeof req.body?.text === "string" ? req.body.text.trim().slice(0, 2000) : null;
+  const avatarUrl = typeof req.body?.avatarUrl === "string" ? req.body.avatarUrl.slice(0, 500) : null;
+  const clientName = (session.clientName || req.body?.clientName || "").trim().slice(0, 120);
+  if (!clientName) { res.status(400).json({ error: "name_required" }); return; }
+
+  const [business] = await db
+    .select({ id: businessesTable.id })
+    .from(businessesTable)
+    .where(and(eq(businessesTable.slug, slug), eq(businessesTable.isActive, true)));
+  if (!business) { res.status(404).json({ error: "Business not found" }); return; }
+
+  // Upsert — second review for the same (business, email) overwrites
+  // the first. Matches the pattern clients intuitively expect when
+  // they click "leave a review" twice.
+  const [existing] = await db
+    .select()
+    .from(reviewsTable)
+    .where(and(eq(reviewsTable.businessId, business.id), eq(reviewsTable.clientEmail, email)));
+
+  if (existing) {
+    await db.update(reviewsTable)
+      .set({
+        rating: Math.round(rating),
+        text: text || null,
+        clientName,
+        avatarUrl: avatarUrl || existing.avatarUrl,
+        clientPhone: session.phoneNumber ?? existing.clientPhone,
+        updatedAt: new Date(),
+      } as any)
+      .where(eq(reviewsTable.id, existing.id));
+    res.json({ success: true, updated: true });
+    return;
+  }
+
+  await db.insert(reviewsTable).values({
+    businessId: business.id,
+    clientEmail: email,
+    clientPhone: session.phoneNumber,
+    clientName,
+    avatarUrl: avatarUrl || undefined,
+    rating: Math.round(rating),
+    text: text || undefined,
+  });
+
+  // Notify the business owner that a new review landed.
+  logBusinessNotification({
+    businessId: business.id,
+    type: "new_review",
+    message: `${clientName} השאיר/ה ביקורת חדשה (${Math.round(rating)}★)`,
+    actorType: "client",
+    actorName: clientName,
+  });
+
+  res.status(201).json({ success: true, created: true });
 });
 
 // POST /public/:businessSlug/appointments/:id/cancel — client cancels their own appointment
