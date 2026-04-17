@@ -1528,26 +1528,27 @@ export default function Book({ slugOverride }: { slugOverride?: string } = {}) {
               {wazeUrl && (
                 <a href={wazeUrl} target="_blank" rel="noopener noreferrer" aria-label="ניווט בוויז">
                   <button
-                    className="w-11 h-11 rounded-2xl overflow-hidden flex items-center justify-center border-2 border-transparent transition-all hover:opacity-90 active:scale-95 shadow-sm"
-                    style={{ background: "#39CCE6" }}
+                    className="w-11 h-11 rounded-full overflow-hidden flex items-center justify-center transition-all hover:opacity-90 active:scale-95 shadow-sm"
+                    style={{ background: "#62D6FF" }}
                     title="Waze"
                   >
-                    {/* Waze mascot — smiley speech-bubble with wheels.
-                        Matches the app-icon look: cyan rounded-square
-                        background with the white cloud character in the
-                        middle (eyes + smile + two little wheels). */}
-                    <svg viewBox="0 0 40 40" className="w-9 h-9" xmlns="http://www.w3.org/2000/svg">
-                      {/* Head / speech-bubble body */}
-                      <path fill="#FFFFFF" d="M20 11c-6.1 0-11 3.95-11 8.83 0 .74.11 1.45.32 2.13.09.28-.02.58-.26.75-.78.56-1.25 1.4-1.25 2.34 0 1.65 1.45 2.98 3.25 2.98.57 0 1.11-.13 1.58-.36.33-.16.72-.07.94.22.23.32.53.6.88.84-.05.2-.07.42-.07.64 0 1.66 1.4 3 3.13 3s3.13-1.34 3.13-3c0-.11-.01-.22-.02-.33.23.02.47.04.7.04.3 0 .59-.02.87-.05-.01.11-.02.22-.02.34 0 1.66 1.4 3 3.13 3s3.13-1.34 3.13-3c0-.31-.06-.62-.15-.9.3-.22.58-.47.82-.75 3.21-1.31 5.42-4.01 5.42-7.1 0-4.88-4.9-8.83-11-8.83z"/>
+                    {/* Waze mascot — matches the reference app icon
+                        the owner pasted: light-cyan rounded square,
+                        white blob face with black dot eyes + smile,
+                        and two little wheels at the bottom. */}
+                    <svg viewBox="0 0 44 44" className="w-10 h-10" xmlns="http://www.w3.org/2000/svg">
+                      {/* Head / speech-bubble cloud — slightly pointed
+                          bottom-left tail, mirroring the app icon. */}
+                      <path fill="#FFFFFF" d="M22 10c-7.2 0-13 4.6-13 10.4 0 2.1.8 4 2.1 5.5.4.5.6 1.1.5 1.7l-.3 1.8c-.1.5.4.9.9.7l2.3-1.1c.3-.2.7-.2 1 0 1 .4 2.1.7 3.2.9l-1.1 1.3c-.6.7-.1 1.8.8 1.8h2c.5 0 .9-.3 1.1-.8l.7-1.9c.3 0 .6 0 .9-.01.3 0 .6-.02.9-.05l1.6 1.8c.3.3.7.5 1.1.5h1.7c.9 0 1.4-1.1.8-1.8l-1.1-1.3c4.8-1.5 8.1-5.1 8.1-9.2C35 14.6 29.2 10 22 10z"/>
                       {/* Left eye */}
-                      <circle cx="16.5" cy="19.5" r="1.7" fill="#1A1A1A"/>
+                      <circle cx="17.5" cy="20" r="1.9" fill="#1F2937"/>
                       {/* Right eye */}
-                      <circle cx="23.5" cy="19.5" r="1.7" fill="#1A1A1A"/>
+                      <circle cx="26.5" cy="20" r="1.9" fill="#1F2937"/>
                       {/* Smile */}
-                      <path d="M15.5 23.5c.8 1.2 2.4 2 4.5 2s3.7-.8 4.5-2" stroke="#1A1A1A" strokeWidth="1.6" fill="none" strokeLinecap="round"/>
+                      <path d="M17 24c1 1.6 2.9 2.6 5 2.6s4-1 5-2.6" stroke="#1F2937" strokeWidth="1.9" fill="none" strokeLinecap="round"/>
                       {/* Wheels */}
-                      <circle cx="14.5" cy="30.5" r="1.4" fill="#1A1A1A"/>
-                      <circle cx="25.5" cy="30.5" r="1.4" fill="#1A1A1A"/>
+                      <circle cx="15" cy="34.5" r="1.8" fill="#1F2937"/>
+                      <circle cx="29" cy="34.5" r="1.8" fill="#1F2937"/>
                     </svg>
                   </button>
                 </a>

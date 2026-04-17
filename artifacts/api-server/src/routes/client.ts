@@ -242,6 +242,7 @@ router.get("/client/businesses", requireClientAuth, async (req, res): Promise<vo
       slug: businessesTable.slug,
       logoUrl: businessesTable.logoUrl,
       primaryColor: businessesTable.primaryColor,
+      fontFamily: businessesTable.fontFamily,
       address: businessesTable.address,
     })
     .from(clientBusinessesTable)

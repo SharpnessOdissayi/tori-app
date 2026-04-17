@@ -66,6 +66,7 @@ router.get("/public/directory", async (req, res): Promise<void> => {
       logoUrl: businessesTable.logoUrl,
       bannerUrl: businessesTable.bannerUrl,
       primaryColor: businessesTable.primaryColor,
+      fontFamily: businessesTable.fontFamily,
       address: businessesTable.address,
       city: (businessesTable as any).city,
       businessCategories: (businessesTable as any).businessCategories,
