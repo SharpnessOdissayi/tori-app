@@ -594,8 +594,26 @@ function readableOn(hex: string): string {
   return yiq >= 150 ? "#111827" : "#ffffff";
 }
 
+// Resolve the absolute-position "lane" for an item inside its day
+// column. lane is the 0-indexed horizontal slot (right-most in RTL),
+// laneCount is the total number of parallel lanes in the collision
+// group. A 2px gap between lanes keeps the edges readable without
+// eating noticeable width.
+function laneRect(lane: number, laneCount: number) {
+  const count = Math.max(1, laneCount);
+  const idx = Math.min(count - 1, Math.max(0, lane));
+  const widthPct = 100 / count;
+  const GAP = 2; // px — visual separator between adjacent lanes
+  // Using `inset-inline-*` (logical) so the rightmost lane lands on
+  // the reading-start side in RTL and on the left in LTR.
+  return {
+    insetInlineStart: `calc(${idx * widthPct}% + ${idx === 0 ? 0 : GAP / 2}px)`,
+    width: `calc(${widthPct}% - ${(count === 1 ? 0 : GAP)}px)`,
+  } as const;
+}
+
 function ApptCard({
-  appt, top, height, isDragging, onPointerDown, onClick, serviceColor,
+  appt, top, height, isDragging, onPointerDown, onClick, serviceColor, lane = 0, laneCount = 1,
 }: {
   appt: CalAppt;
   top: number;
@@ -604,6 +622,8 @@ function ApptCard({
   onPointerDown: (e: React.PointerEvent) => void;
   onClick: (e: React.MouseEvent) => void;
   serviceColor?: string | null;
+  lane?: number;
+  laneCount?: number;
 }) {
   const tone = statusTone(appt.status);
 
@@ -614,8 +634,8 @@ function ApptCard({
   const useCustomColour = !!serviceColor && tone === "confirmed";
 
   const className = useCustomColour
-    ? "absolute right-0.5 left-0.5 rounded-lg border px-1.5 py-1 text-[10px] leading-tight cursor-grab active:cursor-grabbing select-none overflow-hidden shadow-sm"
-    : `absolute right-0.5 left-0.5 rounded-lg border px-1.5 py-1 text-[10px] leading-tight cursor-grab active:cursor-grabbing select-none overflow-hidden shadow-sm ${
+    ? "absolute rounded-lg border px-1.5 py-1 text-[10px] leading-tight cursor-grab active:cursor-grabbing select-none overflow-hidden shadow-sm"
+    : `absolute rounded-lg border px-1.5 py-1 text-[10px] leading-tight cursor-grab active:cursor-grabbing select-none overflow-hidden shadow-sm ${
         tone === "pending"   ? "bg-pink-100 text-rose-900 border-pink-300"
         : tone === "cancelled" ? "bg-gray-100 text-gray-500 border-gray-200 line-through"
         : "bg-rose-600 text-white border-rose-700"
@@ -626,14 +646,15 @@ function ApptCard({
   // finger lands on a card. We only pin it while the card is actively
   // being dragged; otherwise the browser's default scroll wins.
   const touchAction = isDragging ? "none" as const : "pan-y" as const;
+  const laneStyle = laneRect(lane, laneCount);
   const customStyle = useCustomColour
     ? {
-        top, height, touchAction,
+        top, height, touchAction, ...laneStyle,
         background: serviceColor!,
         color: readableOn(serviceColor!),
         borderColor: serviceColor!,
       }
-    : { top, height, touchAction };
+    : { top, height, touchAction, ...laneStyle };
 
   return (
     <div
@@ -658,8 +679,75 @@ function ApptCard({
 const TIME_OFF_STRIPES =
   "repeating-linear-gradient(135deg, rgba(239,68,68,0.18) 0 8px, rgba(239,68,68,0.30) 8px 16px)";
 
+// Shared "item" shape used for collision-grouping inside a day column.
+// Both appointments and time-off blocks get mapped into this before the
+// lane assignment so overlapping entries — regardless of kind — split
+// the column side-by-side instead of stacking and hiding each other.
+type DayItem =
+  | { kind: "appt"; id: number; startMin: number; endMin: number; appt: CalAppt }
+  | { kind: "timeoff"; id: number; startMin: number; endMin: number; item: TimeOffItem };
+
+type LaidOut = DayItem & { lane: number; laneCount: number };
+
+// Greedy lane assignment — the standard calendar algorithm. Items are
+// processed start-ascending (longer first on ties), each slotting into
+// the first lane whose last item has already ended; otherwise a new
+// lane is created. Lanes are grouped into collision sets so isolated
+// items stay full-width and only actual overlaps trigger a split.
+function computeDayLayout(appts: CalAppt[], offs: TimeOffItem[]): LaidOut[] {
+  const combined: DayItem[] = [];
+  for (const a of appts) {
+    const startMin = timeToMinutes(a.appointmentTime);
+    const endMin = startMin + Math.max(1, a.durationMinutes);
+    combined.push({ kind: "appt", id: a.id, startMin, endMin, appt: a });
+  }
+  for (const t of offs) {
+    const startMin = t.fullDay ? DAY_START_MINUTES : timeToMinutes(t.startTime ?? "00:00");
+    const endMin   = t.fullDay ? DAY_END_MINUTES   : timeToMinutes(t.endTime   ?? "23:59");
+    combined.push({ kind: "timeoff", id: t.id, startMin, endMin, item: t });
+  }
+  combined.sort((a, b) => a.startMin - b.startMin || b.endMin - a.endMin);
+
+  const results: LaidOut[] = [];
+  let groupStart = 0;
+  let groupMaxEnd = -Infinity;
+  const flushGroup = (startIdx: number, endIdx: number) => {
+    const group = combined.slice(startIdx, endIdx);
+    const laneEnds: number[] = [];
+    const laneAssignments: number[] = new Array(group.length).fill(0);
+    group.forEach((it, i) => {
+      let laneIdx = laneEnds.findIndex(end => end <= it.startMin);
+      if (laneIdx === -1) { laneIdx = laneEnds.length; laneEnds.push(it.endMin); }
+      else laneEnds[laneIdx] = it.endMin;
+      laneAssignments[i] = laneIdx;
+    });
+    const laneCount = laneEnds.length;
+    group.forEach((it, i) => {
+      results.push({ ...(it as DayItem), lane: laneAssignments[i], laneCount });
+    });
+  };
+
+  for (let i = 0; i < combined.length; i++) {
+    const it = combined[i];
+    if (i === groupStart) {
+      groupMaxEnd = it.endMin;
+      continue;
+    }
+    if (it.startMin < groupMaxEnd) {
+      groupMaxEnd = Math.max(groupMaxEnd, it.endMin);
+    } else {
+      flushGroup(groupStart, i);
+      groupStart = i;
+      groupMaxEnd = it.endMin;
+    }
+  }
+  if (combined.length > 0) flushGroup(groupStart, combined.length);
+
+  return results;
+}
+
 function TimeOffBlock({
-  top, height, label, fullDay, isDragging, onClick, onPointerDown,
+  top, height, label, fullDay, isDragging, onClick, onPointerDown, lane = 0, laneCount = 1,
 }: {
   top: number;
   height: number;
@@ -668,12 +756,15 @@ function TimeOffBlock({
   isDragging?: boolean;
   onClick?: () => void;
   onPointerDown?: (e: React.PointerEvent) => void;
+  lane?: number;
+  laneCount?: number;
 }) {
   const interactive = !!(onClick || onPointerDown);
   // Distinguish click vs drag — if the pointer moved only a few px
   // between down and up, treat as a click (opens edit dialog). Past
   // that threshold the drag hook takes over and click is suppressed.
   const downPos = useRef<{ x: number; y: number } | null>(null);
+  const laneStyle = laneRect(lane, laneCount);
   return (
     <div
       role={interactive ? "button" : undefined}
@@ -693,8 +784,8 @@ function TimeOffBlock({
         }
         onClick();
       } : undefined}
-      className={`absolute right-0 left-0 z-0 border-y border-red-400/60 overflow-hidden ${interactive ? "cursor-grab active:cursor-grabbing hover:brightness-95" : "pointer-events-none"} ${isDragging ? "ring-2 ring-red-500 opacity-80" : ""}`}
-      style={{ top, height, background: TIME_OFF_STRIPES, touchAction: isDragging ? "none" : "pan-y" }}
+      className={`absolute z-0 border-y border-red-400/60 overflow-hidden ${interactive ? "cursor-grab active:cursor-grabbing hover:brightness-95" : "pointer-events-none"} ${isDragging ? "ring-2 ring-red-500 opacity-80" : ""}`}
+      style={{ top, height, ...laneStyle, background: TIME_OFF_STRIPES, touchAction: isDragging ? "none" : "pan-y" }}
       title={label}
     >
       <div className="px-1.5 py-1 text-[10px] font-bold text-red-800 leading-tight truncate flex items-center gap-1">
@@ -836,6 +927,11 @@ function TimeGrid({
           const k = ymd(d);
           const list = byDate.get(k) ?? [];
           const offs = timeOffByDate.get(k) ?? [];
+          // Single lane-assignment pass covers BOTH appointments and
+          // time-off blocks, so an appt that clashes with a partial
+          // אילוץ (or two parallel appts) splits the column instead of
+          // stacking one on top of the other.
+          const layout = computeDayLayout(list, offs);
           const isHoliday = (holidays.get(k) ?? []).length > 0;
           return (
             <div
@@ -864,37 +960,65 @@ function TimeGrid({
                   style={{ top: i * SLOT_PX, height: SLOT_PX }}
                 />
               ))}
-              {/* Time-off / constraint blocks — rendered below appointments so
-                  a rescheduled appt lands on top visually. Full-day blocks
-                  span the whole visible grid; partial blocks clip to the
-                  [startTime, endTime] window. */}
-              {offs.map(t => {
-                const isDragging = timeOffDrag?.item.id === t.id;
-                // Hide the source copy when the drag preview is on a different column.
-                const hideSource = isDragging && timeOffDrag!.previewDate !== k;
+              {/* Render every item in source order with its assigned lane.
+                  Time-off first (so the striped background sits under any
+                  ghost copy of a dragged appt), then appointments — still
+                  one pass, same lane metadata. */}
+              {layout.map(it => {
+                if (it.kind === "timeoff") {
+                  const t = it.item;
+                  const isDragging = timeOffDrag?.item.id === t.id;
+                  const hideSource = isDragging && timeOffDrag!.previewDate !== k;
+                  if (hideSource) return null;
+                  const baseStart = t.fullDay ? DAY_START_MINUTES : timeToMinutes(t.startTime ?? "00:00");
+                  const baseEnd   = t.fullDay ? DAY_END_MINUTES   : timeToMinutes(t.endTime   ?? "23:59");
+                  const sMin = isDragging ? timeOffDrag!.previewStartMin : baseStart;
+                  const eMin = isDragging ? timeOffDrag!.previewEndMin   : baseEnd;
+                  const top = Math.max(0, (sMin - DAY_START_MINUTES) / SLOT_MINUTES * SLOT_PX);
+                  const rawHeight = (eMin - sMin) / SLOT_MINUTES * SLOT_PX;
+                  const height = Math.max(SLOT_PX * 0.6, Math.min(totalHeight - top, rawHeight));
+                  const label = (t.note && t.note.trim()) || (t.fullDay ? "אילוץ — יום שלם" : `${t.startTime ?? ""}–${t.endTime ?? ""}`);
+                  return (
+                    <TimeOffBlock
+                      key={`t${t.id}`}
+                      top={top}
+                      height={height}
+                      label={label}
+                      fullDay={t.fullDay}
+                      isDragging={isDragging}
+                      lane={it.lane}
+                      laneCount={it.laneCount}
+                      onClick={onTimeOffClick ? () => onTimeOffClick(t) : undefined}
+                      onPointerDown={onTimeOffReschedule ? (e) => onTimeOffPointerDown(e, t, null) : undefined}
+                    />
+                  );
+                }
+                const a = it.appt;
+                const mStart = timeToMinutes(a.appointmentTime);
+                const top = Math.max(0, (mStart - DAY_START_MINUTES) / SLOT_MINUTES * SLOT_PX);
+                const height = Math.max(SLOT_PX * 0.9, (a.durationMinutes / SLOT_MINUTES) * SLOT_PX - 2);
+                const isDragging = drag?.appt.id === a.id;
+                const hideSource = isDragging && drag!.previewDate !== k;
                 if (hideSource) return null;
-                const baseStart = t.fullDay ? DAY_START_MINUTES : timeToMinutes(t.startTime ?? "00:00");
-                const baseEnd   = t.fullDay ? DAY_END_MINUTES   : timeToMinutes(t.endTime   ?? "23:59");
-                const sMin = isDragging ? timeOffDrag!.previewStartMin : baseStart;
-                const eMin = isDragging ? timeOffDrag!.previewEndMin   : baseEnd;
-                const top = Math.max(0, (sMin - DAY_START_MINUTES) / SLOT_MINUTES * SLOT_PX);
-                const rawHeight = (eMin - sMin) / SLOT_MINUTES * SLOT_PX;
-                const height = Math.max(SLOT_PX * 0.6, Math.min(totalHeight - top, rawHeight));
-                const label = (t.note && t.note.trim()) || (t.fullDay ? "אילוץ — יום שלם" : `${t.startTime ?? ""}–${t.endTime ?? ""}`);
                 return (
-                  <TimeOffBlock
-                    key={t.id}
-                    top={top}
+                  <ApptCard
+                    key={`a${a.id}`}
+                    appt={a}
+                    top={isDragging ? (drag!.previewMin - DAY_START_MINUTES) / SLOT_MINUTES * SLOT_PX : top}
                     height={height}
-                    label={label}
-                    fullDay={t.fullDay}
-                    isDragging={isDragging}
-                    onClick={onTimeOffClick ? () => onTimeOffClick(t) : undefined}
-                    onPointerDown={onTimeOffReschedule ? (e) => onTimeOffPointerDown(e, t, null) : undefined}
+                    isDragging={!!isDragging}
+                    lane={it.lane}
+                    laneCount={it.laneCount}
+                    serviceColor={a.serviceId != null ? serviceColors?.[a.serviceId] : null}
+                    onPointerDown={e => onPointerDown(e, a, null)}
+                    onClick={e => { if (isDragging) return; e.stopPropagation(); onApptClick(a); }}
                   />
                 );
               })}
-              {/* Drag ghost for cross-column moves of a time-off block. */}
+              {/* Drag ghost for cross-column moves of a time-off block —
+                  rendered in the target column using lane 0 / single-lane
+                  width. Real-time collision recompute during drag is
+                  overkill; the final drop re-fetches and re-lays-out. */}
               {timeOffDrag && timeOffDrag.previewDate === k && timeOffDrag.originDate !== k && (
                 (() => {
                   const t = timeOffDrag.item;
@@ -907,29 +1031,7 @@ function TimeGrid({
                   );
                 })()
               )}
-              {/* Appointments */}
-              {list.map(a => {
-                const mStart = timeToMinutes(a.appointmentTime);
-                const top = Math.max(0, (mStart - DAY_START_MINUTES) / SLOT_MINUTES * SLOT_PX);
-                const height = Math.max(SLOT_PX * 0.9, (a.durationMinutes / SLOT_MINUTES) * SLOT_PX - 2);
-                const isDragging = drag?.appt.id === a.id;
-                // If this appt is being dragged AND its preview is on a different column, hide it here.
-                const hideSource = isDragging && drag!.previewDate !== k;
-                if (hideSource) return null;
-                return (
-                  <ApptCard
-                    key={a.id}
-                    appt={a}
-                    top={isDragging ? (drag!.previewMin - DAY_START_MINUTES) / SLOT_MINUTES * SLOT_PX : top}
-                    height={height}
-                    isDragging={!!isDragging}
-                    serviceColor={a.serviceId != null ? serviceColors?.[a.serviceId] : null}
-                    onPointerDown={e => onPointerDown(e, a, null)}
-                    onClick={e => { if (isDragging) return; e.stopPropagation(); onApptClick(a); }}
-                  />
-                );
-              })}
-              {/* Drag ghost for cross-column moves */}
+              {/* Drag ghost for cross-column moves of an appointment. */}
               {drag && drag.previewDate === k && drag.originDate !== k && (
                 (() => {
                   const a = drag.appt;
