@@ -1328,6 +1328,13 @@ function AppointmentsTab({ mobileFocus }: { mobileFocus?: "calendar" | "approval
   // new calendar view). Holds the selected appointment so we can show
   // details + the customer's reliability breakdown.
   const [editAppt, setEditAppt] = useState<CalAppt | null>(null);
+  // When the owner taps "ערוך" on the details dialog we flip into an
+  // inline edit form — date + time + notes via the same custom pickers
+  // the new-entry dialog uses. Kept separate from `editAppt` so tapping
+  // a card always opens the details view first.
+  const [editApptMode, setEditApptMode] = useState(false);
+  const [editApptForm, setEditApptForm] = useState({ date: "", time: "", notes: "" });
+  const [editApptSaving, setEditApptSaving] = useState(false);
   // Clicking a time-off block on the calendar opens an edit/delete
   // dialog with the current values — owner can shift the date/time,
   // tweak the note, or delete the constraint outright.
@@ -1626,11 +1633,18 @@ function AppointmentsTab({ mobileFocus }: { mobileFocus?: "calendar" | "approval
           Using the existing summary-style tile grid — removed for now
           since the new calendar supersedes it. */}
 
-      {/* Appointment edit / details dialog (opened by tapping a card) */}
-      <Dialog open={!!editAppt} onOpenChange={v => { if (!v) setEditAppt(null); }}>
+      {/* Appointment edit / details dialog (opened by tapping a card).
+          Has two modes: read-only details (default) and an inline edit
+          form toggled by the "ערוך" button. Edit mode reschedules via
+          the existing /reschedule endpoint and patches notes via the
+          new PATCH /business/appointments/:id. */}
+      <Dialog
+        open={!!editAppt}
+        onOpenChange={v => { if (!v) { setEditAppt(null); setEditApptMode(false); } }}
+      >
         <DialogContent dir="rtl" className="max-w-md">
           <DialogHeader>
-            <DialogTitle>פרטי התור</DialogTitle>
+            <DialogTitle>{editApptMode ? "עריכת תור" : "פרטי התור"}</DialogTitle>
           </DialogHeader>
           {editAppt && (() => {
             const custs = Array.isArray(customers) ? customers : [];
@@ -1639,6 +1653,86 @@ function AppointmentsTab({ mobileFocus }: { mobileFocus?: "calendar" | "approval
             const noShowCount = cust?.noShowCount ?? 0;
             const cancelledCount = cust?.cancelledCount ?? 0;
             const [y, m, d] = editAppt.appointmentDate.split("-");
+
+            if (editApptMode) {
+              const originalDate = editAppt.appointmentDate;
+              const originalTime = editAppt.appointmentTime;
+              const originalNotes = editAppt.notes ?? "";
+              const handleSaveEdit = async () => {
+                const token = localStorage.getItem("biz_token") || sessionStorage.getItem("biz_token");
+                setEditApptSaving(true);
+                try {
+                  // 1) Reschedule if date/time changed.
+                  if (editApptForm.date !== originalDate || editApptForm.time !== originalTime) {
+                    const rs = await fetch(`/api/business/appointments/${editAppt.id}/reschedule`, {
+                      method: "PATCH",
+                      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+                      body: JSON.stringify({ newDate: editApptForm.date, newTime: editApptForm.time }),
+                    });
+                    if (!rs.ok) throw new Error();
+                  }
+                  // 2) Patch notes if changed.
+                  if ((editApptForm.notes ?? "") !== originalNotes) {
+                    const pr = await fetch(`/api/business/appointments/${editAppt.id}`, {
+                      method: "PATCH",
+                      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+                      body: JSON.stringify({ notes: editApptForm.notes || null }),
+                    });
+                    if (!pr.ok) throw new Error();
+                  }
+                  toast({ title: "התור עודכן" });
+                  queryClient.invalidateQueries({ queryKey: getListBusinessAppointmentsQueryKey() });
+                  queryClient.invalidateQueries({ queryKey: getGetBusinessStatsQueryKey() });
+                  setEditAppt(null);
+                  setEditApptMode(false);
+                } catch {
+                  toast({ title: "שגיאה בעדכון התור", variant: "destructive" });
+                } finally {
+                  setEditApptSaving(false);
+                }
+              };
+              return (
+                <div className="space-y-4 text-sm">
+                  <div className="space-y-1">
+                    <div className="font-bold text-lg">{editAppt.clientName}</div>
+                    <div className="text-muted-foreground" dir="ltr">{editAppt.phoneNumber}</div>
+                    <div className="text-xs text-muted-foreground">{editAppt.serviceName} · {formatDuration(editAppt.durationMinutes)}</div>
+                  </div>
+                  <div className="space-y-1">
+                    <Label>תאריך</Label>
+                    <DatePickerField value={editApptForm.date} onChange={v => setEditApptForm(p => ({ ...p, date: v }))} />
+                  </div>
+                  <div className="space-y-1">
+                    <Label>שעה</Label>
+                    <TimePickerField value={editApptForm.time} onChange={v => setEditApptForm(p => ({ ...p, time: v }))} />
+                  </div>
+                  <div className="space-y-1">
+                    <Label>הערה</Label>
+                    <textarea
+                      value={editApptForm.notes}
+                      onChange={e => setEditApptForm(p => ({ ...p, notes: e.target.value }))}
+                      rows={3}
+                      className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring resize-none"
+                      placeholder="הערה פנימית על התור…"
+                    />
+                  </div>
+                  <div className="flex gap-2 pt-2">
+                    <Button
+                      variant="outline"
+                      className="flex-1"
+                      onClick={() => setEditApptMode(false)}
+                      disabled={editApptSaving}
+                    >
+                      ביטול עריכה
+                    </Button>
+                    <Button className="flex-1" onClick={handleSaveEdit} disabled={editApptSaving}>
+                      {editApptSaving ? "שומר..." : "שמור שינויים"}
+                    </Button>
+                  </div>
+                </div>
+              );
+            }
+
             return (
               <div className="space-y-4 text-sm">
                 <div className="space-y-1">
@@ -1684,7 +1778,17 @@ function AppointmentsTab({ mobileFocus }: { mobileFocus?: "calendar" | "approval
                   </div>
                 </div>
                 <div className="flex gap-2 pt-2">
-                  <Button variant="outline" className="flex-1" onClick={() => setEditAppt(null)}>סגור</Button>
+                  <Button variant="outline" onClick={() => setEditAppt(null)}>סגור</Button>
+                  <Button
+                    variant="outline"
+                    className="gap-1.5"
+                    onClick={() => {
+                      setEditApptForm({ date: editAppt.appointmentDate, time: editAppt.appointmentTime, notes: editAppt.notes ?? "" });
+                      setEditApptMode(true);
+                    }}
+                  >
+                    <Edit className="w-4 h-4" /> ערוך
+                  </Button>
                   <Button
                     className="flex-1 bg-red-600 hover:bg-red-700 text-white"
                     onClick={() => { setEditAppt(null); handleCancel(editAppt.id); }}

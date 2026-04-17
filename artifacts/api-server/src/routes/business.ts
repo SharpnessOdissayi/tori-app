@@ -760,6 +760,35 @@ router.patch("/business/appointments/:id/reschedule", requireBusinessAuth, async
   res.json({ ...updated, createdAt: updated.createdAt.toISOString() });
 });
 
+// PATCH /business/appointments/:id — owner-side edit of non-time fields
+// (currently just the notes column). Date/time still live on the
+// dedicated /reschedule endpoint because they trigger WhatsApp
+// reminders + reminder-flag resets and we don't want those firing on
+// a notes-only edit.
+router.patch("/business/appointments/:id", requireBusinessAuth, async (req, res): Promise<void> => {
+  const rawId = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+  const id = Number(rawId);
+  if (!id || isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
+
+  const body = (req.body ?? {}) as { notes?: string | null };
+  const updates: any = {};
+  if (body.notes !== undefined) {
+    updates.notes = body.notes === null ? null : String(body.notes).slice(0, 1000);
+  }
+  if (Object.keys(updates).length === 0) {
+    res.status(400).json({ error: "No editable fields" }); return;
+  }
+
+  const [updated] = await db
+    .update(appointmentsTable)
+    .set(updates)
+    .where(and(eq(appointmentsTable.id, id), eq(appointmentsTable.businessId, req.business!.businessId)))
+    .returning();
+
+  if (!updated) { res.status(404).json({ error: "Not found" }); return; }
+  res.json({ ...updated, createdAt: updated.createdAt.toISOString() });
+});
+
 router.delete("/business/appointments/:id", requireBusinessAuth, async (req, res): Promise<void> => {
   const rawId = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
   const paramsParsed = CancelBusinessAppointmentParams.safeParse({ id: Number(rawId) });
