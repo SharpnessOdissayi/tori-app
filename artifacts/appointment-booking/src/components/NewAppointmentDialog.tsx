@@ -51,7 +51,7 @@ const TIME_OFF_TYPES: Array<{
 // the touch targets are big and the dropdown style matches the service
 // dropdown right above it.
 
-function DatePickerField({
+export function DatePickerField({
   value,
   onChange,
   className,
@@ -106,7 +106,7 @@ function DatePickerField({
   );
 }
 
-function TimePickerField({
+export function TimePickerField({
   value,
   onChange,
   red,

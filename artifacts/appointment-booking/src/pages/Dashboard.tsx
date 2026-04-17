@@ -59,7 +59,7 @@ import { BusinessCalendar, openRescheduleWhatsApp, type CalAppt, type TimeOffIte
 import { MobileBottomNav, type BottomTab } from "@/components/MobileBottomNav";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { ServiceSortableList } from "@/components/ServiceSortableList";
-import { NewAppointmentDialog } from "@/components/NewAppointmentDialog";
+import { NewAppointmentDialog, DatePickerField, TimePickerField } from "@/components/NewAppointmentDialog";
 
 const DAYS = ["ראשון", "שני", "שלישי", "רביעי", "חמישי", "שישי", "שבת"];
 
@@ -2857,7 +2857,12 @@ function TimeOffEditDialog({
 
   return (
     <Dialog open={!!item} onOpenChange={v => { if (!v) onClose(); }}>
-      <DialogContent dir="rtl" className="max-w-sm">
+      {/* max-w-md (vs max-w-sm before) + min-w-0 on the grid cells
+          keeps the native date/time inputs from overflowing. The inputs
+          themselves carry dir="ltr" so browsers render their internal
+          hour/minute spinners + picker icon in the expected LTR layout
+          without pushing chrome outside the border. */}
+      <DialogContent dir="rtl" className="max-w-md">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <span>🚫</span> עריכת אילוץ
@@ -2882,20 +2887,24 @@ function TimeOffEditDialog({
             </button>
           </div>
 
+          {/* Use the same custom date + time pickers as the new-entry
+              dialog so the owner sees a consistent Hebrew calendar and
+              5-min wheel — no more native browser chrome overflowing
+              the dialog box. */}
           <div className="space-y-1">
             <Label>תאריך</Label>
-            <Input type="date" value={date} onChange={e => setDate(e.target.value)} />
+            <DatePickerField value={date} onChange={setDate} red />
           </div>
 
           {type === "partial" && (
             <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1">
+              <div className="space-y-1 min-w-0">
                 <Label>משעה</Label>
-                <Input type="time" value={startTime} onChange={e => setStartTime(e.target.value)} />
+                <TimePickerField value={startTime} onChange={setStartTime} red />
               </div>
-              <div className="space-y-1">
+              <div className="space-y-1 min-w-0">
                 <Label>עד שעה</Label>
-                <Input type="time" value={endTime} onChange={e => setEndTime(e.target.value)} />
+                <TimePickerField value={endTime} onChange={setEndTime} red />
               </div>
             </div>
           )}
@@ -2905,7 +2914,7 @@ function TimeOffEditDialog({
             <Input value={note} onChange={e => setNote(e.target.value)} placeholder="לדוגמה: חופשה משפחתית" />
           </div>
 
-          <div className="flex items-center gap-2 pt-2">
+          <div className="flex items-center gap-2 pt-2 flex-wrap">
             <Button
               variant="outline"
               onClick={handleDelete}
