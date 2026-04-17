@@ -574,12 +574,15 @@ export default function Book({ slugOverride }: { slugOverride?: string } = {}) {
   };
   const instagramUrl = (business as any)?.instagramUrl ?? null;
   // Waze link: always auto-build from the address the owner typed in
-  // Settings (עיר + רחוב + מספר בית) so a stale/empty wazeUrl on the
-  // DB row doesn't short-circuit to an empty href. Only when the owner
-  // pasted a real Waze URL themselves do we honour it. `??` was bugged
-  // because a literal empty string stored in the DB skipped the
-  // fallback and left the href blank — `||` + explicit trim fixes it.
-  const wazeQuery = [city, address].filter(Boolean).join(" ").trim();
+  // Settings (רחוב + מספר + עיר). Owner reported Waze dropping them
+  // on the wrong city when both were jammed together with a space —
+  // the space-separated "אשדוד דיזנגוף 5" query sent them to Jerusalem.
+  // Comma-separated "דיזנגוף 5, אשדוד" is the format Waze's geocoder
+  // expects (same as Google Maps); the comma tells it where the
+  // street ends and the city starts, so the match is unambiguous.
+  // Only when the owner pasted a real Waze URL themselves do we
+  // honour it instead.
+  const wazeQuery = [address, city].filter(v => v && String(v).trim()).map(v => String(v).trim()).join(", ");
   const autoWazeUrl = wazeQuery ? `https://waze.com/ul?q=${encodeURIComponent(wazeQuery)}&navigate=yes` : null;
   const savedWazeUrl = String((business as any)?.wazeUrl ?? "").trim();
   const wazeUrl = savedWazeUrl || autoWazeUrl;

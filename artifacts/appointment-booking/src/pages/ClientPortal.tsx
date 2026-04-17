@@ -904,7 +904,10 @@ export default function ClientPortal() {
           with email OTP and their row has no name / phone yet. Can't
           be dismissed without saving — we need these fields to book. */}
       {welcomeOpen && (
-        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/50" dir="rtl">
+        // z-[70] beats both FABs (AccessibilityFab z-55, ThemeToggleFab
+        // z-56) so the wheelchair + moon buttons don't float over the
+        // email / phone inputs on the welcome sheet.
+        <div className="fixed inset-0 z-[70] flex items-end justify-center bg-black/50" dir="rtl">
           <div className="w-full max-w-md bg-white rounded-t-3xl p-6 space-y-5" onClick={e => e.stopPropagation()}>
             <div>
               <h3 className="font-extrabold text-xl text-gray-900">ברוכים הבאים לקבעתי! 🎉</h3>
@@ -946,7 +949,7 @@ export default function ClientPortal() {
 
       {/* ── PROFILE SHEET ── */}
       {profileOpen && (
-        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/30" onClick={() => setProfileOpen(false)}>
+        <div className="fixed inset-0 z-[70] flex items-end justify-center bg-black/30" onClick={() => setProfileOpen(false)}>
           <div className="w-full max-w-md bg-white rounded-t-3xl p-6 space-y-5" onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between">
               <h3 className="font-bold text-lg">הגדרות</h3>
