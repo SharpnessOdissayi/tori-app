@@ -2451,7 +2451,7 @@ export default function Book({ slugOverride }: { slugOverride?: string } = {}) {
                 </Button>
               ) : step === 2 ? (
                 <Button variant="outline" onClick={() => setStep(0)} className="gap-2">
-                  <ChevronRight className="w-4 h-4" /> פרופיל
+                  <ChevronRight className="w-4 h-4" /> חזרה
                 </Button>
               ) : <div />}
               {step === 4 ? (
