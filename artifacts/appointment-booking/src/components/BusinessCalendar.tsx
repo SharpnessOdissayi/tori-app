@@ -673,8 +673,15 @@ function ApptCard({
           preference: everything should stay readable even when the
           card is squeezed into a half/third-width lane. break-words
           handles long wordmark-style Hebrew names; leading-[1.05]
-          packs the lines tight so two names + time still fit. */}
-      <div className="font-bold break-words leading-[1.05]">{appt.clientName}</div>
+          packs the lines tight so two names + time still fit. A tiny
+          💬 icon next to the name flags "this booking has a client
+          note" — full text lives in the details dialog. */}
+      <div className="font-bold break-words leading-[1.05] flex items-start gap-1">
+        <span className="break-words">{appt.clientName}</span>
+        {appt.notes && appt.notes.trim() && (
+          <MessageSquare className="w-3 h-3 shrink-0 mt-0.5 opacity-90" aria-label="יש הערה מהלקוח" />
+        )}
+      </div>
       <div className="opacity-90 break-words leading-[1.05]">{appt.serviceName}</div>
       <div className="opacity-75 font-mono text-[9px] leading-[1.05]" dir="ltr">
         {appt.appointmentTime}–{minutesToTime(timeToMinutes(appt.appointmentTime) + appt.durationMinutes)}

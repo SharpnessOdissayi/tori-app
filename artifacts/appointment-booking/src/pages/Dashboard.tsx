@@ -1595,7 +1595,7 @@ function AppointmentsTab({ mobileFocus }: { mobileFocus?: "calendar" | "approval
             <div className="space-y-3">
               {upcoming.map(apt => (
                 <div key={apt.id} className="flex flex-col sm:flex-row justify-between items-start sm:items-center p-4 border rounded-xl bg-card gap-3 hover:border-primary/40 transition-colors">
-                  <div className="flex-1">
+                  <div className="flex-1 min-w-0">
                     <div className="font-semibold flex items-center gap-2">
                       {apt.clientName}
                       <span className="text-muted-foreground text-sm font-normal" dir="ltr">{apt.phoneNumber}</span>
@@ -1604,6 +1604,12 @@ function AppointmentsTab({ mobileFocus }: { mobileFocus?: "calendar" | "approval
                     <div className="text-primary font-medium text-sm mt-1">
                       {format(parseISO(apt.appointmentDate + "T" + apt.appointmentTime), "EEEE, d בMMMM yyyy", { locale: he })} • {apt.appointmentTime}
                     </div>
+                    {apt.notes && (
+                      <div className="mt-2 p-2 rounded-lg bg-amber-50 border border-amber-200 text-amber-900 text-xs flex items-start gap-1.5">
+                        <MessageSquare className="w-3.5 h-3.5 shrink-0 mt-0.5" />
+                        <div className="whitespace-pre-wrap break-words">{apt.notes}</div>
+                      </div>
+                    )}
                   </div>
                   <button
                     onClick={() => handleCancel(apt.id)} disabled={cancelMutation.isPending}
@@ -2055,8 +2061,13 @@ function HomeTab({ onJump }: { onJump: (tab: string) => void }) {
             <div className="space-y-2">
               {upcoming.map(a => (
                 <div key={a.id} className="flex items-center justify-between p-3 rounded-xl border hover:border-primary/40 transition-colors">
-                  <div className="min-w-0">
-                    <div className="font-semibold truncate">{a.clientName}</div>
+                  <div className="min-w-0 flex-1">
+                    <div className="font-semibold truncate flex items-center gap-1.5">
+                      <span className="truncate">{a.clientName}</span>
+                      {a.notes && (
+                        <MessageSquare className="w-3.5 h-3.5 text-amber-600 shrink-0" aria-label="יש הערה" />
+                      )}
+                    </div>
                     <div className="text-xs text-muted-foreground truncate">{a.serviceName}</div>
                   </div>
                   <div className="text-sm text-primary font-mono shrink-0" dir="ltr">
