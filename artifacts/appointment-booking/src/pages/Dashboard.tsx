@@ -670,11 +670,15 @@ export default function Dashboard() {
           {/* Mobile top tabs removed — navigation on mobile is the bottom
               nav + "תפריט" sheet rendered below the main content. */}
 
-          <TabsContent value="home"><HomeTab onJump={(t) => { setActiveTab(t); setBottomTab(t === "customers" ? "customers" : t === "approvals" ? "approvals" : "calendar"); }} /></TabsContent>
-          <TabsContent value="appointments"><AppointmentsTab /></TabsContent>
-          <TabsContent value="approvals"><PendingApprovalsTab /></TabsContent>
-          <TabsContent value="services"><ServicesTab /></TabsContent>
-          <TabsContent value="hours">
+          {/* Every TabsContent explicitly carries dir="rtl" — Radix Tabs
+              manages its own dir internally and doesn't cascade it to
+              children automatically, so without this the inner cards
+              (headers, labels, flex rows) render left-aligned. */}
+          <TabsContent value="home" dir="rtl"><HomeTab onJump={(t) => { setActiveTab(t); setBottomTab(t === "customers" ? "customers" : t === "approvals" ? "approvals" : "calendar"); }} /></TabsContent>
+          <TabsContent value="appointments" dir="rtl"><AppointmentsTab /></TabsContent>
+          <TabsContent value="approvals" dir="rtl"><PendingApprovalsTab /></TabsContent>
+          <TabsContent value="services" dir="rtl"><ServicesTab /></TabsContent>
+          <TabsContent value="hours" dir="rtl">
             <div className="space-y-10">
               <WorkingHoursTab />
               <div className="pt-6 border-t">
@@ -682,7 +686,7 @@ export default function Dashboard() {
               </div>
             </div>
           </TabsContent>
-          <TabsContent value="customers">
+          <TabsContent value="customers" dir="rtl">
             <div className="space-y-10">
               <CustomersTab />
               <div className="pt-6 border-t">
@@ -693,11 +697,11 @@ export default function Dashboard() {
               </div>
             </div>
           </TabsContent>
-          <TabsContent value="waitlist"><WaitlistTab /></TabsContent>
-          <TabsContent value="receipts"><ReceiptsTab /></TabsContent>
-          <TabsContent value="branding"><BrandingTab /></TabsContent>
-          <TabsContent value="integrations">{isProPlan ? <IntegrationsTab /> : <ProUpgradePrompt title="הודעות — מנוי PRO בלבד" desc="שדרג למנוי PRO כדי לנהל תבניות WhatsApp אישיות, הודעות ברודקאסט ותזכורות מתוזמנות" />}</TabsContent>
-          <TabsContent value="settings"><SettingsTab /></TabsContent>
+          <TabsContent value="waitlist" dir="rtl"><WaitlistTab /></TabsContent>
+          <TabsContent value="receipts" dir="rtl"><ReceiptsTab /></TabsContent>
+          <TabsContent value="branding" dir="rtl"><BrandingTab /></TabsContent>
+          <TabsContent value="integrations" dir="rtl">{isProPlan ? <IntegrationsTab /> : <ProUpgradePrompt title="הודעות — מנוי PRO בלבד" desc="שדרג למנוי PRO כדי לנהל תבניות WhatsApp אישיות, הודעות ברודקאסט ותזכורות מתוזמנות" />}</TabsContent>
+          <TabsContent value="settings" dir="rtl"><SettingsTab /></TabsContent>
         </Tabs>
 
         {/* Suggestion banner */}
