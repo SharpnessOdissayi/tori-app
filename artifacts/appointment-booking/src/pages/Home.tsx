@@ -20,7 +20,7 @@ export default function Home() {
           transition={{ duration: 0.6, ease: "easeOut" }}
           className="space-y-8"
         >
-          <div className="flex justify-center pt-8">
+          <div className="flex justify-center pt-16">
             <img src="/logo.svg" alt="קבעתי" className="h-36 object-contain drop-shadow-lg" />
           </div>
 

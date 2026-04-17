@@ -545,8 +545,10 @@ router.post("/public/:businessSlug/appointments", async (req, res): Promise<void
     actorName: clientName,
   });
 
-  // Notify business owner via WhatsApp (non-blocking)
-  if (business.phone) {
+  // Notify business owner via WhatsApp (non-blocking).
+  // Respects the "קבלי התראה על כל תור חדש" toggle in Integrations tab —
+  // when off, the owner still sees the in-app notification logged above.
+  if (business.phone && business.notificationEnabled) {
     notifyBusinessOwner(business.phone, clientName, business.name, service.name, formattedDate, appointmentTime, business.slug)
       .catch((e: any) => console.error("[WhatsApp] notifyBusinessOwner failed:", e?.response?.data ?? e?.message));
   }

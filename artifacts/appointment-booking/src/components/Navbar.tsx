@@ -48,9 +48,9 @@ export default function Navbar({ leftContent }: { leftContent?: ReactNode }) {
         <div className="flex items-center flex-1 order-2 md:order-1 justify-end md:justify-start gap-3">
           <Link href="/">
             <img
-              src="/logo.svg"
+              src="/icon.svg"
               alt="קבעתי"
-              className="h-[50px] object-contain cursor-pointer select-none"
+              className="h-14 w-14 object-contain cursor-pointer select-none"
             />
           </Link>
 
