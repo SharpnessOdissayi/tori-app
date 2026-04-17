@@ -4547,6 +4547,28 @@ function SettingsTab() {
 
   return (
     <div className="space-y-6 max-w-2xl">
+      {/* Share-link notice — sits above everything so the owner can't
+          miss it. The /api/s/<slug> URL returns server-rendered og:
+          tags (logo + name + description) that WhatsApp / Facebook
+          read; sharing the /book/<slug> URL or any other form gets
+          the generic Kavati preview instead. */}
+      {profile?.slug && (
+        <Card className="border-primary/40 bg-primary/5">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base flex items-center gap-2 text-primary">
+              <span>⚠️</span> לשיתוף הלינק לקביעת תורים
+            </CardTitle>
+            <CardDescription>
+              בכדי שהלוגו והפרטים של העסק שלך יופיעו כשאת/ה משתף/ת את הלינק
+              (ב־WhatsApp, Facebook וכו'), העתק/י את הלינק הבא:
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <CopyLinkButton slug={profile.slug} />
+          </CardContent>
+        </Card>
+      )}
+
       {/* General settings card — merged with business profile and password change */}
       <Card>
         <CardHeader>
@@ -4601,13 +4623,9 @@ function SettingsTab() {
                   <Label>אימייל</Label>
                   <Input type="email" dir="ltr" value={form.email} onChange={e => setForm(p => ({ ...p, email: e.target.value }))} />
                 </div>
-                <div className="space-y-2 sm:col-span-2">
-                  <Label>לינק לקביעת תור</Label>
-                  <CopyLinkButton slug={profile.slug} />
-                  <p className="text-xs text-muted-foreground">
-                    זה הלינק שמקבלים מאיתנו. ניתן לשנות את הכתובת הייחודית של העסק בהמשך העמוד.
-                  </p>
-                </div>
+                {/* Old "לינק לקביעת תור" block removed — the share
+                    link now lives in the highlighted notice banner at
+                    the top of the settings page. */}
                 <div className="space-y-2 sm:col-span-2">
                   <Label>כתובת ייחודית של העסק (Slug)</Label>
                   <div
