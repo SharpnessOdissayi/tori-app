@@ -54,6 +54,7 @@ function mapBusiness(b: typeof businessesTable.$inferSelect) {
     slug: b.slug,
     name: b.name,
     ownerName: b.ownerName,
+    ownerGender: (b as any).ownerGender ?? null,
     email: b.email,
     bufferMinutes: b.bufferMinutes,
     notificationEnabled: b.notificationEnabled,
@@ -178,6 +179,7 @@ router.patch("/business/profile", requireBusinessAuth, async (req, res): Promise
   const updates: Partial<typeof businessesTable.$inferInsert> = {};
   if (parsed.data.name !== undefined) updates.name = parsed.data.name;
   if (parsed.data.ownerName !== undefined) updates.ownerName = parsed.data.ownerName;
+  if ((parsed.data as any).ownerGender !== undefined) (updates as any).ownerGender = (parsed.data as any).ownerGender || null;
   if (parsed.data.phone !== undefined) updates.phone = parsed.data.phone ?? undefined;
   if ((parsed.data as any).email !== undefined && (parsed.data as any).email) {
     const newEmail = (parsed.data as any).email as string;

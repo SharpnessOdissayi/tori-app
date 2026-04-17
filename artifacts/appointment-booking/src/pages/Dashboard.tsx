@@ -54,6 +54,7 @@ import { format, parseISO, addDays, startOfWeek } from "date-fns";
 import { he } from "date-fns/locale";
 import { HebrewCalendar, flags as hebFlags } from "@hebcal/core";
 import Navbar from "@/components/Navbar";
+import { g as g_ } from "@/lib/hebrewGender";
 import { BusinessCalendar, openRescheduleWhatsApp, type CalAppt } from "@/components/BusinessCalendar";
 import { MobileBottomNav, type BottomTab } from "@/components/MobileBottomNav";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
@@ -569,7 +570,7 @@ export default function Dashboard() {
               {(() => { const h = new Date().getHours(); return h < 12 ? "בוקר טוב! ☀️" : h < 17 ? "צהריים טובים! 🌤️" : h < 21 ? "ערב טוב! 🌆" : "לילה טוב! 🌙"; })()}
             </p>
             <p className="font-semibold text-sm" style={{ color: "#3c92f0" }}>
-              ברוכ/ה הבא/ה, {(headerProfile as any)?.ownerName?.split(" ")[0] ?? ""}!
+              {g_((headerProfile as any)?.ownerGender, "ברוך הבא", "ברוכה הבאה")}, {(headerProfile as any)?.ownerName?.split(" ")[0] ?? ""}!
             </p>
           </div>
           <button
@@ -3617,7 +3618,7 @@ function BrandingTab() {
               {([
                 { value: "sharp", label: "ישר" },
                 { value: "medium", label: "מעוגל" },
-                { value: "rounded", label: "עגול מאוד" },
+                { value: "rounded", label: "עגול" },
               ] as const).map(s => (
                 <button key={s.value} onClick={() => setForm(p => ({ ...p, borderRadius: s.value }))}
                   className={`flex-1 py-3 border-2 text-sm font-medium transition-all ${form.borderRadius === s.value ? "border-primary bg-primary/5 text-primary" : "border-border"}`}
@@ -4473,7 +4474,7 @@ function SettingsTab() {
   const isPro = profile?.subscriptionPlan === "pro";
 
   const [form, setForm] = useState({
-    name: "", ownerName: "", phone: "", email: "",
+    name: "", ownerName: "", ownerGender: "male" as "male" | "female" | "other", phone: "", email: "",
     requireAppointmentApproval: false, requirePhoneVerification: false,
     tranzilaEnabled: false,
     depositAmount: "0",
@@ -4516,6 +4517,7 @@ function SettingsTab() {
       setForm({
         name: profile.name,
         ownerName: profile.ownerName,
+        ownerGender: (((profile as any).ownerGender ?? "male") as "male" | "female" | "other"),
         phone: (profile as any).phone ?? "",
         email: (profile as any).email ?? "",
         requireAppointmentApproval: (profile as any).requireAppointmentApproval ?? false,
@@ -4566,6 +4568,7 @@ function SettingsTab() {
       data: {
         name: form.name,
         ownerName: form.ownerName,
+        ownerGender: form.ownerGender,
         phone: form.phone || null,
         email: form.email || undefined,
         requireAppointmentApproval: form.requireAppointmentApproval,
@@ -4667,6 +4670,26 @@ function SettingsTab() {
                 <div className="space-y-2">
                   <Label>שם הבעלים</Label>
                   <Input value={form.ownerName} onChange={e => setForm(p => ({ ...p, ownerName: e.target.value }))} required />
+                </div>
+                <div className="space-y-2 sm:col-span-2">
+                  <Label>איך לפנות אליך?</Label>
+                  <div className="flex gap-2">
+                    {([
+                      { v: "male",   label: "זכר" },
+                      { v: "female", label: "נקבה" },
+                      { v: "other",  label: "אחר" },
+                    ] as const).map(opt => (
+                      <button
+                        key={opt.v}
+                        type="button"
+                        onClick={() => setForm(p => ({ ...p, ownerGender: opt.v }))}
+                        className={`flex-1 py-2 rounded-xl border-2 text-sm font-medium transition-all ${form.ownerGender === opt.v ? "border-primary bg-primary/5 text-primary" : "border-border text-muted-foreground hover:border-primary/40"}`}
+                      >
+                        {opt.label}
+                      </button>
+                    ))}
+                  </div>
+                  <p className="text-xs text-muted-foreground">הפנייה באתר תותאם ללשון (ברוך הבא / ברוכה הבאה וכו'). "אחר" = לשון זכר.</p>
                 </div>
                 <div className="space-y-2">
                   <Label>מספר טלפון</Label>

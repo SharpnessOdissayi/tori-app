@@ -196,6 +196,11 @@ export async function runMigrations() {
       "ALTER TABLE businesses ADD COLUMN IF NOT EXISTS send_booking_confirmation BOOLEAN NOT NULL DEFAULT TRUE",
       "ALTER TABLE client_sessions ADD COLUMN IF NOT EXISTS receive_notifications BOOLEAN NOT NULL DEFAULT TRUE",
       "ALTER TABLE client_sessions ADD COLUMN IF NOT EXISTS gender TEXT",
+      // Business-owner gender — drives Hebrew grammatical forms in the
+      // dashboard UI (ברוך/ה הבא/ה, שמור/שמרי וכו') so direct addresses
+      // match how the owner identifies. Nullable → defaults to male
+      // forms when unset (owner feedback).
+      "ALTER TABLE businesses ADD COLUMN IF NOT EXISTS owner_gender TEXT",
       "ALTER TABLE businesses ADD COLUMN IF NOT EXISTS announcement_text TEXT",
       "ALTER TABLE businesses ADD COLUMN IF NOT EXISTS announcement_valid_hours INTEGER NOT NULL DEFAULT 24",
       "ALTER TABLE businesses ADD COLUMN IF NOT EXISTS announcement_created_at TIMESTAMPTZ",

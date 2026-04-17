@@ -8,6 +8,7 @@ export const businessesTable = pgTable("businesses", {
   username: text("username").unique(),
   name: text("name").notNull(),
   ownerName: text("owner_name").notNull(),
+  ownerGender: text("owner_gender"), // "male" | "female" | "other" | null
   email: text("email").notNull().unique(),
   passwordHash: text("password_hash").notNull(),
   bufferMinutes: integer("buffer_minutes").notNull().default(0),
