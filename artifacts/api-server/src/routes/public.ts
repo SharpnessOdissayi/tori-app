@@ -704,15 +704,30 @@ router.get("/s/:businessSlug", async (req, res): Promise<void> => {
   <meta name="twitter:description" content="${desc}">
   <meta name="twitter:image" content="${imgEsc}">
   <link rel="canonical" href="${bookUrlEsc}">
-  <meta http-equiv="refresh" content="0;url=${bookUrlEsc}">
-  <script>window.location.replace(${JSON.stringify(bookUrl)});</script>
+  <meta http-equiv="refresh" content="1;url=${bookUrlEsc}">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Rubik:wght@400;600;700&display=swap" rel="stylesheet">
+  <script>setTimeout(function(){window.location.replace(${JSON.stringify(bookUrl)});}, 350);</script>
   <style>
-    body{font-family:system-ui,sans-serif;margin:0;padding:3rem 1rem;text-align:center;background:#fafafa;color:#333}
+    html,body{margin:0;padding:0;height:100%}
+    body{font-family:'Rubik',system-ui,sans-serif;background:#faf6ed;color:#1f2937;display:flex;align-items:center;justify-content:center;min-height:100vh}
+    .wrap{text-align:center;padding:2rem;max-width:28rem}
+    .avatar{width:120px;height:120px;border-radius:9999px;object-fit:cover;box-shadow:0 10px 30px -10px rgba(60,146,240,.35);border:4px solid #fff;margin:0 auto 1.25rem;display:block;background:#fff}
+    h1{margin:0 0 .5rem;font-size:1.5rem;font-weight:700;color:#111}
+    p{margin:0;color:#6b7280;font-size:.95rem;line-height:1.5}
     a{color:#3c92f0;text-decoration:none;font-weight:600}
+    .spinner{margin:1.5rem auto 0;width:28px;height:28px;border:3px solid #e5e7eb;border-top-color:#3c92f0;border-radius:9999px;animation:spin .8s linear infinite}
+    @keyframes spin{to{transform:rotate(360deg)}}
   </style>
 </head>
 <body>
-  <p>מעביר אותך ל<a href="${bookUrlEsc}">${title}</a>...</p>
+  <div class="wrap">
+    <img class="avatar" src="${imgEsc}" alt="${title}" onerror="this.style.display='none'" />
+    <h1>${title}</h1>
+    <p>${desc}</p>
+    <div class="spinner" aria-hidden="true"></div>
+    <p style="margin-top:1rem;font-size:.8rem">מעביר אותך ל<a href="${bookUrlEsc}">עמוד קביעת התור</a>...</p>
+  </div>
 </body>
 </html>`;
 
