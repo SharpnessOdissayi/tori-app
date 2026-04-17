@@ -434,7 +434,16 @@ export default function Dashboard() {
   const [token, setToken] = useState(
     () => localStorage.getItem("biz_token") || sessionStorage.getItem("biz_token")
   );
-  const [activeTab, setActiveTab] = useState("appointments");
+  // Active tab persists across reloads — without this, pressing F5
+  // while editing Settings (or any other tab) bounced the owner back
+  // to the default "appointments" tab.
+  const [activeTab, setActiveTab] = useState(() => {
+    try { return localStorage.getItem("kavati_dash_active_tab") || "appointments"; }
+    catch { return "appointments"; }
+  });
+  useEffect(() => {
+    try { localStorage.setItem("kavati_dash_active_tab", activeTab); } catch {}
+  }, [activeTab]);
   // Mobile bottom-nav state. "home" → subscription/revenue overview,
   // "calendar" + "approvals" → appointments tab (different scroll/focus),
   // "customers" → customers, "menu" → open the full-tab drawer.

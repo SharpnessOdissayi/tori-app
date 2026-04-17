@@ -1523,15 +1523,26 @@ export default function Book({ slugOverride }: { slugOverride?: string } = {}) {
               {wazeUrl && (
                 <a href={wazeUrl} target="_blank" rel="noopener noreferrer" aria-label="ניווט בוויז">
                   <button
-                    className="w-11 h-11 rounded-full overflow-hidden flex items-center justify-center bg-white border-2 border-transparent transition-all hover:opacity-90 active:scale-95"
+                    className="w-11 h-11 rounded-2xl overflow-hidden flex items-center justify-center border-2 border-transparent transition-all hover:opacity-90 active:scale-95 shadow-sm"
+                    style={{ background: "#39CCE6" }}
                     title="Waze"
                   >
-                    {/* Waze official logo — white glyph on the brand cyan
-                        rounded-square background. Simplified monochrome
-                        path of the brand icon. */}
-                    <svg viewBox="0 0 24 24" className="w-7 h-7" xmlns="http://www.w3.org/2000/svg">
-                      <rect width="24" height="24" rx="6" fill="#05C3FA"/>
-                      <path fill="#FFFFFF" d="M20.54 10.7c0-3.77-3.68-6.82-8.21-6.82-4.54 0-8.22 3.05-8.22 6.82 0 3.16 2.29 5.9 5.6 6.66.11.03.2.1.23.21.37 1.17 1.54 2.01 2.9 2.01 1.37 0 2.53-.84 2.9-2.02.03-.1.12-.18.23-.21.1-.02.2-.05.3-.08a.63.63 0 01.62.17c.48.5 1.2.82 1.99.82 1.48 0 2.68-1.1 2.68-2.45 0-.44-.13-.86-.37-1.22-.07-.11-.06-.26.03-.35.76-.97 1.32-2.2 1.32-3.54zM9.3 10.97a1.1 1.1 0 110-2.2 1.1 1.1 0 010 2.2zm5.39 0a1.1 1.1 0 110-2.2 1.1 1.1 0 010 2.2zM12 15.4c-1.79 0-3.3-.95-3.82-2.26-.09-.24.14-.48.39-.4.97.31 2.08.48 3.43.48 1.35 0 2.46-.17 3.43-.48.25-.08.48.16.39.4-.52 1.31-2.03 2.26-3.82 2.26z"/>
+                    {/* Waze mascot — smiley speech-bubble with wheels.
+                        Matches the app-icon look: cyan rounded-square
+                        background with the white cloud character in the
+                        middle (eyes + smile + two little wheels). */}
+                    <svg viewBox="0 0 40 40" className="w-9 h-9" xmlns="http://www.w3.org/2000/svg">
+                      {/* Head / speech-bubble body */}
+                      <path fill="#FFFFFF" d="M20 11c-6.1 0-11 3.95-11 8.83 0 .74.11 1.45.32 2.13.09.28-.02.58-.26.75-.78.56-1.25 1.4-1.25 2.34 0 1.65 1.45 2.98 3.25 2.98.57 0 1.11-.13 1.58-.36.33-.16.72-.07.94.22.23.32.53.6.88.84-.05.2-.07.42-.07.64 0 1.66 1.4 3 3.13 3s3.13-1.34 3.13-3c0-.11-.01-.22-.02-.33.23.02.47.04.7.04.3 0 .59-.02.87-.05-.01.11-.02.22-.02.34 0 1.66 1.4 3 3.13 3s3.13-1.34 3.13-3c0-.31-.06-.62-.15-.9.3-.22.58-.47.82-.75 3.21-1.31 5.42-4.01 5.42-7.1 0-4.88-4.9-8.83-11-8.83z"/>
+                      {/* Left eye */}
+                      <circle cx="16.5" cy="19.5" r="1.7" fill="#1A1A1A"/>
+                      {/* Right eye */}
+                      <circle cx="23.5" cy="19.5" r="1.7" fill="#1A1A1A"/>
+                      {/* Smile */}
+                      <path d="M15.5 23.5c.8 1.2 2.4 2 4.5 2s3.7-.8 4.5-2" stroke="#1A1A1A" strokeWidth="1.6" fill="none" strokeLinecap="round"/>
+                      {/* Wheels */}
+                      <circle cx="14.5" cy="30.5" r="1.4" fill="#1A1A1A"/>
+                      <circle cx="25.5" cy="30.5" r="1.4" fill="#1A1A1A"/>
                     </svg>
                   </button>
                 </a>
