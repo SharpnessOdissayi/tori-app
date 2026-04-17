@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { DESIGN_PRESETS } from "@/lib/designPresets";
 import {
@@ -103,6 +103,42 @@ const FREE_MONTHLY_CUSTOMER_LIMIT = 20;
 //   150  → "שעתיים ו-30 דקות"
 //   180  → "3 שעות"
 //   330  → "5 שעות ו-30 דקות"
+// Floating save button that hovers above the mobile bottom nav + any
+// inline save/cancel buttons. Shown only when a tab has unsaved edits
+// (parent decides). 70% width, centered, brand-blue gradient so it
+// catches the eye without fighting the rest of the page chrome.
+function FloatingSaveBar({
+  visible, onClick, saving, label = "שמירה",
+}: {
+  visible: boolean;
+  onClick: () => void;
+  saving?: boolean;
+  label?: string;
+}) {
+  if (!visible) return null;
+  return (
+    <div
+      dir="rtl"
+      className="fixed inset-x-0 z-40 flex justify-center pointer-events-none px-4"
+      // 5rem (80px) sits just above the mobile bottom-nav (64px) with a
+      // small gap; env(safe-area-inset-bottom) respects the iPhone home
+      // indicator. On desktop there's no nav, so 5rem is still a
+      // comfortable distance from the bottom.
+      style={{ bottom: "calc(5rem + env(safe-area-inset-bottom))" }}
+    >
+      <button
+        type="button"
+        onClick={onClick}
+        disabled={saving}
+        className="pointer-events-auto w-[70%] max-w-md h-12 rounded-2xl font-bold text-white shadow-2xl transition-all hover:brightness-110 active:scale-[0.98] disabled:opacity-60 animate-in slide-in-from-bottom-4 fade-in duration-300"
+        style={{ background: "linear-gradient(135deg, #3c92f0 0%, #1e6fcf 100%)" }}
+      >
+        {saving ? "שומר..." : label}
+      </button>
+    </div>
+  );
+}
+
 // Intended for RTL rendering contexts (the whole dashboard is dir="rtl").
 function formatDuration(minutes: number): string {
   const h = Math.floor(minutes / 60);
@@ -948,6 +984,19 @@ function NotificationBell({ token, onNotificationClick }: { token: string; onNot
                     onClick={() => {
                       if (!onNotificationClick) return;
                       setOpen(false);
+                      // Auto mark-as-read on tap — optimistic local
+                      // update first (UI feels instant) then fire
+                      // POST /notifications/business/:id/read in the
+                      // background. Server errors are swallowed; if
+                      // it fails the counter self-corrects on next poll.
+                      if (!n.is_read) {
+                        setUnread(u => Math.max(0, u - 1));
+                        setNotifications(prev => prev.map(x => x.id === n.id ? { ...x, is_read: true } : x));
+                        fetch(`${API_BASE}/notifications/business/${n.id}/read`, {
+                          method: "POST",
+                          headers: { Authorization: `Bearer ${token}` },
+                        }).catch(() => {});
+                      }
                       // Fire after the panel closes so the navigation
                       // transition isn't visually competing with the
                       // dropdown close animation.
@@ -2678,6 +2727,26 @@ function WorkingHoursTab() {
   const [localHours, setLocalHours] = useState<any[]>([]);
   const [bufferMinutes, setBufferMinutes] = useState("0");
 
+  // Compare the in-memory form against whatever's currently cached by
+  // react-query — that's always the "saved" baseline because we
+  // invalidate + refetch after each successful save.
+  const isDirty = useMemo(() => {
+    if (!hours || !profile) return false;
+    const baseline = DAYS.map((_, i) => {
+      const ex = hours.find(h => h.dayOfWeek === i);
+      return ex
+        ? { dayOfWeek: ex.dayOfWeek, startTime: ex.startTime, endTime: ex.endTime, isEnabled: ex.isEnabled }
+        : { dayOfWeek: i, startTime: "09:00", endTime: "18:00", isEnabled: false };
+    });
+    const current = localHours.map((h: any) => ({
+      dayOfWeek: h.dayOfWeek, startTime: h.startTime, endTime: h.endTime, isEnabled: h.isEnabled,
+    }));
+    const hoursChanged = JSON.stringify(baseline) !== JSON.stringify(current);
+    const bufferChanged = ((profile as any).bufferMinutes ?? 0) !== (parseInt(bufferMinutes) || 0);
+    return hoursChanged || bufferChanged;
+  }, [hours, profile, localHours, bufferMinutes]);
+  const isSaving = updateMutation.isPending || updateProfileMutation.isPending;
+
   useEffect(() => {
     if (hours) {
       setLocalHours(DAYS.map((_, i) => {
@@ -2793,6 +2862,7 @@ function WorkingHoursTab() {
         {updateMutation.isPending || updateProfileMutation.isPending ? "שומר..." : "שמור הכל"}
       </Button>
     </div>
+    <FloatingSaveBar visible={isDirty} onClick={handleSave} saving={isSaving} />
     </>
   );
 }
@@ -3915,6 +3985,10 @@ function BrandingTab() {
   const bannerUpload = useImageUpload();
   const logoRef = useRef<HTMLInputElement>(null);
   const bannerRef = useRef<HTMLInputElement>(null);
+  // Baseline snapshot of `form` taken right after it hydrates from the
+  // profile — used to detect unsaved edits and drive the floating save
+  // button. Reset on every successful save so the bar disappears.
+  const baselineFormRef = useRef<any>(null);
 
   // Preview mockup pulls real services so the card reads like the
   // owner's actual profile — name, price (with "החל מ-" flag if set),
@@ -3994,7 +4068,7 @@ function BrandingTab() {
         const raw = (profile as any).galleryImages;
         if (raw) galleryImages = JSON.parse(raw);
       } catch {}
-      setForm({
+      const next = {
         primaryColor: profile.primaryColor ?? "#2563eb",
         fontFamily: profile.fontFamily ?? "Heebo",
         logoUrl: profile.logoUrl ?? "",
@@ -4028,7 +4102,11 @@ function BrandingTab() {
         animationStyle: (profile as any).animationStyle ?? "none",
         hoverEffect: (profile as any).hoverEffect ?? "none",
         backgroundColor: (profile as any).backgroundColor ?? "",
-      });
+      };
+      setForm(next);
+      // Snapshot the hydrated form as the "saved" baseline so the
+      // floating save bar only appears after a real user edit.
+      baselineFormRef.current = next;
       try {
         const cats = (profile as any).businessCategories;
         if (cats) setSelectedCategories(JSON.parse(cats));
@@ -4063,6 +4141,12 @@ function BrandingTab() {
   useEffect(() => { if (bannerUpload.url) setForm(p => ({ ...p, bannerUrl: bannerUpload.url! })); }, [bannerUpload.url]);
 
   const uploading = logoUpload.isUploading || bannerUpload.isUploading || galleryUpload.isUploading;
+  // isDirty drives the floating save bar — shown only after the form
+  // diverges from the snapshot taken when the profile hydrated.
+  const isDirty = useMemo(
+    () => !!baselineFormRef.current && JSON.stringify(form) !== JSON.stringify(baselineFormRef.current),
+    [form],
+  );
 
   const handleSave = () => {
     updateBranding.mutate({
@@ -4097,6 +4181,10 @@ function BrandingTab() {
     }, {
       onSuccess: async () => {
         toast({ title: "עיצוב נשמר" });
+        // Promote the just-sent form to the new "saved" baseline so
+        // the floating bar disappears immediately after a successful
+        // save, without waiting for the refetch round-trip.
+        baselineFormRef.current = form;
         await queryClient.invalidateQueries({ queryKey: getGetBusinessProfileQueryKey(), refetchType: "active" });
       },
       onError: (err: any) => {
@@ -4645,6 +4733,7 @@ function BrandingTab() {
           <Button onClick={handleSave} disabled={updateBranding.isPending} size="lg">שמור עיצוב</Button>
         </div>
       </Card>
+      <FloatingSaveBar visible={isDirty} onClick={handleSave} saving={updateBranding.isPending} />
     </div>
   );
 }
@@ -5205,6 +5294,9 @@ function SettingsTab() {
   const queryClient = useQueryClient();
   const { toast } = useToast();
   const isPro = profile?.subscriptionPlan === "pro";
+  // Snapshot of the loaded form — drives the floating save bar.
+  const baselineFormRef = useRef<any>(null);
+  const baselineCategoriesRef = useRef<string[] | null>(null);
 
   const [form, setForm] = useState({
     name: "", ownerName: "", ownerGender: "male" as "male" | "female" | "other", phone: "", email: "",
@@ -5247,7 +5339,7 @@ function SettingsTab() {
 
   useEffect(() => {
     if (profile) {
-      setForm({
+      const next = {
         name: profile.name,
         ownerName: profile.ownerName,
         ownerGender: (((profile as any).ownerGender ?? "male") as "male" | "female" | "other"),
@@ -5277,13 +5369,26 @@ function SettingsTab() {
         businessLegalName: (profile as any).businessLegalName ?? "",
         invoiceAddress: (profile as any).invoiceAddress ?? "",
         slug: profile.slug ?? "",
-      });
+      };
+      setForm(next);
+      baselineFormRef.current = next;
       try {
         const cats = (profile as any).businessCategories;
-        if (cats) setSelectedCategories(JSON.parse(cats));
-      } catch {}
+        const parsed = cats ? JSON.parse(cats) : [];
+        setSelectedCategories(parsed);
+        baselineCategoriesRef.current = parsed;
+      } catch {
+        baselineCategoriesRef.current = [];
+      }
     }
   }, [profile]);
+
+  const isDirty = useMemo(() => {
+    if (!baselineFormRef.current) return false;
+    if (JSON.stringify(form) !== JSON.stringify(baselineFormRef.current)) return true;
+    const baseCats = baselineCategoriesRef.current ?? [];
+    return JSON.stringify(selectedCategories) !== JSON.stringify(baseCats);
+  }, [form, selectedCategories]);
 
   // Prepend https:// to bare domains so the SettingsTab's website /
   // Waze inputs produce absolute URLs in the DB. Without this an owner
@@ -5336,6 +5441,10 @@ function SettingsTab() {
     }, {
       onSuccess: async () => {
         toast({ title: "הגדרות נשמרו" });
+        // Promote the just-sent form to the new baseline so the floating
+        // bar disappears immediately after save.
+        baselineFormRef.current = form;
+        baselineCategoriesRef.current = [...selectedCategories];
         await queryClient.invalidateQueries({ queryKey: getGetBusinessProfileQueryKey(), refetchType: "active" });
       },
       onError: (err: any) => {
@@ -5816,6 +5925,11 @@ function SettingsTab() {
             {updateMutation.isPending ? "שומר..." : "שמור הכל"}
           </Button>
       </div>
+      <FloatingSaveBar
+        visible={isDirty}
+        onClick={() => handleSave({ preventDefault: () => {} } as any)}
+        saving={updateMutation.isPending}
+      />
     </div>
   );
 }

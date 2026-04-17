@@ -802,11 +802,12 @@ function TimeOffBlock({
       style={{ top, height, ...laneStyle, background: TIME_OFF_STRIPES, touchAction: interactive ? "none" : undefined }}
       title={label}
     >
-      {/* Label + icon allowed to wrap so a long note ("חופשה משפחתית")
-          or a narrow (split-lane) block still shows the whole text. */}
-      <div className={`px-1 py-0.5 ${laneCount > 1 ? "text-[9px]" : "text-[10px]"} font-bold text-red-800 leading-[1.05] flex items-start gap-1`}>
-        <Ban className="w-3 h-3 shrink-0 mt-0.5" />
-        <span className="break-words">{fullDay ? "אילוץ — יום שלם" : label}</span>
+      {/* Owner preference: drop the Ban icon — the striped red pattern
+          is already a clear "blocked" signal. Show the reason (or the
+          default אילוץ label when no note) as the only content so it
+          reads as text, not as a warning sign. */}
+      <div className={`px-1.5 py-0.5 ${laneCount > 1 ? "text-[9px]" : "text-[10px]"} font-bold text-red-800 leading-[1.05] break-words`}>
+        {label}
       </div>
     </div>
   );
@@ -993,7 +994,10 @@ function TimeGrid({
                   const top = Math.max(0, (sMin - DAY_START_MINUTES) / SLOT_MINUTES * SLOT_PX);
                   const rawHeight = (eMin - sMin) / SLOT_MINUTES * SLOT_PX;
                   const height = Math.max(SLOT_PX * 0.6, Math.min(totalHeight - top, rawHeight));
-                  const label = (t.note && t.note.trim()) || (t.fullDay ? "אילוץ — יום שלם" : `${t.startTime ?? ""}–${t.endTime ?? ""}`);
+                  // Prefer the owner's note when present — that's the
+                  // "reason" they typed in. Fallback to plain "אילוץ"
+                  // so a note-less block still labels itself.
+                  const label = (t.note && t.note.trim()) || "אילוץ";
                   return (
                     <TimeOffBlock
                       key={`t${t.id}`}
@@ -1041,7 +1045,7 @@ function TimeGrid({
                   const top = Math.max(0, (timeOffDrag.previewStartMin - DAY_START_MINUTES) / SLOT_MINUTES * SLOT_PX);
                   const rawHeight = (timeOffDrag.previewEndMin - timeOffDrag.previewStartMin) / SLOT_MINUTES * SLOT_PX;
                   const height = Math.max(SLOT_PX * 0.6, Math.min(totalHeight - top, rawHeight));
-                  const label = (t.note && t.note.trim()) || (t.fullDay ? "אילוץ — יום שלם" : `${t.startTime ?? ""}–${t.endTime ?? ""}`);
+                  const label = (t.note && t.note.trim()) || "אילוץ";
                   return (
                     <TimeOffBlock top={top} height={height} label={label} fullDay={t.fullDay} isDragging />
                   );

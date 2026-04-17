@@ -97,6 +97,20 @@ router.post("/notifications/business/read-all", requireBusinessAuth, async (req,
   res.json({ success: true });
 });
 
+// POST /notifications/business/:id/read — mark a single notification
+// as read. Called when the owner taps a notification row so the
+// unread counter + highlight update immediately without waiting for
+// "סמן הכל".
+router.post("/notifications/business/:id/read", requireBusinessAuth, async (req, res): Promise<void> => {
+  const id = Number(req.params.id);
+  if (!id || isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
+  await db.execute(sql`
+    UPDATE notifications SET is_read = TRUE
+    WHERE id = ${id} AND business_id = ${req.business!.businessId}
+  `);
+  res.json({ success: true });
+});
+
 router.delete("/notifications/business/all", requireBusinessAuth, async (req, res): Promise<void> => {
   await db.execute(sql`
     DELETE FROM notifications
