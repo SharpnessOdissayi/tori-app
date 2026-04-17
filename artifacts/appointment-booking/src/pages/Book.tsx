@@ -485,7 +485,7 @@ export default function Book({ slugOverride }: { slugOverride?: string } = {}) {
   // the primary-colour accents + hero banner, not the body canvas.
   // `.dark` class on <html> (set by ThemeToggleFab) swaps the cream
   // for #141414 via the CSS rule in index.css.
-  const pageBackground = "#faf6ed"; // light / default; dark mode via CSS
+  const pageBackground = "#ffffff"; // light / default; dark mode via CSS
 
   // Optional decorative SVG patterns as CSS background-image
   const patternSvg = backgroundPattern === "dots"
@@ -1212,7 +1212,7 @@ export default function Book({ slugOverride }: { slugOverride?: string } = {}) {
         style={{
           fontFamily: `'${fontFamily}', 'Rubik', 'Heebo', sans-serif`,
         }}
-        className="kavati-biz-scope min-h-screen overflow-x-hidden bg-[#faf6ed] dark:bg-neutral-950 text-neutral-900 dark:text-neutral-100"
+        className="kavati-biz-scope min-h-screen overflow-x-hidden bg-white dark:bg-neutral-950 text-neutral-900 dark:text-neutral-100"
       >
 
         {/* Notification popup — dismissable permanently via localStorage */}
@@ -1951,7 +1951,7 @@ export default function Book({ slugOverride }: { slugOverride?: string } = {}) {
 
   // ─── STEPS 1-5: Booking wizard ──────────────────────────────────────────────
   return (
-    <div className="kavati-biz-scope min-h-[100dvh] flex flex-col relative bg-[#faf6ed] dark:bg-neutral-950 text-neutral-900 dark:text-neutral-100" dir="rtl" style={{ fontFamily: `'${fontFamily}', 'Rubik', 'Heebo', sans-serif` }}>
+    <div className="kavati-biz-scope min-h-[100dvh] flex flex-col relative bg-white dark:bg-neutral-950 text-neutral-900 dark:text-neutral-100" dir="rtl" style={{ fontFamily: `'${fontFamily}', 'Rubik', 'Heebo', sans-serif` }}>
       <div className="absolute top-0 w-full h-52 -z-10 rounded-b-[40px]" style={{ backgroundColor: primaryColor + "18" }} />
 
       {business.notificationEnabled && business.notificationMessage && (

@@ -3644,7 +3644,7 @@ function BrandingTab() {
         // mode. Matches what Book.tsx renders so the preview never
         // drifts from the actual profile page.
         const bgStyle: React.CSSProperties = {
-          backgroundColor: isDark ? "#141414" : "#faf6ed",
+          backgroundColor: isDark ? "#141414" : "#ffffff",
         };
 
         return (
