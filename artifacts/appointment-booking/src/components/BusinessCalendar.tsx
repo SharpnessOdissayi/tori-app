@@ -1269,11 +1269,13 @@ export function BusinessCalendar({
     return Array.from({ length: 7 }, (_, i) => addDays(start, i));
   }, [cursor]);
 
-  // Swipe-to-navigate across weeks/days/months. In an RTL layout the
-  // natural gesture direction matches LTR: swipe right→left to advance
-  // (next period), left→right to go back. Touches that start inside an
-  // appointment card or time-off block are ignored — those owners the
-  // drag-to-reschedule handler.
+  // Swipe-to-navigate across weeks/days/months. In the RTL calendar
+  // the content flows right-to-left (Sunday on the right, Saturday on
+  // the left) — newer periods extend off the LEFT edge of the view.
+  // So sweeping the finger LEFT→RIGHT drags the visible period toward
+  // the right and advances forward (next period), and RIGHT→LEFT goes
+  // back. Touches that start inside an appointment card or time-off
+  // block are ignored — those own the drag-to-reschedule handler.
   const swipeStart = useRef<{ x: number; y: number } | null>(null);
   const stepByGesture = (dir: 1 | -1) => {
     if (view === "day") setCursor(addDays(cursor, dir));
@@ -1298,7 +1300,8 @@ export function BusinessCalendar({
     // gesture so accidental diagonal scrolls don't trigger paging.
     if (Math.abs(dx) < 60) return;
     if (Math.abs(dx) < Math.abs(dy) * 1.2) return;
-    stepByGesture(dx < 0 ? 1 : -1);
+    // RTL calendar: dx > 0 (L→R) = next, dx < 0 (R→L) = previous.
+    stepByGesture(dx > 0 ? 1 : -1);
   };
 
   const headerLabel = useMemo(() => {
