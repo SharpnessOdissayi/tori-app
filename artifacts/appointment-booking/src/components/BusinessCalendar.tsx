@@ -335,9 +335,9 @@ function MonthView({
                   whenever any constraint touches the day (full or partial). */}
               {offs.length > 0 && (
                 <div className="mt-0.5 text-[10px] font-bold px-1 py-px rounded bg-red-100 text-red-700 truncate flex items-center gap-0.5"
-                  title={offs.map(t => t.note || (t.fullDay ? "יום חופש" : `${t.startTime}-${t.endTime}`)).join(" • ")}>
+                  title={offs.map(t => t.note || (t.fullDay ? "אילוץ — יום שלם" : `${t.startTime}-${t.endTime}`)).join(" • ")}>
                   <Ban className="w-2.5 h-2.5" />
-                  <span className="truncate">{offs[0].fullDay ? "חופש" : "אילוץ"}</span>
+                  <span className="truncate">אילוץ</span>
                 </div>
               )}
               {/* Appointment dots — max 4 visible, rest show as "+N". */}
@@ -502,14 +502,19 @@ function ApptCard({
         : "bg-rose-600 text-white border-rose-700"
       }`;
 
+  // touch-action:none lets us capture drag gestures, but applying it
+  // unconditionally makes mobile scrolling get "stuck" whenever the
+  // finger lands on a card. We only pin it while the card is actively
+  // being dragged; otherwise the browser's default scroll wins.
+  const touchAction = isDragging ? "none" as const : "pan-y" as const;
   const customStyle = useCustomColour
     ? {
-        top, height, touchAction: "none" as const,
+        top, height, touchAction,
         background: serviceColor!,
         color: readableOn(serviceColor!),
         borderColor: serviceColor!,
       }
-    : { top, height, touchAction: "none" as const };
+    : { top, height, touchAction };
 
   return (
     <div
@@ -535,29 +540,34 @@ const TIME_OFF_STRIPES =
   "repeating-linear-gradient(135deg, rgba(239,68,68,0.18) 0 8px, rgba(239,68,68,0.30) 8px 16px)";
 
 function TimeOffBlock({
-  top, height, label, fullDay,
+  top, height, label, fullDay, onClick,
 }: {
   top: number;
   height: number;
   label: string;
   fullDay: boolean;
+  onClick?: () => void;
 }) {
+  const clickable = !!onClick;
   return (
     <div
-      className="absolute right-0 left-0 z-0 border-y border-red-400/60 pointer-events-none overflow-hidden"
+      role={clickable ? "button" : undefined}
+      tabIndex={clickable ? 0 : undefined}
+      onClick={onClick ? (e) => { e.stopPropagation(); onClick(); } : undefined}
+      className={`absolute right-0 left-0 z-0 border-y border-red-400/60 overflow-hidden ${clickable ? "cursor-pointer hover:brightness-95" : "pointer-events-none"}`}
       style={{ top, height, background: TIME_OFF_STRIPES }}
       title={label}
     >
       <div className="px-1.5 py-1 text-[10px] font-bold text-red-800 leading-tight truncate flex items-center gap-1">
         <Ban className="w-3 h-3 shrink-0" />
-        <span className="truncate">{fullDay ? "יום חופש" : label}</span>
+        <span className="truncate">{fullDay ? "אילוץ — יום שלם" : label}</span>
       </div>
     </div>
   );
 }
 
 function TimeGrid({
-  days, appts, timeOff, onApptClick, onReschedule, serviceColors, onPickSlot,
+  days, appts, timeOff, onApptClick, onReschedule, serviceColors, onPickSlot, onTimeOffClick,
 }: {
   days: Date[];
   appts: CalAppt[];
@@ -568,6 +578,9 @@ function TimeGrid({
   // Called when the owner clicks an empty slot in a day column —
   // snaps to the nearest 30-min slot and passes date + HH:mm.
   onPickSlot?: (date: string, time: string) => void;
+  // Called when the owner clicks a time-off (constraint) block —
+  // parent opens an edit/delete dialog.
+  onTimeOffClick?: (t: TimeOffItem) => void;
 }) {
   const holidays = useHolidaysInRange(days[0], days[days.length - 1]);
   const today = new Date();
@@ -709,9 +722,16 @@ function TimeGrid({
                 const top = Math.max(0, (sMin - DAY_START_MINUTES) / SLOT_MINUTES * SLOT_PX);
                 const rawHeight = (eMin - sMin) / SLOT_MINUTES * SLOT_PX;
                 const height = Math.max(SLOT_PX * 0.6, Math.min(totalHeight - top, rawHeight));
-                const label = (t.note && t.note.trim()) || (t.fullDay ? "יום חופש" : `${t.startTime ?? ""}–${t.endTime ?? ""}`);
+                const label = (t.note && t.note.trim()) || (t.fullDay ? "אילוץ — יום שלם" : `${t.startTime ?? ""}–${t.endTime ?? ""}`);
                 return (
-                  <TimeOffBlock key={t.id} top={top} height={height} label={label} fullDay={t.fullDay} />
+                  <TimeOffBlock
+                    key={t.id}
+                    top={top}
+                    height={height}
+                    label={label}
+                    fullDay={t.fullDay}
+                    onClick={onTimeOffClick ? () => onTimeOffClick(t) : undefined}
+                  />
                 );
               })}
               {/* Appointments */}
@@ -893,6 +913,7 @@ export function BusinessCalendar({
   appointments,
   timeOff,
   onApptClick,
+  onTimeOffClick,
   onRescheduleServer,
   serviceColors,
   onNewAppointment,
@@ -900,9 +921,12 @@ export function BusinessCalendar({
 }: {
   appointments: CalAppt[];
   // Constraint / time-off blocks rendered as red striped overlays in
-  // the day/week views. Owner manages them in the "יום חופש" tab.
+  // the day/week views. Owner manages them in the אילוצים section
+  // under Working Hours.
   timeOff?: TimeOffItem[];
   onApptClick: (a: CalAppt) => void;
+  // Clicking a time-off block — parent opens its edit/delete dialog.
+  onTimeOffClick?: (t: TimeOffItem) => void;
   // Called after the owner confirms a reschedule. Parent is responsible
   // for the PATCH + WhatsApp open (so the calendar stays purely visual).
   onRescheduleServer: (appt: CalAppt, newDate: string, newTime: string, sendNotification: boolean) => void;
@@ -1014,6 +1038,7 @@ export function BusinessCalendar({
             timeOff={timeOff}
             serviceColors={serviceColors}
             onApptClick={onApptClick}
+            onTimeOffClick={onTimeOffClick}
             onReschedule={(a, nd, nt) => setPendingReschedule({ appt: a, newDate: nd, newTime: nt })}
             onPickSlot={onNewAppointment ? (date, time) => onNewAppointment({ date, time }) : undefined}
           />
@@ -1025,6 +1050,7 @@ export function BusinessCalendar({
             timeOff={timeOff}
             serviceColors={serviceColors}
             onApptClick={onApptClick}
+            onTimeOffClick={onTimeOffClick}
             onReschedule={(a, nd, nt) => setPendingReschedule({ appt: a, newDate: nd, newTime: nt })}
             onPickSlot={onNewAppointment ? (date, time) => onNewAppointment({ date, time }) : undefined}
           />

@@ -44,7 +44,7 @@ import {
   Calendar, Clock, Settings, Briefcase, LogOut, Plus, Trash2, Edit,
   Users, ListOrdered, Palette, Puzzle, Phone, TrendingUp, CheckCircle,
   ExternalLink, Info, Upload, Image as ImageIcon, Crown, Zap, X, Copy, Check, Link,
-  ChevronLeft, ChevronRight, Eye, EyeOff, Umbrella, DollarSign,
+  ChevronLeft, ChevronRight, Eye, EyeOff, Ban, DollarSign,
   MessageSquare, Send, Search, ChevronDown, Instagram, Bell, FileText,
   XCircle, CheckCircle2, RotateCw, Hourglass, Download
 } from "lucide-react";
@@ -1328,6 +1328,10 @@ function AppointmentsTab({ mobileFocus }: { mobileFocus?: "calendar" | "approval
   // new calendar view). Holds the selected appointment so we can show
   // details + the customer's reliability breakdown.
   const [editAppt, setEditAppt] = useState<CalAppt | null>(null);
+  // Clicking a time-off block on the calendar opens an edit/delete
+  // dialog with the current values — owner can shift the date/time,
+  // tweak the note, or delete the constraint outright.
+  const [editTimeOff, setEditTimeOff] = useState<TimeOffItem | null>(null);
   // Manual "new appointment" dialog state — opened either from the "+"
   // button in the calendar header (empty defaults) or by clicking an
   // empty slot in the day/week grid (prefilled date + time).
@@ -1557,10 +1561,19 @@ function AppointmentsTab({ mobileFocus }: { mobileFocus?: "calendar" | "approval
         appointments={aptList as unknown as CalAppt[]}
         timeOff={timeOff ?? []}
         onApptClick={setEditAppt}
+        onTimeOffClick={setEditTimeOff}
         onRescheduleServer={handleReschedule}
         serviceColors={serviceColors}
         onNewAppointment={opts => setNewApptDialog({ open: true, date: opts?.date, time: opts?.time, tab: "appointment" })}
         onNewTimeOff={opts => setNewApptDialog({ open: true, date: opts?.date, time: opts?.time, tab: "timeoff" })}
+      />
+
+      <TimeOffEditDialog
+        item={editTimeOff}
+        onClose={() => setEditTimeOff(null)}
+        onChanged={() => {
+          queryClient.invalidateQueries({ queryKey: ["time-off"] });
+        }}
       />
 
       <NewAppointmentDialog
@@ -2739,6 +2752,160 @@ function ForgotPasswordFlow({ onBack }: { onBack: () => void }) {
   );
 }
 
+// Edit/delete dialog opened when the owner clicks a time-off block in
+// the calendar. Mirrors the fields of the ConstraintsTab form but
+// targets a single existing row (PATCH / DELETE by id).
+function TimeOffEditDialog({
+  item, onClose, onChanged,
+}: {
+  item: TimeOffItem | null;
+  onClose: () => void;
+  onChanged: () => void;
+}) {
+  const { toast } = useToast();
+  const [date, setDate] = useState("");
+  const [type, setType] = useState<"full" | "partial">("full");
+  const [startTime, setStartTime] = useState("09:00");
+  const [endTime, setEndTime] = useState("17:00");
+  const [note, setNote] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+
+  // Reset form whenever a different block is opened.
+  useEffect(() => {
+    if (!item) return;
+    setDate(item.date);
+    setType(item.fullDay ? "full" : "partial");
+    setStartTime(item.startTime ?? "09:00");
+    setEndTime(item.endTime ?? "17:00");
+    setNote(item.note ?? "");
+  }, [item]);
+
+  const authHeaders = () => ({
+    authorization: `Bearer ${localStorage.getItem("biz_token") || sessionStorage.getItem("biz_token")}`,
+  });
+
+  const handleSave = async () => {
+    if (!item) return;
+    if (!date) { toast({ title: "יש לבחור תאריך", variant: "destructive" }); return; }
+    setSaving(true);
+    try {
+      const body: any = {
+        date,
+        fullDay: type === "full",
+        note: note.trim() || null,
+      };
+      if (type === "partial") { body.startTime = startTime; body.endTime = endTime; }
+      const r = await fetch(`/api/business/time-off/${item.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", ...authHeaders() },
+        body: JSON.stringify(body),
+      });
+      if (!r.ok) throw new Error();
+      toast({ title: "האילוץ עודכן" });
+      onChanged();
+      onClose();
+    } catch {
+      toast({ title: "שגיאה בשמירה", variant: "destructive" });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!item) return;
+    if (!confirm("למחוק את האילוץ הזה?")) return;
+    setDeleting(true);
+    try {
+      const r = await fetch(`/api/business/time-off/${item.id}`, {
+        method: "DELETE",
+        headers: authHeaders(),
+      });
+      if (!r.ok) throw new Error();
+      toast({ title: "האילוץ נמחק" });
+      onChanged();
+      onClose();
+    } catch {
+      toast({ title: "שגיאה במחיקה", variant: "destructive" });
+    } finally {
+      setDeleting(false);
+    }
+  };
+
+  return (
+    <Dialog open={!!item} onOpenChange={v => { if (!v) onClose(); }}>
+      <DialogContent dir="rtl" className="max-w-sm">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <span>🚫</span> עריכת אילוץ
+          </DialogTitle>
+          <DialogDescription>עדכון או מחיקה של חסימה קיימת ביומן</DialogDescription>
+        </DialogHeader>
+        <div className="space-y-4 pt-2">
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={() => setType("full")}
+              className={`flex-1 py-2 rounded-xl border-2 text-sm font-medium transition-all ${type === "full" ? "border-primary bg-primary/5 text-primary" : "border-border"}`}
+            >
+              יום שלם
+            </button>
+            <button
+              type="button"
+              onClick={() => setType("partial")}
+              className={`flex-1 py-2 rounded-xl border-2 text-sm font-medium transition-all ${type === "partial" ? "border-primary bg-primary/5 text-primary" : "border-border"}`}
+            >
+              שעות ספציפיות
+            </button>
+          </div>
+
+          <div className="space-y-1">
+            <Label>תאריך</Label>
+            <Input type="date" value={date} onChange={e => setDate(e.target.value)} />
+          </div>
+
+          {type === "partial" && (
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <Label>משעה</Label>
+                <Input type="time" value={startTime} onChange={e => setStartTime(e.target.value)} />
+              </div>
+              <div className="space-y-1">
+                <Label>עד שעה</Label>
+                <Input type="time" value={endTime} onChange={e => setEndTime(e.target.value)} />
+              </div>
+            </div>
+          )}
+
+          <div className="space-y-1">
+            <Label>הערה (אופציונלי)</Label>
+            <Input value={note} onChange={e => setNote(e.target.value)} placeholder="לדוגמה: חופשה משפחתית" />
+          </div>
+
+          <div className="flex items-center gap-2 pt-2">
+            <Button
+              variant="outline"
+              onClick={handleDelete}
+              disabled={saving || deleting}
+              className="gap-1.5 text-red-600 border-red-200 hover:bg-red-50"
+            >
+              <Trash2 className="w-4 h-4" />
+              {deleting ? "מוחק..." : "מחק"}
+            </Button>
+            <div className="flex-1" />
+            <Button variant="outline" onClick={onClose} disabled={saving || deleting}>
+              ביטול
+            </Button>
+            <Button onClick={handleSave} disabled={saving || deleting}>
+              {saving ? "שומר..." : "שמור"}
+            </Button>
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 function DayOffTab() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -2806,7 +2973,7 @@ function DayOffTab() {
         body: JSON.stringify(body),
       });
       if (r.ok) {
-        toast({ title: editingId ? "יום החופש עודכן" : "יום החופש נוסף" });
+        toast({ title: editingId ? "האילוץ עודכן" : "האילוץ נוסף" });
         resetForm();
         load();
       } else {
@@ -2824,7 +2991,7 @@ function DayOffTab() {
     try {
       const res = await fetch(`/api/business/time-off/${id}`, { method: "DELETE", headers: authHeaders() });
       if (!res.ok) throw new Error();
-      toast({ title: "יום החופש נמחק" });
+      toast({ title: "האילוץ נמחק" });
       if (editingId === id) resetForm();
       load();
     } catch {
@@ -2841,15 +3008,15 @@ function DayOffTab() {
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <Umbrella className="w-5 h-5" /> יום חופש
+            <Ban className="w-5 h-5" /> אילוצים
           </CardTitle>
-          <CardDescription>הוסף ימי חופש או שעות בהן לא ניתן לקבוע תורים</CardDescription>
+          <CardDescription>חסימה של ימים שלמים או שעות ספציפיות שבהן לא ניתן לקבוע תורים</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           {/* Type toggle */}
           <div className="flex gap-2">
             <button onClick={() => setType("full")} className={`flex-1 py-2 rounded-xl border-2 text-sm font-medium transition-all ${type === "full" ? "border-primary bg-primary/5 text-primary" : "border-border"}`}>
-              🌴 יום חופש מלא
+              🚫 יום שלם
             </button>
             <button onClick={() => setType("partial")} className={`flex-1 py-2 rounded-xl border-2 text-sm font-medium transition-all ${type === "partial" ? "border-primary bg-primary/5 text-primary" : "border-border"}`}>
               ⏰ שעות ספציפיות
@@ -2889,7 +3056,7 @@ function DayOffTab() {
               </Button>
             )}
             <Button onClick={handleAdd} disabled={loading} className="flex-1 gap-2">
-              <Plus className="w-4 h-4" /> {editingId ? "שמור שינויים" : "הוסף יום חופש"}
+              <Plus className="w-4 h-4" /> {editingId ? "שמור שינויים" : "הוסף אילוץ"}
             </Button>
           </div>
         </CardContent>
@@ -2898,7 +3065,7 @@ function DayOffTab() {
       {/* List */}
       {items.length > 0 && (
         <Card>
-          <CardHeader><CardTitle className="text-base">ימי חופש מתוכננים</CardTitle></CardHeader>
+          <CardHeader><CardTitle className="text-base">אילוצים מתוכננים</CardTitle></CardHeader>
           <CardContent className="space-y-2">
             {items.map(item => (
               <div
@@ -2908,7 +3075,7 @@ function DayOffTab() {
                 <div className="flex-1 min-w-0">
                   <div className="font-medium text-sm">{formatDate(item.date)}</div>
                   <div className="text-xs text-muted-foreground">
-                    {item.fullDay ? "יום חופש מלא" : `${item.startTime} — ${item.endTime}`}
+                    {item.fullDay ? "יום שלם" : `${item.startTime} — ${item.endTime}`}
                     {item.note && ` • ${item.note}`}
                   </div>
                 </div>
