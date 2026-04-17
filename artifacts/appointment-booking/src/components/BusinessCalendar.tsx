@@ -641,20 +641,20 @@ function ApptCard({
         : "bg-rose-600 text-white border-rose-700"
       }`;
 
-  // touch-action:none lets us capture drag gestures, but applying it
-  // unconditionally makes mobile scrolling get "stuck" whenever the
-  // finger lands on a card. We only pin it while the card is actively
-  // being dragged; otherwise the browser's default scroll wins.
-  const touchAction = isDragging ? "none" as const : "pan-y" as const;
+  // touch-action:none is required on the card itself so the browser
+  // lets our pointer handler capture the gesture — otherwise the
+  // first finger-move is hijacked as a page scroll and drag-to-
+  // reschedule never fires on mobile. Vertical scrolling still works
+  // anywhere the finger lands OUTSIDE a card (empty grid / gridlines).
   const laneStyle = laneRect(lane, laneCount);
   const customStyle = useCustomColour
     ? {
-        top, height, touchAction, ...laneStyle,
+        top, height, touchAction: "none" as const, ...laneStyle,
         background: serviceColor!,
         color: readableOn(serviceColor!),
         borderColor: serviceColor!,
       }
-    : { top, height, touchAction, ...laneStyle };
+    : { top, height, touchAction: "none" as const, ...laneStyle };
 
   return (
     <div
@@ -785,7 +785,11 @@ function TimeOffBlock({
         onClick();
       } : undefined}
       className={`absolute z-0 border-y border-red-400/60 overflow-hidden ${interactive ? "cursor-grab active:cursor-grabbing hover:brightness-95" : "pointer-events-none"} ${isDragging ? "ring-2 ring-red-500 opacity-80" : ""}`}
-      style={{ top, height, ...laneStyle, background: TIME_OFF_STRIPES, touchAction: isDragging ? "none" : "pan-y" }}
+      // touch-action:none pins the browser so our pointer handler can
+      // capture the drag — otherwise a finger on the block would be
+      // consumed as a page scroll before we see the first pointermove.
+      // Scrolling the calendar still works anywhere outside a block.
+      style={{ top, height, ...laneStyle, background: TIME_OFF_STRIPES, touchAction: interactive ? "none" : undefined }}
       title={label}
     >
       <div className="px-1.5 py-1 text-[10px] font-bold text-red-800 leading-tight truncate flex items-center gap-1">
