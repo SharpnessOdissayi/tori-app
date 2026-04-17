@@ -681,14 +681,29 @@ router.get("/s/:businessSlug", async (req, res): Promise<void> => {
   const imgAbs = String(rawImg).startsWith("http") ? String(rawImg)
             : `${host}${String(rawImg).startsWith("/") ? "" : "/"}${rawImg}`;
 
-  // Optimise for social-card scrapers: huge source images (4k+, multi-MB)
-  // get skipped or time out on WhatsApp/FB. When we detect a Cloudinary
-  // URL we inject a resize + auto-format transformation so the scraper
-  // gets a ~1200×630 jpg under 150 KB, which is the sweet-spot for
-  // OpenGraph preview cards (same dimensions FB recommends).
-  const img = imgAbs.includes("res.cloudinary.com") && imgAbs.includes("/upload/")
-    ? imgAbs.replace("/upload/", "/upload/c_fill,g_auto,w_1200,h_630,f_auto,q_auto/")
-    : imgAbs;
+  // Optimise the og:image for social-card scrapers. Huge source images
+  // (4k+, multi-MB) get skipped or time out on WhatsApp/FB; tiny ones
+  // (< 300×200) get ignored entirely. We hand the scraper a ~1200×630
+  // jpg regardless of what the owner uploaded, which is the sweet-spot
+  // FB recommends for the summary_large_image card.
+  //
+  // Two paths:
+  //   (a) Cloudinary URLs → inject a resize transformation inline
+  //       (no extra hop, images.cloudinary.com already serves the
+  //       cropped version directly).
+  //   (b) Everything else → pipe the URL through images.weserv.nl,
+  //       a free public proxy that resizes + re-encodes any image
+  //       URL. Handles Google Cloud Storage, S3, arbitrary hosts,
+  //       different aspect ratios + sizes automatically.
+  let img = imgAbs;
+  if (imgAbs.includes("res.cloudinary.com") && imgAbs.includes("/upload/")) {
+    img = imgAbs.replace("/upload/", "/upload/c_fill,g_auto,w_1200,h_630,f_auto,q_auto/");
+  } else if (/^https?:\/\//i.test(imgAbs) && !imgAbs.startsWith(host)) {
+    // Skip the proxy for images hosted on this server (kavati.net
+    // itself) — no size issue there, and proxying them adds latency.
+    const stripped = imgAbs.replace(/^https?:\/\//i, "");
+    img = `https://images.weserv.nl/?url=${encodeURIComponent(stripped)}&w=1200&h=630&fit=cover&a=attention&output=jpg&q=80`;
+  }
   const title = _htmlEscape((business as any).name || "קבעתי");
   const desc = _htmlEscape((business as any).businessDescription || `קבעי תור אצל ${(business as any).name}`);
   const imgEsc = _htmlEscape(img);
