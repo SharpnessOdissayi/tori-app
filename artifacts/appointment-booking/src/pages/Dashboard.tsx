@@ -5461,16 +5461,8 @@ function ContrastWarning({ colors }: { colors: Array<{ bg: string; fg: string; c
     .filter(c => c.ratio < 4.5);
   if (failing.length === 0) return null;
   return (
-    <div className="mt-2 rounded-xl border border-amber-300 bg-amber-50 p-3 text-xs text-amber-900 space-y-1">
-      <div className="font-bold flex items-center gap-1.5">
-        <span>⚠️</span> בדיקת קריאות
-      </div>
-      {failing.map((c, i) => (
-        <div key={i} className="flex items-center justify-between gap-2">
-          <span>{c.context} — יחס ניגודיות {c.ratio.toFixed(1)}:1 נמוך מהמומלץ (4.5:1)</span>
-        </div>
-      ))}
-      <div className="text-[11px] opacity-80">הטקסט עלול להיראות חלש או לא קריא ללקוחות. שקלי לבחור צבע כהה יותר.</div>
+    <div className="mt-2 rounded-xl border border-amber-300 bg-amber-50 p-3 text-xs text-amber-900">
+      <span className="font-semibold">⚠️ הטקסט עלול להיות לא קריא</span>
     </div>
   );
 }
