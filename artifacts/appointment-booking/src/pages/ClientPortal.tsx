@@ -368,6 +368,10 @@ export default function ClientPortal() {
   const [loading, setLoading] = useState(false);
 
   // Discover
+  // Which "cancelled-by" bucket the client is currently viewing in the
+  // appointments tab. Kept per-session (no persistence) so it always
+  // defaults to the more common case ("by client") on reopen.
+  const [cancelledView, setCancelledView] = useState<"business" | "client">("client");
   const [hiddenApptIds, setHiddenApptIds] = useState<Set<number>>(
     () => new Set(JSON.parse(localStorage.getItem("kavati_hidden_appts") ?? "[]"))
   );
@@ -541,7 +545,15 @@ export default function ClientPortal() {
   };
 
   const upcoming = appointments.filter(a => a.status !== "cancelled" && isUpcoming(a.appointmentDate, a.appointmentTime));
-  const past = appointments.filter(a => !hiddenApptIds.has(a.id) && (!isUpcoming(a.appointmentDate, a.appointmentTime) || a.status === "cancelled"));
+  // Past = non-cancelled appointments whose time has already passed.
+  const past = appointments.filter(a => !hiddenApptIds.has(a.id) && !isUpcoming(a.appointmentDate, a.appointmentTime) && a.status !== "cancelled");
+  // Cancelled split by "who cancelled" — the backend fills cancelledBy
+  // with "business" or "client" when a cancel endpoint runs. Anything
+  // without a value falls into the "by client" bucket (client-initiated
+  // early-cancel was the original default before the field existed).
+  const cancelledAll = appointments.filter(a => !hiddenApptIds.has(a.id) && a.status === "cancelled");
+  const cancelledByBusiness = cancelledAll.filter(a => (a as any).cancelledBy === "business");
+  const cancelledByClient   = cancelledAll.filter(a => (a as any).cancelledBy !== "business");
 
   return (
     <div className="portal-dark-scope min-h-screen bg-gray-50 flex flex-col max-w-md mx-auto relative" dir="rtl">
@@ -712,7 +724,58 @@ export default function ClientPortal() {
         {/* ── APPOINTMENTS TAB ── */}
         {tab === "appointments" && (
           <div className="p-4 space-y-5">
-            {/* Upcoming */}
+            {/* Cancelled — moved above "upcoming" per owner feedback.
+                Two-tab switcher splits by who cancelled (business vs
+                client). Shows the relevant bucket only. */}
+            {(cancelledByBusiness.length + cancelledByClient.length) > 0 && (
+              <div>
+                <h3 className="font-bold text-base text-gray-900 mb-3">תורים שבוטלו</h3>
+                <div className="flex gap-2 mb-3 p-1 rounded-xl bg-gray-100">
+                  <button
+                    onClick={() => setCancelledView("business")}
+                    className={`flex-1 py-1.5 rounded-lg text-xs font-semibold transition-colors ${cancelledView === "business" ? "bg-white text-red-600 shadow-sm" : "text-gray-500"}`}
+                  >
+                    בוטל על ידי העסק ({cancelledByBusiness.length})
+                  </button>
+                  <button
+                    onClick={() => setCancelledView("client")}
+                    className={`flex-1 py-1.5 rounded-lg text-xs font-semibold transition-colors ${cancelledView === "client" ? "bg-white text-red-600 shadow-sm" : "text-gray-500"}`}
+                  >
+                    בוטל על ידי ({cancelledByClient.length})
+                  </button>
+                </div>
+                <div className="space-y-2">
+                  {(cancelledView === "business" ? cancelledByBusiness : cancelledByClient).length === 0 ? (
+                    <div className="text-center py-6 text-gray-400 text-sm bg-white rounded-2xl border border-dashed">
+                      {cancelledView === "business" ? "אין תורים שבוטלו על ידי העסק" : "אין תורים שבוטלת בעצמך"}
+                    </div>
+                  ) : (cancelledView === "business" ? cancelledByBusiness : cancelledByClient).map(a => (
+                    <div key={a.id} className="bg-white rounded-2xl border border-gray-100 p-4 opacity-80">
+                      <div className="flex items-center gap-3">
+                        <BusinessAvatar biz={{ name: a.businessName, logoUrl: a.businessLogoUrl, primaryColor: a.businessPrimaryColor }} size={36} />
+                        <div className="flex-1 min-w-0">
+                          <p className="font-semibold text-sm text-gray-700" dir="auto">{a.businessName}</p>
+                          <p className="text-xs text-gray-500">{a.serviceName} · {formatDate(a.appointmentDate)}</p>
+                          {(a as any).cancelReason && (
+                            <p className="text-[11px] text-red-500 mt-0.5">סיבה: {(a as any).cancelReason}</p>
+                          )}
+                        </div>
+                        <span className="text-xs font-bold text-red-500 bg-red-50 px-2 py-0.5 rounded-full shrink-0">בוטל</span>
+                        <button
+                          onClick={() => hideAppt(a.id)}
+                          className="p-1.5 rounded-full text-gray-300 hover:text-red-400 hover:bg-red-50 transition-colors shrink-0"
+                          title="הסר מהרשימה"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Upcoming — moved below the cancelled block. */}
             <div>
               <h3 className="font-bold text-base text-gray-900 mb-3">תורים קרובים</h3>
               {upcoming.length === 0 ? (
@@ -745,7 +808,7 @@ export default function ClientPortal() {
               )}
             </div>
 
-            {/* History */}
+            {/* Attended history — past non-cancelled visits. */}
             {past.length > 0 && (
               <div>
                 <h3 className="font-bold text-base text-gray-900 mb-3">היסטוריה</h3>
@@ -758,18 +821,6 @@ export default function ClientPortal() {
                           <p className="font-semibold text-sm text-gray-700" dir="auto">{a.businessName}</p>
                           <p className="text-xs text-gray-500">{a.serviceName} · {formatDate(a.appointmentDate)}</p>
                         </div>
-                        {a.status === "cancelled" && (
-                          <span className="text-xs font-bold text-red-500 bg-red-50 px-2 py-0.5 rounded-full shrink-0">בוטל</span>
-                        )}
-                        {a.status === "cancelled" && (
-                          <button
-                            onClick={() => hideAppt(a.id)}
-                            className="p-1.5 rounded-full text-gray-300 hover:text-red-400 hover:bg-red-50 transition-colors shrink-0"
-                            title="הסר מהרשימה"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
-                        )}
                       </div>
                     </div>
                   ))}

@@ -1536,44 +1536,10 @@ function AppointmentsTab({ mobileFocus }: { mobileFocus?: "calendar" | "approval
         </Card>
       )}
 
-      {cancelled.length > 0 && (
-        <Card>
-          <CardHeader><CardTitle className="text-muted-foreground flex items-center gap-2">❌ פגישות שבוטלו</CardTitle></CardHeader>
-          <CardContent>
-            <div className="space-y-2">
-              {cancelled.slice(-20).reverse().map((apt: any) => (
-                <div key={apt.id} className="flex flex-col sm:flex-row justify-between items-start sm:items-center p-3 border rounded-lg text-sm gap-1">
-                  <div>
-                    <span className="font-medium">{apt.clientName}</span>
-                    <span className="text-muted-foreground mx-2">•</span>
-                    <span className="text-muted-foreground">{apt.serviceName}</span>
-                    <span className="text-muted-foreground mx-2">•</span>
-                    <span className="text-muted-foreground">{apt.appointmentDate} {apt.appointmentTime}</span>
-                  </div>
-                  <div className="flex items-center gap-2 flex-wrap">
-                    {apt.cancelledBy && (
-                      <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${apt.cancelledBy === "business" ? "bg-orange-100 text-orange-700" : "bg-blue-100 text-blue-700"}`}>
-                        {apt.cancelledBy === "business" ? "ביטל העסק" : "ביטל הלקוח"}
-                      </span>
-                    )}
-                    {apt.cancelReason && (
-                      <span className="text-xs px-2 py-0.5 rounded-full bg-gray-100 text-gray-600 font-medium">
-                        {apt.cancelReason}
-                      </span>
-                    )}
-                    <Button size="sm" variant="ghost"
-                      className="text-red-500 hover:text-red-700 hover:bg-red-50 h-6 px-2"
-                      disabled={deletingId === apt.id}
-                      onClick={() => hardDeleteAppointment(apt.id)}>
-                      <Trash2 className="w-3 h-3" />
-                    </Button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-      )}
+      {/* "פגישות שבוטלו" block was removed per owner feedback — the
+          same data surfaces in the Customers view (per-client counters
+          + drill-down) and cluttering the main appointments tab with
+          it was redundant. */}
 
       {/* Cancel reason modal */}
       <Dialog open={!!cancelModal} onOpenChange={open => { if (!open) setCancelModal(null); }}>

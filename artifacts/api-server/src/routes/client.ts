@@ -323,6 +323,10 @@ router.get("/client/appointments", requireClientAuth, async (req, res): Promise<
       status: appointmentsTable.status,
       notes: appointmentsTable.notes,
       createdAt: appointmentsTable.createdAt,
+      // Needed on the client side so the portal can split cancelled
+      // appointments into "בוטל על ידי העסק" vs "בוטל על ידי" tabs.
+      cancelledBy: sql<string>`appointments.cancelled_by`,
+      cancelReason: sql<string>`appointments.cancel_reason`,
       businessId: businessesTable.id,
       businessName: businessesTable.name,
       businessSlug: businessesTable.slug,
