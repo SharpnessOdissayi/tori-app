@@ -1840,10 +1840,10 @@ export default function Book({ slugOverride }: { slugOverride?: string } = {}) {
               <a href="/terms" className="hover:text-foreground transition-colors">תנאי שימוש</a>
               <a href="/contact" className="hover:text-foreground transition-colors">יצירת קשר</a>
             </div>
-            <div>
-              מופעל על ידי{" "}
-              <a href="/" className="font-bold text-foreground hover:text-primary transition-colors">קבעתי</a>
-            </div>
+            <a href="/" className="inline-flex items-center justify-center gap-1.5 font-bold text-foreground hover:text-primary transition-colors">
+              <span>מופעל על ידי קבעתי</span>
+              <img src="/icon.svg" alt="קבעתי" className="w-5 h-5 object-contain shrink-0" />
+            </a>
           </footer>
         </div>
 
