@@ -5,7 +5,7 @@ import {
 } from "date-fns";
 import { he } from "date-fns/locale";
 import { HebrewCalendar, flags as hebFlags } from "@hebcal/core";
-import { ChevronRight, ChevronLeft, RefreshCw, Search, CalendarClock, ArrowDown, MessageSquare, Calendar, CalendarDays, LayoutGrid, X, Plus } from "lucide-react";
+import { ChevronRight, ChevronLeft, RefreshCw, Search, CalendarClock, ArrowDown, MessageSquare, Calendar, CalendarDays, LayoutGrid, X, Plus, Ban } from "lucide-react";
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 export type CalAppt = {
@@ -102,7 +102,7 @@ function useHolidaysInRange(start: Date, end: Date): Map<string, string[]> {
 function CalHeader({
   view, setView, cursor, setCursor, label,
   searchOpen, onOpenSearch, onCloseSearch, searchQuery, setSearchQuery,
-  onNewAppointment,
+  onNewAppointment, onNewTimeOff,
 }: {
   view: View;
   setView: (v: View) => void;
@@ -115,6 +115,7 @@ function CalHeader({
   searchQuery: string;
   setSearchQuery: (q: string) => void;
   onNewAppointment?: () => void;
+  onNewTimeOff?: () => void;
 }) {
   const stepBack = () => {
     if (view === "day") setCursor(addDays(cursor, -1));
@@ -202,6 +203,18 @@ function CalHeader({
           >
             <Plus className="w-4 h-4" />
             <span className="hidden sm:inline">תור חדש</span>
+          </button>
+        )}
+        {onNewTimeOff && (
+          <button
+            onClick={onNewTimeOff}
+            title="אילוץ"
+            aria-label="אילוץ"
+            className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl text-xs font-bold text-white shadow-sm whitespace-nowrap"
+            style={{ background: "linear-gradient(135deg, #dc2626 0%, #991b1b 100%)" }}
+          >
+            <Ban className="w-4 h-4" />
+            <span className="hidden sm:inline">אילוץ</span>
           </button>
         )}
         <button onClick={() => setCursor(new Date())}
@@ -769,6 +782,7 @@ export function BusinessCalendar({
   onRescheduleServer,
   serviceColors,
   onNewAppointment,
+  onNewTimeOff,
 }: {
   appointments: CalAppt[];
   onApptClick: (a: CalAppt) => void;
@@ -780,6 +794,9 @@ export function BusinessCalendar({
   // empty defaults (from the header "+"); with args → prefilled from
   // the empty slot the owner clicked.
   onNewAppointment?: (opts?: { date?: string; time?: string }) => void;
+  // Red "אילוץ" button in the header. Opens the same shared dialog
+  // with the timeoff tab preselected.
+  onNewTimeOff?: (opts?: { date?: string; time?: string }) => void;
 }) {
   const [view, setView] = useState<View>("week");
   const [cursor, setCursor] = useState<Date>(new Date());
@@ -825,6 +842,7 @@ export function BusinessCalendar({
         searchQuery={searchQuery}
         setSearchQuery={setSearchQuery}
         onNewAppointment={onNewAppointment ? () => onNewAppointment() : undefined}
+        onNewTimeOff={onNewTimeOff ? () => onNewTimeOff() : undefined}
       />
 
       {/* Search results dropdown — shown while the input has text.

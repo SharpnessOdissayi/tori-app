@@ -1260,7 +1260,7 @@ function AppointmentsTab({ mobileFocus }: { mobileFocus?: "calendar" | "approval
   // Manual "new appointment" dialog state — opened either from the "+"
   // button in the calendar header (empty defaults) or by clicking an
   // empty slot in the day/week grid (prefilled date + time).
-  const [newApptDialog, setNewApptDialog] = useState<{ open: boolean; date?: string; time?: string }>({ open: false });
+  const [newApptDialog, setNewApptDialog] = useState<{ open: boolean; date?: string; time?: string; tab?: "appointment" | "timeoff" }>({ open: false });
 
   // Reschedule via drag: PATCH server, invalidate cache, optionally open
   // the owner's personal WhatsApp with a pre-filled message (per owner
@@ -1487,7 +1487,8 @@ function AppointmentsTab({ mobileFocus }: { mobileFocus?: "calendar" | "approval
         onApptClick={setEditAppt}
         onRescheduleServer={handleReschedule}
         serviceColors={serviceColors}
-        onNewAppointment={opts => setNewApptDialog({ open: true, date: opts?.date, time: opts?.time })}
+        onNewAppointment={opts => setNewApptDialog({ open: true, date: opts?.date, time: opts?.time, tab: "appointment" })}
+        onNewTimeOff={opts => setNewApptDialog({ open: true, date: opts?.date, time: opts?.time, tab: "timeoff" })}
       />
 
       <NewAppointmentDialog
@@ -1501,9 +1502,15 @@ function AppointmentsTab({ mobileFocus }: { mobileFocus?: "calendar" | "approval
         }))}
         initialDate={newApptDialog.date}
         initialTime={newApptDialog.time}
-        onCreated={() => {
+        initialTab={newApptDialog.tab}
+        onCreated={(tab) => {
           queryClient.invalidateQueries({ queryKey: getListBusinessAppointmentsQueryKey() });
           queryClient.invalidateQueries({ queryKey: getGetBusinessStatsQueryKey() });
+          // Time-off entries are surfaced in the calendar through the
+          // same time-off query the Working Hours tab reads from.
+          if (tab === "timeoff") {
+            queryClient.invalidateQueries({ queryKey: ["time-off"] });
+          }
         }}
       />
 
