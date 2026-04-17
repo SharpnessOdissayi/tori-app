@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { DESIGN_PRESETS } from "@/lib/designPresets";
 import {
   useBusinessLogin,
@@ -55,7 +55,7 @@ import { he } from "date-fns/locale";
 import { HebrewCalendar, flags as hebFlags } from "@hebcal/core";
 import Navbar from "@/components/Navbar";
 import { g as g_ } from "@/lib/hebrewGender";
-import { BusinessCalendar, openRescheduleWhatsApp, type CalAppt } from "@/components/BusinessCalendar";
+import { BusinessCalendar, openRescheduleWhatsApp, type CalAppt, type TimeOffItem } from "@/components/BusinessCalendar";
 import { MobileBottomNav, type BottomTab } from "@/components/MobileBottomNav";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { ServiceSortableList } from "@/components/ServiceSortableList";
@@ -1293,6 +1293,19 @@ function AppointmentsTab({ mobileFocus }: { mobileFocus?: "calendar" | "approval
   // Services list → serviceId → color map for the calendar. Memoed so
   // calendar re-renders don't recompute this on every appointment tick.
   const { data: servicesForColors } = useListBusinessServices();
+  // Time-off ("יום חופש" / constraint) blocks — shared with the
+  // DayOffTab below via the same queryKey so adding a block there
+  // lights up the calendar immediately. No generated hook exists for
+  // this endpoint, so we call fetch directly.
+  const { data: timeOff } = useQuery<TimeOffItem[]>({
+    queryKey: ["time-off"],
+    queryFn: async () => {
+      const token = localStorage.getItem("biz_token") || sessionStorage.getItem("biz_token");
+      const r = await fetch("/api/business/time-off", { headers: { Authorization: `Bearer ${token}` } });
+      if (!r.ok) return [];
+      return r.json();
+    },
+  });
   const serviceColors = (() => {
     const m: Record<number, string | null> = {};
     for (const s of (Array.isArray(servicesForColors) ? servicesForColors : [])) {
@@ -1538,6 +1551,7 @@ function AppointmentsTab({ mobileFocus }: { mobileFocus?: "calendar" | "approval
           reliability breakdown. Drag → opens the reschedule confirm dialog. */}
       <BusinessCalendar
         appointments={aptList as unknown as CalAppt[]}
+        timeOff={timeOff ?? []}
         onApptClick={setEditAppt}
         onRescheduleServer={handleReschedule}
         serviceColors={serviceColors}
@@ -2660,8 +2674,10 @@ function ForgotPasswordFlow({ onBack }: { onBack: () => void }) {
         body: JSON.stringify({ phone }),
       });
       if (r.ok) { setOtpSent(true); toast({ title: "קוד נשלח לוואטסאפ שלך" }); }
-      else { const e = await r.json(); toast({ title: e.error || "שגיאה", variant: "destructive" }); }
-    } catch {} finally { setLoading(false); }
+      else { const e = await r.json().catch(() => ({})); toast({ title: e.error || "שגיאה", variant: "destructive" }); }
+    } catch {
+      toast({ title: "שגיאת רשת, נסה שוב", variant: "destructive" });
+    } finally { setLoading(false); }
   };
 
   const handleReset = async () => {
@@ -2674,8 +2690,10 @@ function ForgotPasswordFlow({ onBack }: { onBack: () => void }) {
         body: JSON.stringify({ phone, code: otp, newPassword }),
       });
       if (r.ok) { setDone(true); toast({ title: "הסיסמא שונתה בהצלחה" }); }
-      else { const e = await r.json(); toast({ title: e.error || "קוד שגוי", variant: "destructive" }); }
-    } catch {} finally { setLoading(false); }
+      else { const e = await r.json().catch(() => ({})); toast({ title: e.error || "קוד שגוי", variant: "destructive" }); }
+    } catch {
+      toast({ title: "שגיאת רשת, נסה שוב", variant: "destructive" });
+    } finally { setLoading(false); }
   };
 
   if (done) return (
@@ -2721,6 +2739,7 @@ function ForgotPasswordFlow({ onBack }: { onBack: () => void }) {
 
 function DayOffTab() {
   const { toast } = useToast();
+  const queryClient = useQueryClient();
   const [items, setItems] = useState<any[]>([]);
   const [type, setType] = useState<"full" | "partial">("full");
   const [date, setDate] = useState("");
@@ -2739,6 +2758,10 @@ function DayOffTab() {
       const r = await fetch("/api/business/time-off", { headers: authHeaders() });
       if (r.ok) setItems(await r.json());
     } catch {}
+    // Mirror local state into the shared ["time-off"] react-query cache
+    // so the Appointments tab calendar shows the same data without an
+    // extra network round-trip.
+    queryClient.invalidateQueries({ queryKey: ["time-off"] });
   };
 
   useEffect(() => { load(); }, []);

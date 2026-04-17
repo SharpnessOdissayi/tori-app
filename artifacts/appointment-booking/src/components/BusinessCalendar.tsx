@@ -26,6 +26,18 @@ export type CalAppt = {
 // colour. Missing / null values fall back to status-tone defaults.
 export type ServiceColorMap = Record<number, string | null | undefined>;
 
+// Time-off / constraint blocks (from /api/business/time-off). Rendered
+// as striped red overlays in the week/day grid so the owner can see
+// their blocked windows alongside appointments.
+export type TimeOffItem = {
+  id: number;
+  date: string;               // YYYY-MM-DD
+  fullDay: boolean;
+  startTime?: string | null;  // HH:mm when partial
+  endTime?: string | null;    // HH:mm when partial
+  note?: string | null;
+};
+
 type View = "day" | "week" | "month";
 
 // ─── Utilities ──────────────────────────────────────────────────────────────
@@ -243,10 +255,11 @@ function CalHeader({
 
 // ─── MONTH VIEW ─────────────────────────────────────────────────────────────
 function MonthView({
-  cursor, appts, onPickDay,
+  cursor, appts, timeOff, onPickDay,
 }: {
   cursor: Date;
   appts: CalAppt[];
+  timeOff?: TimeOffItem[];
   onPickDay: (d: Date) => void;
 }) {
   const monthStart = startOfMonth(cursor);
@@ -268,6 +281,16 @@ function MonthView({
     return m;
   }, [appts]);
 
+  const timeOffByDate = useMemo(() => {
+    const m = new Map<string, TimeOffItem[]>();
+    for (const t of (timeOff ?? [])) {
+      const arr = m.get(t.date) ?? [];
+      arr.push(t);
+      m.set(t.date, arr);
+    }
+    return m;
+  }, [timeOff]);
+
   const today = new Date();
 
   return (
@@ -284,6 +307,8 @@ function MonthView({
           const inMonth = isSameMonth(d, cursor);
           const isToday = isSameDay(d, today);
           const list = byDate.get(k) ?? [];
+          const offs = timeOffByDate.get(k) ?? [];
+          const hasFullDayOff = offs.some(t => t.fullDay);
           const holidayNames = holidays.get(k) ?? [];
           const hasHoliday = holidayNames.length > 0;
           return (
@@ -291,6 +316,7 @@ function MonthView({
               key={i}
               onClick={() => onPickDay(d)}
               className={`relative h-20 border-b border-l border-border text-right p-1 transition-colors ${inMonth ? "bg-white" : "bg-muted/40"} ${isToday ? "" : ""} hover:bg-primary/5`}
+              style={hasFullDayOff ? { backgroundImage: TIME_OFF_STRIPES } : undefined}
             >
               <div className="flex items-start justify-end">
                 {isToday ? (
@@ -303,6 +329,15 @@ function MonthView({
               {hasHoliday && (
                 <div className="mt-0.5 text-[10px] font-semibold px-1 py-px rounded bg-primary/15 text-primary truncate" title={holidayNames.join(" • ")}>
                   {holidayNames[0]}
+                </div>
+              )}
+              {/* Time-off pill — red to match the grid-view blocks; shown
+                  whenever any constraint touches the day (full or partial). */}
+              {offs.length > 0 && (
+                <div className="mt-0.5 text-[10px] font-bold px-1 py-px rounded bg-red-100 text-red-700 truncate flex items-center gap-0.5"
+                  title={offs.map(t => t.note || (t.fullDay ? "יום חופש" : `${t.startTime}-${t.endTime}`)).join(" • ")}>
+                  <Ban className="w-2.5 h-2.5" />
+                  <span className="truncate">{offs[0].fullDay ? "חופש" : "אילוץ"}</span>
                 </div>
               )}
               {/* Appointment dots — max 4 visible, rest show as "+N". */}
@@ -493,11 +528,40 @@ function ApptCard({
   );
 }
 
+// Red diagonal-stripe background (SVG data URL) — used for time-off
+// blocks so they read as "blocked" at a glance without needing a full
+// solid red fill that would fight the appointment cards.
+const TIME_OFF_STRIPES =
+  "repeating-linear-gradient(135deg, rgba(239,68,68,0.18) 0 8px, rgba(239,68,68,0.30) 8px 16px)";
+
+function TimeOffBlock({
+  top, height, label, fullDay,
+}: {
+  top: number;
+  height: number;
+  label: string;
+  fullDay: boolean;
+}) {
+  return (
+    <div
+      className="absolute right-0 left-0 z-0 border-y border-red-400/60 pointer-events-none overflow-hidden"
+      style={{ top, height, background: TIME_OFF_STRIPES }}
+      title={label}
+    >
+      <div className="px-1.5 py-1 text-[10px] font-bold text-red-800 leading-tight truncate flex items-center gap-1">
+        <Ban className="w-3 h-3 shrink-0" />
+        <span className="truncate">{fullDay ? "יום חופש" : label}</span>
+      </div>
+    </div>
+  );
+}
+
 function TimeGrid({
-  days, appts, onApptClick, onReschedule, serviceColors, onPickSlot,
+  days, appts, timeOff, onApptClick, onReschedule, serviceColors, onPickSlot,
 }: {
   days: Date[];
   appts: CalAppt[];
+  timeOff?: TimeOffItem[];
   onApptClick: (a: CalAppt) => void;
   onReschedule: (a: CalAppt, newDate: string, newTime: string) => void;
   serviceColors?: ServiceColorMap;
@@ -521,6 +585,16 @@ function TimeGrid({
     }
     return m;
   }, [appts]);
+
+  const timeOffByDate = useMemo(() => {
+    const m = new Map<string, TimeOffItem[]>();
+    for (const t of (timeOff ?? [])) {
+      const arr = m.get(t.date) ?? [];
+      arr.push(t);
+      m.set(t.date, arr);
+    }
+    return m;
+  }, [timeOff]);
 
   const { drag, onPointerDown, registerCol } = useDragReschedule(onReschedule);
 
@@ -573,6 +647,7 @@ function TimeGrid({
         {days.map(d => {
           const k = ymd(d);
           const list = byDate.get(k) ?? [];
+          const offs = timeOffByDate.get(k) ?? [];
           const isHoliday = (holidays.get(k) ?? []).length > 0;
           return (
             <div
@@ -601,6 +676,21 @@ function TimeGrid({
                   style={{ top: i * SLOT_PX, height: SLOT_PX }}
                 />
               ))}
+              {/* Time-off / constraint blocks — rendered below appointments so
+                  a rescheduled appt lands on top visually. Full-day blocks
+                  span the whole visible grid; partial blocks clip to the
+                  [startTime, endTime] window. */}
+              {offs.map(t => {
+                const sMin = t.fullDay ? DAY_START_MINUTES : timeToMinutes(t.startTime ?? "00:00");
+                const eMin = t.fullDay ? DAY_END_MINUTES   : timeToMinutes(t.endTime   ?? "23:59");
+                const top = Math.max(0, (sMin - DAY_START_MINUTES) / SLOT_MINUTES * SLOT_PX);
+                const rawHeight = (eMin - sMin) / SLOT_MINUTES * SLOT_PX;
+                const height = Math.max(SLOT_PX * 0.6, Math.min(totalHeight - top, rawHeight));
+                const label = (t.note && t.note.trim()) || (t.fullDay ? "יום חופש" : `${t.startTime ?? ""}–${t.endTime ?? ""}`);
+                return (
+                  <TimeOffBlock key={t.id} top={top} height={height} label={label} fullDay={t.fullDay} />
+                );
+              })}
               {/* Appointments */}
               {list.map(a => {
                 const mStart = timeToMinutes(a.appointmentTime);
@@ -790,6 +880,7 @@ function RescheduleConfirmDialog({
 // ─── Main exported component ────────────────────────────────────────────────
 export function BusinessCalendar({
   appointments,
+  timeOff,
   onApptClick,
   onRescheduleServer,
   serviceColors,
@@ -797,6 +888,9 @@ export function BusinessCalendar({
   onNewTimeOff,
 }: {
   appointments: CalAppt[];
+  // Constraint / time-off blocks rendered as red striped overlays in
+  // the day/week views. Owner manages them in the "יום חופש" tab.
+  timeOff?: TimeOffItem[];
   onApptClick: (a: CalAppt) => void;
   // Called after the owner confirms a reschedule. Parent is responsible
   // for the PATCH + WhatsApp open (so the calendar stays purely visual).
@@ -898,6 +992,7 @@ export function BusinessCalendar({
           <MonthView
             cursor={cursor}
             appts={appointments}
+            timeOff={timeOff}
             onPickDay={d => { setCursor(d); setView("day"); }}
           />
         )}
@@ -905,6 +1000,7 @@ export function BusinessCalendar({
           <TimeGrid
             days={weekDaysForCursor}
             appts={appointments}
+            timeOff={timeOff}
             serviceColors={serviceColors}
             onApptClick={onApptClick}
             onReschedule={(a, nd, nt) => setPendingReschedule({ appt: a, newDate: nd, newTime: nt })}
@@ -915,6 +1011,7 @@ export function BusinessCalendar({
           <TimeGrid
             days={[cursor]}
             appts={appointments}
+            timeOff={timeOff}
             serviceColors={serviceColors}
             onApptClick={onApptClick}
             onReschedule={(a, nd, nt) => setPendingReschedule({ appt: a, newDate: nd, newTime: nt })}

@@ -752,6 +752,7 @@ router.get("/s/:businessSlug", async (req, res): Promise<void> => {
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#ffffff">
   <title>${title}</title>
   <meta name="description" content="${desc}">
   <meta property="og:type" content="website">
@@ -776,7 +777,8 @@ router.get("/s/:businessSlug", async (req, res): Promise<void> => {
   <script>setTimeout(function(){window.location.replace(${JSON.stringify(bookUrl)});}, 350);</script>
   <style>
     html,body{margin:0;padding:0;height:100%}
-    body{font-family:'Rubik',system-ui,sans-serif;background:#faf6ed;color:#1f2937;display:flex;align-items:center;justify-content:center;min-height:100vh}
+    html,body{background:#fff}
+    body{font-family:'Rubik',system-ui,sans-serif;color:#1f2937;display:flex;align-items:center;justify-content:center;min-height:100vh}
     .wrap{text-align:center;padding:2rem;max-width:28rem}
     .avatar{width:120px;height:120px;border-radius:9999px;object-fit:cover;box-shadow:0 10px 30px -10px rgba(60,146,240,.35);border:4px solid #fff;margin:0 auto 1.25rem;display:block;background:#fff}
     h1{margin:0 0 .5rem;font-size:1.5rem;font-weight:700;color:#111}
