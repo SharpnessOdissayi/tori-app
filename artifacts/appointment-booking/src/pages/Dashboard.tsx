@@ -236,31 +236,11 @@ function SubscriptionBanner() {
     }
   };
 
-  if (isPro) {
-    const renewDate: Date | null = (profile as any)?.subscriptionRenewDate ? new Date((profile as any).subscriptionRenewDate) : null;
-    const cancelledAt: Date | null = (profile as any)?.subscriptionCancelledAt ? new Date((profile as any).subscriptionCancelledAt) : null;
-
-    let timerText = "ללא הגבלת זמן";
-    let timerColor = "text-blue-500";
-    if (renewDate) {
-      const daysLeft = Math.ceil((renewDate.getTime() - Date.now()) / (1000 * 60 * 60 * 24));
-      if (cancelledAt) {
-        timerText = daysLeft > 0 ? `פוקע בעוד ${daysLeft} ימים` : "פג תוקף";
-        timerColor = daysLeft <= 7 ? "text-red-500" : "text-amber-500";
-      } else {
-        timerText = daysLeft > 0 ? `מתחדש בעוד ${daysLeft} ימים` : "מתחדש היום";
-        timerColor = daysLeft <= 3 ? "text-amber-500" : "text-blue-500";
-      }
-    }
-
-    return (
-      <div className="flex flex-wrap items-center gap-2 px-4 py-2.5 bg-gradient-to-l from-blue-50 to-blue-50 border border-blue-200 rounded-xl mb-4 text-sm">
-        <Crown className="w-4 h-4 text-blue-500 shrink-0" />
-        <span className="text-blue-700 font-medium">מנוי פרו פעיל</span>
-        <span className={`text-xs font-medium ${timerColor}`}>{timerText}</span>
-      </div>
-    );
-  }
+  // Pro users: the renewal info lives in the navbar Crown popover now
+  // (see SubscriptionCrown), so no dashboard banner is rendered. Keeps
+  // the screen clean — Pro is the default state, no need for a strip
+  // that owners already internalised.
+  if (isPro) return null;
 
   return (
     <>
@@ -584,6 +564,7 @@ export default function Dashboard() {
         }
         leftContent={
           <div className="flex items-center gap-2">
+            <SubscriptionCrown />
             <NotificationBell
               token={token!}
               onNotificationClick={(n) => {
@@ -812,6 +793,92 @@ export default function Dashboard() {
           </a>
         </SheetContent>
       </Sheet>
+    </div>
+  );
+}
+
+// ─── Pro crown + renewal popover (lives in the dashboard navbar) ────────────
+// Replaces the old "מנוי פרו פעיל / ללא הגבלת זמן" banner at the top of
+// the page. For Pro owners we render a small crown next to the bell;
+// tapping it flips open a compact pop-out that shows the renewal (or
+// expiry) line. No row for free users.
+function SubscriptionCrown() {
+  const { data: profile } = useGetBusinessProfile();
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, []);
+
+  if (!profile) return null;
+  const isPro = profile.subscriptionPlan !== "free";
+  if (!isPro) return null;
+
+  const renewDate: Date | null = (profile as any)?.subscriptionRenewDate
+    ? new Date((profile as any).subscriptionRenewDate)
+    : null;
+  const cancelledAt: Date | null = (profile as any)?.subscriptionCancelledAt
+    ? new Date((profile as any).subscriptionCancelledAt)
+    : null;
+
+  let timerText = "ללא הגבלת זמן";
+  let timerColor = "text-blue-600";
+  if (renewDate) {
+    const daysLeft = Math.ceil((renewDate.getTime() - Date.now()) / (1000 * 60 * 60 * 24));
+    if (cancelledAt) {
+      timerText = daysLeft > 0 ? `פוקע בעוד ${daysLeft} ימים` : "פג תוקף";
+      timerColor = daysLeft <= 7 ? "text-red-600" : "text-amber-600";
+    } else {
+      timerText = daysLeft > 0 ? `מתחדש בעוד ${daysLeft} ימים` : "מתחדש היום";
+      timerColor = daysLeft <= 3 ? "text-amber-600" : "text-blue-600";
+    }
+  }
+
+  const renewDateFormatted = renewDate
+    ? renewDate.toLocaleDateString("he-IL", { day: "numeric", month: "long", year: "numeric" })
+    : null;
+
+  return (
+    <div className="relative" ref={ref} dir="rtl">
+      <button
+        type="button"
+        onClick={() => setOpen(v => !v)}
+        className="relative flex items-center justify-center p-2 rounded-lg transition-colors hover:bg-black/5"
+        aria-label="מנוי פרו"
+        title="מנוי פרו"
+      >
+        <Crown className="w-4 h-4 text-blue-500" />
+      </button>
+      {open && (
+        <>
+          <div onClick={() => setOpen(false)} className="fixed inset-0 bg-black/20 z-[999]" />
+          <div
+            className="fixed top-14 inset-x-3 sm:inset-x-auto sm:end-4 sm:w-72 z-[1000] bg-white rounded-2xl shadow-2xl border border-blue-200 overflow-hidden"
+            dir="rtl"
+          >
+            <div className="bg-gradient-to-l from-blue-50 to-blue-50/60 px-4 py-3 border-b border-blue-100 flex items-center gap-2">
+              <Crown className="w-5 h-5 text-blue-500" />
+              <div className="flex-1">
+                <div className="font-bold text-sm text-blue-700">מנוי פרו פעיל</div>
+                <div className={`text-xs font-medium ${timerColor}`}>{timerText}</div>
+              </div>
+            </div>
+            {renewDateFormatted && (
+              <div className="px-4 py-3 text-xs text-muted-foreground">
+                <div className="flex justify-between">
+                  <span>{cancelledAt ? "פג תוקף" : "חידוש הבא"}</span>
+                  <span className="font-medium text-foreground">{renewDateFormatted}</span>
+                </div>
+              </div>
+            )}
+          </div>
+        </>
+      )}
     </div>
   );
 }
