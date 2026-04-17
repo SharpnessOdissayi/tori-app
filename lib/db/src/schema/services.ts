@@ -12,6 +12,9 @@ export const servicesTable = pgTable("services", {
   imageUrl: text("image_url"),
   description: text("description"),
   color: text("color"),
+  // When true, display the price as "החל מ-₪N" on the public profile.
+  // Used for services whose final price varies (hair treatments, etc).
+  priceStartsFrom: boolean("price_starts_from").notNull().default(false),
   sortOrder: integer("sort_order").notNull().default(0),
   isActive: boolean("is_active").notNull().default(true),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),

@@ -1709,14 +1709,14 @@ function ServicesTab() {
 
   const [isAdding, setIsAdding] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
-  const [form, setForm] = useState({ name: "", price: "", durationMinutes: "30", bufferMinutes: "0", isActive: true, imageUrl: "", description: "", color: "" });
+  const [form, setForm] = useState({ name: "", price: "", priceStartsFrom: false, durationMinutes: "30", bufferMinutes: "0", isActive: true, imageUrl: "", description: "", color: "" });
 
   const activeServices = Array.isArray(services) ? services.filter(s => s.isActive) : [];
   const isPro = profile?.subscriptionPlan !== "free";
   const atLimit = !isPro && activeServices.length >= FREE_SERVICE_LIMIT;
 
   const reset = () => {
-    setForm({ name: "", price: "", durationMinutes: "30", bufferMinutes: "0", isActive: true, imageUrl: "", description: "", color: "" });
+    setForm({ name: "", price: "", priceStartsFrom: false, durationMinutes: "30", bufferMinutes: "0", isActive: true, imageUrl: "", description: "", color: "" });
     setIsAdding(false);
     setEditingId(null);
     imageUpload.reset?.();
@@ -1728,6 +1728,7 @@ function ServicesTab() {
     const data = {
       name: form.name,
       price: Math.round(parseFloat(form.price) * 100),
+      priceStartsFrom: form.priceStartsFrom,
       durationMinutes: parseInt(form.durationMinutes),
       bufferMinutes: parseInt(form.bufferMinutes),
       imageUrl,
@@ -1802,13 +1803,22 @@ function ServicesTab() {
               <div className="space-y-2">
                 <Label>מחיר (₪) *</Label>
                 <Input required type="number" min="0" step="0.01" value={form.price} onChange={e => setForm(p => ({ ...p, price: e.target.value }))} placeholder="0" />
+                <label className="flex items-center gap-2 pt-1 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={form.priceStartsFrom}
+                    onChange={e => setForm(p => ({ ...p, priceStartsFrom: e.target.checked }))}
+                    className="w-4 h-4"
+                  />
+                  <span className="text-xs text-muted-foreground">המחיר הוא "החל מ-" (לא קבוע)</span>
+                </label>
               </div>
               <div className="space-y-2">
                 <Label>משך זמן (דקות) *</Label>
                 <Input required type="number" min="5" step="5" value={form.durationMinutes} onChange={e => setForm(p => ({ ...p, durationMinutes: e.target.value }))} />
               </div>
               <div className="space-y-2">
-                <Label>זמן מאגר אחרי השירות (דקות)</Label>
+                <Label>זמן הפסקה לאחר השירות (דקות)</Label>
                 <Input type="number" min="0" step="5" value={form.bufferMinutes} onChange={e => setForm(p => ({ ...p, bufferMinutes: e.target.value }))} />
                 <p className="text-xs text-muted-foreground">זמן קצוב לניקיון/מנוחה לאחר השירות</p>
               </div>
@@ -1912,7 +1922,7 @@ function ServicesTab() {
           emptyFallback={!services?.length && !isAdding ? <EmptyState text="אין שירותים מוגדרים עדיין" className="col-span-full" /> : null}
           onEdit={s => {
             setEditingId(s.id);
-            setForm({ name: s.name, price: (s.price / 100).toString(), durationMinutes: s.durationMinutes.toString(), bufferMinutes: (s.bufferMinutes ?? 0).toString(), isActive: s.isActive, imageUrl: s.imageUrl ?? "", description: (s as any).description ?? "", color: (s as any).color ?? "" });
+            setForm({ name: s.name, price: (s.price / 100).toString(), priceStartsFrom: (s as any).priceStartsFrom ?? false, durationMinutes: s.durationMinutes.toString(), bufferMinutes: (s.bufferMinutes ?? 0).toString(), isActive: s.isActive, imageUrl: s.imageUrl ?? "", description: (s as any).description ?? "", color: (s as any).color ?? "" });
             setIsAdding(false);
           }}
           onDelete={s => { if (confirm("למחוק שירות?")) deleteMutation.mutate({ id: s.id }, {

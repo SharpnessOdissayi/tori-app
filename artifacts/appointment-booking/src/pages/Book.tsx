@@ -1608,7 +1608,8 @@ export default function Book({ slugOverride }: { slugOverride?: string } = {}) {
                   ? "transition-shadow duration-300 hover:shadow-2xl"
                   : "";
                 const hoverStyle = undefined;
-                const priceStr = `₪${(service.price / 100).toFixed(0)}`;
+                const priceNum = `₪${(service.price / 100).toFixed(0)}`;
+                const priceStr = (service as any).priceStartsFrom ? `החל מ-${priceNum}` : priceNum;
                 const desc = (service as any).description as string | undefined;
 
                 if (serviceCardStyle === "minimal") {

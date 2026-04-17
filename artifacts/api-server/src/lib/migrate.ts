@@ -172,6 +172,9 @@ export async function runMigrations() {
       // higher in the list. Existing rows default to 0 and fall back
       // to createdAt tiebreak.
       `ALTER TABLE services ADD COLUMN IF NOT EXISTS sort_order INTEGER NOT NULL DEFAULT 0`,
+      // Display the price as "החל מ-₪N" on the public profile when
+      // the service has a variable final price (hair, lashes, etc.).
+      `ALTER TABLE services ADD COLUMN IF NOT EXISTS price_starts_from BOOLEAN NOT NULL DEFAULT FALSE`,
       // Public reviews left by clients. One review per (business, email).
       `CREATE TABLE IF NOT EXISTS reviews (
         id             SERIAL PRIMARY KEY,
