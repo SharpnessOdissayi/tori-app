@@ -165,7 +165,7 @@ function makeHolidayDayButton(primaryColor: string) {
 }
 import { format } from "date-fns";
 import { he } from "date-fns/locale";
-import { Check, ChevronRight, Clock, CalendarIcon, User, Phone, CheckCircle2, ListOrdered, Globe, MapPin, Instagram, Sun, Moon } from "lucide-react";
+import { Check, ChevronRight, Clock, CalendarIcon, User, Phone, CheckCircle2, ListOrdered, Globe, MapPin, Instagram } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import "react-day-picker/dist/style.css";
 import { useToast } from "@/hooks/use-toast";
@@ -410,22 +410,12 @@ export default function Book({ slugOverride }: { slugOverride?: string } = {}) {
   const borderRadius = (business as any)?.borderRadius ?? "medium";
   const buttonRadius = (business as any)?.buttonRadius ?? "medium";
   const buttonRadiusPx = buttonRadius === "sharp" ? "4px" : buttonRadius === "rounded" ? "9999px" : "12px";
-  // Theme mode is now controlled by the CLIENT (toggle in the header),
-  // persisted in localStorage per business slug. The businesses table no
-  // longer drives it.
-  const [themeMode, setThemeMode] = useState<"light" | "dark">(() => {
-    try {
-      const v = localStorage.getItem(`kavati_theme_${businessSlug}`);
-      return v === "dark" ? "dark" : "light";
-    } catch { return "light"; }
-  });
-  const toggleTheme = () => {
-    setThemeMode(prev => {
-      const next = prev === "dark" ? "light" : "dark";
-      try { localStorage.setItem(`kavati_theme_${businessSlug}`, next); } catch {}
-      return next;
-    });
-  };
+  // Dark mode is managed exclusively by <ThemeToggleFab /> (mounted
+  // globally in App.tsx). Previously this component kept its own
+  // `themeMode` state under a per-slug localStorage key, but the FAB
+  // uses a different key — the two would fight over the `.dark` class
+  // on documentElement and the profile ended up locked to either the
+  // FAB's setting or an all-white/all-black cached state. Removed.
   const requireApproval = (business as any)?.requireAppointmentApproval ?? false;
   const showBusinessName = (business as any)?.showBusinessName ?? true;
   const showLogo = (business as any)?.showLogo ?? true;
@@ -573,12 +563,6 @@ export default function Book({ slugOverride }: { slugOverride?: string } = {}) {
     if (!business) return;
     const root = document.documentElement;
 
-    if (themeMode === "dark") {
-      root.classList.add("dark");
-    } else {
-      root.classList.remove("dark");
-    }
-
     if (business.primaryColor) {
       const hex = business.primaryColor.replace("#", "");
       const r = parseInt(hex.substr(0, 2), 16);
@@ -600,8 +584,20 @@ export default function Book({ slugOverride }: { slugOverride?: string } = {}) {
       }
     }
 
-    return () => { root.classList.remove("dark"); };
-  }, [business, fontFamily, themeMode]);
+    // Force-inherit the business font on form elements inside the
+    // public profile scope. Browsers default <input>/<button>/<select>/
+    // <textarea> to their own system fonts regardless of the parent
+    // font-family, which made the chosen brand font only half-apply.
+    // Rule is scoped to .kavati-biz-scope so the dashboard/admin UI
+    // (locked to Rubik) isn't affected.
+    const scopedStyleId = "kavati-biz-font-cascade";
+    if (!document.getElementById(scopedStyleId)) {
+      const style = document.createElement("style");
+      style.id = scopedStyleId;
+      style.textContent = `.kavati-biz-scope, .kavati-biz-scope * { font-family: inherit; }`;
+      document.head.appendChild(style);
+    }
+  }, [business, fontFamily]);
 
   // Google sign-in for login gate
   useEffect(() => {
@@ -1071,7 +1067,7 @@ export default function Book({ slugOverride }: { slugOverride?: string } = {}) {
           background: pageBackground,
           backgroundImage: patternSvg,
         }}
-        className="min-h-screen overflow-x-hidden"
+        className="kavati-biz-scope min-h-screen overflow-x-hidden"
       >
 
         {/* Notification popup — dismissable permanently via localStorage */}
@@ -1270,16 +1266,10 @@ export default function Book({ slugOverride }: { slugOverride?: string } = {}) {
               style={{ height: "224px", background: `linear-gradient(135deg, ${primaryColor}20, ${primaryColor}40)` }}
             />
           )}
-          {/* Dark/light toggle — top-right corner of banner */}
-          <button
-            onClick={toggleTheme}
-            aria-label={themeMode === "dark" ? "מצב בהיר" : "מצב כהה"}
-            title={themeMode === "dark" ? "מצב בהיר" : "מצב כהה"}
-            className="absolute top-3 left-3 w-10 h-10 rounded-full flex items-center justify-center bg-white/90 backdrop-blur-sm shadow-lg hover:scale-105 transition-all"
-            style={{ color: primaryColor }}
-          >
-            {themeMode === "dark" ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
-          </button>
+          {/* The banner-level dark/light toggle was removed per owner
+              feedback — there's already a floating toggle FAB in the
+              bottom-right corner of the profile page, and two toggles
+              in the same viewport was visual noise. */}
           {/* Logo overlapping bottom edge of banner */}
           {showLogo && logoUrl && (
             <div className="absolute -bottom-12 left-1/2 -translate-x-1/2">
@@ -1658,7 +1648,7 @@ export default function Book({ slugOverride }: { slugOverride?: string } = {}) {
 
   // ─── STEPS 1-5: Booking wizard ──────────────────────────────────────────────
   return (
-    <div className="min-h-[100dvh] flex flex-col relative" dir="rtl" style={{ fontFamily: `'${fontFamily}', sans-serif`, background: pageBackground, backgroundImage: patternSvg, backgroundRepeat: patternSvg ? "repeat" : undefined }}>
+    <div className="kavati-biz-scope min-h-[100dvh] flex flex-col relative" dir="rtl" style={{ fontFamily: `'${fontFamily}', sans-serif`, background: pageBackground, backgroundImage: patternSvg, backgroundRepeat: patternSvg ? "repeat" : undefined }}>
       <div className="absolute top-0 w-full h-52 -z-10 rounded-b-[40px]" style={{ backgroundColor: primaryColor + "18" }} />
 
       {business.notificationEnabled && business.notificationMessage && (
@@ -1920,7 +1910,21 @@ export default function Book({ slugOverride }: { slugOverride?: string } = {}) {
                     <div className="text-center py-12 bg-muted/20 rounded-xl space-y-4">
                       <p className="text-lg font-medium">אין תורים פנויים ביום זה</p>
                       <p className="text-muted-foreground text-sm">רוצה שנודיע לך כשיתפנה מקום?</p>
-                      <Button variant="outline" onClick={() => setShowWaitlist(true)} className="gap-2">
+                      <Button
+                        variant="outline"
+                        onClick={() => {
+                          // Auto-populate the waitlist form from the
+                          // logged-in client's profile so they don't
+                          // retype the name/phone they already gave us.
+                          setWaitlistData(w => ({
+                            name: w.name || clientData.name || "",
+                            phone: w.phone || clientData.phone || "",
+                            notes: w.notes,
+                          }));
+                          setShowWaitlist(true);
+                        }}
+                        className="gap-2"
+                      >
                         <ListOrdered className="w-4 h-4" /> הצטרף לרשימת ההמתנה
                       </Button>
                       <Button variant="link" onClick={handleBack}>חזור לבחירת תאריך</Button>

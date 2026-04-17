@@ -45,7 +45,8 @@ import {
   Users, ListOrdered, Palette, Puzzle, Phone, TrendingUp, CheckCircle,
   ExternalLink, Info, Upload, Image as ImageIcon, Crown, Zap, X, Copy, Check, Link,
   ChevronLeft, ChevronRight, Eye, EyeOff, Umbrella, DollarSign,
-  MessageSquare, Send, Search, ChevronDown, Instagram, Bell, FileText
+  MessageSquare, Send, Search, ChevronDown, Instagram, Bell, FileText,
+  XCircle, CheckCircle2, RotateCw, Hourglass
 } from "lucide-react";
 import { useLocation } from "wouter";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
@@ -754,7 +755,49 @@ function NotificationBell({ token }: { token: string }) {
     }
   };
 
-  const typeIcon = (type: string) => type === "new_booking" ? "📅" : type === "cancellation" ? "❌" : "🔄";
+  // Per-type theming — icon, accent bar, tint, and text colour all
+  // drawn from the same palette so the owner can scan at a glance.
+  // Owner feedback: red for cancellations, green for new bookings,
+  // orange for reschedules, blue for waitlist joins.
+  const typeStyle = (type: string) => {
+    switch (type) {
+      case "cancellation":
+        return {
+          Icon: XCircle,
+          bar: "bg-red-500", tint: "bg-red-50",
+          iconCls: "text-red-600", textCls: "text-red-700",
+          label: "בוטל", labelCls: "bg-red-100 text-red-700 border-red-200",
+        };
+      case "new_booking":
+        return {
+          Icon: CheckCircle2,
+          bar: "bg-emerald-500", tint: "bg-emerald-50",
+          iconCls: "text-emerald-600", textCls: "text-emerald-700",
+          label: "תור חדש", labelCls: "bg-emerald-100 text-emerald-700 border-emerald-200",
+        };
+      case "reschedule":
+        return {
+          Icon: RotateCw,
+          bar: "bg-amber-500", tint: "bg-amber-50",
+          iconCls: "text-amber-600", textCls: "text-amber-700",
+          label: "נדחה", labelCls: "bg-amber-100 text-amber-700 border-amber-200",
+        };
+      case "waitlist_join":
+        return {
+          Icon: Hourglass,
+          bar: "bg-sky-500", tint: "bg-sky-50",
+          iconCls: "text-sky-600", textCls: "text-sky-700",
+          label: "המתנה", labelCls: "bg-sky-100 text-sky-700 border-sky-200",
+        };
+      default:
+        return {
+          Icon: Bell,
+          bar: "bg-slate-400", tint: "bg-white",
+          iconCls: "text-slate-500", textCls: "text-gray-800",
+          label: "", labelCls: "",
+        };
+    }
+  };
 
   return (
     <div className="relative" ref={ref} dir="rtl">
@@ -800,18 +843,30 @@ function NotificationBell({ token }: { token: string }) {
             <div className="flex-1 overflow-y-auto divide-y bg-white">
               {notifications.length === 0 ? (
                 <div className="py-12 text-center text-gray-400 text-sm">אין התראות חדשות</div>
-              ) : notifications.map((n: any) => (
-                <div key={n.id} className={`px-4 py-3 flex gap-3 items-start ${!n.is_read ? "bg-blue-50/60" : "bg-white"}`}>
-                  <span className="text-lg mt-0.5 shrink-0">{typeIcon(n.type)}</span>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm leading-snug text-gray-800 break-words">{n.message}</p>
-                    <p className="text-[11px] text-gray-400 mt-0.5">
-                      {new Date(n.created_at).toLocaleString("he-IL", { day: "numeric", month: "numeric", hour: "2-digit", minute: "2-digit" })}
-                    </p>
+              ) : notifications.map((n: any) => {
+                const st = typeStyle(n.type);
+                const { Icon } = st;
+                return (
+                  <div key={n.id} className={`relative pr-5 pl-4 py-3 flex gap-3 items-start ${!n.is_read ? st.tint : "bg-white"}`}>
+                    {/* Left accent strip — carries the type colour so
+                        the owner can scan red = cancel at a glance. */}
+                    <span className={`absolute right-0 top-0 bottom-0 w-1 ${st.bar}`} aria-hidden />
+                    <Icon className={`w-5 h-5 mt-0.5 shrink-0 ${st.iconCls}`} />
+                    <div className="flex-1 min-w-0">
+                      {st.label && (
+                        <span className={`inline-block text-[10px] font-bold px-1.5 py-0.5 rounded border ${st.labelCls} mb-1`}>
+                          {st.label}
+                        </span>
+                      )}
+                      <p className={`text-sm font-medium leading-snug break-words ${st.textCls}`}>{n.message}</p>
+                      <p className="text-[11px] text-gray-400 mt-0.5">
+                        {new Date(n.created_at).toLocaleString("he-IL", { day: "numeric", month: "numeric", hour: "2-digit", minute: "2-digit" })}
+                      </p>
+                    </div>
+                    {!n.is_read && <span className="w-2 h-2 rounded-full bg-blue-500 shrink-0 mt-1.5" />}
                   </div>
-                  {!n.is_read && <span className="w-2 h-2 rounded-full bg-blue-500 shrink-0 mt-1.5" />}
-                </div>
-              ))}
+                );
+              })}
             </div>
           </div>
         </>

@@ -600,19 +600,36 @@ export default function ClientPortal() {
                   <div className="flex-1 overflow-y-auto divide-y">
                     {clientNotifs.length === 0
                       ? <div className="py-8 text-center text-muted-foreground text-sm">אין התראות</div>
-                      : clientNotifs.map((n: any) => (
-                        <div key={n.id} className={`px-4 py-3 flex gap-3 items-start ${!n.is_read ? "bg-blue-50/60" : ""}`}>
-                          <span className="text-base mt-0.5 shrink-0">{n.type === "cancellation" ? "❌" : n.type === "reschedule" ? "🔄" : "📅"}</span>
-                          <div className="flex-1 min-w-0">
-                            <p className="text-xs text-gray-500 font-medium">{n.business_name}</p>
-                            <p className="text-sm leading-snug text-gray-800">{n.message}</p>
-                            <p className="text-[11px] text-muted-foreground mt-0.5">
-                              {new Date(n.created_at).toLocaleString("he-IL", { day: "numeric", month: "numeric", hour: "2-digit", minute: "2-digit" })}
-                            </p>
+                      : clientNotifs.map((n: any) => {
+                        // Same colour language as the dashboard bell —
+                        // red for cancellation, amber for reschedule,
+                        // emerald for new booking.
+                        const accent =
+                          n.type === "cancellation" ? { bar: "bg-red-500",     tint: "bg-red-50/60",     label: "בוטל",     cls: "bg-red-100 text-red-700 border-red-200" }
+                          : n.type === "reschedule"   ? { bar: "bg-amber-500",   tint: "bg-amber-50/60",   label: "נדחה",     cls: "bg-amber-100 text-amber-700 border-amber-200" }
+                          : n.type === "new_booking"  ? { bar: "bg-emerald-500", tint: "bg-emerald-50/60", label: "תור חדש", cls: "bg-emerald-100 text-emerald-700 border-emerald-200" }
+                          :                             { bar: "bg-slate-400",   tint: "",                 label: "",          cls: "" };
+                        const emoji = n.type === "cancellation" ? "❌" : n.type === "reschedule" ? "🔄" : "📅";
+                        return (
+                          <div key={n.id} className={`relative pr-5 pl-4 py-3 flex gap-3 items-start ${!n.is_read ? accent.tint : ""}`}>
+                            <span className={`absolute right-0 top-0 bottom-0 w-1 ${accent.bar}`} aria-hidden />
+                            <span className="text-base mt-0.5 shrink-0">{emoji}</span>
+                            <div className="flex-1 min-w-0">
+                              {accent.label && (
+                                <span className={`inline-block text-[10px] font-bold px-1.5 py-0.5 rounded border ${accent.cls} mb-1`}>
+                                  {accent.label}
+                                </span>
+                              )}
+                              <p className="text-xs text-gray-500 font-medium">{n.business_name}</p>
+                              <p className="text-sm leading-snug text-gray-800">{n.message}</p>
+                              <p className="text-[11px] text-muted-foreground mt-0.5">
+                                {new Date(n.created_at).toLocaleString("he-IL", { day: "numeric", month: "numeric", hour: "2-digit", minute: "2-digit" })}
+                              </p>
+                            </div>
+                            {!n.is_read && <span className="w-2 h-2 rounded-full bg-blue-500 shrink-0 mt-1.5" />}
                           </div>
-                          {!n.is_read && <span className="w-2 h-2 rounded-full bg-blue-500 shrink-0 mt-1.5" />}
-                        </div>
-                      ))}
+                        );
+                      })}
                   </div>
                 </div>
               </>

@@ -611,6 +611,17 @@ router.post("/public/:businessSlug/waitlist", async (req, res): Promise<void> =>
     notes: notes ?? undefined,
   });
 
+  // In-app notification for the business owner — same surface the
+  // booking confirmations use. Owner asked for waitlist joins to
+  // ping the bell too, so they can reach out when a slot frees up.
+  logBusinessNotification({
+    businessId: business.id,
+    type: "waitlist_join",
+    message: `${clientName} הצטרף/ה לרשימת ההמתנה${serviceName ? ` ל-${serviceName}` : ""}${preferredDate ? ` (${preferredDate})` : ""}`,
+    actorType: "client",
+    actorName: clientName,
+  });
+
   res.status(201).json({ success: true, message: "Added to waitlist" });
 });
 
