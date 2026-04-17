@@ -229,9 +229,10 @@ function CalHeader({
           </button>
         )}
         <button onClick={() => setCursor(new Date())}
-          className="px-3 py-1.5 rounded-xl text-xs font-bold text-white shadow-sm whitespace-nowrap"
+          className="px-2.5 sm:px-3 py-1.5 rounded-xl text-xs font-bold text-white shadow-sm whitespace-nowrap"
           style={{ background: "linear-gradient(135deg, #3c92f0 0%, #1e6fcf 100%)" }}>
-          חזור להיום
+          <span className="sm:hidden">היום</span>
+          <span className="hidden sm:inline">חזור להיום</span>
         </button>
         <button onClick={() => setCursor(new Date())} className="p-2 rounded-lg hover:bg-muted/60 hidden sm:block" aria-label="רענן"><RefreshCw className="w-4 h-4" /></button>
         <button onClick={onOpenSearch} className="p-2 rounded-lg hover:bg-muted/60" aria-label="חיפוש"><Search className="w-4 h-4" /></button>
