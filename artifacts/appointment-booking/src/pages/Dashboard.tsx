@@ -451,7 +451,7 @@ export default function Dashboard() {
   const handleBottomTab = (t: BottomTab) => {
     setBottomTab(t);
     if (t === "menu") { setMenuOpen(true); return; }
-    if (t === "home") { setActiveTab("appointments"); window.scrollTo({ top: 0, behavior: "smooth" }); return; }
+    if (t === "home") { setActiveTab("home"); window.scrollTo({ top: 0, behavior: "smooth" }); return; }
     if (t === "calendar") setActiveTab("appointments");
     // Dedicated approvals tab — shows only pending appointments with
     // inline approve / reject buttons. Distinct from the calendar so
@@ -619,6 +619,7 @@ export default function Dashboard() {
           {/* Mobile top tabs removed — navigation on mobile is the bottom
               nav + "תפריט" sheet rendered below the main content. */}
 
+          <TabsContent value="home"><HomeTab onJump={(t) => { setActiveTab(t); setBottomTab(t === "customers" ? "customers" : t === "approvals" ? "approvals" : "calendar"); }} /></TabsContent>
           <TabsContent value="appointments"><AppointmentsTab /></TabsContent>
           <TabsContent value="approvals"><PendingApprovalsTab /></TabsContent>
           <TabsContent value="services"><ServicesTab /></TabsContent>
@@ -1577,6 +1578,181 @@ function AppointmentsTab({ mobileFocus }: { mobileFocus?: "calendar" | "approval
           </div>
         </DialogContent>
       </Dialog>
+    </div>
+  );
+}
+
+// ─── Home tab — the first thing the owner sees on login ────────────────────
+// Consolidates: share link banner, day-at-a-glance stats, pending-approvals
+// shortcut, next few upcoming appointments, quick actions, and the Kavati
+// team news feed. Goal: every common task < 1 tap from the home.
+const KAVATI_UPDATES: Array<{ date: string; title: string; body: string; tag?: string }> = [
+  {
+    date: "17/04/2026",
+    title: "שיתוף לינק עם תצוגה מקדימה",
+    body: "כשמשתפים את הלינק של העסק ב־WhatsApp, מופיעים עכשיו הלוגו, שם העסק ותיאור העסק בתצוגה המקדימה.",
+    tag: "חדש",
+  },
+  {
+    date: "15/04/2026",
+    title: "יומן עם 3 תצוגות",
+    body: "לוח שנה חדש עם יום / שבוע / חודש, גרירה לעדכון תור, חיפוש לקוח, וצבעים פר שירות.",
+  },
+  {
+    date: "12/04/2026",
+    title: "ביקורות מלקוחות",
+    body: "הלקוחות יכולים להשאיר ביקורת עם דירוג של 1-5 כוכבים בפרופיל העסק.",
+  },
+];
+
+function HomeTab({ onJump }: { onJump: (tab: string) => void }) {
+  const { data: profile } = useGetBusinessProfile();
+  const { data: appointments } = useListBusinessAppointments();
+  const { data: stats } = useGetBusinessStats();
+
+  const aptList = Array.isArray(appointments) ? appointments : [];
+  const now = new Date().toISOString().split("T")[0];
+  const pending = aptList.filter(a => a.status === "pending");
+  const upcoming = aptList
+    .filter(a => a.appointmentDate >= now && a.status !== "pending" && a.status !== "cancelled" && a.status !== "pending_payment")
+    .sort((a, b) => (a.appointmentDate + a.appointmentTime).localeCompare(b.appointmentDate + b.appointmentTime))
+    .slice(0, 5);
+
+  const greeting = (() => {
+    const h = new Date().getHours();
+    return h < 12 ? "בוקר טוב" : h < 17 ? "צהריים טובים" : h < 21 ? "ערב טוב" : "לילה טוב";
+  })();
+
+  return (
+    <div className="space-y-6">
+      {/* Greeting */}
+      <div>
+        <div className="text-sm text-muted-foreground">{greeting}</div>
+        <h2 className="text-2xl font-bold">{(profile as any)?.ownerName?.split(" ")[0] ?? profile?.name ?? ""}</h2>
+      </div>
+
+      {/* Share-link banner — primary CTA for new owners */}
+      {profile?.slug && (
+        <Card className="border-primary/40 bg-primary/5">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base flex items-center gap-2 text-primary">
+              <span>🔗</span> הלינק שלך לקביעת תורים
+            </CardTitle>
+            <CardDescription>
+              שלח/י את הלינק הזה ללקוחות. בשיתוף ב־WhatsApp תופיע תמונה ופרטי העסק.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <CopyLinkButton slug={profile.slug} />
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Stats mini grid */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        {[
+          { label: "היום", value: stats?.todayCount ?? 0, tone: "bg-blue-50 text-blue-700 border-blue-200" },
+          { label: "השבוע", value: stats?.thisWeekCount ?? 0, tone: "bg-emerald-50 text-emerald-700 border-emerald-200" },
+          { label: "עתידיים", value: stats?.upcomingCount ?? 0, tone: "bg-sky-50 text-sky-700 border-sky-200" },
+          { label: "ממתינים לאישור", value: pending.length, tone: "bg-amber-50 text-amber-700 border-amber-200" },
+        ].map(s => (
+          <div key={s.label} className={`rounded-2xl border px-3 py-3 ${s.tone}`}>
+            <div className="text-2xl font-extrabold">{s.value}</div>
+            <div className="text-xs font-medium mt-0.5">{s.label}</div>
+          </div>
+        ))}
+      </div>
+
+      {/* Pending approvals shortcut */}
+      {pending.length > 0 && (
+        <button
+          type="button"
+          onClick={() => onJump("approvals")}
+          className="w-full flex items-center justify-between gap-3 p-4 rounded-2xl border-2 border-amber-300 bg-amber-50 hover:bg-amber-100 transition-colors text-right"
+        >
+          <div>
+            <div className="font-bold text-amber-900">יש לך {pending.length} תור/ים שמחכים לאישור</div>
+            <div className="text-xs text-amber-700 mt-0.5">לחצי כדי לראות ולאשר</div>
+          </div>
+          <ChevronLeft className="w-5 h-5 text-amber-700 shrink-0" />
+        </button>
+      )}
+
+      {/* Next upcoming appointments */}
+      <Card>
+        <CardHeader className="flex flex-row items-center justify-between pb-2">
+          <CardTitle className="text-base">פגישות הקרובות</CardTitle>
+          <button onClick={() => onJump("appointments")} className="text-xs font-semibold text-primary hover:underline">
+            לכל הפגישות ←
+          </button>
+        </CardHeader>
+        <CardContent>
+          {upcoming.length === 0 ? (
+            <EmptyState text="אין פגישות קרובות" />
+          ) : (
+            <div className="space-y-2">
+              {upcoming.map(a => (
+                <div key={a.id} className="flex items-center justify-between p-3 rounded-xl border hover:border-primary/40 transition-colors">
+                  <div className="min-w-0">
+                    <div className="font-semibold truncate">{a.clientName}</div>
+                    <div className="text-xs text-muted-foreground truncate">{a.serviceName}</div>
+                  </div>
+                  <div className="text-sm text-primary font-mono shrink-0" dir="ltr">
+                    {a.appointmentDate.slice(5)} · {a.appointmentTime}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Quick actions */}
+      <div>
+        <h3 className="font-semibold text-sm text-muted-foreground mb-2">פעולות מהירות</h3>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+          {[
+            { tab: "services",  label: "שירותים",    icon: <Briefcase className="w-5 h-5" /> },
+            { tab: "hours",     label: "שעות עבודה", icon: <Clock className="w-5 h-5" /> },
+            { tab: "customers", label: "לקוחות",     icon: <Users className="w-5 h-5" /> },
+            { tab: "branding",  label: "עיצוב",      icon: <Palette className="w-5 h-5" /> },
+          ].map(qa => (
+            <button
+              key={qa.tab}
+              type="button"
+              onClick={() => onJump(qa.tab)}
+              className="flex flex-col items-center justify-center gap-1.5 py-4 rounded-xl border bg-card hover:border-primary/40 hover:bg-primary/5 transition-all text-sm font-medium"
+            >
+              <span className="text-primary">{qa.icon}</span>
+              <span>{qa.label}</span>
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Kavati team updates */}
+      <Card>
+        <CardHeader className="pb-2">
+          <CardTitle className="text-base flex items-center gap-2">
+            <span>📣</span> מה חדש מצוות קבעתי
+          </CardTitle>
+          <CardDescription className="text-xs">עדכונים אחרונים ותכונות חדשות</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <ul className="space-y-3">
+            {KAVATI_UPDATES.map((u, i) => (
+              <li key={i} className="border-r-2 border-primary/40 pr-3">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="font-semibold text-sm">{u.title}</span>
+                  {u.tag && <span className="text-[10px] font-bold bg-primary text-primary-foreground px-1.5 py-0.5 rounded">{u.tag}</span>}
+                  <span className="text-[11px] text-muted-foreground mr-auto" dir="ltr">{u.date}</span>
+                </div>
+                <p className="text-xs text-muted-foreground leading-relaxed mt-1">{u.body}</p>
+              </li>
+            ))}
+          </ul>
+        </CardContent>
+      </Card>
     </div>
   );
 }
@@ -4547,27 +4723,9 @@ function SettingsTab() {
 
   return (
     <div className="space-y-6 max-w-2xl">
-      {/* Share-link notice — sits above everything so the owner can't
-          miss it. The /api/s/<slug> URL returns server-rendered og:
-          tags (logo + name + description) that WhatsApp / Facebook
-          read; sharing the /book/<slug> URL or any other form gets
-          the generic Kavati preview instead. */}
-      {profile?.slug && (
-        <Card className="border-primary/40 bg-primary/5">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-base flex items-center gap-2 text-primary">
-              <span>⚠️</span> לשיתוף הלינק לקביעת תורים
-            </CardTitle>
-            <CardDescription>
-              בכדי שהלוגו והפרטים של העסק שלך יופיעו כשאת/ה משתף/ת את הלינק
-              (ב־WhatsApp, Facebook וכו'), העתק/י את הלינק הבא:
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <CopyLinkButton slug={profile.slug} />
-          </CardContent>
-        </Card>
-      )}
+      {/* Share-link banner moved to the home tab so the owner sees it
+          the moment they log in. Settings stays focused on editable
+          business details. */}
 
       {/* General settings card — merged with business profile and password change */}
       <Card>
