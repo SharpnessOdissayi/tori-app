@@ -5402,6 +5402,7 @@ function ReceiptsTab() {
     amountILS: "", description: "", paymentMethod: "credit_card",
   });
   const [saving, setSaving] = useState(false);
+  const [deletingId, setDeletingId] = useState<number | null>(null);
 
   const hasTaxSetup = !!((profile as any)?.businessTaxId);
 
@@ -5418,6 +5419,26 @@ function ReceiptsTab() {
   };
 
   useEffect(load, []);
+
+  const handleDelete = async (id: number, number: number) => {
+    if (!confirm(`למחוק את קבלה #${number}? הספירה לא תכלול אותה יותר. אי אפשר לשחזר.`)) return;
+    setDeletingId(id);
+    try {
+      const token = localStorage.getItem("biz_token") || sessionStorage.getItem("biz_token");
+      const res = await fetch(`${API_BASE_DASH}/business/receipts/${id}`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) throw new Error();
+      // Drop optimistically + reload so the sum + count reflect reality.
+      setRows(prev => prev.filter(r => r.id !== id));
+      toast({ title: `קבלה #${number} נמחקה` });
+    } catch {
+      toast({ title: "שגיאה במחיקת הקבלה", variant: "destructive" });
+    } finally {
+      setDeletingId(null);
+    }
+  };
 
   const handleIssue = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -5529,20 +5550,30 @@ function ReceiptsTab() {
           ) : (
             <div className="space-y-2">
               {rows.map(r => (
-                <div key={r.id} className="flex items-center justify-between p-4 border rounded-xl">
-                  <div>
+                <div key={r.id} className="flex items-center justify-between gap-3 p-4 border rounded-xl">
+                  <div className="flex-1 min-w-0">
                     <div className="font-semibold">קבלה #{r.receipt_number}</div>
                     <div className="text-xs text-muted-foreground">
                       {r.client_name ?? "—"} {r.client_email ? `· ${r.client_email}` : ""}
                     </div>
                     {r.description && <div className="text-xs text-muted-foreground mt-1">{r.description}</div>}
                   </div>
-                  <div className="text-left">
+                  <div className="text-left shrink-0">
                     <div className="font-bold text-lg">₪{(r.amount_agorot / 100).toFixed(2)}</div>
                     <div className="text-[10px] text-muted-foreground">
                       {new Date(r.issued_at).toLocaleDateString("he-IL")}
                     </div>
                   </div>
+                  <button
+                    type="button"
+                    onClick={() => handleDelete(r.id, r.receipt_number)}
+                    disabled={deletingId === r.id}
+                    title="מחק קבלה"
+                    className="shrink-0 w-8 h-8 rounded-full bg-red-50 hover:bg-red-100 text-red-600 flex items-center justify-center transition-colors disabled:opacity-50"
+                    aria-label="מחק קבלה"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
                 </div>
               ))}
             </div>
@@ -6049,13 +6080,13 @@ function SettingsTab() {
                   </select>
                 </div>
                 <div className="space-y-2 sm:col-span-2">
-                  <Label>שם משפטי לקבלות (כפי שרשום ברשות המיסים)</Label>
+                  <Label>שם העסק כפי שיופיע בקבלה (כפי שרשום ברשות המיסים)</Label>
                   <Input
                     value={form.businessLegalName}
                     onChange={e => setForm(p => ({ ...p, businessLegalName: e.target.value }))}
-                    placeholder={form.ownerName || "שם מלא"}
+                    placeholder={form.name || "שם העסק"}
                   />
-                  <p className="text-xs text-muted-foreground">אם ריק, יוצג שם העסק הרגיל. עוסק פטור = שם מלא. חברה = השם המשפטי המלא.</p>
+                  <p className="text-xs text-muted-foreground">אם ריק — יוצג שם העסק הרגיל. עוסק פטור: שם מלא של בעל העסק. חברה: השם המשפטי המלא שרשום במס הכנסה.</p>
                 </div>
                 <div className="space-y-2 sm:col-span-2">
                   <Label>כתובת לחשבונית</Label>

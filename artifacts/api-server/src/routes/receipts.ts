@@ -96,4 +96,26 @@ router.get("/business/receipts/:id", requireBusinessAuth, async (req, res): Prom
   res.json(row);
 });
 
+// DELETE /business/receipts/:id — hard-delete a receipt row.
+//
+// NOTE: Israeli tax law generally expects a "cancellation receipt"
+// (קבלת זיכוי) rather than a physical delete. The owner asked for
+// an actual delete so the receipt disappears from the dashboard and
+// no longer counts in the running total; the row is removed outright.
+// If you need to keep a legal audit trail elsewhere, do it before
+// calling this endpoint.
+router.delete("/business/receipts/:id", requireBusinessAuth, async (req, res): Promise<void> => {
+  const businessId = req.business!.businessId;
+  const id = Number(req.params.id);
+  if (!id || isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
+
+  const result = await db.execute(sql`
+    DELETE FROM business_receipts
+    WHERE id = ${id} AND business_id = ${businessId}
+    RETURNING id
+  `);
+  if (result.rows.length === 0) { res.status(404).json({ error: "Receipt not found" }); return; }
+  res.json({ success: true });
+});
+
 export default router;
