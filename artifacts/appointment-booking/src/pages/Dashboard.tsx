@@ -52,7 +52,7 @@ import { useLocation } from "wouter";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { format, parseISO, addDays, startOfWeek } from "date-fns";
 import { he } from "date-fns/locale";
-import { HebrewCalendar } from "@hebcal/core";
+import { HebrewCalendar, flags as hebFlags } from "@hebcal/core";
 import Navbar from "@/components/Navbar";
 import { BusinessCalendar, openRescheduleWhatsApp, type CalAppt } from "@/components/BusinessCalendar";
 import { MobileBottomNav, type BottomTab } from "@/components/MobileBottomNav";
@@ -116,7 +116,11 @@ function formatDuration(minutes: number): string {
 
 function CopyLinkButton({ slug }: { slug: string }) {
   const [copied, setCopied] = useState(false);
-  const fullUrl = `${window.location.origin}/book/${slug}`;
+  // Share link points at the /api/s/<slug> page so WhatsApp / Facebook
+  // scrapers see business-specific og: tags (name + logo + description)
+  // instead of Kavati's default. A human clicking the link gets bounced
+  // to the SPA /book/<slug> route via meta-refresh.
+  const fullUrl = `${window.location.origin}/api/s/${slug}`;
   const handleCopy = () => {
     navigator.clipboard.writeText(fullUrl).then(() => {
       setCopied(true);
@@ -1053,10 +1057,12 @@ function useIsraeliHolidaysForWeek(weekStart: Date): Map<string, string[]> {
     } as any);
     const m = new Map<string, string[]>();
     for (const ev of events) {
+      // Filter Rosh Chodesh + "Shabbat Mevarchim" via hebcal flags —
+      // string-prefix check alone missed some rendered variants.
+      const f = (ev as any).getFlags ? (ev as any).getFlags() : 0;
+      if (f & (hebFlags as any).ROSH_CHODESH) continue;
+      if (f & (hebFlags as any).SHABBAT_MEVARCHIM) continue;
       const name = ev.render("he");
-      // Owner feedback: Rosh Chodesh (start of each Hebrew month) is
-      // liturgically marked but not culturally a "holiday" worth showing
-      // in the weekly business calendar — it just adds noise. Skip it.
       if (name.startsWith("ראש חודש")) continue;
       const d = ev.getDate().greg();
       const k = format(d, "yyyy-MM-dd");

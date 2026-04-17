@@ -632,6 +632,83 @@ router.post("/public/:businessSlug/waitlist", async (req, res): Promise<void> =>
 // the row so the review wall keeps working even if the client later
 // updates their Google avatar / display name.
 
+// ─── Share page with business-specific OG tags ─────────────────────────────
+// Social scrapers (WhatsApp, Facebook, Twitter) don't run JavaScript, so
+// the client-side meta updates in Book.tsx aren't visible to them. This
+// endpoint returns a minimal HTML page with server-rendered og:* and
+// twitter:* tags pulled from the business profile, plus a meta-refresh
+// + JS redirect so a human clicking the link lands on the SPA.
+//
+// Intended as the "share link" the dashboard CopyLinkButton produces.
+// URL shape: https://kavati.net/api/s/<slug>  → scrapers see per-business
+// preview; humans bounce to /book/<slug>.
+function _htmlEscape(s: string): string {
+  return String(s).replace(/[&<>"']/g, c => (
+    { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c] ?? c
+  ));
+}
+
+router.get("/s/:businessSlug", async (req, res): Promise<void> => {
+  const slug = String(req.params.businessSlug ?? "").toLowerCase().replace(/[^a-z0-9-]/g, "");
+  const host = `${req.protocol}://${req.get("host")}`;
+  const bookUrl = `${host}/book/${encodeURIComponent(slug)}`;
+
+  // Fall back to a plain redirect when the slug is unknown — the SPA
+  // itself handles "business not found" with a friendly screen.
+  if (!slug) { res.redirect(302, `${host}/`); return; }
+
+  const [business] = await db
+    .select()
+    .from(businessesTable)
+    .where(and(eq(businessesTable.slug, slug), eq(businessesTable.isActive, true)));
+
+  if (!business) { res.redirect(302, bookUrl); return; }
+
+  const rawImg = (business as any).bannerUrl || (business as any).logoUrl || `${host}/opengraph.jpg`;
+  const img = String(rawImg).startsWith("http") ? String(rawImg)
+            : `${host}${String(rawImg).startsWith("/") ? "" : "/"}${rawImg}`;
+  const title = _htmlEscape((business as any).name || "קבעתי");
+  const desc = _htmlEscape((business as any).businessDescription || `קבעי תור אצל ${(business as any).name}`);
+  const imgEsc = _htmlEscape(img);
+  const bookUrlEsc = _htmlEscape(bookUrl);
+
+  const html = `<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>${title}</title>
+  <meta name="description" content="${desc}">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="קבעתי">
+  <meta property="og:title" content="${title}">
+  <meta property="og:description" content="${desc}">
+  <meta property="og:image" content="${imgEsc}">
+  <meta property="og:image:alt" content="${title}">
+  <meta property="og:url" content="${bookUrlEsc}">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="${title}">
+  <meta name="twitter:description" content="${desc}">
+  <meta name="twitter:image" content="${imgEsc}">
+  <link rel="canonical" href="${bookUrlEsc}">
+  <meta http-equiv="refresh" content="0;url=${bookUrlEsc}">
+  <script>window.location.replace(${JSON.stringify(bookUrl)});</script>
+  <style>
+    body{font-family:system-ui,sans-serif;margin:0;padding:3rem 1rem;text-align:center;background:#fafafa;color:#333}
+    a{color:#3c92f0;text-decoration:none;font-weight:600}
+  </style>
+</head>
+<body>
+  <p>מעביר אותך ל<a href="${bookUrlEsc}">${title}</a>...</p>
+</body>
+</html>`;
+
+  // Cache for 5 minutes so repeated scraper hits don't re-query the DB;
+  // short enough that banner/logo edits propagate quickly.
+  res.set("Cache-Control", "public, max-age=300");
+  res.type("html").send(html);
+});
+
 router.get("/public/:businessSlug/reviews", async (req, res): Promise<void> => {
   const slug = req.params.businessSlug;
   const [business] = await db

@@ -4,7 +4,7 @@ import {
   isSameDay, isSameMonth,
 } from "date-fns";
 import { he } from "date-fns/locale";
-import { HebrewCalendar } from "@hebcal/core";
+import { HebrewCalendar, flags as hebFlags } from "@hebcal/core";
 import { ChevronRight, ChevronLeft, RefreshCw, Search, CalendarClock, ArrowDown, MessageSquare, Calendar, CalendarDays, LayoutGrid, X } from "lucide-react";
 
 // ─── Types ──────────────────────────────────────────────────────────────────
@@ -77,9 +77,16 @@ function useHolidaysInRange(start: Date, end: Date): Map<string, string[]> {
     } as any);
     const m = new Map<string, string[]>();
     for (const ev of events) {
+      // Skip Rosh Chodesh via the library flag — catches "ראש חודש אייר",
+      // "שבת ראש חודש", and any other rendered variant the string-prefix
+      // check missed.
+      const f = (ev as any).getFlags ? (ev as any).getFlags() : 0;
+      if (f & (hebFlags as any).ROSH_CHODESH) continue;
+      if (f & (hebFlags as any).SHABBAT_MEVARCHIM) continue;
       const name = ev.render("he");
+      // Fallback string check — belt-and-braces in case the flag bit
+      // isn't set on some locale variants.
       if (name.startsWith("ראש חודש")) continue;
-      // Also skip pure-fast "סדר עומר" type noise if any leaks through.
       const d = ev.getDate().greg();
       const k = ymd(d);
       const arr = m.get(k) ?? [];
