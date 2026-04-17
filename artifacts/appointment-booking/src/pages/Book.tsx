@@ -473,22 +473,14 @@ export default function Book({ slugOverride }: { slugOverride?: string } = {}) {
   const animationStyle = (business as any)?.animationStyle ?? "none";
   const hoverEffect = (business as any)?.hoverEffect ?? "none";
 
-  // Page background — precedence: explicit gradient > explicit solid
-  // backgroundColor > VISIBLE tint from the business's primary color. Fall
-  // back to the last option so a business that only picked a primary
-  // colour (no gradient, no explicit bg) still gets a visibly-branded
-  // profile page instead of a default white/black background.
-  //
-  // Owner feedback: the earlier 12%→transparent fade was too subtle —
-  // users literally couldn't tell a design had been applied. The current
-  // fallback is a stronger top tint that settles into a soft bottom wash
-  // so the primary colour is always on screen (on scroll too), not just
-  // in the first 500px.
-  const pageBackground = gradientEnabled && gradientFrom && gradientTo
-    ? `linear-gradient(${gradientAngle}deg, ${gradientFrom}, ${gradientTo})`
-    : backgroundColor
-    ? backgroundColor
-    : `linear-gradient(180deg, ${primaryColor}2a 0%, ${primaryColor}10 360px, ${primaryColor}06 100%)`;
+  // Page background is locked to cream (light) and near-black (dark).
+  // Owner decision: the old per-business gradient + bgColor controls
+  // fought the dark-mode FAB and the preview stopped matching the
+  // actual profile page. Simpler is better — the brand shows through
+  // the primary-colour accents + hero banner, not the body canvas.
+  // `.dark` class on <html> (set by ThemeToggleFab) swaps the cream
+  // for #141414 via the CSS rule in index.css.
+  const pageBackground = "#faf6ed"; // light / default; dark mode via CSS
 
   // Optional decorative SVG patterns as CSS background-image
   const patternSvg = backgroundPattern === "dots"
@@ -1214,10 +1206,8 @@ export default function Book({ slugOverride }: { slugOverride?: string } = {}) {
         dir="rtl"
         style={{
           fontFamily: `'${fontFamily}', 'Rubik', 'Heebo', sans-serif`,
-          background: pageBackground,
-          backgroundImage: patternSvg,
         }}
-        className="kavati-biz-scope min-h-screen overflow-x-hidden"
+        className="kavati-biz-scope min-h-screen overflow-x-hidden bg-[#faf6ed] dark:bg-neutral-950 text-neutral-900 dark:text-neutral-100"
       >
 
         {/* Notification popup — dismissable permanently via localStorage */}
@@ -1966,7 +1956,7 @@ export default function Book({ slugOverride }: { slugOverride?: string } = {}) {
 
   // ─── STEPS 1-5: Booking wizard ──────────────────────────────────────────────
   return (
-    <div className="kavati-biz-scope min-h-[100dvh] flex flex-col relative" dir="rtl" style={{ fontFamily: `'${fontFamily}', 'Rubik', 'Heebo', sans-serif`, background: pageBackground, backgroundImage: patternSvg, backgroundRepeat: patternSvg ? "repeat" : undefined }}>
+    <div className="kavati-biz-scope min-h-[100dvh] flex flex-col relative bg-[#faf6ed] dark:bg-neutral-950 text-neutral-900 dark:text-neutral-100" dir="rtl" style={{ fontFamily: `'${fontFamily}', 'Rubik', 'Heebo', sans-serif` }}>
       <div className="absolute top-0 w-full h-52 -z-10 rounded-b-[40px]" style={{ backgroundColor: primaryColor + "18" }} />
 
       {business.notificationEnabled && business.notificationMessage && (

@@ -3440,48 +3440,12 @@ function BrandingTab() {
           : (form.gradientEnabled ? "rgba(255,255,255,0.65)" : "#ffffff");
         const buttonPx = form.buttonRadius === "sharp" ? "4px" : form.buttonRadius === "rounded" ? "9999px" : "12px";
         const cardPx = form.borderRadius === "sharp" ? "4px" : form.borderRadius === "rounded" ? "24px" : "14px";
-        // Build the preview background as layered background-images so the
-        // decorative pattern (dots/grid/circles) and the gradient can
-        // coexist. Without layering, whichever style came second in the
-        // inline-style object would silently overwrite the other — the
-        // symptom being "the 'נועז' gradient never shows when a pattern is
-        // also selected" (the bold preset uses both).
-        // Waves are a repeating SVG data-URI rather than a CSS gradient
-        // because gradients can't easily draw curves. The other three
-        // stay as CSS for sharpness at any pattern size.
-        const wavesSvg = "url(\"data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='80' height='20'><path d='M0 10 Q 20 0 40 10 T 80 10' fill='none' stroke='rgba(0,0,0,0.08)' stroke-width='1.5'/></svg>\")";
-        const patternLayer = form.backgroundPattern === "dots"
-          ? "radial-gradient(rgba(0,0,0,0.08) 1px, transparent 1px)"
-          : form.backgroundPattern === "grid"
-          ? "linear-gradient(rgba(0,0,0,0.05) 1px, transparent 1px), linear-gradient(90deg, rgba(0,0,0,0.05) 1px, transparent 1px)"
-          : form.backgroundPattern === "circles"
-          ? "radial-gradient(circle, rgba(0,0,0,0.04) 18px, transparent 19px)"
-          : form.backgroundPattern === "waves"
-          ? wavesSvg
-          : "";
-        const gradientLayer = form.gradientEnabled && form.gradientFrom && form.gradientTo
-          ? `linear-gradient(${form.gradientAngle}deg, ${form.gradientFrom}, ${form.gradientTo})`
-          : "";
-
-        // Stack pattern on top of gradient (first layer = top).
-        const imageLayers = [patternLayer, gradientLayer].filter(Boolean).join(", ");
-        const bgSizes = patternLayer
-          ? (form.backgroundPattern === "dots"    ? "16px 16px, cover"
-            : form.backgroundPattern === "grid"   ? "24px 24px, 24px 24px, cover"
-            : form.backgroundPattern === "circles" ? "60px 60px, cover"
-            : form.backgroundPattern === "waves"   ? "80px 20px, cover"
-            : "cover")
-          : "cover";
-
-        const bgStyle: React.CSSProperties = imageLayers
-          ? {
-              backgroundImage: imageLayers,
-              backgroundSize:  bgSizes,
-              backgroundColor: form.backgroundColor || (isDark ? "#0a0a0a" : "#fafafa"),
-            }
-          : {
-              backgroundColor: form.backgroundColor || (isDark ? "#0a0a0a" : "#fafafa"),
-            };
+        // Background is locked — cream in light, dark-neutral in dark
+        // mode. Matches what Book.tsx renders so the preview never
+        // drifts from the actual profile page.
+        const bgStyle: React.CSSProperties = {
+          backgroundColor: isDark ? "#141414" : "#faf6ed",
+        };
 
         return (
           // Sticky under the top nav so the preview stays on screen as the
@@ -3814,71 +3778,16 @@ function BrandingTab() {
             {galleryUpload.error && <p className="text-xs text-destructive">{galleryUpload.error}</p>}
           </div>
 
-          {/* Advanced design — gradients, patterns, layouts, card styles */}
+          {/* The whole "רקע מתקדם" block (gradient on/off, 2 colour
+              pickers, angle slider, decorative pattern) was removed
+              per owner request. Background is now locked to the
+              cream default + dark-mode toggle; no more mismatch
+              between preview and profile.
+              The DB fields (gradientEnabled / gradientFrom / To /
+              Angle / backgroundPattern / backgroundColor) stay in
+              place — existing rows aren't disturbed, and if we ever
+              want to restore the controls we can. */}
           <div className="space-y-6 pt-4 border-t">
-            <div>
-              <h3 className="font-semibold text-base border-b pb-2 mb-3">רקע מתקדם</h3>
-              <p className="text-xs text-muted-foreground mb-3">גרדיאנט = מעבר חלק בין שני צבעים ברקע הדף. דוגמה דקורטיבית = תבנית עדינה על הרקע (נקודות, רשת, וכד').</p>
-
-              <label className="flex items-center gap-2 mb-3 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={form.gradientEnabled}
-                  onChange={e => setForm(p => ({ ...p, gradientEnabled: e.target.checked }))}
-                  className="w-4 h-4"
-                />
-                <span className="text-sm">הפעל גרדיאנט (מעבר צבעים) ברקע הדף</span>
-              </label>
-
-              {form.gradientEnabled && (
-                <div className="grid grid-cols-2 gap-3 mb-3 p-3 bg-muted/50 rounded-lg">
-                  <div>
-                    <label className="text-xs">מצבע</label>
-                    <input
-                      type="color"
-                      value={form.gradientFrom || "#ffffff"}
-                      onChange={e => setForm(p => ({ ...p, gradientFrom: e.target.value }))}
-                      className="w-full h-10 rounded border cursor-pointer"
-                    />
-                  </div>
-                  <div>
-                    <label className="text-xs">לצבע</label>
-                    <input
-                      type="color"
-                      value={form.gradientTo || "#000000"}
-                      onChange={e => setForm(p => ({ ...p, gradientTo: e.target.value }))}
-                      className="w-full h-10 rounded border cursor-pointer"
-                    />
-                  </div>
-                  <div className="col-span-2">
-                    <label className="text-xs">זווית: {form.gradientAngle}°</label>
-                    <input
-                      type="range"
-                      min={0}
-                      max={360}
-                      step={15}
-                      value={form.gradientAngle}
-                      onChange={e => setForm(p => ({ ...p, gradientAngle: Number(e.target.value) }))}
-                      className="w-full"
-                    />
-                  </div>
-                </div>
-              )}
-
-              <label className="text-sm font-medium block mb-2">דוגמה דקורטיבית ברקע</label>
-              <div className="grid grid-cols-5 gap-2">
-                {(["none", "dots", "grid", "waves", "circles"] as const).map(p => (
-                  <button
-                    key={p}
-                    onClick={() => setForm(pv => ({ ...pv, backgroundPattern: p }))}
-                    className={`p-3 text-xs rounded-lg border-2 transition-all ${form.backgroundPattern === p ? "border-primary bg-primary/5" : "border-border"}`}
-                  >
-                    {p === "none" ? "ללא" : p === "dots" ? "נקודות" : p === "grid" ? "רשת" : p === "waves" ? "גלים" : "עיגולים"}
-                  </button>
-                ))}
-              </div>
-            </div>
-
             <div>
               <h3 className="font-semibold text-base border-b pb-2 mb-3">סגנון כרטיסיות שירות</h3>
               <p className="text-xs text-muted-foreground mb-3">איך כרטיסי השירותים (תספורת, טיפול וכד') מוצגים בעמוד ההזמנות — קלאסי, שורה מינימלית, רשת 2×2 או בועה</p>
