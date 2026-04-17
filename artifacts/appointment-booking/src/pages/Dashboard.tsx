@@ -527,6 +527,19 @@ export default function Dashboard() {
         leftContent={
           <div className="flex items-center gap-2">
             <NotificationBell token={token!} />
+            {/* "פתח עמוד עסק" — lived on the appointments tab until now.
+                Moved into the header so it's one click from every tab. */}
+            {headerProfile?.slug && (
+              <a
+                href={`/book/${headerProfile.slug}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="hidden sm:inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-primary text-primary-foreground hover:bg-primary/90 transition"
+                title="פתח עמוד עסק"
+              >
+                פתח עמוד עסק ↗
+              </a>
+            )}
             {headerProfile?.name && (
               <span className="hidden sm:block text-sm font-medium px-3 py-1.5 rounded-lg"
                 style={{ color: "#3c92f0", border: "1px solid #3c92f040" }}>
@@ -1308,18 +1321,8 @@ function AppointmentsTab({ mobileFocus }: { mobileFocus?: "calendar" | "approval
 
   return (
     <div className="space-y-6">
-      {profile?.slug && (
-        <div className="flex justify-end">
-          <a
-            href={`/book/${profile.slug}`}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-primary text-primary-foreground hover:bg-primary/90 transition"
-          >
-            פתח עמוד עסק ↗
-          </a>
-        </div>
-      )}
+      {/* "פתח עמוד עסק" used to live here — moved to the global
+          Navbar so it's reachable from every dashboard tab. */}
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         {[
