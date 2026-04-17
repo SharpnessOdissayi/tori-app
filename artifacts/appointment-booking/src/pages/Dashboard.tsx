@@ -60,6 +60,7 @@ import { MobileBottomNav, type BottomTab } from "@/components/MobileBottomNav";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { ServiceSortableList } from "@/components/ServiceSortableList";
 import { NewAppointmentDialog, DatePickerField, TimePickerField } from "@/components/NewAppointmentDialog";
+import { isInstalled as isPwaInstalled, onInstallStateChange } from "@/lib/pwa";
 
 const DAYS = ["ראשון", "שני", "שלישי", "רביעי", "חמישי", "שישי", "שבת"];
 
@@ -707,6 +708,12 @@ export default function Dashboard() {
     ? rootAppts.filter(a => a.status === "pending").length
     : 0;
   const [showTour, setShowTour] = useState(() => !localStorage.getItem("kavati_tour_seen"));
+  // Hide the "התקן את קבעתי כאפליקציה" shortcut when the dashboard is
+  // already running inside the installed PWA (display-mode:standalone).
+  // The onInstallStateChange listener flips the flag in the same tab
+  // if the user just installed via the InstallApp page.
+  const [pwaInstalled, setPwaInstalled] = useState(() => isPwaInstalled());
+  useEffect(() => onInstallStateChange(() => setPwaInstalled(isPwaInstalled())), []);
 
   const handleLogout = () => {
     localStorage.removeItem("biz_token");
@@ -987,21 +994,24 @@ export default function Dashboard() {
 
           {/* Full-width row under the grid — PWA install shortcut. Lives
               here (not in the grid) so it doesn't visually compete with
-              the main categories and so it reads as a call-to-action. */}
-          <a
-            href="/install-app"
-            className="mt-2 flex items-center gap-3 p-4 rounded-2xl border border-primary/30 bg-gradient-to-l from-primary/10 to-primary/5 text-right hover:from-primary/15 hover:to-primary/10 transition-colors"
-          >
-            <div className="w-11 h-11 rounded-xl flex items-center justify-center text-white shrink-0"
-              style={{ background: "linear-gradient(135deg, #3c92f0 0%, #1e6fcf 100%)" }}>
-              <Download className="w-5 h-5" />
-            </div>
-            <div className="flex-1 min-w-0">
-              <div className="font-bold text-sm text-primary">התקן את קבעתי כאפליקציה</div>
-              <div className="text-[11px] text-muted-foreground mt-0.5">אייקון על המסך הבית · מסך מלא · התראות בזמן אמת</div>
-            </div>
-            <ChevronLeft className="w-4 h-4 text-primary/60 shrink-0" />
-          </a>
+              the main categories and so it reads as a call-to-action.
+              Hidden when the owner is already using the installed PWA. */}
+          {!pwaInstalled && (
+            <a
+              href="/install-app"
+              className="mt-2 flex items-center gap-3 p-4 rounded-2xl border border-primary/30 bg-gradient-to-l from-primary/10 to-primary/5 text-right hover:from-primary/15 hover:to-primary/10 transition-colors"
+            >
+              <div className="w-11 h-11 rounded-xl flex items-center justify-center text-white shrink-0"
+                style={{ background: "linear-gradient(135deg, #3c92f0 0%, #1e6fcf 100%)" }}>
+                <Download className="w-5 h-5" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="font-bold text-sm text-primary">התקן את קבעתי כאפליקציה</div>
+                <div className="text-[11px] text-muted-foreground mt-0.5">אייקון על המסך הבית · מסך מלא · התראות בזמן אמת</div>
+              </div>
+              <ChevronLeft className="w-4 h-4 text-primary/60 shrink-0" />
+            </a>
+          )}
         </SheetContent>
       </Sheet>
     </div>
