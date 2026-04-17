@@ -76,17 +76,14 @@ const BUSINESS_CATEGORIES = [
 ];
 
 // Curated short list (owner pick). Default is Rubik. Every font here
-// supports Hebrew natively OR is fed through a fallback chain in
-// Book.tsx (see applyFontFamily below) so Hebrew characters always
-// render cleanly even when the primary face doesn't include them
-// (e.g. M PLUS Rounded 1c — Japanese/Latin, no Hebrew glyphs).
+// supports Hebrew natively. Hebrew fallback chain in Book.tsx stays
+// in place as a safety net.
 const HEBREW_FONTS = [
   { value: "Rubik", label: "Rubik" },
   { value: "Assistant", label: "Assistant" },
   { value: "Secular One", label: "Secular One" },
   { value: "Varela Round", label: "Varela Round" },
   { value: "Playpen Sans Hebrew", label: "Playpen Sans Hebrew" },
-  { value: "M PLUS Rounded 1c", label: "M PLUS Rounded 1c" },
 ];
 
 const PRESET_COLORS = [
@@ -3167,6 +3164,7 @@ function FontPicker({ value, onChange }: { value: string; onChange: (v: string) 
 
 function BrandingTab() {
   const { data: profile } = useGetBusinessProfile();
+  const { data: brandingServices } = useListBusinessServices();
   const updateBranding = useUpdateBusinessBranding();
   const queryClient = useQueryClient();
   const { toast } = useToast();
@@ -3174,6 +3172,15 @@ function BrandingTab() {
   const bannerUpload = useImageUpload();
   const logoRef = useRef<HTMLInputElement>(null);
   const bannerRef = useRef<HTMLInputElement>(null);
+
+  // Preview service name — use the first real service the business
+  // created so the mockup reads like their actual profile. Falls back
+  // to "דוגמא" for brand-new accounts with no services yet.
+  const previewServiceName = (() => {
+    const list = Array.isArray(brandingServices) ? brandingServices : [];
+    const first = list.find(s => (s as any).isActive) ?? list[0];
+    return (first as any)?.name || "דוגמא";
+  })();
 
   // Live-apply the picked font to the whole dashboard. The outer useEffect
   // in the Dashboard root applies whatever's SAVED on the profile; this
@@ -3514,7 +3521,7 @@ function BrandingTab() {
                       style={{ borderTop: `1px solid ${isDark ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.08)"}`, borderBottom: `1px solid ${isDark ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.08)"}` }}
                     >
                       <div>
-                        <div className="font-semibold text-sm" style={{ color: textMain }}>תספורת גברים</div>
+                        <div className="font-semibold text-sm" style={{ color: textMain }}>{previewServiceName}</div>
                         <div className="text-xs" style={{ color: textMuted }}>30 דק׳ · ₪80</div>
                       </div>
                       <button className="px-4 py-1.5 text-xs font-medium text-white shadow" style={{ background: form.primaryColor, borderRadius: buttonPx }}>קבע</button>
@@ -3530,7 +3537,7 @@ function BrandingTab() {
                     >
                       <div className="w-12 h-12 rounded-full shrink-0" style={{ background: form.primaryColor + "40" }} />
                       <div className="flex-1 text-right">
-                        <div className="font-bold text-sm" style={{ color: textMain }}>תספורת גברים</div>
+                        <div className="font-bold text-sm" style={{ color: textMain }}>{previewServiceName}</div>
                         <div className="text-xs" style={{ color: textMuted }}>30 דק׳</div>
                       </div>
                       <div className="font-bold text-lg" style={{ color: form.primaryColor }}>₪80</div>
@@ -3554,7 +3561,7 @@ function BrandingTab() {
                     <div className="overflow-hidden shadow-sm" style={{ background: cardBg, borderRadius: cardPx, border: `1px solid ${isDark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.06)"}` }}>
                       <div className="p-4">
                         <div className="flex justify-between items-start mb-1">
-                          <div className="font-bold text-sm" style={{ color: textMain }}>תספורת גברים</div>
+                          <div className="font-bold text-sm" style={{ color: textMain }}>{previewServiceName}</div>
                           <div className="font-bold" style={{ color: form.primaryColor }}>₪80</div>
                         </div>
                         <div className="text-xs mb-3" style={{ color: textMuted }}>תספורת מקצועית לגברים · 30 דק׳</div>
@@ -3751,29 +3758,11 @@ function BrandingTab() {
 
           <Separator />
 
-          {/* Banner position */}
-          <div className="space-y-4">
-            <h3 className="font-semibold text-base border-b pb-2">מיקום תמונת הרקע בפרופיל</h3>
-            <p className="text-xs text-muted-foreground">בחר את הנקודה המרכזית שתוצג בתמונת הרקע</p>
-            <div className="flex gap-3">
-              {([
-                { value: "top", label: "עליון" },
-                { value: "center", label: "מרכז" },
-                { value: "bottom", label: "תחתון" },
-              ] as const).map(pos => (
-                <button
-                  key={pos.value}
-                  type="button"
-                  onClick={() => setForm(p => ({ ...p, bannerPosition: pos.value }))}
-                  className={`flex-1 py-2.5 border-2 text-sm font-medium rounded-xl transition-all ${form.bannerPosition === pos.value ? "border-primary bg-primary/5 text-primary" : "border-border"}`}
-                >
-                  {pos.label}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          <Separator />
+          {/* Banner position selector removed per owner request — the
+              live preview didn't reflect it, and the default "center"
+              works for the vast majority of banners. DB field kept so
+              existing rows aren't disturbed; can be re-added later if
+              we wire the preview to show it. */}
 
           {/* Gallery */}
           <div className="space-y-4">
