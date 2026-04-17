@@ -664,7 +664,11 @@ router.get("/s/:businessSlug", async (req, res): Promise<void> => {
 
   if (!business) { res.redirect(302, bookUrl); return; }
 
-  const rawImg = (business as any).bannerUrl || (business as any).logoUrl || `${host}/opengraph.jpg`;
+  // Owner preference: prefer the logo in link previews — it's the
+  // recognisable brand asset. Banner is wide and often gets cropped
+  // awkwardly by WhatsApp's square preview card. Fall back to banner
+  // only if no logo, and the generic Kavati card only if neither set.
+  const rawImg = (business as any).logoUrl || (business as any).bannerUrl || `${host}/opengraph.jpg`;
   const img = String(rawImg).startsWith("http") ? String(rawImg)
             : `${host}${String(rawImg).startsWith("/") ? "" : "/"}${rawImg}`;
   const title = _htmlEscape((business as any).name || "קבעתי");
