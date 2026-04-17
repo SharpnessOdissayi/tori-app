@@ -720,10 +720,15 @@ router.delete("/business/appointments/:id", requireBusinessAuth, async (req, res
   }
 
   const cancelReason = (req.body?.cancelReason as string | undefined) || null;
+  // "ברז" (no-show) is tracked separately from a regular cancellation —
+  // it's a customer reliability signal, not an owner-initiated cancel.
+  // Stats + customer history can then count no-shows vs true cancellations
+  // without re-parsing cancelReason strings every time.
+  const cancelledStatus = cancelReason === "ברז" ? "no_show" : "cancelled";
 
   await db
     .update(appointmentsTable)
-    .set({ status: "cancelled", ...(({ cancelledBy: "business", cancelReason }) as any) })
+    .set({ status: cancelledStatus, ...(({ cancelledBy: "business", cancelReason }) as any) })
     .where(eq(appointmentsTable.id, appt.id));
 
   // Notify client via WhatsApp (non-blocking) — Pro only
@@ -1080,8 +1085,11 @@ router.get("/business/analytics", requireBusinessAuth, async (req, res): Promise
   const prevCount = byMonth[prevMonth] || 0;
   const trending = currentCount > prevCount;
 
-  // Cancellation rankings
-  const cancelledAppts = allAppts.filter(a => a.status === "cancelled");
+  // Cancellation rankings — include BOTH statuses so the no-show ranking
+  // isn't empty after we started storing "ברז" under status='no_show'.
+  // The cancelReason check below still routes each row to the correct
+  // bucket (no-show vs regular cancellation).
+  const cancelledAppts = allAppts.filter(a => a.status === "cancelled" || a.status === "no_show");
   const cancelByClient: Record<string, { name: string; phone: string; count: number }> = {};
   const noShowByClient: Record<string, { name: string; phone: string; count: number }> = {};
 

@@ -20,13 +20,19 @@ export default function Home() {
           transition={{ duration: 0.6, ease: "easeOut" }}
           className="space-y-8"
         >
-          <div className="flex justify-center pt-16">
-            <img src="/logo.svg" alt="קבעתי" className="h-36 object-contain drop-shadow-lg" />
-          </div>
+          {/* Logo + badge grouped tightly so they read as one unit before the
+              headline. The outer motion.div's space-y-8 still gives breathing
+              room below the badge; this inner wrapper overrides the gap only
+              between these two so the badge sits right under the logo. */}
+          <div className="space-y-3">
+            <div className="flex justify-center pt-16">
+              <img src="/logo.svg" alt="קבעתי" className="h-36 object-contain drop-shadow-lg" />
+            </div>
 
-          <div className="inline-flex items-center gap-2 bg-primary/10 text-primary rounded-full px-4 py-2 text-sm font-medium">
-            <CalendarCheck className="w-4 h-4" />
-            מערכת ניהול תורים חכמה
+            <div className="inline-flex items-center gap-2 bg-primary/10 text-primary rounded-full px-4 py-2 text-sm font-medium">
+              <CalendarCheck className="w-4 h-4" />
+              מערכת ניהול תורים חכמה
+            </div>
           </div>
 
           <h1 className="text-4xl sm:text-5xl font-extrabold tracking-tight text-foreground leading-tight max-w-2xl mx-auto">

@@ -825,6 +825,9 @@ function Login({ onLogin }: { onLogin: (t: string) => void }) {
       <div className="flex-1 flex items-center justify-center p-4">
         <Card className="w-full max-w-md shadow-xl">
           <CardHeader className="text-center space-y-2 pb-6">
+            <div className="flex justify-center">
+              <img src="/logo.svg" alt="קבעתי" className="h-20 object-contain" />
+            </div>
             <TodayCalendarIcon />
             <CardTitle className="text-2xl">כניסה לקבעתי</CardTitle>
             <CardDescription>הזן אימייל, מספר טלפון או שם משתמש</CardDescription>
@@ -920,6 +923,7 @@ type WeeklyAppt = {
   id: number;
   appointmentDate: string;
   appointmentTime: string;
+  durationMinutes?: number;
   clientName: string;
   serviceName: string;
   status: string;
@@ -945,15 +949,31 @@ function useIsraeliHolidaysForWeek(weekStart: Date): Map<string, string[]> {
     } as any);
     const m = new Map<string, string[]>();
     for (const ev of events) {
+      const name = ev.render("he");
+      // Owner feedback: Rosh Chodesh (start of each Hebrew month) is
+      // liturgically marked but not culturally a "holiday" worth showing
+      // in the weekly business calendar — it just adds noise. Skip it.
+      if (name.startsWith("ראש חודש")) continue;
       const d = ev.getDate().greg();
       const k = format(d, "yyyy-MM-dd");
       const existing = m.get(k) ?? [];
-      existing.push(ev.render("he"));
+      existing.push(name);
       m.set(k, existing);
     }
     cache.set(key, m);
   }
   return cache.get(key)!;
+}
+
+// Add `minutes` to a "HH:mm" string and return the resulting "HH:mm".
+// Wraps past midnight trivially (mod 24) — appointments don't run overnight
+// so the edge case only matters cosmetically for near-midnight bookings.
+function addMinutesToTime(time: string, minutes: number): string {
+  const [h, m] = time.split(":").map(Number);
+  const total = h * 60 + m + (minutes || 0);
+  const eh = Math.floor(total / 60) % 24;
+  const em = total % 60;
+  return `${String(eh).padStart(2, "0")}:${String(em).padStart(2, "0")}`;
 }
 
 function WeeklyCalendar({ appointments }: { appointments: WeeklyAppt[] }) {
@@ -996,7 +1016,11 @@ function WeeklyCalendar({ appointments }: { appointments: WeeklyAppt[] }) {
         </div>
       </CardHeader>
       <CardContent>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-7 gap-3">
+        {/* Explicit dir="rtl" so CSS Grid reverses column order — Sunday on
+            the right, Saturday on the left per Hebrew reading direction.
+            The outer Dashboard wrapper is already rtl, but some Card
+            children lose the direction inheritance, so we pin it here. */}
+        <div dir="rtl" className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-7 gap-3">
           {days.map(d => {
             const key    = format(d, "yyyy-MM-dd");
             const list   = byDate.get(key) ?? [];
@@ -1033,7 +1057,9 @@ function WeeklyCalendar({ appointments }: { appointments: WeeklyAppt[] }) {
                         className={`rounded-lg px-2 py-1.5 text-xs border ${a.status === "pending" ? "bg-yellow-50 border-yellow-200" : a.status === "pending_payment" ? "bg-blue-50 border-blue-200" : "bg-muted/40 border-border"}`}
                       >
                         <div className="flex items-center justify-between gap-1">
-                          <span className="font-mono font-semibold" dir="ltr">{a.appointmentTime}</span>
+                          <span className="font-mono font-semibold" dir="ltr">
+                            {a.appointmentTime}{a.durationMinutes ? ` ~ ${addMinutesToTime(a.appointmentTime, a.durationMinutes)}` : ""}
+                          </span>
                           <span className="truncate font-medium" dir="auto">{a.clientName}</span>
                         </div>
                         <div className="text-muted-foreground truncate" dir="auto">{a.serviceName}</div>
@@ -1337,7 +1363,7 @@ function AppointmentsTab() {
                 onClick={() => setCancelReason(r)}
                 className={`w-full text-right px-4 py-3 rounded-xl border-2 font-medium transition-all text-sm ${cancelReason === r ? "border-primary bg-primary/5 text-primary" : "border-border hover:border-primary/40"}`}
               >
-                {r === "ברז" ? "🚫 ברז — לא הגיע" : r === "לקוח התחרט" ? "↩️ לקוח התחרט" : "💬 אחר"}
+                {r === "ברז" ? "🚫 דפק ברז — לא הגיע" : r === "לקוח התחרט" ? "↩️ לקוח התחרט" : "💬 אחר"}
               </button>
             ))}
             <div className="flex gap-2 pt-2">

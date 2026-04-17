@@ -15,68 +15,70 @@ import SiteFooter from "@/components/SiteFooter";
 
 const FEATURES = [
   {
-    icon: <CalendarCheck className="w-7 h-7" style={{ color: "#d4af37" }} />,
+    icon: <CalendarCheck className="w-7 h-7" style={{ color: "#548dca" }} />,
     title: "קביעת תורים אונליין",
     desc: "לקוחות קובעים תור בכל שעה, מכל מקום, דרך עמוד הזמנה ייחודי לעסק שלך.",
   },
   {
-    icon: <MessageCircle className="w-7 h-7" style={{ color: "#d4af37" }} />,
+    icon: <MessageCircle className="w-7 h-7" style={{ color: "#548dca" }} />,
     title: "תזכורות בוואטסאפ",
     desc: "עד 3 תזכורות מותאמות אישית לכל תור — שעה לפני, יום לפני, ואפילו בוקר יום התור ב-08:00.",
   },
   {
-    icon: <Megaphone className="w-7 h-7" style={{ color: "#d4af37" }} />,
+    icon: <Megaphone className="w-7 h-7" style={{ color: "#548dca" }} />,
     title: "הודעת פתיחה לפרופיל",
     desc: "הגדר הודעה שתוצג ללקוחות בכניסה לעמוד — מבצע, עדכון חשוב, הכרזה. בחר לכמה שעות ההודעה תקפה.",
   },
   {
-    icon: <Compass className="w-7 h-7" style={{ color: "#d4af37" }} />,
+    icon: <Compass className="w-7 h-7" style={{ color: "#548dca" }} />,
     title: "גלה עסקים בפורטל הלקוח",
     desc: "ללקוחות יש פורטל אישי לניהול התורים שלהם — ובו ספריית עסקים שמחפשים שירות חדש יכולים למצוא אותך ישירות.",
   },
   {
-    icon: <Palette className="w-7 h-7" style={{ color: "#d4af37" }} />,
+    icon: <Palette className="w-7 h-7" style={{ color: "#548dca" }} />,
     title: "עיצוב מותאם אישית",
     desc: "בחר צבע, פונט, רדיוס פינות, תמונת לוגו ובאנר — הדף יראה בדיוק כמו המותג שלך.",
   },
   {
-    icon: <Image className="w-7 h-7" style={{ color: "#d4af37" }} />,
+    icon: <Image className="w-7 h-7" style={{ color: "#548dca" }} />,
     title: "גלריה עם תצוגה מוגדלת",
     desc: "הוסף תמונות לפרופיל העסק שלך — לקוחות יכולים ללחוץ על כל תמונה כדי להגדיל אותה במסך מלא.",
   },
   {
-    icon: <Navigation className="w-7 h-7" style={{ color: "#d4af37" }} />,
+    icon: <Navigation className="w-7 h-7" style={{ color: "#548dca" }} />,
     title: "ניווט אוטומטי לווייז",
     desc: "לקוחות לוחצים על 'נווט אליי' — ווייז נפתח ישירות לכתובת העסק, בלי צורך להדביק קישור ידנית.",
   },
   {
-    icon: <Clock className="w-7 h-7" style={{ color: "#d4af37" }} />,
+    icon: <Clock className="w-7 h-7" style={{ color: "#548dca" }} />,
     title: "ניהול שעות וחופשות",
     desc: "הגדר שעות עבודה, הפסקות, ימי חופש וסגירות — המערכת לא תציג תורים בזמן הזה.",
   },
   {
-    icon: <UserCheck className="w-7 h-7" style={{ color: "#d4af37" }} />,
+    icon: <UserCheck className="w-7 h-7" style={{ color: "#548dca" }} />,
     title: "פורטל לקוח אישי",
     desc: "כל לקוח מתחבר עם הטלפון שלו, רואה את התורים הקרובים שלו, יכול לבטל ולנהל העדפות התראות.",
   },
   {
-    icon: <Users className="w-7 h-7" style={{ color: "#d4af37" }} />,
+    icon: <Users className="w-7 h-7" style={{ color: "#548dca" }} />,
     title: "ניהול לקוחות",
     desc: "ראה את כל הלקוחות שלך, ההיסטוריה שלהם, ורשימת המתנה לתורים שמתמלאים.",
   },
   {
-    icon: <Shield className="w-7 h-7" style={{ color: "#d4af37" }} />,
+    icon: <Shield className="w-7 h-7" style={{ color: "#548dca" }} />,
     title: "אימות מספר טלפון",
     desc: "מנע הזמנות ספאם עם אימות SMS — רק לקוחות אמיתיים עם מספר תקין יוכלו לקבוע תור.",
   },
   {
-    icon: <Settings className="w-7 h-7" style={{ color: "#d4af37" }} />,
+    icon: <Settings className="w-7 h-7" style={{ color: "#548dca" }} />,
     title: "אישור תורים ידני",
     desc: "בחר לאשר כל תור ידנית לפני שהוא נכנס ליומן — שליטה מלאה בזמינות שלך.",
   },
 ];
 
 /** Dashboard tabs — explained for potential customers */
+// Dashboard tabs cycle through three shades of the logo's blue family
+// (blue → sky → cyan) for visual variety without leaving the palette.
 const DASHBOARD_TABS = [
   {
     icon: <CalendarCheck className="w-6 h-6 text-blue-600" />,
@@ -85,8 +87,8 @@ const DASHBOARD_TABS = [
     desc: "רשימה מלאה של כל התורים הקרובים — ניתן לאשר, לבטל או לסמן הגעה לכל תור. מוצג לפי תאריך עם שם הלקוח, שירות ושעה.",
   },
   {
-    icon: <Briefcase className="w-6 h-6 text-blue-500" />,
-    color: "bg-blue-50 border-blue-200",
+    icon: <Briefcase className="w-6 h-6 text-sky-600" />,
+    color: "bg-sky-50 border-sky-200",
     title: "שירותים",
     desc: "הוספת שירותים, עריכת מחירים ומשך זמן, הגדרת תיאור — הכל מתעדכן מיידית בעמוד ההזמנה של הלקוחות.",
   },
@@ -97,38 +99,38 @@ const DASHBOARD_TABS = [
     desc: "הגדרת ימים ושעות פעילות לכל יום בנפרד, כולל הפסקות — המערכת תציע רק תורים בזמן שהגדרת.",
   },
   {
-    icon: <Umbrella className="w-6 h-6 text-sky-600" />,
-    color: "bg-sky-50 border-sky-200",
+    icon: <Umbrella className="w-6 h-6 text-blue-600" />,
+    color: "bg-blue-50 border-blue-200",
     title: "ימי חופש",
     desc: "חסימת ימים שלמים או שעות ספציפיות בתאריך מסוים — לחגים, חופשות, ימי מחלה. הלקוחות לא יוכלו לקבוע בזמן זה.",
   },
   {
-    icon: <Users className="w-6 h-6 text-green-600" />,
-    color: "bg-green-50 border-green-200",
+    icon: <Users className="w-6 h-6 text-sky-600" />,
+    color: "bg-sky-50 border-sky-200",
     title: "לקוחות",
     desc: "צפייה בכל הלקוחות שנרשמו, היסטוריית התורים שלהם, ושליחת הודעות ישירות דרך WhatsApp.",
   },
   {
-    icon: <ListOrdered className="w-6 h-6 text-amber-600" />,
-    color: "bg-amber-50 border-amber-200",
+    icon: <ListOrdered className="w-6 h-6 text-cyan-600" />,
+    color: "bg-cyan-50 border-cyan-200",
     title: "רשימת המתנה",
     desc: "לקוחות שרוצים תור כשאין זמינות נכנסים לרשימת ההמתנה — תקבל התראה ותוכל לאשר אותם ידנית.",
   },
   {
-    icon: <TrendingUp className="w-6 h-6 text-orange-600" />,
-    color: "bg-orange-50 border-orange-200",
+    icon: <TrendingUp className="w-6 h-6 text-blue-600" />,
+    color: "bg-blue-50 border-blue-200",
     title: "נתונים",
     desc: "סטטיסטיקות תורים: כמה תורים קבעו השבוע, השוואה לשבוע שעבר, ומגמת צמיחה — כל מה שצריך לדעת במבט אחד.",
   },
   {
-    icon: <DollarSign className="w-6 h-6 text-emerald-600" />,
-    color: "bg-emerald-50 border-emerald-200",
+    icon: <DollarSign className="w-6 h-6 text-sky-600" />,
+    color: "bg-sky-50 border-sky-200",
     title: "כסף",
     desc: "הכנסה החודש, תחזית לחודש הבא לפי התורים הקבועים, וסה\"כ הכנסות כל הזמנים — מבוסס על מחירי השירותים.",
   },
   {
-    icon: <Palette className="w-6 h-6 text-pink-600" />,
-    color: "bg-pink-50 border-pink-200",
+    icon: <Palette className="w-6 h-6 text-cyan-600" />,
+    color: "bg-cyan-50 border-cyan-200",
     title: "עיצוב",
     desc: "צבע ראשי, פונט, לוגו, באנר, גלריה, תיאור, כתובת, אתר, אינסטגרם — כל מה שקשור למראה הפרופיל שלך.",
   },
@@ -139,14 +141,14 @@ const DASHBOARD_TABS = [
     desc: "שלח הודעת broadcast לכל הלקוחות שלך בבת אחת — עדכון, מבצע, שינוי שעות. עד 150 הודעות בחודש בתוכנית פרו.",
   },
   {
-    icon: <Bell className="w-6 h-6 text-rose-600" />,
-    color: "bg-rose-50 border-rose-200",
+    icon: <Bell className="w-6 h-6 text-sky-600" />,
+    color: "bg-sky-50 border-sky-200",
     title: "התראות",
     desc: "הגדרת תזכורות WhatsApp ללקוחות לפני התור, הודעת אישור תור, הודעת פתיחה לפרופיל — הכל בשליטתך.",
   },
   {
-    icon: <Settings className="w-6 h-6 text-slate-600" />,
-    color: "bg-slate-50 border-slate-200",
+    icon: <Settings className="w-6 h-6 text-cyan-600" />,
+    color: "bg-cyan-50 border-cyan-200",
     title: "הגדרות",
     desc: "פרטי חשבון, הגבלות הזמנה, אימות טלפון, אישור ידני, שומר שבת, עמוד מנוי ועוד — ניהול מלא של החשבון.",
   },
@@ -194,7 +196,7 @@ const PLANS = [
     ],
     cta: "הצטרף לפרו",
     href: "/register",
-    ctaStyle: { background: "linear-gradient(135deg, #7c3aed, #9f56f0)", color: "white" },
+    ctaStyle: { background: "linear-gradient(135deg, #3c92f0 0%, #1e6fcf 100%)", color: "white" },
   },
 ];
 

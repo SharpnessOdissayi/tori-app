@@ -88,6 +88,27 @@ function BusinessAvatar({ biz, size = 56 }: { biz: { name: string; logoUrl?: str
 
 // ─── Login Screen ─────────────────────────────────────────────────────────────
 
+// Calendar icon that shows today's Hebrew weekday + day + month.
+// Mirrors the owner-login version in Dashboard.tsx so both login screens
+// share the same "today's date" visual — one place to update if styling
+// ever drifts, but duplicated deliberately to avoid a cross-page import
+// pulling the whole Dashboard module into the client portal bundle.
+function TodayCalendarIcon() {
+  const today = new Date();
+  const day = today.getDate();
+  const weekday = today.toLocaleDateString("he-IL", { weekday: "short" });
+  const month = today.toLocaleDateString("he-IL", { month: "short" });
+  return (
+    <div className="inline-flex flex-col items-center justify-center w-16 h-16 rounded-2xl overflow-hidden shadow-lg border border-border select-none mx-auto" style={{ background: "#fff" }}>
+      <div className="w-full text-white text-[10px] font-bold text-center py-0.5" style={{ background: "#e11d48" }}>{weekday}</div>
+      <div className="flex-1 flex flex-col items-center justify-center">
+        <span className="text-2xl font-bold leading-none text-gray-800">{day}</span>
+        <span className="text-[9px] text-gray-400 mt-0.5">{month}</span>
+      </div>
+    </div>
+  );
+}
+
 function LoginScreen({ onLogin }: { onLogin: (token: string, name: string) => void }) {
   // Pre-fill the phone with the last remembered value from a previous
   // portal login on this device. Stored under a client-specific key so
@@ -221,8 +242,9 @@ function LoginScreen({ onLogin }: { onLogin: (token: string, name: string) => vo
   return (
     <div className="min-h-screen flex flex-col items-center justify-center bg-gradient-to-br from-blue-50 to-blue-100 p-6" dir="rtl">
       <div className="w-full max-w-sm bg-white rounded-3xl shadow-xl p-8 space-y-6">
-        <div className="text-center space-y-1">
-          <div className="text-4xl mb-3">📅</div>
+        <div className="text-center space-y-2">
+          <img src="/logo.svg" alt="קבעתי" className="h-16 object-contain mx-auto" />
+          <TodayCalendarIcon />
           <h1 className="text-2xl font-bold text-gray-900">ברוכים הבאים</h1>
           <p className="text-sm text-gray-500">התחברו לניהול התורים שלכם</p>
         </div>

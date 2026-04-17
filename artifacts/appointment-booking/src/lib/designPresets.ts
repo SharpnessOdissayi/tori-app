@@ -6,6 +6,7 @@
 // icons (phone / Waze / Instagram / website) invisible on the public
 // booking page.
 export type DesignPresetId =
+  | "kavati"
   | "minimal"
   | "bold"
   | "rose"
@@ -40,6 +41,30 @@ export interface DesignPreset {
 }
 
 export const DESIGN_PRESETS: DesignPreset[] = [
+  {
+    id: "kavati",
+    name: "קבעתי",
+    description: "הצבעים הרשמיים — כחול וטורקיז",
+    preview: { bg: "linear-gradient(135deg,#99daf3,#548dca)", accent: "#548dca" },
+    values: {
+      primaryColor: "#548dca",
+      accentColor: "#99daf3",
+      fontFamily: "Rubik",
+      themeMode: "light",
+      borderRadius: "medium",
+      buttonRadius: "full",
+      gradientEnabled: true,
+      gradientFrom: "#99daf3",
+      gradientTo: "#548dca",
+      gradientAngle: 135,
+      backgroundPattern: "none",
+      heroLayout: "stacked",
+      serviceCardStyle: "card",
+      animationStyle: "subtle",
+      hoverEffect: "lift",
+      backgroundColor: null,
+    },
+  },
   {
     id: "elegant",
     name: "אלגנטי",
