@@ -1519,27 +1519,12 @@ export default function Book({ slugOverride }: { slugOverride?: string } = {}) {
                 <a href={wazeUrl} target="_blank" rel="noopener noreferrer" aria-label="ניווט בוויז">
                   <button
                     className="w-11 h-11 rounded-full overflow-hidden flex items-center justify-center transition-all hover:opacity-90 active:scale-95 shadow-sm"
-                    style={{ background: "#62D6FF" }}
                     title="Waze"
                   >
-                    {/* Waze mascot — matches the reference app icon
-                        the owner pasted: light-cyan rounded square,
-                        white blob face with black dot eyes + smile,
-                        and two little wheels at the bottom. */}
-                    <svg viewBox="0 0 44 44" className="w-10 h-10" xmlns="http://www.w3.org/2000/svg">
-                      {/* Head / speech-bubble cloud — slightly pointed
-                          bottom-left tail, mirroring the app icon. */}
-                      <path fill="#FFFFFF" d="M22 10c-7.2 0-13 4.6-13 10.4 0 2.1.8 4 2.1 5.5.4.5.6 1.1.5 1.7l-.3 1.8c-.1.5.4.9.9.7l2.3-1.1c.3-.2.7-.2 1 0 1 .4 2.1.7 3.2.9l-1.1 1.3c-.6.7-.1 1.8.8 1.8h2c.5 0 .9-.3 1.1-.8l.7-1.9c.3 0 .6 0 .9-.01.3 0 .6-.02.9-.05l1.6 1.8c.3.3.7.5 1.1.5h1.7c.9 0 1.4-1.1.8-1.8l-1.1-1.3c4.8-1.5 8.1-5.1 8.1-9.2C35 14.6 29.2 10 22 10z"/>
-                      {/* Left eye */}
-                      <circle cx="17.5" cy="20" r="1.9" fill="#1F2937"/>
-                      {/* Right eye */}
-                      <circle cx="26.5" cy="20" r="1.9" fill="#1F2937"/>
-                      {/* Smile */}
-                      <path d="M17 24c1 1.6 2.9 2.6 5 2.6s4-1 5-2.6" stroke="#1F2937" strokeWidth="1.9" fill="none" strokeLinecap="round"/>
-                      {/* Wheels */}
-                      <circle cx="15" cy="34.5" r="1.8" fill="#1F2937"/>
-                      <circle cx="29" cy="34.5" r="1.8" fill="#1F2937"/>
-                    </svg>
+                    {/* Owner-supplied Waze app icon (public/waze-icon.jpg).
+                        Replaces the inline SVG approximation — same visual
+                        result as the real app. */}
+                    <img src="/waze-icon.jpg" alt="Waze" className="w-full h-full object-cover" />
                   </button>
                 </a>
               )}
