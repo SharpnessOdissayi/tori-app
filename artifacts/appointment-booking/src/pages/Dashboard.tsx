@@ -1130,6 +1130,16 @@ function AppointmentsTab({ mobileFocus }: { mobileFocus?: "calendar" | "approval
   const { data: appointments } = useListBusinessAppointments();
   const { data: profile } = useGetBusinessProfile();
   const { data: customers } = useListBusinessCustomers();
+  // Services list → serviceId → color map for the calendar. Memoed so
+  // calendar re-renders don't recompute this on every appointment tick.
+  const { data: servicesForColors } = useListBusinessServices();
+  const serviceColors = (() => {
+    const m: Record<number, string | null> = {};
+    for (const s of (Array.isArray(servicesForColors) ? servicesForColors : [])) {
+      m[(s as any).id] = (s as any).color ?? null;
+    }
+    return m;
+  })();
   const cancelMutation = useCancelBusinessAppointment();
   const queryClient = useQueryClient();
   const { toast } = useToast();
@@ -1376,6 +1386,7 @@ function AppointmentsTab({ mobileFocus }: { mobileFocus?: "calendar" | "approval
         appointments={aptList as unknown as CalAppt[]}
         onApptClick={setEditAppt}
         onRescheduleServer={handleReschedule}
+        serviceColors={serviceColors}
       />
 
       {/* Keep the legacy weekly mini-grid below for quick overview.
@@ -1666,14 +1677,14 @@ function ServicesTab() {
 
   const [isAdding, setIsAdding] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
-  const [form, setForm] = useState({ name: "", price: "", durationMinutes: "30", bufferMinutes: "0", isActive: true, imageUrl: "", description: "" });
+  const [form, setForm] = useState({ name: "", price: "", durationMinutes: "30", bufferMinutes: "0", isActive: true, imageUrl: "", description: "", color: "" });
 
   const activeServices = Array.isArray(services) ? services.filter(s => s.isActive) : [];
   const isPro = profile?.subscriptionPlan !== "free";
   const atLimit = !isPro && activeServices.length >= FREE_SERVICE_LIMIT;
 
   const reset = () => {
-    setForm({ name: "", price: "", durationMinutes: "30", bufferMinutes: "0", isActive: true, imageUrl: "", description: "" });
+    setForm({ name: "", price: "", durationMinutes: "30", bufferMinutes: "0", isActive: true, imageUrl: "", description: "", color: "" });
     setIsAdding(false);
     setEditingId(null);
     imageUpload.reset?.();
@@ -1689,6 +1700,7 @@ function ServicesTab() {
       bufferMinutes: parseInt(form.bufferMinutes),
       imageUrl,
       description: form.description || null,
+      color: form.color || null,
     } as any;
     if (editingId) {
       updateMutation.mutate({ id: editingId, data: { ...data, isActive: form.isActive } as any }, {
@@ -1809,6 +1821,41 @@ function ServicesTab() {
                 {imageUpload.error && <p className="text-xs text-destructive">{imageUpload.error}</p>}
                 <p className="text-xs text-muted-foreground">תמונה תוצג בעמוד ההזמנות ובלוח הבקרה</p>
               </div>
+
+              {/* Service color — painted onto appointment cards in the
+                  calendar so the owner can tell services apart at a
+                  glance. Palette is curated for light-on-dark contrast;
+                  "ללא צבע" falls back to the dashboard's default. */}
+              <div className="space-y-2 sm:col-span-2">
+                <Label className="flex items-center gap-1.5">
+                  <span className="inline-block w-3.5 h-3.5 rounded-full border" style={{ background: form.color || "transparent" }} />
+                  צבע שירות ביומן
+                </Label>
+                <div className="flex flex-wrap gap-2">
+                  {[
+                    "#3c92f0", "#1e6fcf", "#95dbf4", "#06b6d4",
+                    "#a855f7", "#ec4899", "#f43f5e", "#ef4444",
+                    "#f59e0b", "#eab308", "#84cc16", "#22c55e",
+                    "#10b981", "#14b8a6", "#64748b", "#1f2937",
+                  ].map(c => (
+                    <button
+                      key={c}
+                      type="button"
+                      onClick={() => setForm(p => ({ ...p, color: c }))}
+                      aria-label={`בחר צבע ${c}`}
+                      className={`w-8 h-8 rounded-full border-2 transition-all ${form.color === c ? "border-foreground scale-110 shadow-md" : "border-transparent hover:scale-105"}`}
+                      style={{ background: c }}
+                    />
+                  ))}
+                  <button
+                    type="button"
+                    onClick={() => setForm(p => ({ ...p, color: "" }))}
+                    className={`h-8 px-3 rounded-full border text-xs font-medium transition-all ${!form.color ? "border-foreground bg-foreground/5" : "border-border text-muted-foreground hover:border-foreground/40"}`}
+                  >
+                    ללא צבע
+                  </button>
+                </div>
+              </div>
               {editingId && (
                 <div className="space-y-2 flex flex-col justify-end">
                   <Label>סטטוס</Label>
@@ -1839,6 +1886,9 @@ function ServicesTab() {
               <div className="p-4 flex justify-between items-center">
                 <div>
                   <div className="font-semibold flex items-center gap-2">
+                    {(s as any).color && (
+                      <span className="inline-block w-3 h-3 rounded-full shrink-0 border border-black/10" style={{ background: (s as any).color }} aria-label="צבע שירות" />
+                    )}
                     {s.name}
                     {!s.isActive && <Badge variant="secondary" className="text-xs">לא פעיל</Badge>}
                   </div>
@@ -1851,7 +1901,7 @@ function ServicesTab() {
                   <button
                     onClick={() => {
                       setEditingId(s.id);
-                      setForm({ name: s.name, price: (s.price / 100).toString(), durationMinutes: s.durationMinutes.toString(), bufferMinutes: (s.bufferMinutes ?? 0).toString(), isActive: s.isActive, imageUrl: s.imageUrl ?? "", description: (s as any).description ?? "" });
+                      setForm({ name: s.name, price: (s.price / 100).toString(), durationMinutes: s.durationMinutes.toString(), bufferMinutes: (s.bufferMinutes ?? 0).toString(), isActive: s.isActive, imageUrl: s.imageUrl ?? "", description: (s as any).description ?? "", color: (s as any).color ?? "" });
                       setIsAdding(false);
                     }}
                     className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium bg-primary/8 hover:bg-primary/15 text-primary border border-primary/15 transition-all"

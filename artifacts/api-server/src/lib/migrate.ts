@@ -164,6 +164,10 @@ export async function runMigrations() {
       `ALTER TABLE businesses ADD COLUMN IF NOT EXISTS gallery_images TEXT`,
       `ALTER TABLE businesses ADD COLUMN IF NOT EXISTS banner_position TEXT NOT NULL DEFAULT 'center'`,
       `ALTER TABLE services ADD COLUMN IF NOT EXISTS description TEXT`,
+      // Per-service accent color — painted onto the appointment cards
+      // in the owner's calendar so different services are visually
+      // distinguishable at a glance.
+      `ALTER TABLE services ADD COLUMN IF NOT EXISTS color TEXT`,
       // Contact & address for profile page
       `ALTER TABLE businesses ADD COLUMN IF NOT EXISTS contact_phone TEXT`,
       `ALTER TABLE businesses ADD COLUMN IF NOT EXISTS address TEXT`,

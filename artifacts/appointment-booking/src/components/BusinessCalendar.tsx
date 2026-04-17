@@ -5,11 +5,12 @@ import {
 } from "date-fns";
 import { he } from "date-fns/locale";
 import { HebrewCalendar } from "@hebcal/core";
-import { ChevronRight, ChevronLeft, RefreshCw, Search, MoreHorizontal, CalendarClock, ArrowDown, MessageSquare, Calendar, CalendarDays, LayoutGrid } from "lucide-react";
+import { ChevronRight, ChevronLeft, RefreshCw, Search, CalendarClock, ArrowDown, MessageSquare, Calendar, CalendarDays, LayoutGrid } from "lucide-react";
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 export type CalAppt = {
   id: number;
+  serviceId?: number;
   appointmentDate: string;   // YYYY-MM-DD
   appointmentTime: string;   // HH:mm
   durationMinutes: number;
@@ -19,6 +20,11 @@ export type CalAppt = {
   status: string;
   notes?: string | null;
 };
+
+// Optional map of serviceId → hex colour. Owner sets this per service
+// in the dashboard; calendar paints appointment cards in the matching
+// colour. Missing / null values fall back to status-tone defaults.
+export type ServiceColorMap = Record<number, string | null | undefined>;
 
 type View = "day" | "week" | "month";
 
@@ -147,16 +153,15 @@ function CalHeader({
         <button onClick={stepForward} className="p-2 rounded-lg hover:bg-muted/60" aria-label="הבא"><ChevronLeft className="w-4 h-4" /></button>
       </div>
 
-      {/* היום + search + more on the left (reading end). */}
+      {/* "חזור להיום" + search (desktop only) on the left (reading end). */}
       <div className="flex items-center gap-1 shrink-0">
         <button onClick={() => setCursor(new Date())}
-          className="px-3 py-1.5 rounded-xl text-xs font-bold text-white shadow-sm"
+          className="px-3 py-1.5 rounded-xl text-xs font-bold text-white shadow-sm whitespace-nowrap"
           style={{ background: "linear-gradient(135deg, #3c92f0 0%, #1e6fcf 100%)" }}>
-          היום
+          חזור להיום
         </button>
         <button onClick={() => setCursor(new Date())} className="p-2 rounded-lg hover:bg-muted/60 hidden sm:block" aria-label="רענן"><RefreshCw className="w-4 h-4" /></button>
         <button className="p-2 rounded-lg hover:bg-muted/60 hidden sm:block" aria-label="חיפוש"><Search className="w-4 h-4" /></button>
-        <button className="p-2 rounded-lg hover:bg-muted/60 hidden sm:block" aria-label="עוד"><MoreHorizontal className="w-4 h-4" /></button>
       </div>
     </div>
   );
@@ -349,8 +354,20 @@ function useDragReschedule(
   return { drag, onPointerDown, registerCol };
 }
 
+// Pick a readable foreground (white or near-black) for a given hex bg.
+// Standard YIQ luminance threshold — good enough for the owner palette.
+function readableOn(hex: string): string {
+  const m = hex.replace("#", "");
+  if (m.length !== 6) return "#ffffff";
+  const r = parseInt(m.slice(0, 2), 16);
+  const g = parseInt(m.slice(2, 4), 16);
+  const b = parseInt(m.slice(4, 6), 16);
+  const yiq = (r * 299 + g * 587 + b * 114) / 1000;
+  return yiq >= 150 ? "#111827" : "#ffffff";
+}
+
 function ApptCard({
-  appt, top, height, isDragging, onPointerDown, onClick,
+  appt, top, height, isDragging, onPointerDown, onClick, serviceColor,
 }: {
   appt: CalAppt;
   top: number;
@@ -358,18 +375,40 @@ function ApptCard({
   isDragging: boolean;
   onPointerDown: (e: React.PointerEvent) => void;
   onClick: (e: React.MouseEvent) => void;
+  serviceColor?: string | null;
 }) {
   const tone = statusTone(appt.status);
-  const bg = tone === "pending" ? "bg-pink-100 text-rose-900 border-pink-300"
-            : tone === "cancelled" ? "bg-gray-100 text-gray-500 border-gray-200 line-through"
-            : "bg-rose-600 text-white border-rose-700";
+
+  // A resolved service colour wins over the status-tone default for
+  // confirmed appointments. Pending/cancelled stay on their semantic
+  // colours — a cancelled card shouldn't look "filled" just because
+  // the service had a brand colour set.
+  const useCustomColour = !!serviceColor && tone === "confirmed";
+
+  const className = useCustomColour
+    ? "absolute right-0.5 left-0.5 rounded-lg border px-1.5 py-1 text-[10px] leading-tight cursor-grab active:cursor-grabbing select-none overflow-hidden shadow-sm"
+    : `absolute right-0.5 left-0.5 rounded-lg border px-1.5 py-1 text-[10px] leading-tight cursor-grab active:cursor-grabbing select-none overflow-hidden shadow-sm ${
+        tone === "pending"   ? "bg-pink-100 text-rose-900 border-pink-300"
+        : tone === "cancelled" ? "bg-gray-100 text-gray-500 border-gray-200 line-through"
+        : "bg-rose-600 text-white border-rose-700"
+      }`;
+
+  const customStyle = useCustomColour
+    ? {
+        top, height, touchAction: "none" as const,
+        background: serviceColor!,
+        color: readableOn(serviceColor!),
+        borderColor: serviceColor!,
+      }
+    : { top, height, touchAction: "none" as const };
+
   return (
     <div
       role="button"
       onPointerDown={onPointerDown}
       onClick={onClick}
-      className={`absolute right-0.5 left-0.5 rounded-lg border px-1.5 py-1 text-[10px] leading-tight cursor-grab active:cursor-grabbing select-none overflow-hidden shadow-sm ${bg} ${isDragging ? "opacity-70 ring-2 ring-primary" : ""}`}
-      style={{ top, height, touchAction: "none" }}
+      className={`${className} ${isDragging ? "opacity-70 ring-2 ring-primary" : ""}`}
+      style={customStyle}
     >
       <div className="font-bold truncate">{appt.clientName}</div>
       <div className="truncate opacity-90">{appt.serviceName}</div>
@@ -381,12 +420,13 @@ function ApptCard({
 }
 
 function TimeGrid({
-  days, appts, onApptClick, onReschedule,
+  days, appts, onApptClick, onReschedule, serviceColors,
 }: {
   days: Date[];
   appts: CalAppt[];
   onApptClick: (a: CalAppt) => void;
   onReschedule: (a: CalAppt, newDate: string, newTime: string) => void;
+  serviceColors?: ServiceColorMap;
 }) {
   const holidays = useHolidaysInRange(days[0], days[days.length - 1]);
   const today = new Date();
@@ -423,7 +463,7 @@ function TimeGrid({
           const weekday = format(d, "EEEEE", { locale: he });
           return (
             <div key={k} className="py-1.5 px-1 text-center border-l border-border">
-              <div className={`text-[11px] font-semibold ${isToday ? "text-primary" : "text-muted-foreground"}`}>{weekday}&#39;</div>
+              <div className={`text-[11px] font-semibold ${isToday ? "text-primary" : "text-muted-foreground"}`}>{weekday}</div>
               <div className={`text-sm font-bold ${isToday ? "text-primary" : ""}`}>{format(d, "d.M")}</div>
               {names.length > 0 && (
                 <div className="mt-1 text-[10px] font-bold text-primary bg-primary/10 rounded px-1 py-0.5 truncate">{names[0]}</div>
@@ -470,6 +510,7 @@ function TimeGrid({
                     top={isDragging ? (drag!.previewMin - DAY_START_MINUTES) / SLOT_MINUTES * SLOT_PX : top}
                     height={height}
                     isDragging={!!isDragging}
+                    serviceColor={a.serviceId != null ? serviceColors?.[a.serviceId] : null}
                     onPointerDown={e => onPointerDown(e, a, null)}
                     onClick={e => { if (isDragging) return; e.stopPropagation(); onApptClick(a); }}
                   />
@@ -485,6 +526,7 @@ function TimeGrid({
                     <ApptCard
                       appt={a} top={top} height={height}
                       isDragging
+                      serviceColor={a.serviceId != null ? serviceColors?.[a.serviceId] : null}
                       onPointerDown={() => {}}
                       onClick={() => {}}
                     />
@@ -643,12 +685,14 @@ export function BusinessCalendar({
   appointments,
   onApptClick,
   onRescheduleServer,
+  serviceColors,
 }: {
   appointments: CalAppt[];
   onApptClick: (a: CalAppt) => void;
   // Called after the owner confirms a reschedule. Parent is responsible
   // for the PATCH + WhatsApp open (so the calendar stays purely visual).
   onRescheduleServer: (appt: CalAppt, newDate: string, newTime: string, sendNotification: boolean) => void;
+  serviceColors?: ServiceColorMap;
 }) {
   const [view, setView] = useState<View>("week");
   const [cursor, setCursor] = useState<Date>(new Date());
@@ -684,6 +728,7 @@ export function BusinessCalendar({
           <TimeGrid
             days={weekDaysForCursor}
             appts={appointments}
+            serviceColors={serviceColors}
             onApptClick={onApptClick}
             onReschedule={(a, nd, nt) => setPendingReschedule({ appt: a, newDate: nd, newTime: nt })}
           />
@@ -692,6 +737,7 @@ export function BusinessCalendar({
           <TimeGrid
             days={[cursor]}
             appts={appointments}
+            serviceColors={serviceColors}
             onApptClick={onApptClick}
             onReschedule={(a, nd, nt) => setPendingReschedule({ appt: a, newDate: nd, newTime: nt })}
           />

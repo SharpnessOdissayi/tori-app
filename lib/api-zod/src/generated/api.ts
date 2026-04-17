@@ -280,7 +280,7 @@ export const CreateBusinessServiceBody = zod.object({
     .optional()
     .describe("Buffer time after this service in minutes"),
   imageUrl: zod.string().nullish(),
-});
+}).passthrough();
 
 export const UpdateBusinessServiceParams = zod.object({
   id: zod.coerce.number(),
