@@ -103,6 +103,113 @@ const FREE_MONTHLY_CUSTOMER_LIMIT = 20;
 //   150  → "שעתיים ו-30 דקות"
 //   180  → "3 שעות"
 //   330  → "5 שעות ו-30 דקות"
+// One-shot receipt issuer opened from an appointment card. Pre-fills
+// amount + description from the appointment's service and lets the
+// owner confirm / edit the client's email before hitting POST
+// /business/receipts. Fails loudly if the business profile doesn't
+// have a tax-id on file yet (server blocks it).
+function IssueReceiptFromAppointment({
+  appt, services, onClose, onIssued,
+}: {
+  appt: CalAppt;
+  services: Array<{ id: number; price: number; name: string }>;
+  onClose: () => void;
+  onIssued: () => void;
+}) {
+  const { toast } = useToast();
+  const service = services.find(s => s.id === appt.serviceId);
+  const defaultAmount = service ? (service.price / 100).toFixed(2) : "";
+  const [email, setEmail] = useState("");
+  const [amount, setAmount] = useState(defaultAmount);
+  const [paymentMethod, setPaymentMethod] = useState("credit_card");
+  const [saving, setSaving] = useState(false);
+  const handleSubmit = async () => {
+    if (!email.trim() || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email.trim())) {
+      toast({ title: "אימייל לא תקין", variant: "destructive" }); return;
+    }
+    if (!amount || Number(amount) <= 0) {
+      toast({ title: "סכום לא תקין", variant: "destructive" }); return;
+    }
+    setSaving(true);
+    try {
+      const token = localStorage.getItem("biz_token") || sessionStorage.getItem("biz_token");
+      const res = await fetch("/api/business/receipts", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({
+          clientName: appt.clientName,
+          clientPhone: appt.phoneNumber,
+          clientEmail: email.trim(),
+          amountILS: Number(amount),
+          description: service?.name || appt.serviceName,
+          paymentMethod,
+          appointmentId: appt.id,
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        if (data.error === "missing_tax_id") {
+          toast({ title: "חסר ח.פ / ת.ז בהגדרות", description: "מלא את פרטי הקבלה בהגדרות → קבלות לפני הנפקה", variant: "destructive" });
+        } else {
+          toast({ title: "שגיאה בהנפקת הקבלה", description: data.message ?? "נסה שוב", variant: "destructive" });
+        }
+        return;
+      }
+      toast({ title: `קבלה מס' ${data.receiptNumber} הונפקה ונשלחה ל-${email.trim()}` });
+      onIssued();
+      onClose();
+    } finally {
+      setSaving(false);
+    }
+  };
+  return (
+    <Dialog open onOpenChange={v => { if (!v) onClose(); }}>
+      <DialogContent dir="rtl" className="max-w-md">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <FileText className="w-5 h-5" /> הנפקת קבלה
+          </DialogTitle>
+          <DialogDescription>הקבלה תישלח במייל ללקוח ותירשם אוטומטית במערכת</DialogDescription>
+        </DialogHeader>
+        <div className="space-y-3 pt-2 text-sm">
+          <div className="p-3 rounded-xl bg-muted/40">
+            <div className="font-semibold">{appt.clientName}</div>
+            <div className="text-xs text-muted-foreground" dir="ltr">{appt.phoneNumber}</div>
+            <div className="text-xs text-muted-foreground mt-1">{service?.name || appt.serviceName} · {appt.appointmentDate} {appt.appointmentTime}</div>
+          </div>
+          <div className="space-y-1">
+            <Label>אימייל הלקוח *</Label>
+            <Input type="email" dir="ltr" value={email} onChange={e => setEmail(e.target.value)} placeholder="client@example.com" />
+            <p className="text-xs text-muted-foreground">אנא אמת/י שהמייל נכון — הקבלה תישלח אליו ישירות.</p>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1">
+              <Label>סכום (₪)</Label>
+              <Input type="number" min="1" step="0.01" dir="ltr" value={amount} onChange={e => setAmount(e.target.value)} />
+            </div>
+            <div className="space-y-1">
+              <Label>אמצעי תשלום</Label>
+              <select value={paymentMethod} onChange={e => setPaymentMethod(e.target.value)} className="w-full h-9 rounded-md border border-input bg-transparent px-3 text-sm">
+                <option value="credit_card">כרטיס אשראי</option>
+                <option value="cash">מזומן</option>
+                <option value="bit">ביט</option>
+                <option value="transfer">העברה בנקאית</option>
+                <option value="other">אחר</option>
+              </select>
+            </div>
+          </div>
+          <div className="flex gap-2 pt-2">
+            <Button variant="outline" className="flex-1" onClick={onClose} disabled={saving}>ביטול</Button>
+            <Button className="flex-1" onClick={handleSubmit} disabled={saving}>
+              {saving ? "מנפיק..." : "הנפק קבלה ושלח"}
+            </Button>
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 // ♂︎ / ♀︎ pill shown next to client names on the dashboard. Owner
 // asked for blue = male, pink = female; walk-ins who never logged in
 // to the client portal have no gender on file so we render nothing.
@@ -1485,6 +1592,9 @@ function AppointmentsTab({ mobileFocus }: { mobileFocus?: "calendar" | "approval
   // dialog with the current values — owner can shift the date/time,
   // tweak the note, or delete the constraint outright.
   const [editTimeOff, setEditTimeOff] = useState<TimeOffItem | null>(null);
+  // "הנפק קבלה" action from the appointment details dialog — opens a
+  // focused receipt-issuance form pre-filled from the appointment.
+  const [receiptForAppt, setReceiptForAppt] = useState<CalAppt | null>(null);
   // Manual "new appointment" dialog state — opened either from the "+"
   // button in the calendar header (empty defaults) or by clicking an
   // empty slot in the day/week grid (prefilled date + time).
@@ -1949,7 +2059,7 @@ function AppointmentsTab({ mobileFocus }: { mobileFocus?: "calendar" | "approval
                     </span>
                   </div>
                 </div>
-                <div className="flex gap-2 pt-2">
+                <div className="flex gap-2 pt-2 flex-wrap">
                   <Button variant="outline" onClick={() => setEditAppt(null)}>סגור</Button>
                   <Button
                     variant="outline"
@@ -1960,6 +2070,13 @@ function AppointmentsTab({ mobileFocus }: { mobileFocus?: "calendar" | "approval
                     }}
                   >
                     <Edit className="w-4 h-4" /> ערוך
+                  </Button>
+                  <Button
+                    variant="outline"
+                    className="gap-1.5 text-blue-600 border-blue-200 hover:bg-blue-50"
+                    onClick={() => setReceiptForAppt(editAppt)}
+                  >
+                    <FileText className="w-4 h-4" /> הנפק קבלה
                   </Button>
                   <Button
                     className="flex-1 bg-red-600 hover:bg-red-700 text-white"
@@ -1973,6 +2090,19 @@ function AppointmentsTab({ mobileFocus }: { mobileFocus?: "calendar" | "approval
           })()}
         </DialogContent>
       </Dialog>
+
+      {/* Receipt issuance dialog — opens from the "הנפק קבלה" button in
+          the appointment details view. */}
+      {receiptForAppt && (
+        <IssueReceiptFromAppointment
+          appt={receiptForAppt}
+          services={(Array.isArray(servicesForColors) ? servicesForColors : []).map((s: any) => ({
+            id: s.id, price: s.price, name: s.name,
+          }))}
+          onClose={() => setReceiptForAppt(null)}
+          onIssued={() => {}}
+        />
+      )}
 
       {past.length > 0 && (
         <Card>
