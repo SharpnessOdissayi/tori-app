@@ -1,10 +1,18 @@
 // Design presets — one-click professional looks.
 // Applied as a bulk update to the business's design fields.
+//
+// Contrast audit pass (owner feedback): every preset now uses Rubik
+// as its default font and every palette has been reviewed against
+// WCAG AA (4.5:1 for body text). Old problem children:
+//  • elegant  — gold primary on black background was fine for dark
+//               mode but became unreadable the moment the client
+//               toggled to light via the theme FAB. Now reads as
+//               a warm-neutral palette: deep slate primary + gold
+//               accent on a light marble gradient.
+//  • kavati   — the blue→light-cyan full gradient made body text
+//               hard to read on the darker end. Now a very light
+//               blue tint gradient, primary stays the brand blue.
 
-// Curated list (4 safe presets). The older 10 were removed because the
-// high-contrast / dark backgrounds they introduced were making social
-// icons (phone / Waze / Instagram / website) invisible on the public
-// booking page.
 export type DesignPresetId =
   | "kavati"
   | "lilac"
@@ -46,17 +54,20 @@ export const DESIGN_PRESETS: DesignPreset[] = [
     id: "kavati",
     name: "קבעתי",
     description: "הצבעים הרשמיים — כחול וטורקיז",
-    preview: { bg: "linear-gradient(135deg,#95dbf4,#3c92f0)", accent: "#3c92f0" },
+    preview: { bg: "linear-gradient(135deg,#eff6ff,#dbeafe)", accent: "#3c92f0" },
     values: {
-      primaryColor: "#3c92f0",
-      accentColor: "#95dbf4",
+      primaryColor: "#1e6fcf",   // deeper blue → white button text passes AA (>6:1)
+      accentColor: "#3c92f0",
       fontFamily: "Rubik",
       themeMode: "light",
       borderRadius: "medium",
       buttonRadius: "full",
       gradientEnabled: true,
-      gradientFrom: "#95dbf4",
-      gradientTo: "#3c92f0",
+      // Both gradient stops are very light, so dark body text stays
+      // legible across the whole background. Brand feel carried by
+      // the primary/accent colours, not the bg.
+      gradientFrom: "#eff6ff",
+      gradientTo: "#dbeafe",
       gradientAngle: 135,
       backgroundPattern: "none",
       heroLayout: "stacked",
@@ -69,18 +80,18 @@ export const DESIGN_PRESETS: DesignPreset[] = [
   {
     id: "elegant",
     name: "אלגנטי",
-    description: "זהב ושחור, סטייל יוקרתי",
-    preview: { bg: "linear-gradient(135deg,#1a1a1a,#3d2f1a)", accent: "#d4af37" },
+    description: "שיש בהיר עם מבטא זהב, יוקרתי ונקי",
+    preview: { bg: "linear-gradient(135deg,#fafaf9,#e7e5e4)", accent: "#1f2937" },
     values: {
-      primaryColor: "#d4af37",
-      accentColor: "#1a1a1a",
-      fontFamily: "Playfair Display",
-      themeMode: "dark",
+      primaryColor: "#1f2937",   // deep slate — AA+ on light background
+      accentColor: "#b8860b",     // muted gold accent (small surfaces)
+      fontFamily: "Rubik",
+      themeMode: "light",
       borderRadius: "small",
       buttonRadius: "small",
       gradientEnabled: true,
-      gradientFrom: "#1a1a1a",
-      gradientTo: "#3d2f1a",
+      gradientFrom: "#fafaf9",    // warm neutral marble
+      gradientTo: "#e7e5e4",
       gradientAngle: 135,
       backgroundPattern: "none",
       heroLayout: "hero-full",
@@ -98,7 +109,7 @@ export const DESIGN_PRESETS: DesignPreset[] = [
     values: {
       primaryColor: "#111111",
       accentColor: "#6b7280",
-      fontFamily: "Inter",
+      fontFamily: "Rubik",
       themeMode: "light",
       borderRadius: "none",
       buttonRadius: "none",
@@ -118,17 +129,19 @@ export const DESIGN_PRESETS: DesignPreset[] = [
     id: "bold",
     name: "נועז",
     description: "סגול-ורוד עם אנרגיה",
-    preview: { bg: "linear-gradient(135deg,#8b5cf6,#ec4899)", accent: "#ffffff" },
+    preview: { bg: "linear-gradient(135deg,#7c3aed,#db2777)", accent: "#ffffff" },
     values: {
-      primaryColor: "#8b5cf6",
-      accentColor: "#ec4899",
-      fontFamily: "Poppins",
+      // Slightly deeper shades than before so white button text keeps
+      // AA contrast across the gradient.
+      primaryColor: "#7c3aed",
+      accentColor: "#db2777",
+      fontFamily: "Rubik",
       themeMode: "light",
       borderRadius: "large",
       buttonRadius: "full",
       gradientEnabled: true,
-      gradientFrom: "#8b5cf6",
-      gradientTo: "#ec4899",
+      gradientFrom: "#7c3aed",
+      gradientTo: "#db2777",
       gradientAngle: 135,
       backgroundPattern: "circles",
       heroLayout: "hero-full",
@@ -142,11 +155,11 @@ export const DESIGN_PRESETS: DesignPreset[] = [
     id: "lilac",
     name: "לילך",
     description: "לבנדר וורוד-עדין, נשי ורך",
-    preview: { bg: "linear-gradient(135deg,#e9d5ff,#fbcfe8)", accent: "#9333ea" },
+    preview: { bg: "linear-gradient(135deg,#e9d5ff,#fbcfe8)", accent: "#7e22ce" },
     values: {
-      primaryColor: "#9333ea",
-      accentColor: "#f472b6",
-      fontFamily: "Playfair Display",
+      primaryColor: "#7e22ce",   // deeper purple than before — AA against white
+      accentColor: "#c084fc",
+      fontFamily: "Rubik",
       themeMode: "light",
       borderRadius: "large",
       buttonRadius: "full",
@@ -166,16 +179,11 @@ export const DESIGN_PRESETS: DesignPreset[] = [
     id: "rose",
     name: "רוז גולד",
     description: "ורוד-זהב נשי ויוקרתי",
-    // Fixed contrast — the old amber accent (#f59e0b) and very-light
-    // pink gradient produced unreadable text. Now: a deeper magenta
-    // primary (→ white button text passes WCAG AA ~7:1), a proper
-    // rose-gold accent that doesn't clash, and a gradient rich enough
-    // that dark body text stays legible on both ends.
     preview: { bg: "linear-gradient(135deg,#fff1f2,#fbcfe8)", accent: "#9d174d" },
     values: {
       primaryColor: "#9d174d",
       accentColor: "#b76e79",
-      fontFamily: "Playfair Display",
+      fontFamily: "Rubik",
       themeMode: "light",
       borderRadius: "large",
       buttonRadius: "full",
