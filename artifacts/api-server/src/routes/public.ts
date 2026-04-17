@@ -678,8 +678,17 @@ router.get("/s/:businessSlug", async (req, res): Promise<void> => {
   // awkwardly by WhatsApp's square preview card. Fall back to banner
   // only if no logo, and the generic Kavati card only if neither set.
   const rawImg = (business as any).logoUrl || (business as any).bannerUrl || `${host}/opengraph.jpg`;
-  const img = String(rawImg).startsWith("http") ? String(rawImg)
+  const imgAbs = String(rawImg).startsWith("http") ? String(rawImg)
             : `${host}${String(rawImg).startsWith("/") ? "" : "/"}${rawImg}`;
+
+  // Optimise for social-card scrapers: huge source images (4k+, multi-MB)
+  // get skipped or time out on WhatsApp/FB. When we detect a Cloudinary
+  // URL we inject a resize + auto-format transformation so the scraper
+  // gets a ~1200×630 jpg under 150 KB, which is the sweet-spot for
+  // OpenGraph preview cards (same dimensions FB recommends).
+  const img = imgAbs.includes("res.cloudinary.com") && imgAbs.includes("/upload/")
+    ? imgAbs.replace("/upload/", "/upload/c_fill,g_auto,w_1200,h_630,f_auto,q_auto/")
+    : imgAbs;
   const title = _htmlEscape((business as any).name || "קבעתי");
   const desc = _htmlEscape((business as any).businessDescription || `קבעי תור אצל ${(business as any).name}`);
   const imgEsc = _htmlEscape(img);
@@ -697,6 +706,10 @@ router.get("/s/:businessSlug", async (req, res): Promise<void> => {
   <meta property="og:title" content="${title}">
   <meta property="og:description" content="${desc}">
   <meta property="og:image" content="${imgEsc}">
+  <meta property="og:image:secure_url" content="${imgEsc}">
+  <meta property="og:image:type" content="image/jpeg">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
   <meta property="og:image:alt" content="${title}">
   <meta property="og:url" content="${bookUrlEsc}">
   <meta name="twitter:card" content="summary_large_image">
