@@ -4,7 +4,12 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Calendar as CalendarIcon, Ban, Plane, User, Coffee, HelpCircle } from "lucide-react";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Calendar } from "@/components/ui/calendar";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Calendar as CalendarIcon, Ban, Plane, User, Coffee, HelpCircle, Clock } from "lucide-react";
+import { format } from "date-fns";
+import { he } from "date-fns/locale";
 import { useToast } from "@/hooks/use-toast";
 
 function formatDuration(minutes: number): string {
@@ -36,6 +41,117 @@ const TIME_OFF_TYPES: Array<{
   { value: "break", label: "הפסקה", icon: <Coffee className="w-4 h-4" /> },
   { value: "other", label: "אחר", icon: <HelpCircle className="w-4 h-4" /> },
 ];
+
+// ── Date / time pickers ────────────────────────────────────────────────────
+// Owner asked to drop all the device-default date/time dialogs — the iOS
+// wheel, the Chrome-Android popover etc — and replace them with pickers
+// that match the rest of the app's visual language. Date uses the shadcn
+// Calendar inside a Popover (same glass/shadow style as other popovers);
+// time uses two Selects (hours 00–23, minutes at 5-min granularity) so
+// the touch targets are big and the dropdown style matches the service
+// dropdown right above it.
+
+function DatePickerField({
+  value,
+  onChange,
+  className,
+  red,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  className?: string;
+  red?: boolean;
+}) {
+  const [open, setOpen] = useState(false);
+  // Parse a YYYY-MM-DD string without the timezone-shift trap — new Date("2026-04-17")
+  // parses as midnight UTC, which in IST becomes the *previous* day's afternoon.
+  const parsed = useMemo(() => {
+    if (!value) return undefined;
+    const [y, m, d] = value.split("-").map(Number);
+    if (!y || !m || !d) return undefined;
+    return new Date(y, m - 1, d);
+  }, [value]);
+
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <Button
+          type="button"
+          variant="outline"
+          className={`w-full justify-start text-right font-normal ${className ?? ""} ${red ? "focus:ring-red-500 focus:border-red-500" : ""}`}
+          style={{ fontFamily: "'Rubik', sans-serif" }}
+        >
+          <CalendarIcon className="w-4 h-4 ml-2 opacity-70" />
+          {parsed ? format(parsed, "EEEE, d בMMMM yyyy", { locale: he }) : "בחר תאריך"}
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent className="w-auto p-0" align="start">
+        <Calendar
+          mode="single"
+          selected={parsed}
+          onSelect={(d) => {
+            if (!d) return;
+            const y = d.getFullYear();
+            const m = String(d.getMonth() + 1).padStart(2, "0");
+            const day = String(d.getDate()).padStart(2, "0");
+            onChange(`${y}-${m}-${day}`);
+            setOpen(false);
+          }}
+          locale={he}
+          dir="rtl"
+          initialFocus
+        />
+      </PopoverContent>
+    </Popover>
+  );
+}
+
+function TimePickerField({
+  value,
+  onChange,
+  red,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  red?: boolean;
+}) {
+  const [h, m] = value ? value.split(":") : ["", ""];
+  const hours = useMemo(() => Array.from({ length: 24 }, (_, i) => String(i).padStart(2, "0")), []);
+  // 5-minute granularity — owner can still hit 9:00, 9:05, 9:10 etc.
+  // Covers 99% of salon bookings; keeping the list short so the
+  // dropdown doesn't become a mile-long scroll.
+  const minutes = useMemo(() => Array.from({ length: 12 }, (_, i) => String(i * 5).padStart(2, "0")), []);
+
+  const onHourChange = (nh: string) => onChange(`${nh}:${m || "00"}`);
+  const onMinuteChange = (nm: string) => onChange(`${h || "09"}:${nm}`);
+
+  return (
+    <div className="flex items-center gap-2" dir="ltr">
+      <Select value={h} onValueChange={onHourChange}>
+        <SelectTrigger className="w-20 text-center justify-center">
+          <SelectValue placeholder="שעה" />
+        </SelectTrigger>
+        <SelectContent>
+          {hours.map((hh) => (
+            <SelectItem key={hh} value={hh}>{hh}</SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+      <span className={`text-lg font-bold ${red ? "text-red-500" : "text-muted-foreground"}`}>:</span>
+      <Select value={m} onValueChange={onMinuteChange}>
+        <SelectTrigger className="w-20 text-center justify-center">
+          <SelectValue placeholder="דקה" />
+        </SelectTrigger>
+        <SelectContent>
+          {minutes.map((mm) => (
+            <SelectItem key={mm} value={mm}>{mm}</SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+      <Clock className={`w-4 h-4 ${red ? "text-red-500" : "text-muted-foreground"} mr-auto`} />
+    </div>
+  );
+}
 
 export function NewAppointmentDialog({
   open,
@@ -303,11 +419,11 @@ export function NewAppointmentDialog({
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div className="space-y-2">
                 <Label>תאריך *</Label>
-                <Input required type="date" value={date} onChange={(e) => setDate(e.target.value)} />
+                <DatePickerField value={date} onChange={setDate} />
               </div>
               <div className="space-y-2">
                 <Label>שעה *</Label>
-                <Input required type="time" step={300} value={time} onChange={(e) => setTime(e.target.value)} dir="ltr" />
+                <TimePickerField value={time} onChange={setTime} />
               </div>
             </div>
 
@@ -365,42 +481,27 @@ export function NewAppointmentDialog({
 
             <div className="space-y-2">
               <Label>תאריך *</Label>
-              <Input required type="date" value={toDate} onChange={(e) => setToDate(e.target.value)} />
+              <DatePickerField value={toDate} onChange={setToDate} red />
             </div>
 
             <label className="flex items-center gap-2 cursor-pointer select-none">
-              <input
-                type="checkbox"
+              <Checkbox
                 checked={toFullDay}
-                onChange={(e) => setToFullDay(e.target.checked)}
-                className="w-4 h-4 accent-red-600"
+                onCheckedChange={(v) => setToFullDay(v === true)}
+                className="data-[state=checked]:bg-red-600 data-[state=checked]:border-red-600"
               />
               <span className="text-sm font-semibold">חסימת כל היום</span>
             </label>
 
             {!toFullDay && (
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="space-y-3">
                 <div className="space-y-2">
                   <Label>שעת התחלה *</Label>
-                  <Input
-                    required
-                    type="time"
-                    step={300}
-                    value={toStartTime}
-                    onChange={(e) => setToStartTime(e.target.value)}
-                    dir="ltr"
-                  />
+                  <TimePickerField value={toStartTime} onChange={setToStartTime} red />
                 </div>
                 <div className="space-y-2">
                   <Label>שעת סיום *</Label>
-                  <Input
-                    required
-                    type="time"
-                    step={300}
-                    value={toEndTime}
-                    onChange={(e) => setToEndTime(e.target.value)}
-                    dir="ltr"
-                  />
+                  <TimePickerField value={toEndTime} onChange={setToEndTime} red />
                 </div>
               </div>
             )}
