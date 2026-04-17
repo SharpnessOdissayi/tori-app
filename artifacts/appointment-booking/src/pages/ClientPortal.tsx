@@ -366,7 +366,13 @@ export default function ClientPortal() {
   const [notifOpen, setNotifOpen] = useState(false);
   const [clientNotifs, setClientNotifs] = useState<any[]>([]);
   const [clientUnread, setClientUnread] = useState(0);
-  const [profileGender, setProfileGender] = useState<string>("other");
+  const [profileGender, setProfileGender] = useState<string>("male");
+  // First-time welcome modal — shown once to clients who logged in
+  // with a fresh email and haven't filled their name + phone yet.
+  // Closes after they save, won't reopen because the profile now has
+  // the fields populated.
+  const [welcomeOpen, setWelcomeOpen] = useState(false);
+  const [welcomeSaving, setWelcomeSaving] = useState(false);
   const [loading, setLoading] = useState(false);
 
   // Discover
@@ -421,7 +427,18 @@ export default function ClientPortal() {
         setProfileName(data.clientName ?? "");
         setProfilePhone(data.phone ?? "");
         setProfileReceiveNotifications(data.receiveNotifications ?? true);
-        setProfileGender(data.gender ?? "other");
+        // Default new clients to "male" — "other" is no longer offered
+        // and the column used to default there. Any legacy "other"
+        // reads back as male here until the client edits Settings.
+        setProfileGender(data.gender === "female" ? "female" : "male");
+        // First-time welcome: a freshly-logged-in client has no name
+        // or phone on their row yet. Open the welcome modal to collect
+        // both before letting them use the portal.
+        const missingName = !data.clientName || !String(data.clientName).trim();
+        const missingPhone = !data.phone || !String(data.phone).trim();
+        if (missingName || missingPhone) {
+          setWelcomeOpen(true);
+        }
       })
       .catch(logout);
   }, [token]);
@@ -520,6 +537,26 @@ export default function ClientPortal() {
       year:      y,
     }));
     navigate(`/book/${appt.businessSlug}?reschedule=1`);
+  };
+
+  const saveWelcome = async () => {
+    if (!profileName.trim() || !profilePhone.trim()) {
+      toast({ title: "יש למלא שם מלא ומספר טלפון", variant: "destructive" });
+      return;
+    }
+    setWelcomeSaving(true);
+    const res = await fetch(`${API}/client/me`, {
+      method: "PATCH", headers: { "Content-Type": "application/json", ...authHeaders() },
+      body: JSON.stringify({ clientName: profileName.trim(), phone: profilePhone.trim(), receiveNotifications: profileReceiveNotifications, gender: profileGender }),
+    });
+    setWelcomeSaving(false);
+    if (res.ok) {
+      toast({ title: `ברוך/ה הבא/ה, ${profileName.trim()}!` });
+      setWelcomeOpen(false);
+      setSession(s => s ? { ...s, clientName: profileName.trim(), phone: profilePhone.trim(), receiveNotifications: profileReceiveNotifications, gender: profileGender } : s);
+    } else {
+      toast({ title: "שגיאה בשמירת הפרטים", variant: "destructive" });
+    }
   };
 
   const saveProfile = async () => {
@@ -862,6 +899,51 @@ export default function ClientPortal() {
         </div>
       </div>
 
+      {/* ── WELCOME SHEET (first-time client) ──
+          Shown once per account when the client has just logged in
+          with email OTP and their row has no name / phone yet. Can't
+          be dismissed without saving — we need these fields to book. */}
+      {welcomeOpen && (
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/50" dir="rtl">
+          <div className="w-full max-w-md bg-white rounded-t-3xl p-6 space-y-5" onClick={e => e.stopPropagation()}>
+            <div>
+              <h3 className="font-extrabold text-xl text-gray-900">ברוכים הבאים לקבעתי! 🎉</h3>
+              <p className="text-sm text-gray-500 mt-1">כדי להתחיל, ספר/י לנו איך לפנות אליך — השם והטלפון ישמשו את העסקים אצלם תקבע/י תור.</p>
+            </div>
+            <div className="space-y-3">
+              <div className="space-y-1.5">
+                <label className="text-sm font-medium text-gray-700">שם מלא *</label>
+                <input
+                  value={profileName}
+                  onChange={e => setProfileName(e.target.value)}
+                  placeholder="לדוגמה: לילך שרה כהן"
+                  className="w-full rounded-xl border border-gray-200 px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-sm font-medium text-gray-700">טלפון *</label>
+                <input
+                  type="tel"
+                  dir="ltr"
+                  value={profilePhone}
+                  onChange={e => setProfilePhone(e.target.value)}
+                  placeholder="050-1234567"
+                  className="w-full rounded-xl border border-gray-200 px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 text-right"
+                />
+              </div>
+            </div>
+            <button
+              onClick={saveWelcome}
+              disabled={welcomeSaving}
+              className="w-full py-3 rounded-2xl text-white font-bold disabled:opacity-60"
+              style={{ background: "linear-gradient(135deg, #3c92f0 0%, #1e6fcf 100%)" }}
+            >
+              {welcomeSaving ? "שומר..." : "התחל להשתמש בקבעתי"}
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* ── PROFILE SHEET ── */}
       {profileOpen && (
         <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/30" onClick={() => setProfileOpen(false)}>
@@ -884,7 +966,7 @@ export default function ClientPortal() {
               <div className="space-y-1.5">
                 <label className="text-sm font-medium text-gray-700">מין</label>
                 <div className="flex gap-2">
-                  {[{ v: "male", l: "זכר" }, { v: "female", l: "נקבה" }, { v: "other", l: "אחר" }].map(({ v, l }) => (
+                  {[{ v: "male", l: "זכר" }, { v: "female", l: "נקבה" }].map(({ v, l }) => (
                     <button key={v} type="button" onClick={() => setProfileGender(v)}
                       className="flex-1 py-2 rounded-xl text-sm font-medium border transition-all"
                       style={{

@@ -103,6 +103,27 @@ const FREE_MONTHLY_CUSTOMER_LIMIT = 20;
 //   150  → "שעתיים ו-30 דקות"
 //   180  → "3 שעות"
 //   330  → "5 שעות ו-30 דקות"
+// ♂︎ / ♀︎ pill shown next to client names on the dashboard. Owner
+// asked for blue = male, pink = female; walk-ins who never logged in
+// to the client portal have no gender on file so we render nothing.
+function GenderMark({ gender }: { gender: string | null | undefined }) {
+  if (gender !== "male" && gender !== "female") return null;
+  const isMale = gender === "male";
+  return (
+    <span
+      className="inline-flex items-center justify-center w-4 h-4 rounded-full text-[10px] font-bold shrink-0"
+      style={{
+        background: isMale ? "#3c92f0" : "#ec4899",
+        color: "#ffffff",
+      }}
+      aria-label={isMale ? "זכר" : "נקבה"}
+      title={isMale ? "זכר" : "נקבה"}
+    >
+      {isMale ? "♂" : "♀"}
+    </span>
+  );
+}
+
 // Floating save button that hovers above the mobile bottom nav + any
 // inline save/cancel buttons. Shown only when a tab has unsaved edits
 // (parent decides). 70% width, centered, brand-blue gradient so it
@@ -1408,6 +1429,17 @@ function AppointmentsTab({ mobileFocus }: { mobileFocus?: "calendar" | "approval
   const { data: appointments } = useListBusinessAppointments();
   const { data: profile } = useGetBusinessProfile();
   const { data: customers } = useListBusinessCustomers();
+  // Quick phone→gender map for the ♂︎/♀︎ badge next to client names.
+  // Only clients who authed via the portal carry a gender on their
+  // session row — walk-ins booked by the owner stay unmarked.
+  const genderByPhone = useMemo(() => {
+    const m = new Map<string, string>();
+    for (const c of (Array.isArray(customers) ? customers : [])) {
+      const g = (c as any).gender;
+      if (g && c.phoneNumber) m.set(c.phoneNumber, g);
+    }
+    return m;
+  }, [customers]);
   // Services list → serviceId → color map for the calendar. Memoed so
   // calendar re-renders don't recompute this on every appointment tick.
   const { data: servicesForColors } = useListBusinessServices();
@@ -1582,8 +1614,10 @@ function AppointmentsTab({ mobileFocus }: { mobileFocus?: "calendar" | "approval
               {pending.map(apt => (
                 <div key={apt.id} className="flex flex-col sm:flex-row justify-between items-start sm:items-center p-4 border border-yellow-200 rounded-xl bg-white gap-3">
                   <div className="flex-1 min-w-0">
-                    <div className="font-semibold">{apt.clientName}
-                      <span className="text-muted-foreground text-sm font-normal mr-2" dir="ltr">{apt.phoneNumber}</span>
+                    <div className="font-semibold flex items-center gap-2 flex-wrap">
+                      <GenderMark gender={genderByPhone.get(apt.phoneNumber)} />
+                      <span>{apt.clientName}</span>
+                      <span className="text-muted-foreground text-sm font-normal" dir="ltr">{apt.phoneNumber}</span>
                     </div>
                     <div className="text-sm text-muted-foreground mt-0.5">{apt.serviceName} • {formatDuration(apt.durationMinutes)}</div>
                     <div className="text-yellow-700 font-medium text-sm mt-1">
@@ -1632,8 +1666,10 @@ function AppointmentsTab({ mobileFocus }: { mobileFocus?: "calendar" | "approval
               {pendingPayment.map(apt => (
                 <div key={apt.id} className="flex flex-col sm:flex-row justify-between items-start sm:items-center p-4 border border-blue-200 rounded-xl bg-white gap-3">
                   <div className="flex-1">
-                    <div className="font-semibold">{apt.clientName}
-                      <span className="text-muted-foreground text-sm font-normal mr-2" dir="ltr">{apt.phoneNumber}</span>
+                    <div className="font-semibold flex items-center gap-2 flex-wrap">
+                      <GenderMark gender={genderByPhone.get(apt.phoneNumber)} />
+                      <span>{apt.clientName}</span>
+                      <span className="text-muted-foreground text-sm font-normal" dir="ltr">{apt.phoneNumber}</span>
                     </div>
                     <div className="text-sm text-muted-foreground mt-0.5">{apt.serviceName} • {formatDuration(apt.durationMinutes)}</div>
                     <div className="text-blue-700 font-medium text-sm mt-1">
@@ -1661,8 +1697,9 @@ function AppointmentsTab({ mobileFocus }: { mobileFocus?: "calendar" | "approval
               {upcoming.map(apt => (
                 <div key={apt.id} className="flex flex-col sm:flex-row justify-between items-start sm:items-center p-4 border rounded-xl bg-card gap-3 hover:border-primary/40 transition-colors">
                   <div className="flex-1 min-w-0">
-                    <div className="font-semibold flex items-center gap-2">
-                      {apt.clientName}
+                    <div className="font-semibold flex items-center gap-2 flex-wrap">
+                      <GenderMark gender={genderByPhone.get(apt.phoneNumber)} />
+                      <span>{apt.clientName}</span>
                       <span className="text-muted-foreground text-sm font-normal" dir="ltr">{apt.phoneNumber}</span>
                     </div>
                     <div className="text-sm text-muted-foreground mt-0.5">{apt.serviceName} • {formatDuration(apt.durationMinutes)}</div>
@@ -1823,7 +1860,10 @@ function AppointmentsTab({ mobileFocus }: { mobileFocus?: "calendar" | "approval
               return (
                 <div className="space-y-4 text-sm">
                   <div className="space-y-1">
-                    <div className="font-bold text-lg">{editAppt.clientName}</div>
+                    <div className="font-bold text-lg flex items-center gap-2">
+                      <GenderMark gender={genderByPhone.get(editAppt.phoneNumber)} />
+                      <span>{editAppt.clientName}</span>
+                    </div>
                     <div className="text-muted-foreground" dir="ltr">{editAppt.phoneNumber}</div>
                     <div className="text-xs text-muted-foreground">{editAppt.serviceName} · {formatDuration(editAppt.durationMinutes)}</div>
                   </div>
@@ -1865,7 +1905,10 @@ function AppointmentsTab({ mobileFocus }: { mobileFocus?: "calendar" | "approval
             return (
               <div className="space-y-4 text-sm">
                 <div className="space-y-1">
-                  <div className="font-bold text-lg">{editAppt.clientName}</div>
+                  <div className="font-bold text-lg flex items-center gap-2">
+                    <GenderMark gender={genderByPhone.get(editAppt.phoneNumber)} />
+                    <span>{editAppt.clientName}</span>
+                  </div>
                   <div className="text-muted-foreground" dir="ltr">{editAppt.phoneNumber}</div>
                 </div>
                 <div className="grid grid-cols-2 gap-3">
@@ -3840,6 +3883,7 @@ function CustomersTab() {
                   <div className="flex-1 min-w-0">
                     <div className="font-semibold flex items-center gap-2 flex-wrap">
                       {isFavorite && <CheckCircle className="w-4 h-4 text-blue-500 fill-blue-100" aria-label="לקוח/ה מועדף/ת" />}
+                      <GenderMark gender={(c as any).gender} />
                       {c.clientName}
                       {c.totalVisits >= 5 && <Badge className="text-xs bg-amber-100 text-amber-700 border-amber-200">לקוחה נאמנה</Badge>}
                     </div>
@@ -5390,7 +5434,7 @@ function SettingsTab() {
   const baselineCategoriesRef = useRef<string[] | null>(null);
 
   const [form, setForm] = useState({
-    name: "", ownerName: "", ownerGender: "male" as "male" | "female" | "other", phone: "", email: "",
+    name: "", ownerName: "", ownerGender: "male" as "male" | "female", phone: "", email: "",
     requireAppointmentApproval: false, requirePhoneVerification: false,
     tranzilaEnabled: false,
     depositAmount: "0",
@@ -5433,7 +5477,7 @@ function SettingsTab() {
       const next = {
         name: profile.name,
         ownerName: profile.ownerName,
-        ownerGender: (((profile as any).ownerGender ?? "male") as "male" | "female" | "other"),
+        ownerGender: (((profile as any).ownerGender === "female" ? "female" : "male") as "male" | "female"),
         phone: (profile as any).phone ?? "",
         email: (profile as any).email ?? "",
         requireAppointmentApproval: (profile as any).requireAppointmentApproval ?? false,
@@ -5648,7 +5692,6 @@ function SettingsTab() {
                     {([
                       { v: "male",   label: "זכר" },
                       { v: "female", label: "נקבה" },
-                      { v: "other",  label: "אחר" },
                     ] as const).map(opt => (
                       <button
                         key={opt.v}

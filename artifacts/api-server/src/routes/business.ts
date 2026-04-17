@@ -926,6 +926,21 @@ router.get("/business/customers", requireBusinessAuth, async (req, res): Promise
     .where(eq(appointmentsTable.businessId, businessId))
     .orderBy(appointmentsTable.appointmentDate);
 
+  // Pull the client's self-reported gender from client_sessions —
+  // only clients who logged in via the portal have a row there, so
+  // we fall back to null for walk-ins booked directly by the owner.
+  // Keyed by phone to match the appointments join key.
+  const sessions = await db.execute<{ phone_number: string; gender: string | null }>(sql`
+    SELECT DISTINCT ON (phone_number) phone_number, gender
+    FROM client_sessions
+    WHERE phone_number IS NOT NULL
+    ORDER BY phone_number, created_at DESC
+  `);
+  const genderByPhone = new Map<string, string>();
+  for (const row of sessions.rows) {
+    if (row.gender) genderByPhone.set(row.phone_number, row.gender);
+  }
+
   const customerMap = new Map<string, {
     clientName: string;
     phoneNumber: string;
@@ -975,7 +990,10 @@ router.get("/business/customers", requireBusinessAuth, async (req, res): Promise
     }
   }
 
-  res.json(Array.from(customerMap.values()).sort((a, b) => b.totalVisits - a.totalVisits));
+  const enriched = Array.from(customerMap.values())
+    .map(c => ({ ...c, gender: genderByPhone.get(c.phoneNumber) ?? null }))
+    .sort((a, b) => b.totalVisits - a.totalVisits);
+  res.json(enriched);
 });
 
 // POST /business/broadcast — send WhatsApp message to all customers
