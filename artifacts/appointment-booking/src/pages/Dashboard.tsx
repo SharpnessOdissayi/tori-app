@@ -2146,7 +2146,7 @@ function ServicesTab() {
                 className="px-4 py-2 rounded-xl text-sm font-medium border border-border bg-muted/40 hover:bg-muted text-muted-foreground transition-all">
                 ביטול
               </button>
-              <Button type="submit" className="rounded-xl px-5" disabled={createMutation.isPending || updateMutation.isPending || imageUpload.isUploading}>שמור שירות</Button>
+              <Button type="submit" className="rounded-xl px-5" disabled={createMutation.isPending || updateMutation.isPending || imageUpload.isUploading}>שמור</Button>
             </div>
           </form>
         )}
@@ -3409,14 +3409,21 @@ function BrandingTab() {
   const logoRef = useRef<HTMLInputElement>(null);
   const bannerRef = useRef<HTMLInputElement>(null);
 
-  // Preview service name — use the first real service the business
-  // created so the mockup reads like their actual profile. Falls back
-  // to "דוגמא" for brand-new accounts with no services yet.
-  const previewServiceName = (() => {
+  // Preview mockup pulls the first active service so the card reads
+  // like the owner's actual profile — name, price (with "החל מ-"
+  // flag if set), and duration all come from the real row. Falls
+  // back to a generic "דוגמא" sample for brand-new accounts.
+  const previewService = (() => {
     const list = Array.isArray(brandingServices) ? brandingServices : [];
-    const first = list.find(s => (s as any).isActive) ?? list[0];
-    return (first as any)?.name || "דוגמא";
+    return list.find(s => (s as any).isActive) ?? list[0] ?? null;
   })();
+  const previewServiceName = (previewService as any)?.name || "דוגמא";
+  const previewPriceStr = previewService
+    ? `${(previewService as any).priceStartsFrom ? "החל מ-" : ""}₪${((previewService as any).price / 100).toFixed(0)}`
+    : "{previewPriceStr}";
+  const previewDurationStr = previewService
+    ? formatDuration((previewService as any).durationMinutes ?? 30)
+    : "30 דקות";
 
   // Live-apply the picked font to the whole dashboard. The outer useEffect
   // in the Dashboard root applies whatever's SAVED on the profile; this
@@ -3729,7 +3736,7 @@ function BrandingTab() {
                     >
                       <div>
                         <div className="font-semibold text-sm" style={{ color: textMain }}>{previewServiceName}</div>
-                        <div className="text-xs" style={{ color: textMuted }}>30 דק׳ · ₪80</div>
+                        <div className="text-xs" style={{ color: textMuted }}>{previewDurationStr} · {previewPriceStr}</div>
                       </div>
                       <button className="px-4 py-1.5 text-xs font-medium text-white shadow" style={{ background: form.primaryColor, borderRadius: buttonPx }}>קבע</button>
                     </div>
@@ -3747,7 +3754,7 @@ function BrandingTab() {
                         <div className="font-bold text-sm" style={{ color: textMain }}>{previewServiceName}</div>
                         <div className="text-xs" style={{ color: textMuted }}>30 דק׳</div>
                       </div>
-                      <div className="font-bold text-lg" style={{ color: form.primaryColor }}>₪80</div>
+                      <div className="font-bold text-lg" style={{ color: form.primaryColor }}>{previewPriceStr}</div>
                     </button>
                   ) : form.serviceCardStyle === "grid" ? (
                     <div className="grid grid-cols-2 gap-3">
@@ -3769,7 +3776,7 @@ function BrandingTab() {
                       <div className="p-4">
                         <div className="flex justify-between items-start mb-1">
                           <div className="font-bold text-sm" style={{ color: textMain }}>{previewServiceName}</div>
-                          <div className="font-bold" style={{ color: form.primaryColor }}>₪80</div>
+                          <div className="font-bold" style={{ color: form.primaryColor }}>{previewPriceStr}</div>
                         </div>
                         <div className="text-xs mb-3" style={{ color: textMuted }}>תספורת מקצועית לגברים · 30 דק׳</div>
                         <div className="flex justify-end">
