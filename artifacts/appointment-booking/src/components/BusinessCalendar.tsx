@@ -664,6 +664,7 @@ function ApptCard({
   return (
     <div
       role="button"
+      data-cal-drag="1"
       onPointerDown={onPointerDown}
       onClick={onClick}
       className={`${className} ${isDragging ? "opacity-70 ring-2 ring-primary" : ""}`}
@@ -786,6 +787,7 @@ function TimeOffBlock({
     <div
       role={interactive ? "button" : undefined}
       tabIndex={interactive ? 0 : undefined}
+      data-cal-drag={interactive ? "1" : undefined}
       onPointerDown={onPointerDown ? (e) => {
         downPos.current = { x: e.clientX, y: e.clientY };
         onPointerDown(e);
@@ -1267,6 +1269,38 @@ export function BusinessCalendar({
     return Array.from({ length: 7 }, (_, i) => addDays(start, i));
   }, [cursor]);
 
+  // Swipe-to-navigate across weeks/days/months. In an RTL layout the
+  // natural gesture direction matches LTR: swipe right→left to advance
+  // (next period), left→right to go back. Touches that start inside an
+  // appointment card or time-off block are ignored — those owners the
+  // drag-to-reschedule handler.
+  const swipeStart = useRef<{ x: number; y: number } | null>(null);
+  const stepByGesture = (dir: 1 | -1) => {
+    if (view === "day") setCursor(addDays(cursor, dir));
+    else if (view === "week") setCursor(addDays(cursor, dir * 7));
+    else setCursor(addMonths(cursor, dir));
+  };
+  const onSwipeStart = (e: React.TouchEvent) => {
+    const target = e.target as HTMLElement | null;
+    if (target?.closest("[data-cal-drag]")) { swipeStart.current = null; return; }
+    const t = e.touches[0];
+    swipeStart.current = t ? { x: t.clientX, y: t.clientY } : null;
+  };
+  const onSwipeEnd = (e: React.TouchEvent) => {
+    const start = swipeStart.current;
+    swipeStart.current = null;
+    if (!start) return;
+    const end = e.changedTouches[0];
+    if (!end) return;
+    const dx = end.clientX - start.x;
+    const dy = end.clientY - start.y;
+    // Require a decent horizontal distance AND a horizontal-dominant
+    // gesture so accidental diagonal scrolls don't trigger paging.
+    if (Math.abs(dx) < 60) return;
+    if (Math.abs(dx) < Math.abs(dy) * 1.2) return;
+    stepByGesture(dx < 0 ? 1 : -1);
+  };
+
   const headerLabel = useMemo(() => {
     if (view === "day") return format(cursor, "d בMMMM yyyy", { locale: he });
     if (view === "week") {
@@ -1328,7 +1362,11 @@ export function BusinessCalendar({
         </div>
       )}
 
-      <div className="overflow-auto max-h-[calc(100vh-220px)]">
+      <div
+        className="overflow-auto max-h-[calc(100vh-220px)]"
+        onTouchStart={onSwipeStart}
+        onTouchEnd={onSwipeEnd}
+      >
         {view === "month" && (
           <MonthView
             cursor={cursor}
