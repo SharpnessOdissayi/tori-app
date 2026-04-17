@@ -2,12 +2,12 @@ import { Link } from "wouter";
 
 export default function SiteFooter() {
   return (
-    <footer dir="rtl" className="border-t bg-muted/30 py-6 px-4 text-sm text-muted-foreground">
-      <div className="max-w-4xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4">
-        {/* Brand — logo links back to the marketing homepage. Serves as
-            the "Kavati" wordmark at the bottom of every page. */}
-        <Link href="/" aria-label="חזרה לעמוד הראשי של קבעתי" className="flex items-center gap-2 transition-opacity hover:opacity-80">
-          <img src="/logo.svg" alt="קבעתי" className="h-8 object-contain" />
+    <footer dir="rtl" className="border-t bg-muted/30 py-8 px-4 text-sm text-muted-foreground">
+      <div className="max-w-4xl mx-auto flex flex-col items-center gap-4">
+        {/* Brand — centred + larger (2x the previous size). Links back
+            to the marketing homepage and acts as the Kavati wordmark. */}
+        <Link href="/" aria-label="חזרה לעמוד הראשי של קבעתי" className="transition-opacity hover:opacity-80">
+          <img src="/logo.svg" alt="קבעתי" className="h-16 object-contain" />
         </Link>
 
         {/* Links */}
