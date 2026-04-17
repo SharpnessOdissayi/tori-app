@@ -3582,10 +3582,14 @@ function BrandingTab() {
 
         return (
           // Sticky under the top nav so the preview stays on screen as the
-          // owner scrolls through color/font/logo/button controls. Scales
-          // down on desktop; on mobile it returns to the normal flow so it
-          // doesn't eat the viewport.
-          <Card className="md:sticky md:top-4 md:z-20 md:scale-[0.9] md:origin-top md:max-w-md md:mx-auto">
+          // owner scrolls through colour / font / logo / button controls.
+          // Uses position: sticky + self-start so flex ancestors (the
+          // TabsContent primitive) don't collapse it back into the normal
+          // flow; previously showed as a static card after the Tabs
+          // primitive switched to flex-col internally.
+          <Card className="sticky top-4 z-20 self-start md:scale-[0.9] md:origin-top md:max-w-md md:mx-auto"
+            style={{ position: "sticky" }}
+          >
             <CardHeader className="pb-2">
               <CardTitle className="text-base">תצוגה מקדימה</CardTitle>
               <CardDescription className="text-xs">מתעדכנת בזמן אמת בזמן שמגללים את ההגדרות למטה</CardDescription>

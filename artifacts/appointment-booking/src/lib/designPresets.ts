@@ -7,6 +7,7 @@
 // booking page.
 export type DesignPresetId =
   | "kavati"
+  | "lilac"
   | "minimal"
   | "bold"
   | "rose"
@@ -134,6 +135,30 @@ export const DESIGN_PRESETS: DesignPreset[] = [
       serviceCardStyle: "card",
       animationStyle: "bouncy",
       hoverEffect: "lift",
+      backgroundColor: null,
+    },
+  },
+  {
+    id: "lilac",
+    name: "לילך",
+    description: "לבנדר וורוד-עדין, נשי ורך",
+    preview: { bg: "linear-gradient(135deg,#e9d5ff,#fbcfe8)", accent: "#9333ea" },
+    values: {
+      primaryColor: "#9333ea",
+      accentColor: "#f472b6",
+      fontFamily: "Playfair Display",
+      themeMode: "light",
+      borderRadius: "large",
+      buttonRadius: "full",
+      gradientEnabled: true,
+      gradientFrom: "#e9d5ff",
+      gradientTo: "#fbcfe8",
+      gradientAngle: 135,
+      backgroundPattern: "none",
+      heroLayout: "stacked",
+      serviceCardStyle: "card",
+      animationStyle: "subtle",
+      hoverEffect: "glow",
       backgroundColor: null,
     },
   },
