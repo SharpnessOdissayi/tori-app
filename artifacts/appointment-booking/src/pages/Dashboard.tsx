@@ -4218,38 +4218,31 @@ function CustomersTab() {
       </Card>
 
       {/* Cancellation breakdown dialog — opens when the owner taps a
-          customer's "↩️ N ביטולים" chip. Shows how many the client
-          cancelled vs how many the business cancelled. Older rows that
-          predate the cancelled_by column get bucketed as "לא ידוע". */}
+          customer's "↩️ N ביטולים" chip. Owner asked to drop the
+          "לא ידוע" bucket; legacy rows (cancelled_by null) roll into
+          the total but aren't surfaced as a third row anymore. */}
       <Dialog open={!!cancelBreakdown} onOpenChange={v => { if (!v) setCancelBreakdown(null); }}>
         <DialogContent dir="rtl" className="max-w-sm">
           <DialogHeader>
             <DialogTitle>פירוט ביטולים — {cancelBreakdown?.clientName}</DialogTitle>
             <DialogDescription>
-              מי ביטל כל תור. ביטולים ישנים לפני השדרוג יופיעו כ״לא ידוע״.
+              מי ביטל כל תור.
             </DialogDescription>
           </DialogHeader>
           {cancelBreakdown && (() => {
             const byClient = (cancelBreakdown as any).cancelledByClientCount ?? 0;
             const byBusiness = (cancelBreakdown as any).cancelledByBusinessCount ?? 0;
             const total = (cancelBreakdown as any).cancelledCount ?? 0;
-            const unknown = Math.max(0, total - byClient - byBusiness);
             return (
               <div className="space-y-3 pt-2">
                 <div className="flex items-center justify-between p-3 rounded-xl bg-orange-50 border border-orange-100">
-                  <span className="font-semibold text-orange-800">הלקוח/ה ביטל/ה</span>
+                  <span className="font-semibold text-orange-800">הלקוח/ה ביטל/ה את התור</span>
                   <span className="text-2xl font-bold text-orange-700">{byClient}</span>
                 </div>
                 <div className="flex items-center justify-between p-3 rounded-xl bg-blue-50 border border-blue-100">
-                  <span className="font-semibold text-blue-800">את/ה ביטלת</span>
+                  <span className="font-semibold text-blue-800">בעל/ת העסק ביטל/ה את התור</span>
                   <span className="text-2xl font-bold text-blue-700">{byBusiness}</span>
                 </div>
-                {unknown > 0 && (
-                  <div className="flex items-center justify-between p-3 rounded-xl bg-muted/40 border">
-                    <span className="font-semibold text-muted-foreground">לא ידוע</span>
-                    <span className="text-2xl font-bold text-muted-foreground">{unknown}</span>
-                  </div>
-                )}
                 <div className="flex items-center justify-between pt-2 border-t">
                   <span className="text-sm text-muted-foreground">סה״כ ביטולים</span>
                   <span className="text-lg font-bold">{total}</span>
