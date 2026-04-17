@@ -440,6 +440,11 @@ export default function Book({ slugOverride }: { slugOverride?: string } = {}) {
   // Use contactPhone for display if set, otherwise fall back to login phone
   const contactPhone = (business as any)?.contactPhone ?? phone;
   const address = (business as any)?.address ?? null;
+  const city = (business as any)?.city ?? null;
+  // Combined address + city for the profile row — joins only if both
+  // are present, with a comma. Keeps the same graceful fallback if
+  // either value is missing.
+  const addressFull = address && city ? `${address}, ${city}` : (address || city || null);
   const websiteUrl = (business as any)?.websiteUrl ?? null;
   // Owners who enter "example.com" (without https://) in Settings end
   // up with a RELATIVE href, which the browser resolves against the
@@ -1440,10 +1445,10 @@ export default function Book({ slugOverride }: { slugOverride?: string } = {}) {
           )}
 
           {/* Address row */}
-          {address && (
+          {addressFull && (
             <div className="flex justify-center items-center gap-1.5 mb-3 text-sm text-muted-foreground">
               <MapPin className="w-4 h-4 shrink-0" />
-              <span>{address}</span>
+              <span>{addressFull}</span>
             </div>
           )}
 
@@ -1840,9 +1845,9 @@ export default function Book({ slugOverride }: { slugOverride?: string } = {}) {
               <a href="/terms" className="hover:text-foreground transition-colors">תנאי שימוש</a>
               <a href="/contact" className="hover:text-foreground transition-colors">יצירת קשר</a>
             </div>
-            <a href="/" className="inline-flex items-center justify-center gap-1.5 font-bold text-foreground hover:text-primary transition-colors">
+            <a href="/" className="inline-flex items-center justify-center gap-2 font-bold text-foreground hover:text-primary transition-colors">
               <span>מופעל על ידי קבעתי</span>
-              <img src="/icon.svg" alt="קבעתי" className="w-5 h-5 object-contain shrink-0" />
+              <img src="/icon.svg" alt="קבעתי" className="w-16 h-16 object-contain shrink-0" />
             </a>
           </footer>
         </div>
