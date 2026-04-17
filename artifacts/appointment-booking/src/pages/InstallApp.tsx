@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link } from "wouter";
-import { ArrowRight, CheckCircle2, Smartphone, Apple, Monitor, Download, Zap, Bell, WifiOff, Info } from "lucide-react";
+import { ArrowRight, CheckCircle2, Smartphone, Apple, Download, Zap, Bell, WifiOff, Info } from "lucide-react";
 import {
   getDeviceKind,
   getBrowserKind,
@@ -153,35 +153,23 @@ export default function InstallApp() {
             title="אנדרואיד (Chrome / Edge / Samsung Internet)"
             isActive={device === "android"}
             steps={[
-              "פתח את האתר kavati.net בדפדפן Chrome",
-              "לחץ על 3 הנקודות ⋮ בפינה העליונה של הדפדפן",
-              "בחר 'הוספה למסך הבית' או 'התקן אפליקציה'",
-              "אשר, והאייקון יופיע במסך הבית שלך",
+              { text: "פתח את האתר kavati.net בדפדפן Chrome" },
+              { text: "לחץ על 3 הנקודות ⋮ בפינה העליונה של הדפדפן" },
+              { text: "בחר 'הוספה למסך הבית' או 'התקן אפליקציה'" },
+              { text: "אשר, והאייקון יופיע במסך הבית שלך" },
             ]}
           />
 
           <PlatformCard
             icon={<Apple className="w-5 h-5" />}
             title="אייפון / אייפד (Safari בלבד!)"
-            isActive={device === "ios"}
+            isActive={device === "ios" || device === "desktop"}
             warning="ב-iOS רק Safari תומך בהתקנה. לא Chrome, לא Firefox."
             steps={[
-              "פתח את kavati.net ב-Safari (הסמל הכחול של מצפן)",
-              "לחץ על כפתור השיתוף (ריבוע עם חץ כלפי מעלה) בתחתית המסך",
-              "גלול ובחר 'הוסף למסך הבית' (Add to Home Screen)",
-              "לחץ 'הוסף' בפינה העליונה",
-            ]}
-          />
-
-          <PlatformCard
-            icon={<Monitor className="w-5 h-5" />}
-            title="מחשב (Windows / Mac — Chrome / Edge)"
-            isActive={device === "desktop"}
-            steps={[
-              "פתח את kavati.net ב-Chrome או Edge",
-              "מימין לשורת הכתובת יופיע אייקון של מסך קטן עם חץ — לחץ עליו",
-              "בחר 'התקן' בחלון שנפתח",
-              "קבעתי ייפתח בחלון נפרד ויופיע בתפריט התחל / Launchpad",
+              { text: "פתח את kavati.net ב-Safari ולחץ על כפתור השיתוף (הריבוע עם החץ כלפי מעלה) בתחתית המסך", image: "/ios-install-1.png" },
+              { text: "בחר 'שיתוף' אם התפריט שנפתח שואל", image: "/ios-install-2.png" },
+              { text: "גלול ובחר 'הצגת עוד' כדי לראות את כל האפשרויות", image: "/ios-install-3.png" },
+              { text: "לחץ על 'הוספה למסך הבית' ואשר — האייקון של קבעתי יופיע במסך הבית שלך", image: "/ios-install-4.png" },
             ]}
           />
         </section>
@@ -234,6 +222,8 @@ function Benefit({ icon, title, children }: { icon: React.ReactNode; title: stri
   );
 }
 
+type Step = { text: string; image?: string };
+
 function PlatformCard({
   icon,
   title,
@@ -243,7 +233,7 @@ function PlatformCard({
 }: {
   icon: React.ReactNode;
   title: string;
-  steps: string[];
+  steps: Step[];
   warning?: string;
   isActive?: boolean;
 }) {
@@ -269,13 +259,23 @@ function PlatformCard({
           ⚠️ {warning}
         </p>
       )}
-      <ol className="mt-3 space-y-2">
+      <ol className="mt-3 space-y-4">
         {steps.map((step, i) => (
           <li key={i} className="flex gap-2.5 text-sm">
             <span className="w-6 h-6 rounded-full bg-primary text-white text-xs font-bold flex items-center justify-center shrink-0">
               {i + 1}
             </span>
-            <span className="flex-1 leading-relaxed pt-0.5">{step}</span>
+            <div className="flex-1 min-w-0 space-y-2">
+              <p className="leading-relaxed pt-0.5">{step.text}</p>
+              {step.image && (
+                <img
+                  src={step.image}
+                  alt={`שלב ${i + 1}`}
+                  loading="lazy"
+                  className="w-full max-w-xs rounded-xl border shadow-sm"
+                />
+              )}
+            </div>
           </li>
         ))}
       </ol>
