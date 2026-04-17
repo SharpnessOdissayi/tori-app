@@ -59,6 +59,7 @@ import { BusinessCalendar, openRescheduleWhatsApp, type CalAppt } from "@/compon
 import { MobileBottomNav, type BottomTab } from "@/components/MobileBottomNav";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { ServiceSortableList } from "@/components/ServiceSortableList";
+import { ShareLinkFab } from "@/components/ShareLinkFab";
 
 const DAYS = ["ראשון", "שני", "שלישי", "רביעי", "חמישי", "שישי", "שבת"];
 
@@ -665,6 +666,10 @@ export default function Dashboard() {
         onChange={handleBottomTab}
         pendingCount={pendingCount}
       />
+
+      {/* Share-link FAB — one-tap share of the /api/s/<slug> URL. Sits
+          above the dark-mode FAB on the right edge of the screen. */}
+      <ShareLinkFab slug={headerProfile?.slug} />
 
       {/* Menu sheet — the rest of the legacy tabs accessible from "תפריט" */}
       <Sheet open={menuOpen} onOpenChange={setMenuOpen}>
