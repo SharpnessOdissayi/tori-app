@@ -9,12 +9,16 @@
     "serve": "vite preview --config vite.config.ts --host 0.0.0.0",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "icons": "node scripts/generate-icons.mjs",
+    "cap:assets:android": "capacitor-assets generate --android --iconBackgroundColor #ffffff --iconBackgroundColorDark #0a0a0a --splashBackgroundColor #ffffff --splashBackgroundColorDark #0a0a0a",
+    "cap:assets:ios": "capacitor-assets generate --ios --iconBackgroundColor #ffffff --iconBackgroundColorDark #0a0a0a --splashBackgroundColor #ffffff --splashBackgroundColorDark #0a0a0a",
     "cap:build": "pnpm build && npx cap sync",
     "cap:build:staging": "CAPACITOR_ENV=staging pnpm build && npx cap sync",
     "cap:android": "npx cap open android",
     "cap:ios": "npx cap open ios"
   },
   "devDependencies": {
+    "@capacitor/assets": "^3.0.5",
+    "@capacitor/cli": "^6.2.1",
     "@hookform/resolvers": "^3.10.0",
     "@radix-ui/react-accordion": "^1.2.4",
     "@radix-ui/react-alert-dialog": "^1.1.7",
@@ -81,6 +85,11 @@
     "zod": "catalog:"
   },
   "dependencies": {
+    "@capacitor/android": "^6.2.1",
+    "@capacitor/core": "^6.2.1",
+    "@capacitor/keyboard": "^6.0.4",
+    "@capacitor/splash-screen": "^6.0.4",
+    "@capacitor/status-bar": "^6.0.3",
     "@hebcal/core": "^6.3.0"
   }
 }

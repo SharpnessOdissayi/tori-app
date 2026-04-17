@@ -24,6 +24,8 @@ pnpm install
 ```bash
 CAPACITOR_ENV=staging pnpm build
 npx cap add android          # רק פעם ראשונה
+pnpm icons                   # אייקוני PWA מ-public/icon.svg → public/*.png
+npx cap assets:android       # אייקונים + splash נטיביים מ-resources/*.png
 npx cap sync
 npx cap open android
 ```
@@ -31,9 +33,13 @@ npx cap open android
 ### Production
 ```bash
 pnpm build
+pnpm icons                   # רק אם icon.svg השתנה
+npx cap assets:android       # רק אם resources/icon.png או splash.png השתנו
 npx cap sync
 npx cap open android
 ```
+
+> **הערה על הגנרציה:** `android/` מוחרג ב-gitignore, אז אחרי `cap add android` תמיד צריך לרוץ `cap assets:android` כדי למלא את ה-`mipmap-*` + `drawable-*` עם האייקונים של קבעתי. בלי זה תקבל את אייקון ברירת המחדל של Capacitor (ריבוע אפור).
 
 ### ב-Android Studio:
 1. המתן לסיום ה-Gradle sync
