@@ -2589,25 +2589,23 @@ function WorkingHoursTab() {
       </CardHeader>
       <CardContent className="space-y-3">
         {localHours.map((h, i) => (
-          // RTL row: day name reads first (right), switch next, times on the
-          // far left. flex-wrap + compact time inputs prevent the box from
-          // overflowing the card frame on narrow phones.
+          // RTL row: day name reads first (right), times cluster right after
+          // it so the owner sees "ראשון 09:00-18:00" as one unit; Switch
+          // pushed to the far left (end) with ms-auto.
           <div key={i} dir="rtl" className="flex flex-wrap items-center gap-3 p-4 border rounded-xl bg-card">
             <span className="font-medium w-14 shrink-0">{DAYS[h.dayOfWeek]}</span>
-            <Switch checked={h.isEnabled} onCheckedChange={v => {
+            {h.isEnabled ? (
+              <div className="flex items-center gap-2">
+                <Input type="time" value={h.startTime} onChange={e => { const n = [...localHours]; n[i].startTime = e.target.value; setLocalHours(n); }} className="w-[7.5rem] sm:w-32" dir="ltr" />
+                <span className="text-muted-foreground">—</span>
+                <Input type="time" value={h.endTime} onChange={e => { const n = [...localHours]; n[i].endTime = e.target.value; setLocalHours(n); }} className="w-[7.5rem] sm:w-32" dir="ltr" />
+              </div>
+            ) : (
+              <span className="text-muted-foreground text-sm">סגור</span>
+            )}
+            <Switch className="ms-auto" checked={h.isEnabled} onCheckedChange={v => {
               const n = [...localHours]; n[i].isEnabled = v; setLocalHours(n);
             }} />
-            <div className="ms-auto">
-              {h.isEnabled ? (
-                <div className="flex items-center gap-2">
-                  <Input type="time" value={h.startTime} onChange={e => { const n = [...localHours]; n[i].startTime = e.target.value; setLocalHours(n); }} className="w-[7.5rem] sm:w-32" dir="ltr" />
-                  <span className="text-muted-foreground">—</span>
-                  <Input type="time" value={h.endTime} onChange={e => { const n = [...localHours]; n[i].endTime = e.target.value; setLocalHours(n); }} className="w-[7.5rem] sm:w-32" dir="ltr" />
-                </div>
-              ) : (
-                <span className="text-muted-foreground text-sm">סגור</span>
-              )}
-            </div>
           </div>
         ))}
         <div className="pt-4 border-t space-y-2">
