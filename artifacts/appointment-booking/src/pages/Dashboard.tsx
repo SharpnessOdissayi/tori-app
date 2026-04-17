@@ -4634,6 +4634,16 @@ function SettingsTab() {
     }
   }, [profile]);
 
+  // Prepend https:// to bare domains so the SettingsTab's website /
+  // Waze inputs produce absolute URLs in the DB. Without this an owner
+  // entering "example.com" ends up with a relative link the browser
+  // resolves against kavati.net (→ kavati.net/example.com).
+  const ensureHttps = (u: string): string | null => {
+    const t = (u ?? "").trim();
+    if (!t) return null;
+    return /^https?:\/\//i.test(t) ? t : `https://${t}`;
+  };
+
   const handleSave = (e: React.FormEvent) => {
     e.preventDefault();
     updateMutation.mutate({
@@ -4659,9 +4669,9 @@ function SettingsTab() {
         contactPhone: form.contactPhone || null,
         address: form.address || null,
         city: form.city || null,
-        websiteUrl: form.websiteUrl || null,
+        websiteUrl: ensureHttps(form.websiteUrl),
         instagramUrl: form.instagramHandle ? `https://www.instagram.com/${form.instagramHandle.replace(/^@/, "")}` : null,
-        wazeUrl: form.wazeUrl || null,
+        wazeUrl: ensureHttps(form.wazeUrl),
         businessCategories: selectedCategories.length > 0 ? JSON.stringify(selectedCategories) : null,
         // Receipt profile — what the business prints on its receipts
         businessTaxId: form.businessTaxId || null,

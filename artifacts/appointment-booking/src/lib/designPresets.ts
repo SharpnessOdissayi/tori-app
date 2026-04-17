@@ -166,17 +166,22 @@ export const DESIGN_PRESETS: DesignPreset[] = [
     id: "rose",
     name: "רוז גולד",
     description: "ורוד-זהב נשי ויוקרתי",
-    preview: { bg: "linear-gradient(135deg,#fdf2f8,#fce7f3)", accent: "#be185d" },
+    // Fixed contrast — the old amber accent (#f59e0b) and very-light
+    // pink gradient produced unreadable text. Now: a deeper magenta
+    // primary (→ white button text passes WCAG AA ~7:1), a proper
+    // rose-gold accent that doesn't clash, and a gradient rich enough
+    // that dark body text stays legible on both ends.
+    preview: { bg: "linear-gradient(135deg,#fff1f2,#fbcfe8)", accent: "#9d174d" },
     values: {
-      primaryColor: "#be185d",
-      accentColor: "#f59e0b",
+      primaryColor: "#9d174d",
+      accentColor: "#b76e79",
       fontFamily: "Playfair Display",
       themeMode: "light",
       borderRadius: "large",
       buttonRadius: "full",
       gradientEnabled: true,
-      gradientFrom: "#fdf2f8",
-      gradientTo: "#fce7f3",
+      gradientFrom: "#fff1f2",
+      gradientTo: "#fbcfe8",
       gradientAngle: 135,
       backgroundPattern: "none",
       heroLayout: "stacked",

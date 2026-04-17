@@ -436,6 +436,16 @@ export default function Book({ slugOverride }: { slugOverride?: string } = {}) {
   const contactPhone = (business as any)?.contactPhone ?? phone;
   const address = (business as any)?.address ?? null;
   const websiteUrl = (business as any)?.websiteUrl ?? null;
+  // Owners who enter "example.com" (without https://) in Settings end
+  // up with a RELATIVE href, which the browser resolves against the
+  // current origin (→ https://kavati.net/example.com). Normalise on
+  // render so external links always go to the intended domain.
+  const normalizeExternalUrl = (u: string | null | undefined): string => {
+    if (!u) return "";
+    const t = String(u).trim();
+    if (!t) return "";
+    return /^https?:\/\//i.test(t) ? t : `https://${t}`;
+  };
   const instagramUrl = (business as any)?.instagramUrl ?? null;
   const wazeUrl = (business as any)?.wazeUrl ?? (address ? `https://waze.com/ul?q=${encodeURIComponent(address)}&navigate=yes` : null);
   const businessDescription = (business as any)?.businessDescription ?? null;
@@ -1479,16 +1489,28 @@ export default function Book({ slugOverride }: { slugOverride?: string } = {}) {
               {instagramUrl && (
                 <a href={instagramUrl} target="_blank" rel="noopener noreferrer" aria-label="אינסטגרם">
                   <button
-                    className="w-11 h-11 rounded-full border-2 flex items-center justify-center bg-transparent transition-all hover:opacity-80"
-                    style={{ borderColor: primaryColor, color: primaryColor }}
+                    className="w-11 h-11 rounded-full overflow-hidden flex items-center justify-center bg-white border-2 border-transparent transition-all hover:opacity-90 active:scale-95"
                     title="אינסטגרם"
                   >
-                    <Instagram className="w-5 h-5" />
+                    {/* Instagram official gradient logo. Path from Simple
+                        Icons; gradient fill matches the real app icon. */}
+                    <svg viewBox="0 0 24 24" className="w-7 h-7" xmlns="http://www.w3.org/2000/svg">
+                      <defs>
+                        <radialGradient id="ig-grad" cx="30%" cy="107%" r="150%">
+                          <stop offset="0%" stopColor="#fdf497"/>
+                          <stop offset="5%" stopColor="#fdf497"/>
+                          <stop offset="45%" stopColor="#fd5949"/>
+                          <stop offset="60%" stopColor="#d6249f"/>
+                          <stop offset="90%" stopColor="#285AEB"/>
+                        </radialGradient>
+                      </defs>
+                      <path fill="url(#ig-grad)" d="M12 0C8.74 0 8.33.02 7.05.08 5.78.13 4.9.34 4.14.64c-.79.31-1.46.72-2.13 1.38C1.35 2.69.94 3.36.64 4.14.33 4.91.13 5.78.07 7.05.01 8.33 0 8.74 0 12s.02 3.67.08 4.95c.06 1.28.26 2.15.56 2.91.31.79.72 1.46 1.38 2.13.67.67 1.34 1.08 2.13 1.38.77.3 1.64.5 2.91.56C8.33 23.98 8.74 24 12 24s3.67-.02 4.95-.08c1.28-.06 2.15-.26 2.91-.56.79-.31 1.46-.72 2.13-1.38.67-.67 1.08-1.34 1.38-2.13.3-.77.5-1.64.56-2.91.06-1.28.08-1.69.08-4.95s-.02-3.67-.08-4.95c-.06-1.28-.26-2.15-.56-2.91-.31-.79-.72-1.46-1.38-2.13C21.32 1.35 20.65.94 19.87.64 19.1.34 18.22.13 16.95.08 15.67.02 15.26 0 12 0zm0 2.16c3.2 0 3.58.02 4.85.07 1.17.06 1.8.25 2.23.42.56.22.96.48 1.38.9.42.42.68.82.9 1.38.16.42.36 1.06.41 2.23.06 1.27.07 1.65.07 4.85s-.01 3.58-.07 4.85c-.06 1.17-.26 1.8-.42 2.23-.22.56-.48.96-.9 1.38-.42.42-.82.68-1.38.9-.42.16-1.07.36-2.24.41-1.27.06-1.65.07-4.86.07-3.21 0-3.59-.01-4.86-.07-1.17-.06-1.82-.26-2.24-.42-.57-.22-.96-.48-1.38-.9-.42-.42-.69-.82-.9-1.38-.17-.42-.36-1.07-.42-2.24C2.17 15.58 2.16 15.21 2.16 12c0-3.2.01-3.59.06-4.86.06-1.17.26-1.81.42-2.23.21-.57.48-.96.9-1.38.42-.42.81-.69 1.38-.9.42-.17 1.05-.36 2.22-.42C8.42 2.17 8.79 2.16 12 2.16zm0 3.68c-3.4 0-6.16 2.76-6.16 6.16s2.76 6.16 6.16 6.16 6.16-2.76 6.16-6.16S15.4 5.84 12 5.84zm0 10.16c-2.21 0-4-1.79-4-4s1.79-4 4-4 4 1.79 4 4-1.79 4-4 4zm7.85-10.4c0 .8-.65 1.44-1.44 1.44-.8 0-1.44-.65-1.44-1.44 0-.79.65-1.44 1.44-1.44.79 0 1.44.65 1.44 1.44z"/>
+                    </svg>
                   </button>
                 </a>
               )}
               {websiteUrl && (
-                <a href={websiteUrl} target="_blank" rel="noopener noreferrer" aria-label="אתר">
+                <a href={normalizeExternalUrl(websiteUrl)} target="_blank" rel="noopener noreferrer" aria-label="אתר">
                   <button
                     className="w-11 h-11 rounded-full border-2 flex items-center justify-center bg-transparent transition-all hover:opacity-80"
                     style={{ borderColor: primaryColor, color: primaryColor }}
@@ -1501,11 +1523,16 @@ export default function Book({ slugOverride }: { slugOverride?: string } = {}) {
               {wazeUrl && (
                 <a href={wazeUrl} target="_blank" rel="noopener noreferrer" aria-label="ניווט בוויז">
                   <button
-                    className="w-11 h-11 rounded-full border-2 flex items-center justify-center bg-transparent transition-all hover:opacity-80"
-                    style={{ borderColor: primaryColor, color: primaryColor }}
+                    className="w-11 h-11 rounded-full overflow-hidden flex items-center justify-center bg-white border-2 border-transparent transition-all hover:opacity-90 active:scale-95"
                     title="Waze"
                   >
-                    <MapPin className="w-5 h-5" />
+                    {/* Waze official logo — white glyph on the brand cyan
+                        rounded-square background. Simplified monochrome
+                        path of the brand icon. */}
+                    <svg viewBox="0 0 24 24" className="w-7 h-7" xmlns="http://www.w3.org/2000/svg">
+                      <rect width="24" height="24" rx="6" fill="#05C3FA"/>
+                      <path fill="#FFFFFF" d="M20.54 10.7c0-3.77-3.68-6.82-8.21-6.82-4.54 0-8.22 3.05-8.22 6.82 0 3.16 2.29 5.9 5.6 6.66.11.03.2.1.23.21.37 1.17 1.54 2.01 2.9 2.01 1.37 0 2.53-.84 2.9-2.02.03-.1.12-.18.23-.21.1-.02.2-.05.3-.08a.63.63 0 01.62.17c.48.5 1.2.82 1.99.82 1.48 0 2.68-1.1 2.68-2.45 0-.44-.13-.86-.37-1.22-.07-.11-.06-.26.03-.35.76-.97 1.32-2.2 1.32-3.54zM9.3 10.97a1.1 1.1 0 110-2.2 1.1 1.1 0 010 2.2zm5.39 0a1.1 1.1 0 110-2.2 1.1 1.1 0 010 2.2zM12 15.4c-1.79 0-3.3-.95-3.82-2.26-.09-.24.14-.48.39-.4.97.31 2.08.48 3.43.48 1.35 0 2.46-.17 3.43-.48.25-.08.48.16.39.4-.52 1.31-2.03 2.26-3.82 2.26z"/>
+                    </svg>
                   </button>
                 </a>
               )}
