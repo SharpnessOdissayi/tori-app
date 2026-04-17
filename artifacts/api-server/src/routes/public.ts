@@ -640,9 +640,26 @@ router.get("/public/:businessSlug/reviews", async (req, res): Promise<void> => {
     .where(and(eq(businessesTable.slug, slug), eq(businessesTable.isActive, true)));
   if (!business) { res.status(404).json({ error: "Business not found" }); return; }
 
+  // If the caller is a logged-in client, flag the row that belongs to
+  // them so the UI can show "שינוי הביקורת" instead of "השאר ביקורת"
+  // and pre-fill the composer with the prior rating + text.
+  let callerEmail: string | null = null;
+  const token = req.headers["x-client-token"] as string | undefined;
+  if (token) {
+    const [session] = await db
+      .select({ email: clientSessionsTable.email })
+      .from(clientSessionsTable)
+      .where(and(eq(clientSessionsTable.token, token), gt(clientSessionsTable.expiresAt, new Date())));
+    callerEmail = (session?.email ?? "").trim().toLowerCase() || null;
+  }
+
+  // We need clientEmail for the mine-check; it's never exposed back to
+  // the caller — only the computed boolean is, so privacy-wise the
+  // endpoint still doesn't leak other reviewers' emails.
   const rows = await db
     .select({
       id: reviewsTable.id,
+      clientEmail: reviewsTable.clientEmail,
       clientName: reviewsTable.clientName,
       avatarUrl: reviewsTable.avatarUrl,
       rating: reviewsTable.rating,
@@ -653,7 +670,14 @@ router.get("/public/:businessSlug/reviews", async (req, res): Promise<void> => {
     .where(eq(reviewsTable.businessId, business.id))
     .orderBy(desc(reviewsTable.createdAt));
 
-  res.json(rows.map(r => ({ ...r, createdAt: r.createdAt.toISOString() })));
+  res.json(rows.map(r => {
+    const { clientEmail, ...rest } = r;
+    return {
+      ...rest,
+      createdAt: r.createdAt.toISOString(),
+      mine: callerEmail && clientEmail && clientEmail.toLowerCase() === callerEmail ? true : false,
+    };
+  }));
 });
 
 router.post("/public/:businessSlug/reviews", async (req, res): Promise<void> => {

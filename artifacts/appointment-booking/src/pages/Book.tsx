@@ -522,12 +522,19 @@ export default function Book({ slugOverride }: { slugOverride?: string } = {}) {
   useEffect(() => {
     if (activeTab !== "reviews" || !businessSlug) return;
     setReviewsLoading(true);
-    fetch(`${API_BASE}/public/${businessSlug}/reviews`)
+    fetch(`${API_BASE}/public/${businessSlug}/reviews`, { headers: clientToken ? { "x-client-token": clientToken } : {} })
       .then(r => r.ok ? r.json() : [])
       .then(d => setReviews(Array.isArray(d) ? d : []))
       .catch(() => setReviews([]))
       .finally(() => setReviewsLoading(false));
   }, [activeTab, businessSlug, API_BASE]);
+
+  // True when the currently-logged-in client already has a review on
+  // file for this business — computed from the mine=true flag the
+  // reviews endpoint sets for the caller. Used to switch the CTA from
+  // "השאר ביקורת" → "שינוי הביקורת" so the client realises a second
+  // submission overwrites rather than adds.
+  const myReview = reviews.find(r => (r as any).mine);
 
   // Leave-review click handler — gates through login → phone → composer.
   // Each step hands off to an existing flow: the shared login gate
@@ -536,8 +543,16 @@ export default function Book({ slugOverride }: { slugOverride?: string } = {}) {
   const onLeaveReview = () => {
     if (!clientToken) { setShowLoginGate(true); return; }
     if (!clientData.phone) { setPhonePopupInput(""); setPhonePopupOpen(true); return; }
-    setReviewRating(5);
-    setReviewText("");
+    // If the client already has a review, pre-fill the composer with
+    // the existing rating + text so "שינוי" feels like editing rather
+    // than starting from scratch.
+    if (myReview) {
+      setReviewRating(myReview.rating ?? 5);
+      setReviewText(myReview.text ?? "");
+    } else {
+      setReviewRating(5);
+      setReviewText("");
+    }
     setReviewComposerOpen(true);
   };
 
@@ -583,7 +598,7 @@ export default function Book({ slugOverride }: { slugOverride?: string } = {}) {
       setReviewComposerOpen(false);
       // Re-fetch so the new review appears right away.
       setReviewsLoading(true);
-      fetch(`${API_BASE}/public/${businessSlug}/reviews`)
+      fetch(`${API_BASE}/public/${businessSlug}/reviews`, { headers: clientToken ? { "x-client-token": clientToken } : {} })
         .then(r => r.ok ? r.json() : [])
         .then(d => setReviews(Array.isArray(d) ? d : []))
         .finally(() => setReviewsLoading(false));
@@ -683,6 +698,39 @@ export default function Book({ slugOverride }: { slugOverride?: string } = {}) {
       style.textContent = `.kavati-biz-scope, .kavati-biz-scope * { font-family: inherit; }`;
       document.head.appendChild(style);
     }
+
+    // OpenGraph / link-preview meta tags — populated from the business
+    // profile so sharing the URL shows the business's name + logo
+    // instead of the generic "קבעתי" wordmark. Updates client-side, so
+    // browser tabs + any scraper that runs JS will see them. Static
+    // scrapers (WhatsApp, FB) still see the default tags baked into
+    // index.html — dynamic meta for those requires server-side HTML
+    // rendering, which isn't set up yet.
+    const setMeta = (key: "property" | "name", value: string, content: string) => {
+      let tag = document.head.querySelector(`meta[${key}="${value}"]`) as HTMLMetaElement | null;
+      if (!tag) {
+        tag = document.createElement("meta");
+        tag.setAttribute(key, value);
+        document.head.appendChild(tag);
+      }
+      tag.setAttribute("content", content);
+    };
+    const bizName = (business as any).name as string;
+    const bizDesc = (business as any).businessDescription || `קבעי תור אצל ${bizName}`;
+    const bizImg  = (business as any).bannerUrl
+                  || (business as any).logoUrl
+                  || "/opengraph.jpg";
+    const bizUrl  = typeof window !== "undefined" ? window.location.href : "";
+    document.title = `${bizName} — קבעתי`;
+    setMeta("property", "og:title", bizName);
+    setMeta("property", "og:description", String(bizDesc));
+    setMeta("property", "og:image", new URL(bizImg, typeof window !== "undefined" ? window.location.origin : "http://localhost").href);
+    setMeta("property", "og:url", bizUrl);
+    setMeta("property", "og:type", "website");
+    setMeta("name", "twitter:card", "summary_large_image");
+    setMeta("name", "twitter:title", bizName);
+    setMeta("name", "twitter:description", String(bizDesc));
+    setMeta("name", "twitter:image", new URL(bizImg, typeof window !== "undefined" ? window.location.origin : "http://localhost").href);
   }, [business, fontFamily]);
 
   // Google sign-in for login gate
@@ -1688,7 +1736,7 @@ export default function Book({ slugOverride }: { slugOverride?: string } = {}) {
                       className="px-4 py-2.5 rounded-xl text-sm font-bold text-white shadow-sm whitespace-nowrap"
                       style={{ background: primaryColor }}
                     >
-                      השאר ביקורת
+                      {myReview ? "שינוי הביקורת" : "השאר ביקורת"}
                     </button>
                   </div>
                 );
