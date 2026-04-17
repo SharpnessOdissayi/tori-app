@@ -190,7 +190,7 @@ router.get("/public/:businessSlug/services", async (req, res): Promise<void> => 
     .select()
     .from(servicesTable)
     .where(and(eq(servicesTable.businessId, business.id), eq(servicesTable.isActive, true)))
-    .orderBy(servicesTable.createdAt);
+    .orderBy(servicesTable.sortOrder, servicesTable.createdAt);
 
   res.json(services.map((s) => ({ ...s, description: (s as any).description ?? null, createdAt: s.createdAt.toISOString() })));
 });

@@ -168,6 +168,10 @@ export async function runMigrations() {
       // in the owner's calendar so different services are visually
       // distinguishable at a glance.
       `ALTER TABLE services ADD COLUMN IF NOT EXISTS color TEXT`,
+      // Owner-controlled display order on the public profile. Lower =
+      // higher in the list. Existing rows default to 0 and fall back
+      // to createdAt tiebreak.
+      `ALTER TABLE services ADD COLUMN IF NOT EXISTS sort_order INTEGER NOT NULL DEFAULT 0`,
       // Public reviews left by clients. One review per (business, email).
       `CREATE TABLE IF NOT EXISTS reviews (
         id             SERIAL PRIMARY KEY,

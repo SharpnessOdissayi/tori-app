@@ -1907,15 +1907,41 @@ function ServicesTab() {
           </form>
         )}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {(Array.isArray(services) ? services : []).map(s => (
+          {(() => {
+            // Swap two neighbouring services' sortOrder values and save
+            // both rows. Owner hits the up/down arrow, the list
+            // re-fetches and settles into the new order. Keeping the
+            // bookkeeping here (not in a custom hook) because it's
+            // just this one screen.
+            const ordered = (Array.isArray(services) ? services : [])
+              .slice()
+              .sort((a, b) => (((a as any).sortOrder ?? 0) - ((b as any).sortOrder ?? 0)) || (a.id - b.id));
+            const swapOrder = async (a: any, b: any) => {
+              const aOrder = (a as any).sortOrder ?? 0;
+              const bOrder = (b as any).sortOrder ?? 0;
+              // If they were both 0 (legacy rows never reordered),
+              // assign fresh increasing values based on their index so
+              // subsequent moves have something to work with.
+              const [newA, newB] = aOrder === bOrder ? [bOrder + 1, aOrder] : [bOrder, aOrder];
+              try {
+                await Promise.all([
+                  updateMutation.mutateAsync({ id: a.id, data: { sortOrder: newA } as any }),
+                  updateMutation.mutateAsync({ id: b.id, data: { sortOrder: newB } as any }),
+                ]);
+                await queryClient.invalidateQueries({ queryKey: getListBusinessServicesQueryKey(), refetchType: "active" });
+              } catch {
+                toast({ title: "שגיאה בעדכון סדר השירותים", variant: "destructive" });
+              }
+            };
+            return ordered.map((s, idx) => (
             <div key={s.id} className={`border rounded-xl overflow-hidden hover:border-primary/40 transition-colors ${!s.isActive ? "opacity-50 bg-muted/20" : "bg-card"}`}>
               {s.imageUrl && (
                 <div className="h-32 overflow-hidden">
                   <img src={s.imageUrl} alt={s.name} className="w-full h-full object-cover" />
                 </div>
               )}
-              <div className="p-4 flex justify-between items-center">
-                <div>
+              <div className="p-4 flex justify-between items-center gap-2">
+                <div className="flex-1 min-w-0">
                   <div className="font-semibold flex items-center gap-2">
                     {(s as any).color && (
                       <span className="inline-block w-3 h-3 rounded-full shrink-0 border border-black/10" style={{ background: (s as any).color }} aria-label="צבע שירות" />
@@ -1928,7 +1954,27 @@ function ServicesTab() {
                     {s.bufferMinutes > 0 && <span className="mr-2"> • מאגר: {s.bufferMinutes} דקות</span>}
                   </div>
                 </div>
-                <div className="flex gap-1.5">
+                <div className="flex flex-col items-center gap-1 shrink-0">
+                  {/* Reorder handles — up = earlier in the public
+                      profile; down = later. Disabled at the extremes. */}
+                  <button
+                    type="button"
+                    onClick={() => idx > 0 && swapOrder(s, ordered[idx - 1])}
+                    disabled={idx === 0}
+                    className="w-6 h-6 flex items-center justify-center rounded text-xs hover:bg-muted disabled:opacity-30"
+                    aria-label="הזז למעלה"
+                    title="הזז למעלה"
+                  >▲</button>
+                  <button
+                    type="button"
+                    onClick={() => idx < ordered.length - 1 && swapOrder(s, ordered[idx + 1])}
+                    disabled={idx === ordered.length - 1}
+                    className="w-6 h-6 flex items-center justify-center rounded text-xs hover:bg-muted disabled:opacity-30"
+                    aria-label="הזז למטה"
+                    title="הזז למטה"
+                  >▼</button>
+                </div>
+                <div className="flex gap-1.5 shrink-0">
                   <button
                     onClick={() => {
                       setEditingId(s.id);
@@ -1951,7 +1997,8 @@ function ServicesTab() {
                 </div>
               </div>
             </div>
-          ))}
+            ));
+          })()}
           {!services?.length && !isAdding && <EmptyState text="אין שירותים מוגדרים עדיין" className="col-span-full" />}
         </div>
       </CardContent>

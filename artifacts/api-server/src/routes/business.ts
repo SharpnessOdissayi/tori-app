@@ -446,7 +446,7 @@ router.get("/business/services", requireBusinessAuth, async (req, res): Promise<
     .select()
     .from(servicesTable)
     .where(eq(servicesTable.businessId, req.business!.businessId))
-    .orderBy(servicesTable.createdAt);
+    .orderBy(servicesTable.sortOrder, servicesTable.createdAt);
 
   res.json(services.map((s) => ({ ...s, createdAt: s.createdAt.toISOString() })));
 });
