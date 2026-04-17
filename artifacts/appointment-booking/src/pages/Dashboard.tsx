@@ -493,7 +493,7 @@ export default function Dashboard() {
             <NotificationBell token={token!} />
             {headerProfile?.name && (
               <span className="hidden sm:block text-sm font-medium px-3 py-1.5 rounded-lg"
-                style={{ color: "#548dca", border: "1px solid #548dca40" }}>
+                style={{ color: "#3c92f0", border: "1px solid #3c92f040" }}>
                 {headerProfile.name}
               </span>
             )}
@@ -501,7 +501,7 @@ export default function Dashboard() {
               onClick={handleLogout}
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm transition-all"
               style={{ color: "#c0c0c0" }}
-              onMouseEnter={e => (e.currentTarget.style.color = "#548dca")}
+              onMouseEnter={e => (e.currentTarget.style.color = "#3c92f0")}
               onMouseLeave={e => (e.currentTarget.style.color = "#c0c0c0")}
             >
               <LogOut className="w-4 h-4" />
@@ -515,10 +515,10 @@ export default function Dashboard() {
         {/* Mobile-only welcome header */}
         <div className="sm:hidden flex items-center justify-between mb-4">
           <div>
-            <p className="font-bold text-lg" style={{ color: "#548dca" }}>
+            <p className="font-bold text-lg" style={{ color: "#3c92f0" }}>
               {(() => { const h = new Date().getHours(); return h < 12 ? "בוקר טוב! ☀️" : h < 17 ? "צהריים טובים! 🌤️" : h < 21 ? "ערב טוב! 🌆" : "לילה טוב! 🌙"; })()}
             </p>
-            <p className="font-semibold text-sm" style={{ color: "#548dca" }}>
+            <p className="font-semibold text-sm" style={{ color: "#3c92f0" }}>
               ברוכ/ה הבא/ה, {(headerProfile as any)?.ownerName?.split(" ")[0] ?? ""}!
             </p>
           </div>
@@ -714,7 +714,7 @@ function NotificationBell({ token }: { token: string }) {
         onClick={() => { setOpen(v => !v); if (!open) { fetchNotifs(); } }}
         className="relative flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm transition-all"
         style={{ color: "#c0c0c0" }}
-        onMouseEnter={e => (e.currentTarget.style.color = "#548dca")}
+        onMouseEnter={e => (e.currentTarget.style.color = "#3c92f0")}
         onMouseLeave={e => (e.currentTarget.style.color = "#c0c0c0")}
       >
         <Bell className="w-4 h-4" />

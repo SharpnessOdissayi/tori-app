@@ -15,62 +15,62 @@ import SiteFooter from "@/components/SiteFooter";
 
 const FEATURES = [
   {
-    icon: <CalendarCheck className="w-7 h-7" style={{ color: "#548dca" }} />,
+    icon: <CalendarCheck className="w-7 h-7" style={{ color: "#3c92f0" }} />,
     title: "קביעת תורים אונליין",
     desc: "לקוחות קובעים תור בכל שעה, מכל מקום, דרך עמוד הזמנה ייחודי לעסק שלך.",
   },
   {
-    icon: <MessageCircle className="w-7 h-7" style={{ color: "#548dca" }} />,
+    icon: <MessageCircle className="w-7 h-7" style={{ color: "#3c92f0" }} />,
     title: "תזכורות בוואטסאפ",
     desc: "עד 3 תזכורות מותאמות אישית לכל תור — שעה לפני, יום לפני, ואפילו בוקר יום התור ב-08:00.",
   },
   {
-    icon: <Megaphone className="w-7 h-7" style={{ color: "#548dca" }} />,
+    icon: <Megaphone className="w-7 h-7" style={{ color: "#3c92f0" }} />,
     title: "הודעת פתיחה לפרופיל",
     desc: "הגדר הודעה שתוצג ללקוחות בכניסה לעמוד — מבצע, עדכון חשוב, הכרזה. בחר לכמה שעות ההודעה תקפה.",
   },
   {
-    icon: <Compass className="w-7 h-7" style={{ color: "#548dca" }} />,
+    icon: <Compass className="w-7 h-7" style={{ color: "#3c92f0" }} />,
     title: "גלה עסקים בפורטל הלקוח",
     desc: "ללקוחות יש פורטל אישי לניהול התורים שלהם — ובו ספריית עסקים שמחפשים שירות חדש יכולים למצוא אותך ישירות.",
   },
   {
-    icon: <Palette className="w-7 h-7" style={{ color: "#548dca" }} />,
+    icon: <Palette className="w-7 h-7" style={{ color: "#3c92f0" }} />,
     title: "עיצוב מותאם אישית",
     desc: "בחר צבע, פונט, רדיוס פינות, תמונת לוגו ובאנר — הדף יראה בדיוק כמו המותג שלך.",
   },
   {
-    icon: <Image className="w-7 h-7" style={{ color: "#548dca" }} />,
+    icon: <Image className="w-7 h-7" style={{ color: "#3c92f0" }} />,
     title: "גלריה עם תצוגה מוגדלת",
     desc: "הוסף תמונות לפרופיל העסק שלך — לקוחות יכולים ללחוץ על כל תמונה כדי להגדיל אותה במסך מלא.",
   },
   {
-    icon: <Navigation className="w-7 h-7" style={{ color: "#548dca" }} />,
+    icon: <Navigation className="w-7 h-7" style={{ color: "#3c92f0" }} />,
     title: "ניווט אוטומטי לווייז",
     desc: "לקוחות לוחצים על 'נווט אליי' — ווייז נפתח ישירות לכתובת העסק, בלי צורך להדביק קישור ידנית.",
   },
   {
-    icon: <Clock className="w-7 h-7" style={{ color: "#548dca" }} />,
+    icon: <Clock className="w-7 h-7" style={{ color: "#3c92f0" }} />,
     title: "ניהול שעות וחופשות",
     desc: "הגדר שעות עבודה, הפסקות, ימי חופש וסגירות — המערכת לא תציג תורים בזמן הזה.",
   },
   {
-    icon: <UserCheck className="w-7 h-7" style={{ color: "#548dca" }} />,
+    icon: <UserCheck className="w-7 h-7" style={{ color: "#3c92f0" }} />,
     title: "פורטל לקוח אישי",
     desc: "כל לקוח מתחבר עם הטלפון שלו, רואה את התורים הקרובים שלו, יכול לבטל ולנהל העדפות התראות.",
   },
   {
-    icon: <Users className="w-7 h-7" style={{ color: "#548dca" }} />,
+    icon: <Users className="w-7 h-7" style={{ color: "#3c92f0" }} />,
     title: "ניהול לקוחות",
     desc: "ראה את כל הלקוחות שלך, ההיסטוריה שלהם, ורשימת המתנה לתורים שמתמלאים.",
   },
   {
-    icon: <Shield className="w-7 h-7" style={{ color: "#548dca" }} />,
+    icon: <Shield className="w-7 h-7" style={{ color: "#3c92f0" }} />,
     title: "אימות מספר טלפון",
     desc: "מנע הזמנות ספאם עם אימות SMS — רק לקוחות אמיתיים עם מספר תקין יוכלו לקבוע תור.",
   },
   {
-    icon: <Settings className="w-7 h-7" style={{ color: "#548dca" }} />,
+    icon: <Settings className="w-7 h-7" style={{ color: "#3c92f0" }} />,
     title: "אישור תורים ידני",
     desc: "בחר לאשר כל תור ידנית לפני שהוא נכנס ליומן — שליטה מלאה בזמינות שלך.",
   },
