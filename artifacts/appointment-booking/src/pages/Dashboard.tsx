@@ -1005,14 +1005,14 @@ function WeeklyCalendar({ appointments }: { appointments: WeeklyAppt[] }) {
           <CardDescription>{weekLabel}</CardDescription>
         </div>
         <div className="flex items-center gap-2">
-          <Button size="sm" variant="outline" onClick={() => setWeekStart(w => addDays(w, -7))}>
-            <ChevronRight className="w-4 h-4" /> שבוע קודם
+          <Button size="sm" variant="outline" onClick={() => setWeekStart(w => addDays(w, 7))}>
+            <ChevronRight className="w-4 h-4" /> שבוע הבא
           </Button>
           <Button size="sm" variant="outline" onClick={() => setWeekStart(startOfWeek(new Date(), { weekStartsOn: 0 }))}>
             השבוע
           </Button>
-          <Button size="sm" variant="outline" onClick={() => setWeekStart(w => addDays(w, 7))}>
-            שבוע הבא <ChevronLeft className="w-4 h-4" />
+          <Button size="sm" variant="outline" onClick={() => setWeekStart(w => addDays(w, -7))}>
+            שבוע קודם <ChevronLeft className="w-4 h-4" />
           </Button>
         </div>
       </CardHeader>
