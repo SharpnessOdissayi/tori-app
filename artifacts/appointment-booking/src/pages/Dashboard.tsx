@@ -632,7 +632,7 @@ export default function Dashboard() {
         </div>
 
         <SubscriptionBanner />
-        <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
+        <Tabs value={activeTab} onValueChange={setActiveTab} dir="rtl" className="space-y-6">
 
           {/* Desktop: horizontal scrollable tabs */}
           <div className="hidden sm:block overflow-x-auto pb-1">
