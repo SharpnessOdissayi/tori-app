@@ -1610,7 +1610,9 @@ export default function Book({ slugOverride }: { slugOverride?: string } = {}) {
                 const hoverStyle = undefined;
                 const priceNum = `₪${(service.price / 100).toFixed(0)}`;
                 const priceStr = (service as any).priceStartsFrom ? `החל מ-${priceNum}` : priceNum;
-                const desc = (service as any).description as string | undefined;
+                // Description is no longer rendered inline per service;
+                // shown in step 2 (date-picker) after the customer
+                // selects the service. Variable left out on purpose.
 
                 if (serviceCardStyle === "minimal") {
                   return (
@@ -1646,7 +1648,10 @@ export default function Book({ slugOverride }: { slugOverride?: string } = {}) {
                       )}
                       <div className="flex-1 min-w-0">
                         <div className="font-bold">{service.name}</div>
-                        {desc && <div className="text-xs text-muted-foreground truncate">{desc}</div>}
+                        {/* Description intentionally NOT shown in the
+                            card list — owner preference to keep it
+                            clean; customer sees it in step 2 after
+                            tapping the service. */}
                       </div>
                       <div className="text-left shrink-0">
                         <div className="font-bold text-lg" style={{ color: primaryColor }}>{priceStr}</div>
@@ -1690,9 +1695,8 @@ export default function Book({ slugOverride }: { slugOverride?: string } = {}) {
                         <div className="font-bold text-base">{service.name}</div>
                         <div className="font-bold" style={{ color: primaryColor }}>{priceStr}</div>
                       </div>
-                      {desc && (
-                        <p className="text-sm text-muted-foreground mt-1">{desc}</p>
-                      )}
+                      {/* Description moved to step 2 (booking wizard)
+                          per owner — keeps the service grid clean. */}
                       <div className="flex justify-between items-center mt-3">
                         <span className="text-xs text-muted-foreground flex items-center gap-1" dir="rtl">
                           <Clock className="w-3.5 h-3.5" /> <bdi>{formatDuration(service.durationMinutes)}</bdi>
@@ -2119,6 +2123,26 @@ export default function Book({ slugOverride }: { slugOverride?: string } = {}) {
 
               {step === 2 && (
                 <motion.div key="s2" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} className="space-y-4">
+                  {/* Service description shown above the date-picker so
+                      the customer has context on what they're booking —
+                      owner feedback. Only renders when the selected
+                      service actually has a description. */}
+                  {selectedService && (
+                    <div className="rounded-xl border bg-muted/40 p-3 space-y-1.5">
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="font-bold text-base" style={{ color: primaryColor }}>{selectedService.name}</div>
+                        <div className="text-sm font-bold shrink-0" style={{ color: primaryColor }}>
+                          {(selectedService as any).priceStartsFrom ? "החל מ-" : ""}₪{(selectedService.price / 100).toFixed(0)}
+                        </div>
+                      </div>
+                      {(selectedService as any).description && (
+                        <p className="text-sm text-muted-foreground leading-relaxed whitespace-pre-wrap">
+                          {(selectedService as any).description}
+                        </p>
+                      )}
+                      <div className="text-xs text-muted-foreground">משך השירות: {selectedService.durationMinutes} דקות</div>
+                    </div>
+                  )}
                   <h2 className="text-xl font-bold">בחר תאריך ושעה</h2>
 
                   {!useCalendar && (
