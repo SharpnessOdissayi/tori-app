@@ -236,6 +236,8 @@ export async function runMigrations() {
       "ALTER TABLE businesses ADD COLUMN IF NOT EXISTS custom_domain_verified BOOLEAN NOT NULL DEFAULT FALSE",
       // Unique index so no two businesses can register the same hostname.
       // Uses lowercase so domain matching is case-insensitive.
+      "ALTER TABLE businesses ADD COLUMN IF NOT EXISTS latitude TEXT",
+      "ALTER TABLE businesses ADD COLUMN IF NOT EXISTS longitude TEXT",
     ];
 
     // Cancellation tracking
