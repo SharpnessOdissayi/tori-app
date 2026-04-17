@@ -53,6 +53,9 @@ import { format, parseISO, addDays, startOfWeek } from "date-fns";
 import { he } from "date-fns/locale";
 import { HebrewCalendar } from "@hebcal/core";
 import Navbar from "@/components/Navbar";
+import { BusinessCalendar, openRescheduleWhatsApp, type CalAppt } from "@/components/BusinessCalendar";
+import { MobileBottomNav, type BottomTab } from "@/components/MobileBottomNav";
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 
 const DAYS = ["ראשון", "שני", "שלישי", "רביעי", "חמישי", "שישי", "שבת"];
 
@@ -434,6 +437,24 @@ export default function Dashboard() {
     () => localStorage.getItem("biz_token") || sessionStorage.getItem("biz_token")
   );
   const [activeTab, setActiveTab] = useState("appointments");
+  // Mobile bottom-nav state. "home" → subscription/revenue overview,
+  // "calendar" + "approvals" → appointments tab (different scroll/focus),
+  // "customers" → customers, "menu" → open the full-tab drawer.
+  const [bottomTab, setBottomTab] = useState<BottomTab>("calendar");
+  const [menuOpen, setMenuOpen] = useState(false);
+  const handleBottomTab = (t: BottomTab) => {
+    setBottomTab(t);
+    if (t === "menu") { setMenuOpen(true); return; }
+    if (t === "home") { setActiveTab("appointments"); window.scrollTo({ top: 0, behavior: "smooth" }); return; }
+    if (t === "calendar") setActiveTab("appointments");
+    if (t === "approvals") {
+      setActiveTab("appointments");
+      // Scroll to pending cards after render — the pending section is
+      // the first thing the "אישור תורים" button should show.
+      setTimeout(() => document.getElementById("appointments-pending-section")?.scrollIntoView({ behavior: "smooth", block: "start" }), 60);
+    }
+    if (t === "customers") setActiveTab("customers");
+  };
   const { data: headerProfile } = useGetBusinessProfile();
   const [showTour, setShowTour] = useState(() => !localStorage.getItem("kavati_tour_seen"));
 
@@ -567,38 +588,8 @@ export default function Dashboard() {
             </TabsList>
           </div>
 
-          {/* Mobile: icon grid */}
-          <div className="sm:hidden">
-            <div className="grid grid-cols-3 gap-2">
-              {[
-                { value: "appointments", icon: <Calendar className="w-6 h-6" />, label: "פגישות", proOnly: false },
-                { value: "services", icon: <Briefcase className="w-6 h-6" />, label: "שירותים", proOnly: false },
-                { value: "hours", icon: <Clock className="w-6 h-6" />, label: "שעות עבודה", proOnly: false },
-                { value: "customers", icon: <Users className="w-6 h-6" />, label: "לקוחות", proOnly: false },
-                { value: "waitlist", icon: <ListOrdered className="w-6 h-6" />, label: "המתנה", proOnly: false },
-                { value: "receipts", icon: <FileText className="w-6 h-6" />, label: "קבלות", proOnly: false },
-                { value: "branding", icon: <Palette className="w-6 h-6" />, label: "עיצוב", proOnly: false },
-                { value: "integrations", icon: <Phone className="w-6 h-6" />, label: "הודעות", proOnly: true },
-                { value: "settings", icon: <Settings className="w-6 h-6" />, label: "הגדרות", proOnly: false },
-              ].map(({ value, icon, label, proOnly }) => (
-                <button
-                  key={value}
-                  onClick={() => setActiveTab(value)}
-                  className={`relative flex flex-col items-center justify-center gap-1.5 py-4 rounded-2xl border-2 transition-all text-sm font-medium ${
-                    activeTab === value
-                      ? "border-primary bg-primary text-primary-foreground shadow-md scale-[1.02]"
-                      : "border-border bg-card text-muted-foreground hover:border-primary/40"
-                  }`}
-                >
-                  {icon}
-                  <span className="text-xs leading-tight">{label}</span>
-                  {proOnly && !isProPlan && (
-                    <span className="absolute -top-1 -left-1"><ProShine /></span>
-                  )}
-                </button>
-              ))}
-            </div>
-          </div>
+          {/* Mobile top tabs removed — navigation on mobile is the bottom
+              nav + "תפריט" sheet rendered below the main content. */}
 
           <TabsContent value="appointments"><AppointmentsTab /></TabsContent>
           <TabsContent value="services"><ServicesTab /></TabsContent>
@@ -633,7 +624,54 @@ export default function Dashboard() {
           💡 יש לך הצעה לשיפור או מצאת באג בלוח הניהול?{" "}
           <a href="/contact" className="font-semibold text-primary underline">אשמח שתשאיר לי הודעה על כך</a>
         </div>
+
+        {/* Bottom safe-area padding so the fixed mobile nav doesn't cover
+            the last card on the page. Desktop (md+) ignores this. */}
+        <div className="md:hidden h-20" aria-hidden />
       </main>
+
+      {/* Mobile bottom nav — fixed, always-visible on phones. */}
+      <MobileBottomNav
+        active={bottomTab}
+        onChange={handleBottomTab}
+      />
+
+      {/* Menu sheet — the rest of the legacy tabs accessible from "תפריט" */}
+      <Sheet open={menuOpen} onOpenChange={setMenuOpen}>
+        <SheetContent side="bottom" className="max-h-[85vh] overflow-y-auto rounded-t-2xl" dir="rtl">
+          <SheetHeader>
+            <SheetTitle>תפריט</SheetTitle>
+          </SheetHeader>
+          <div className="grid grid-cols-3 gap-3 mt-4 pb-4">
+            {[
+              { value: "appointments", icon: <Calendar className="w-6 h-6" />, label: "פגישות" },
+              { value: "services",     icon: <Briefcase className="w-6 h-6" />, label: "שירותים" },
+              { value: "hours",        icon: <Clock className="w-6 h-6" />,     label: "שעות עבודה" },
+              { value: "customers",    icon: <Users className="w-6 h-6" />,     label: "לקוחות" },
+              { value: "waitlist",     icon: <ListOrdered className="w-6 h-6" />, label: "המתנה" },
+              { value: "receipts",     icon: <FileText className="w-6 h-6" />,  label: "קבלות" },
+              { value: "branding",     icon: <Palette className="w-6 h-6" />,   label: "עיצוב" },
+              { value: "integrations", icon: <Phone className="w-6 h-6" />,     label: "הודעות" },
+              { value: "settings",     icon: <Settings className="w-6 h-6" />,  label: "הגדרות" },
+            ].map(({ value, icon, label }) => (
+              <button
+                key={value}
+                onClick={() => {
+                  setActiveTab(value);
+                  setMenuOpen(false);
+                  setBottomTab(value === "customers" ? "customers" : value === "appointments" ? "calendar" : "menu");
+                }}
+                className={`flex flex-col items-center justify-center gap-1.5 py-4 rounded-xl border transition-colors text-sm font-medium ${
+                  activeTab === value ? "border-primary bg-primary/10 text-primary" : "border-border bg-card text-muted-foreground"
+                }`}
+              >
+                {icon}
+                <span className="text-xs leading-tight">{label}</span>
+              </button>
+            ))}
+          </div>
+        </SheetContent>
+      </Sheet>
     </div>
   );
 }
@@ -1077,10 +1115,11 @@ function WeeklyCalendar({ appointments }: { appointments: WeeklyAppt[] }) {
   );
 }
 
-function AppointmentsTab() {
+function AppointmentsTab({ mobileFocus }: { mobileFocus?: "calendar" | "approvals" } = {}) {
   const { data: stats } = useGetBusinessStats();
   const { data: appointments } = useListBusinessAppointments();
   const { data: profile } = useGetBusinessProfile();
+  const { data: customers } = useListBusinessCustomers();
   const cancelMutation = useCancelBusinessAppointment();
   const queryClient = useQueryClient();
   const { toast } = useToast();
@@ -1088,6 +1127,32 @@ function AppointmentsTab() {
   const [cancelModal, setCancelModal] = useState<{ id: number } | null>(null);
   const [cancelReason, setCancelReason] = useState("");
   const [deletingId, setDeletingId] = useState<number | null>(null);
+  // Appointment-click edit dialog (opened by tapping a card inside the
+  // new calendar view). Holds the selected appointment so we can show
+  // details + the customer's reliability breakdown.
+  const [editAppt, setEditAppt] = useState<CalAppt | null>(null);
+
+  // Reschedule via drag: PATCH server, invalidate cache, optionally open
+  // the owner's personal WhatsApp with a pre-filled message (per owner
+  // preference: DON'T use the platform's automated template here).
+  const handleReschedule = async (appt: CalAppt, newDate: string, newTime: string, sendNotif: boolean) => {
+    const token = localStorage.getItem("biz_token") || sessionStorage.getItem("biz_token");
+    try {
+      const res = await fetch(`/api/business/appointments/${appt.id}/reschedule`, {
+        method: "PATCH",
+        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ newDate, newTime }),
+      });
+      if (!res.ok) throw new Error();
+      toast({ title: "התור עודכן" });
+      queryClient.invalidateQueries({ queryKey: getListBusinessAppointmentsQueryKey() });
+      if (sendNotif) {
+        openRescheduleWhatsApp(appt.phoneNumber, appt.clientName, (profile as any)?.name || "", newDate, newTime);
+      }
+    } catch {
+      toast({ title: "שגיאה", description: "לא ניתן לעדכן את התור", variant: "destructive" });
+    }
+  };
 
   const requireApproval = (profile as any)?.requireAppointmentApproval ?? false;
 
@@ -1294,7 +1359,90 @@ function AppointmentsTab() {
       </Card>
 
       {/* Weekly calendar — 7-day overview with Israeli holidays */}
-      <WeeklyCalendar appointments={aptList as unknown as WeeklyAppt[]} />
+      {/* New business calendar — month / week / day with drag-to-reschedule.
+          Click an appointment → opens a details dialog with the customer's
+          reliability breakdown. Drag → opens the reschedule confirm dialog. */}
+      <BusinessCalendar
+        appointments={aptList as unknown as CalAppt[]}
+        onApptClick={setEditAppt}
+        onRescheduleServer={handleReschedule}
+      />
+
+      {/* Keep the legacy weekly mini-grid below for quick overview.
+          Using the existing summary-style tile grid — removed for now
+          since the new calendar supersedes it. */}
+
+      {/* Appointment edit / details dialog (opened by tapping a card) */}
+      <Dialog open={!!editAppt} onOpenChange={v => { if (!v) setEditAppt(null); }}>
+        <DialogContent dir="rtl" className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>פרטי התור</DialogTitle>
+          </DialogHeader>
+          {editAppt && (() => {
+            const custs = Array.isArray(customers) ? customers : [];
+            const cust = custs.find(c => c.phoneNumber === editAppt.phoneNumber) as any;
+            const totalVisits = cust?.totalVisits ?? 0;
+            const noShowCount = cust?.noShowCount ?? 0;
+            const cancelledCount = cust?.cancelledCount ?? 0;
+            const [y, m, d] = editAppt.appointmentDate.split("-");
+            return (
+              <div className="space-y-4 text-sm">
+                <div className="space-y-1">
+                  <div className="font-bold text-lg">{editAppt.clientName}</div>
+                  <div className="text-muted-foreground" dir="ltr">{editAppt.phoneNumber}</div>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="p-3 rounded-xl bg-muted/40">
+                    <div className="text-xs text-muted-foreground">שירות</div>
+                    <div className="font-semibold">{editAppt.serviceName}</div>
+                  </div>
+                  <div className="p-3 rounded-xl bg-muted/40">
+                    <div className="text-xs text-muted-foreground">משך</div>
+                    <div className="font-semibold">{editAppt.durationMinutes} דק׳</div>
+                  </div>
+                  <div className="p-3 rounded-xl bg-muted/40">
+                    <div className="text-xs text-muted-foreground">תאריך</div>
+                    <div className="font-semibold" dir="ltr">{d}/{m}/{y}</div>
+                  </div>
+                  <div className="p-3 rounded-xl bg-muted/40">
+                    <div className="text-xs text-muted-foreground">שעה</div>
+                    <div className="font-semibold" dir="ltr">{editAppt.appointmentTime}</div>
+                  </div>
+                </div>
+                {editAppt.notes && (
+                  <div className="p-3 rounded-xl bg-amber-50 border border-amber-200 text-amber-900">
+                    <div className="text-xs font-semibold mb-1">הערה</div>
+                    <div>{editAppt.notes}</div>
+                  </div>
+                )}
+                <div className="pt-2 border-t">
+                  <div className="text-xs font-semibold text-muted-foreground mb-2">היסטוריית לקוח</div>
+                  <div className="flex flex-wrap gap-1.5">
+                    <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold bg-blue-50 text-blue-700 border border-blue-100">
+                      ✓ {totalVisits} הגיע/ה
+                    </span>
+                    <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold bg-red-50 text-red-700 border border-red-100">
+                      🚫 {noShowCount} ברזים
+                    </span>
+                    <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold bg-orange-50 text-orange-700 border border-orange-100">
+                      ↩️ {cancelledCount} ביטולים
+                    </span>
+                  </div>
+                </div>
+                <div className="flex gap-2 pt-2">
+                  <Button variant="outline" className="flex-1" onClick={() => setEditAppt(null)}>סגור</Button>
+                  <Button
+                    className="flex-1 bg-red-600 hover:bg-red-700 text-white"
+                    onClick={() => { setEditAppt(null); handleCancel(editAppt.id); }}
+                  >
+                    בטל תור
+                  </Button>
+                </div>
+              </div>
+            );
+          })()}
+        </DialogContent>
+      </Dialog>
 
       {past.length > 0 && (
         <Card>
