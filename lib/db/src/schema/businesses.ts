@@ -116,6 +116,14 @@ export const businessesTable = pgTable("businesses", {
   businessLegalName: text("business_legal_name"),           // עוסק מורשה / שם משפטי לקבלה
   invoiceAddress: text("invoice_address"),                  // כתובת הרשומה במע"מ (יכולה להיות שונה מכתובת העסק)
   autoSendReceipts: boolean("auto_send_receipts").notNull().default(false),
+  // ─── Geocoded address for Waze / Maps navigation ───
+  // Populated by a Nominatim geocode whenever `address` or `city`
+  // changes. Waze's ?q= text search is unreliable in Hebrew (sends
+  // clients to the wrong city when multiple streets share a name);
+  // lat/lng via ?ll= is 100% accurate. Text strings (not numeric) so
+  // we keep full precision and don't fight Postgres numeric rounding.
+  latitude:  text("latitude"),
+  longitude: text("longitude"),
 });
 
 export const insertBusinessSchema = createInsertSchema(businessesTable).omit({ id: true, createdAt: true });

@@ -256,11 +256,41 @@ router.patch("/business/profile", requireBusinessAuth, async (req, res): Promise
   if (d.businessCategories  !== undefined) (updates as any).businessCategories  = d.businessCategories  ?? null;
   if (d.galleryImages       !== undefined) (updates as any).galleryImages       = d.galleryImages       ?? null;
 
+  // Address changed → invalidate cached lat/lng so the next geocode
+  // pass runs with the new string. Done BEFORE the update so the row
+  // we return to the client doesn't still carry stale coords.
+  const addressChanged = d.address !== undefined || d.city !== undefined;
+  if (addressChanged) {
+    (updates as any).latitude = null;
+    (updates as any).longitude = null;
+  }
+
   const [updated] = await db
     .update(businessesTable)
     .set(updates)
     .where(eq(businessesTable.id, req.business!.businessId))
     .returning();
+
+  // Re-geocode in the background if the address just changed. Keeps
+  // the PATCH response fast (sub-100ms) while Nominatim lookups can
+  // take 500ms–2s; the public /book/:slug page re-fetches fresh data
+  // on every client visit so the coords land before the Waze button
+  // is ever tapped.
+  if (addressChanged && updated) {
+    const addr = (updated as any).address ?? null;
+    const cty  = (updated as any).city    ?? null;
+    if (addr || cty) {
+      (async () => {
+        const { geocodeAddress } = await import("../lib/geocode");
+        const coords = await geocodeAddress(addr, cty);
+        if (coords) {
+          await db.update(businessesTable)
+            .set({ latitude: coords.latitude, longitude: coords.longitude } as any)
+            .where(eq(businessesTable.id, req.business!.businessId));
+        }
+      })().catch(() => {});
+    }
+  }
 
   res.json(mapBusiness(updated));
 });

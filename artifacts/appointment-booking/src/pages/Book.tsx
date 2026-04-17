@@ -573,19 +573,21 @@ export default function Book({ slugOverride }: { slugOverride?: string } = {}) {
     return /^https?:\/\//i.test(t) ? t : `https://${t}`;
   };
   const instagramUrl = (business as any)?.instagramUrl ?? null;
-  // Waze link: always auto-build from the address the owner typed in
-  // Settings (רחוב + מספר + עיר). Owner reported Waze dropping them
-  // on the wrong city when both were jammed together with a space —
-  // the space-separated "אשדוד דיזנגוף 5" query sent them to Jerusalem.
-  // Comma-separated "דיזנגוף 5, אשדוד" is the format Waze's geocoder
-  // expects (same as Google Maps); the comma tells it where the
-  // street ends and the city starts, so the match is unambiguous.
-  // Only when the owner pasted a real Waze URL themselves do we
-  // honour it instead.
+  // Waze link — three-tier fallback:
+  //   1. If the owner pasted a literal Waze URL, honour it.
+  //   2. Else if we have geocoded coordinates (server-side Nominatim
+  //      pass on profile save), use ?ll= — 100% reliable, no more
+  //      "Dizengoff in Tel Aviv vs Ashdod" ambiguity.
+  //   3. Else fall back to a text query (rarely accurate for common
+  //      street names shared across cities; only used while coords
+  //      are still being geocoded or when the lookup failed).
+  const lat = String((business as any)?.latitude ?? "").trim();
+  const lng = String((business as any)?.longitude ?? "").trim();
+  const coordWazeUrl = (lat && lng) ? `https://waze.com/ul?ll=${lat}%2C${lng}&navigate=yes` : null;
   const wazeQuery = [address, city].filter(v => v && String(v).trim()).map(v => String(v).trim()).join(", ");
-  const autoWazeUrl = wazeQuery ? `https://waze.com/ul?q=${encodeURIComponent(wazeQuery)}&navigate=yes` : null;
+  const textWazeUrl = wazeQuery ? `https://waze.com/ul?q=${encodeURIComponent(wazeQuery)}&navigate=yes` : null;
   const savedWazeUrl = String((business as any)?.wazeUrl ?? "").trim();
-  const wazeUrl = savedWazeUrl || autoWazeUrl;
+  const wazeUrl = savedWazeUrl || coordWazeUrl || textWazeUrl;
   const businessDescription = (business as any)?.businessDescription ?? null;
   const requirePhoneVerification = (business as any)?.requirePhoneVerification ?? false;
   const bannerPosition = (business as any)?.bannerPosition ?? "center";

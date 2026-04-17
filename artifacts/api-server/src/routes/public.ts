@@ -174,6 +174,10 @@ router.get("/public/:businessSlug", async (req, res): Promise<void> => {
     serviceCardStyle:  (business as any).serviceCardStyle  ?? null,
     animationStyle:    (business as any).animationStyle    ?? null,
     hoverEffect:       (business as any).hoverEffect       ?? null,
+    // City + geocoded coords → Waze / Maps buttons on the client.
+    city:              (business as any).city              ?? null,
+    latitude:          (business as any).latitude          ?? null,
+    longitude:         (business as any).longitude         ?? null,
   });
 });
 

@@ -205,6 +205,24 @@ router.post("/auth/business/register", async (req, res): Promise<void> => {
 
   const token = signBusinessToken({ businessId: business.id, email: business.email });
 
+  // Background geocode — Waze button uses lat/lng for reliable
+  // navigation. Doesn't gate signup so the owner isn't waiting on
+  // Nominatim; fire-and-forget and the row will have coords before
+  // any client ever taps the Waze button.
+  if (address) {
+    (async () => {
+      try {
+        const { geocodeAddress } = await import("../lib/geocode");
+        const coords = await geocodeAddress(address, null);
+        if (coords) {
+          await db.update(businessesTable)
+            .set({ latitude: coords.latitude, longitude: coords.longitude } as any)
+            .where(eq(businessesTable.id, business.id));
+        }
+      } catch {}
+    })();
+  }
+
   // Send welcome email (fire-and-forget — doesn't gate the signup).
   // password is the plaintext value the user picked; it's only in memory
   // here, immediately after hashing above — never stored or logged.
