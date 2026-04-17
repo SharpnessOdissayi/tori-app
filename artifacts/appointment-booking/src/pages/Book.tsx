@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { useParams, useLocation } from "wouter";
 import {
   useGetPublicBusiness,
@@ -165,7 +165,7 @@ function makeHolidayDayButton(primaryColor: string) {
 }
 import { format } from "date-fns";
 import { he } from "date-fns/locale";
-import { Check, ChevronRight, Clock, CalendarIcon, User, Phone, CheckCircle2, ListOrdered, Globe, MapPin, Instagram } from "lucide-react";
+import { Check, ChevronRight, ChevronLeft, Clock, CalendarIcon, User, Phone, CheckCircle2, ListOrdered, Globe, MapPin, Instagram } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import "react-day-picker/dist/style.css";
 import { useToast } from "@/hooks/use-toast";
@@ -252,6 +252,102 @@ function formatDuration(minutes: number): string {
   return `${hourPart} ו-${minPart}`;
 }
 
+// Gallery lightbox with keyboard (← → Esc) and swipe paging. Extracted
+// so the arrow-button / touch-handler wiring doesn't clutter the main
+// Book component. RTL: the right-pointing ChevronRight is wired to
+// "previous" (reading direction), left-pointing to "next".
+function GalleryLightbox({
+  url, index, total, onClose, onPrev, onNext,
+}: {
+  url: string;
+  index: number;
+  total: number;
+  onClose: () => void;
+  onPrev: () => void;
+  onNext: () => void;
+}) {
+  const rootRef = useRef<HTMLDivElement>(null);
+  const touchStartX = useRef<number | null>(null);
+
+  // Auto-focus so arrow keys work without the user tapping first.
+  useEffect(() => { rootRef.current?.focus(); }, []);
+
+  const onTouchStart = (e: React.TouchEvent) => {
+    touchStartX.current = e.touches[0]?.clientX ?? null;
+  };
+  const onTouchEnd = (e: React.TouchEvent) => {
+    const start = touchStartX.current;
+    touchStartX.current = null;
+    if (start == null) return;
+    const end = e.changedTouches[0]?.clientX ?? start;
+    const dx = end - start;
+    if (Math.abs(dx) < 40) return;
+    // In RTL, swipe-right reveals the previous image; swipe-left the next.
+    if (dx > 0) onPrev();
+    else onNext();
+  };
+
+  return (
+    <div
+      ref={rootRef}
+      role="dialog"
+      aria-modal="true"
+      aria-label={`תמונה ${index + 1} מתוך ${total}`}
+      tabIndex={-1}
+      dir="rtl"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 p-4 focus:outline-none"
+      onClick={onClose}
+      onKeyDown={e => {
+        if (e.key === "Escape") onClose();
+        else if (e.key === "ArrowRight") onPrev();
+        else if (e.key === "ArrowLeft") onNext();
+      }}
+      onTouchStart={onTouchStart}
+      onTouchEnd={onTouchEnd}
+    >
+      <img
+        src={url}
+        alt={`gallery-${index}`}
+        className="max-w-full max-h-full rounded-xl object-contain shadow-2xl select-none"
+        draggable={false}
+        onClick={e => e.stopPropagation()}
+      />
+      {/* Close — top-start (RTL = left). */}
+      <button
+        aria-label="סגור תמונה"
+        className="absolute top-4 left-4 text-white bg-black/50 hover:bg-black/70 rounded-full w-10 h-10 flex items-center justify-center text-xl"
+        onClick={e => { e.stopPropagation(); onClose(); }}
+      >×</button>
+      {/* Counter — top-end (RTL = right). */}
+      {total > 1 && (
+        <div className="absolute top-4 right-4 text-white bg-black/50 rounded-full px-3 py-1 text-xs font-semibold" dir="ltr">
+          {index + 1} / {total}
+        </div>
+      )}
+      {/* Prev / next — only when >1 image. Buttons are large and far
+          from the edges so they're easy to hit on mobile. */}
+      {total > 1 && (
+        <>
+          <button
+            aria-label="תמונה קודמת"
+            className="absolute right-3 sm:right-6 top-1/2 -translate-y-1/2 text-white bg-black/50 hover:bg-black/70 rounded-full w-11 h-11 flex items-center justify-center"
+            onClick={e => { e.stopPropagation(); onPrev(); }}
+          >
+            <ChevronRight className="w-6 h-6" />
+          </button>
+          <button
+            aria-label="תמונה הבאה"
+            className="absolute left-3 sm:left-6 top-1/2 -translate-y-1/2 text-white bg-black/50 hover:bg-black/70 rounded-full w-11 h-11 flex items-center justify-center"
+            onClick={e => { e.stopPropagation(); onNext(); }}
+          >
+            <ChevronLeft className="w-6 h-6" />
+          </button>
+        </>
+      )}
+    </div>
+  );
+}
+
 
 export default function Book({ slugOverride }: { slugOverride?: string } = {}) {
   const params = useParams<{ businessSlug: string }>();
@@ -259,6 +355,12 @@ export default function Book({ slugOverride }: { slugOverride?: string } = {}) {
   // passes it here as `slugOverride` — there's no slug in the URL.
   const businessSlug = slugOverride ?? params.businessSlug;
   const [, navigate] = useLocation();
+  // Owner preview hint — when a biz_token is present we assume the
+  // viewer came from the dashboard's "צפייה בעמוד העסק" link and show
+  // a floating chip to hop back without losing the tab.
+  const isOwnerPreview = typeof window !== "undefined" && !!(
+    localStorage.getItem("biz_token") || sessionStorage.getItem("biz_token")
+  );
   // Defensive: if VITE_API_BASE_URL is set to an empty string in Railway
   // (which ?? does NOT handle), we'd lose the /api prefix and all fetches fail.
   const API_BASE = (import.meta.env.VITE_API_BASE_URL && import.meta.env.VITE_API_BASE_URL.trim()) || "/api";
@@ -267,7 +369,7 @@ export default function Book({ slugOverride }: { slugOverride?: string } = {}) {
   const [showNotification, setShowNotification] = useState(true);
   const [showAnnouncement, setShowAnnouncement] = useState(false);
   const [paymentIframeUrl, setPaymentIframeUrl] = useState<string | null>(null);
-  const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
+  const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
   const [showWaitlist, setShowWaitlist] = useState(false);
   const [showExistingBooking, setShowExistingBooking] = useState(false);
   const [activeTab, setActiveTab] = useState<"services" | "hours" | "gallery" | "reviews">("services");
@@ -1233,6 +1335,24 @@ export default function Book({ slugOverride }: { slugOverride?: string } = {}) {
         }}
         className="kavati-biz-scope min-h-screen overflow-x-hidden bg-white dark:bg-neutral-950 text-neutral-900 dark:text-neutral-100"
       >
+        {/* Owner quick-return chip — fixed top-start (RTL = right).
+            Only visible when a biz_token cookie is present, i.e. the
+            viewer has an active owner session. Lets them preview their
+            own /book/:slug page and jump back to the dashboard without
+            hunting for the tab. */}
+        {isOwnerPreview && (
+          <button
+            type="button"
+            onClick={() => navigate("/dashboard")}
+            className="fixed top-3 right-3 z-40 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs sm:text-sm font-semibold text-white shadow-lg hover:brightness-110 active:scale-95 transition-all"
+            style={{ background: "linear-gradient(135deg, #3c92f0 0%, #1e6fcf 100%)" }}
+            aria-label="חזור לפאנל ניהול"
+            title="חזור לפאנל ניהול"
+          >
+            <ChevronRight className="w-4 h-4" />
+            <span>חזור לפאנל ניהול</span>
+          </button>
+        )}
 
         {/* Notification popup — dismissable permanently via localStorage */}
         {business.notificationEnabled && business.notificationMessage && (
@@ -1841,30 +1961,30 @@ export default function Book({ slugOverride }: { slugOverride?: string } = {}) {
                   {galleryImages.map((url, i) => (
                     <img key={i} src={url} alt={`gallery-${i}`}
                       className="w-full aspect-square object-cover rounded-lg cursor-pointer hover:opacity-90 transition-opacity active:scale-95"
-                      onClick={() => setLightboxUrl(url)}
+                      onClick={() => setLightboxIndex(i)}
                     />
                   ))}
                 </div>
-                {/* Lightbox — Escape-to-close + ARIA for screen readers. */}
-                {lightboxUrl && (
-                  <div
-                    role="dialog"
-                    aria-modal="true"
-                    aria-label="תצוגה מורחבת של תמונה"
-                    tabIndex={-1}
-                    className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 p-4 focus:outline-none"
-                    onClick={() => setLightboxUrl(null)}
-                    onKeyDown={e => { if (e.key === "Escape") setLightboxUrl(null); }}
-                    ref={el => el?.focus()}
-                  >
-                    <img src={lightboxUrl} alt="gallery-full" className="max-w-full max-h-full rounded-xl object-contain shadow-2xl" />
-                    <button
-                      aria-label="סגור תמונה"
-                      className="absolute top-4 left-4 text-white bg-black/50 rounded-full w-9 h-9 flex items-center justify-center text-xl"
-                      onClick={() => setLightboxUrl(null)}
-                    >×</button>
-                  </div>
-                )}
+                {/* Lightbox — Escape/←/→ keys, prev/next buttons, and
+                    horizontal swipe on touch devices. Index-based so we
+                    can page through the gallery without closing. */}
+                {lightboxIndex !== null && galleryImages[lightboxIndex] && (() => {
+                  const total = galleryImages.length;
+                  const go = (delta: number) => setLightboxIndex(i => {
+                    if (i === null) return i;
+                    return (i + delta + total) % total;
+                  });
+                  return (
+                    <GalleryLightbox
+                      url={galleryImages[lightboxIndex]}
+                      index={lightboxIndex}
+                      total={total}
+                      onClose={() => setLightboxIndex(null)}
+                      onPrev={() => go(-1)}
+                      onNext={() => go(1)}
+                    />
+                  );
+                })()}
               </>
             ) : (
               <div className="text-center py-8 text-muted-foreground">אין תמונות בגלריה עדיין</div>

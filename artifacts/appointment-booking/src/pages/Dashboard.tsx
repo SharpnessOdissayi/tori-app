@@ -3748,18 +3748,10 @@ function BrandingTab() {
     liveFontRef.current = f;
   }, [form.fontFamily]);
 
-  // Update form when uploads complete
+  // Update form when uploads complete. Gallery uses uploadMany (inline
+  // in the input onChange), so no useEffect for galleryUpload.url.
   useEffect(() => { if (logoUpload.url) setForm(p => ({ ...p, logoUrl: logoUpload.url! })); }, [logoUpload.url]);
   useEffect(() => { if (bannerUpload.url) setForm(p => ({ ...p, bannerUrl: bannerUpload.url! })); }, [bannerUpload.url]);
-  useEffect(() => {
-    if (galleryUpload.url) {
-      setForm(p => {
-        const updated = [...p.galleryImages, galleryUpload.url!].slice(0, 12);
-        return { ...p, galleryImages: updated };
-      });
-      galleryUpload.reset?.();
-    }
-  }, [galleryUpload.url]);
 
   const uploading = logoUpload.isUploading || bannerUpload.isUploading || galleryUpload.isUploading;
 
@@ -4194,8 +4186,23 @@ function BrandingTab() {
               ref={galleryRef}
               type="file"
               accept="image/*"
+              multiple
               className="hidden"
-              onChange={e => { if (e.target.files?.[0]) { galleryUpload.upload(e.target.files[0]); e.target.value = ""; } }}
+              onChange={async e => {
+                const files = Array.from(e.target.files ?? []);
+                e.target.value = "";
+                if (files.length === 0) return;
+                // Clamp the batch to the remaining gallery slots so we
+                // never upload images that would just be dropped on the
+                // .slice(0, 12) in the state update.
+                const remaining = Math.max(0, 12 - form.galleryImages.length);
+                const toUpload = files.slice(0, remaining);
+                if (toUpload.length === 0) return;
+                const urls = await galleryUpload.uploadMany(toUpload);
+                if (urls.length > 0) {
+                  setForm(p => ({ ...p, galleryImages: [...p.galleryImages, ...urls].slice(0, 12) }));
+                }
+              }}
             />
             {form.galleryImages.length > 0 && (
               <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
@@ -4223,7 +4230,11 @@ function BrandingTab() {
                 onClick={() => galleryRef.current?.click()}
               >
                 <Upload className="w-4 h-4" />
-                {galleryUpload.isUploading ? "מעלה תמונה..." : "הוסף תמונה לגלריה"}
+                {galleryUpload.isUploading
+                  ? galleryUpload.progress.total > 1
+                      ? `מעלה ${galleryUpload.progress.done}/${galleryUpload.progress.total}...`
+                      : "מעלה תמונה..."
+                  : "הוסף תמונות לגלריה"}
               </Button>
             )}
             {galleryUpload.error && <p className="text-xs text-destructive">{galleryUpload.error}</p>}
