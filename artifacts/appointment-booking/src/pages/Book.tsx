@@ -165,7 +165,7 @@ function makeHolidayDayButton(primaryColor: string) {
 }
 import { format } from "date-fns";
 import { he } from "date-fns/locale";
-import { Check, ChevronRight, ChevronLeft, Clock, CalendarIcon, User, Phone, CheckCircle2, ListOrdered, Globe, MapPin, Instagram } from "lucide-react";
+import { Check, ChevronRight, ChevronLeft, Clock, CalendarIcon, User, Phone, CheckCircle2, ListOrdered, Globe, MapPin, Instagram, Trash2 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import "react-day-picker/dist/style.css";
 import { useToast } from "@/hooks/use-toast";
@@ -380,6 +380,11 @@ export default function Book({ slugOverride }: { slugOverride?: string } = {}) {
   const [reviewRating, setReviewRating] = useState(5);
   const [reviewText, setReviewText] = useState("");
   const [reviewSubmitting, setReviewSubmitting] = useState(false);
+  // Owner-side moderation — null when no delete is pending, otherwise
+  // the review about to be wiped. The dialog confirms before firing
+  // the DELETE so an errant tap doesn't nuke a review.
+  const [reviewToDelete, setReviewToDelete] = useState<any | null>(null);
+  const [deletingReviewId, setDeletingReviewId] = useState<number | null>(null);
   const [phonePopupOpen, setPhonePopupOpen] = useState(false);
   const [phonePopupInput, setPhonePopupInput] = useState("");
   const [existingBooking, setExistingBooking] = useState<any>(null);
@@ -734,6 +739,30 @@ export default function Book({ slugOverride }: { slugOverride?: string } = {}) {
       toast({ title: "שליחה נכשלה", description: e?.message ?? "נסה שוב", variant: "destructive" });
     } finally {
       setReviewSubmitting(false);
+    }
+  };
+
+  // Owner-only: delete a review from the public wall. Requires a valid
+  // biz_token; the server double-checks the review belongs to this
+  // owner's business, so a different owner's token can't wipe a
+  // competitor's wall.
+  const deleteReview = async (id: number) => {
+    const token = localStorage.getItem("biz_token") || sessionStorage.getItem("biz_token");
+    if (!token) { toast({ title: "יש להתחבר כבעל עסק", variant: "destructive" }); return; }
+    setDeletingReviewId(id);
+    try {
+      const res = await fetch(`${API_BASE}/business/reviews/${id}`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) throw new Error();
+      setReviews(prev => prev.filter(r => r.id !== id));
+      setReviewToDelete(null);
+      toast({ title: "הביקורת נמחקה" });
+    } catch {
+      toast({ title: "שגיאה במחיקת הביקורת", variant: "destructive" });
+    } finally {
+      setDeletingReviewId(null);
     }
   };
 
@@ -1944,6 +1973,22 @@ export default function Book({ slugOverride }: { slugOverride?: string } = {}) {
                         <div className="text-sm shrink-0" style={{ color: primaryColor }} aria-label={`${r.rating} כוכבים`}>
                           {"★".repeat(r.rating)}<span className="text-muted-foreground/40">{"★".repeat(5 - r.rating)}</span>
                         </div>
+                        {/* Owner-only delete — mirrors the floating
+                            back-to-dashboard chip's gate (biz_token in
+                            storage). Server re-checks ownership so a
+                            stale/foreign token can't actually delete. */}
+                        {isOwnerPreview && (
+                          <button
+                            type="button"
+                            onClick={() => setReviewToDelete(r)}
+                            disabled={deletingReviewId === r.id}
+                            aria-label="מחק ביקורת"
+                            title="מחק ביקורת"
+                            className="shrink-0 w-8 h-8 rounded-full bg-red-50 hover:bg-red-100 text-red-600 flex items-center justify-center transition-colors disabled:opacity-50"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        )}
                       </div>
                       {r.text && <p className="mt-2 text-sm text-foreground/90 leading-relaxed whitespace-pre-wrap">{r.text}</p>}
                     </li>
@@ -2047,6 +2092,48 @@ export default function Book({ slugOverride }: { slugOverride?: string } = {}) {
                 className="flex-1 py-2.5 rounded-xl font-bold text-white"
                 style={{ backgroundColor: primaryColor }}>שמור והמשך</button>
             </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Owner-only delete-review confirm. Only rendered in the
+          owner-preview path (isOwnerPreview gate above guards the
+          trash icon that opens this). */}
+      <Dialog open={!!reviewToDelete} onOpenChange={v => { if (!v) setReviewToDelete(null); }}>
+        <DialogContent dir="rtl" className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle>למחוק את הביקורת?</DialogTitle>
+            <DialogDescription>
+              הביקורת של <b>{reviewToDelete?.clientName}</b> תוסר לצמיתות מעמוד העסק. אי אפשר לשחזר.
+            </DialogDescription>
+          </DialogHeader>
+          {reviewToDelete && (
+            <div className="mt-1 p-3 rounded-xl bg-muted/50 border text-sm">
+              <div className="text-amber-500 mb-1" aria-label={`${reviewToDelete.rating} כוכבים`}>
+                {"★".repeat(reviewToDelete.rating)}<span className="text-muted-foreground/40">{"★".repeat(5 - reviewToDelete.rating)}</span>
+              </div>
+              {reviewToDelete.text && (
+                <div className="whitespace-pre-wrap break-words text-foreground/80">{reviewToDelete.text}</div>
+              )}
+            </div>
+          )}
+          <div className="flex gap-2 pt-2">
+            <button
+              type="button"
+              onClick={() => setReviewToDelete(null)}
+              className="flex-1 py-2.5 rounded-xl border border-border font-medium hover:bg-muted/60"
+              disabled={deletingReviewId !== null}
+            >
+              ביטול
+            </button>
+            <button
+              type="button"
+              onClick={() => reviewToDelete && deleteReview(reviewToDelete.id)}
+              disabled={deletingReviewId !== null}
+              className="flex-1 py-2.5 rounded-xl font-bold text-white bg-red-600 hover:bg-red-700 disabled:opacity-60"
+            >
+              {deletingReviewId !== null ? "מוחק..." : "מחק"}
+            </button>
           </div>
         </DialogContent>
       </Dialog>
