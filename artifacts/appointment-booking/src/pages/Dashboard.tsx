@@ -548,7 +548,47 @@ export default function Dashboard() {
         }
         leftContent={
           <div className="flex items-center gap-2">
-            <NotificationBell token={token!} />
+            <NotificationBell
+              token={token!}
+              onNotificationClick={(n) => {
+                // Route by notification type to the view that makes the
+                // owner's next action obvious. appointment_id on the row
+                // lets us open the exact card when we land there.
+                const apptId = n.appointment_id ?? n.appointmentId;
+                const appts = Array.isArray(rootAppts) ? rootAppts : [];
+                const appt = apptId ? appts.find((a: any) => a.id === apptId) : null;
+
+                if (n.type === "cancellation") {
+                  // Owner wants to see the client in the customers list —
+                  // they usually want to flag / call / reschedule.
+                  setActiveTab("customers");
+                  setBottomTab("customers");
+                  return;
+                }
+                if (n.type === "new_booking") {
+                  // Pending-approval bookings go to the approvals queue;
+                  // auto-confirmed ones land on the calendar focused on
+                  // the day of the booking.
+                  if (appt && (appt as any).status === "pending") {
+                    setActiveTab("approvals");
+                    setBottomTab("approvals");
+                  } else {
+                    setActiveTab("appointments");
+                    setBottomTab("calendar");
+                  }
+                  return;
+                }
+                if (n.type === "reschedule") {
+                  setActiveTab("appointments");
+                  setBottomTab("calendar");
+                  return;
+                }
+                if (n.type === "waitlist_join") {
+                  setActiveTab("waitlist");
+                  setBottomTab("menu");
+                }
+              }}
+            />
             {headerProfile?.name && (
               <span className="hidden sm:block text-sm font-medium px-3 py-1.5 rounded-lg"
                 style={{ color: "#3c92f0", border: "1px solid #3c92f040" }}>
@@ -756,7 +796,7 @@ function TodayCalendarIcon() {
 // ─── Business notifications bell ──────────────────────────────────────────────
 const API_BASE = import.meta.env.VITE_API_BASE_URL ?? "/api";
 
-function NotificationBell({ token }: { token: string }) {
+function NotificationBell({ token, onNotificationClick }: { token: string; onNotificationClick?: (n: any) => void }) {
   const [open, setOpen] = useState(false);
   const [notifications, setNotifications] = useState<any[]>([]);
   const [unread, setUnread] = useState(0);
@@ -895,8 +935,22 @@ function NotificationBell({ token }: { token: string }) {
               ) : notifications.map((n: any) => {
                 const st = typeStyle(n.type);
                 const { Icon } = st;
+                const clickable = !!onNotificationClick;
                 return (
-                  <div key={n.id} className={`relative pr-5 pl-4 py-3 flex gap-3 items-start ${!n.is_read ? st.tint : "bg-white"}`}>
+                  <button
+                    key={n.id}
+                    type="button"
+                    disabled={!clickable}
+                    onClick={() => {
+                      if (!onNotificationClick) return;
+                      setOpen(false);
+                      // Fire after the panel closes so the navigation
+                      // transition isn't visually competing with the
+                      // dropdown close animation.
+                      setTimeout(() => onNotificationClick(n), 60);
+                    }}
+                    className={`relative pr-5 pl-4 py-3 flex gap-3 items-start w-full text-right ${!n.is_read ? st.tint : "bg-white"} ${clickable ? "hover:bg-gray-50 cursor-pointer" : "cursor-default"}`}
+                  >
                     {/* Left accent strip — carries the type colour so
                         the owner can scan red = cancel at a glance. */}
                     <span className={`absolute right-0 top-0 bottom-0 w-1 ${st.bar}`} aria-hidden />
@@ -913,7 +967,7 @@ function NotificationBell({ token }: { token: string }) {
                       </p>
                     </div>
                     {!n.is_read && <span className="w-2 h-2 rounded-full bg-blue-500 shrink-0 mt-1.5" />}
-                  </div>
+                  </button>
                 );
               })}
             </div>

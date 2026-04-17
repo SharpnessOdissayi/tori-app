@@ -746,17 +746,22 @@ export default function Book({ slugOverride }: { slugOverride?: string } = {}) {
     const bizImg  = (business as any).bannerUrl
                   || (business as any).logoUrl
                   || "/opengraph.jpg";
-    const bizUrl  = typeof window !== "undefined" ? window.location.href : "";
+    // This block is inside a useEffect so we're always in the browser —
+    // `window` is defined. The old `|| "http://localhost"` fallback
+    // could leak into shared meta tags if the guard ever misfired, so
+    // point the fallback at the real production origin instead.
+    const origin = window.location.origin || "https://kavati.net";
+    const bizUrl = window.location.href;
     document.title = `${bizName} — קבעתי`;
     setMeta("property", "og:title", bizName);
     setMeta("property", "og:description", String(bizDesc));
-    setMeta("property", "og:image", new URL(bizImg, typeof window !== "undefined" ? window.location.origin : "http://localhost").href);
+    setMeta("property", "og:image", new URL(bizImg, origin).href);
     setMeta("property", "og:url", bizUrl);
     setMeta("property", "og:type", "website");
     setMeta("name", "twitter:card", "summary_large_image");
     setMeta("name", "twitter:title", bizName);
     setMeta("name", "twitter:description", String(bizDesc));
-    setMeta("name", "twitter:image", new URL(bizImg, typeof window !== "undefined" ? window.location.origin : "http://localhost").href);
+    setMeta("name", "twitter:image", new URL(bizImg, origin).href);
   }, [business, fontFamily]);
 
   // Google sign-in for login gate

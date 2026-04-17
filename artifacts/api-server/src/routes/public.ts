@@ -19,6 +19,14 @@ import { signPhoneVerificationToken, verifyPhoneVerificationToken } from "../lib
 
 const router = Router();
 
+// Thrown from inside db.transaction() when the requested slot is already
+// gone by the time we hold the advisory lock. Caught one frame out to
+// translate it to a 409 response — letting it bubble would surface as a
+// generic 500 to clients.
+class SlotNoLongerAvailableError extends Error {
+  constructor() { super("slot_unavailable"); this.name = "SlotNoLongerAvailableError"; }
+}
+
 // Israel is UTC+3 in summer (Apr–Oct) and UTC+2 in winter
 function israelTimeToUTC(dateStr: string, timeStr: string): Date {
   const month = parseInt(dateStr.split("-")[1], 10);
@@ -489,12 +497,6 @@ router.post("/public/:businessSlug/appointments", async (req, res): Promise<void
   }
 
   const bufferMinutes = service.bufferMinutes > 0 ? service.bufferMinutes : business.bufferMinutes;
-  const slots = await computeAvailableSlots(business.id, appointmentDate, service.durationMinutes, bufferMinutes, business.maxAppointmentsPerDay);
-  const slot = slots.find((s) => s.time === appointmentTime);
-  if (!slot || !slot.available) {
-    res.status(409).json({ error: "This time slot is no longer available" });
-    return;
-  }
 
   const tranzilaEnabled = (business as any).tranzilaEnabled ?? false;
   const depositAmountAgorot = (business as any).depositAmountAgorot ?? null;
@@ -504,38 +506,74 @@ router.post("/public/:businessSlug/appointments", async (req, res): Promise<void
   const approvalActive = isPro && business.requireAppointmentApproval;
   const appointmentStatus = requiresPayment ? "pending_payment" : approvalActive ? "pending" : "confirmed";
 
-  // Idempotency: if same client+service+date+time already exists (not cancelled), return it
-  const [existing] = await db
-    .select()
-    .from(appointmentsTable)
-    .where(and(
-      eq(appointmentsTable.businessId, business.id),
-      eq(appointmentsTable.serviceId, service.id),
-      eq(appointmentsTable.phoneNumber, phoneNumber),
-      eq(appointmentsTable.appointmentDate, appointmentDate),
-      eq(appointmentsTable.appointmentTime, appointmentTime),
-      sql`${appointmentsTable.status} != 'cancelled'`,
-    ));
-  if (existing) {
-    res.json({ ...existing, requiresPayment });
-    return;
+  // Transaction + per-business advisory lock → prevents two clients from
+  // both passing the availability check concurrently and double-booking
+  // the same slot. pg_advisory_xact_lock serializes any other booking
+  // attempt for THIS business until we commit; the lock is automatically
+  // released at commit/rollback. Other businesses are unaffected —
+  // concurrency across the platform stays high.
+  let appointment: typeof appointmentsTable.$inferSelect;
+  let idempotent = false;
+  try {
+    appointment = await db.transaction(async (tx) => {
+      await tx.execute(sql`SELECT pg_advisory_xact_lock(${business.id})`);
+
+      // Re-run availability INSIDE the lock — by now every prior concurrent
+      // booking for this business has already committed (or rolled back),
+      // so the slot list is authoritative for the next insert.
+      const slots = await computeAvailableSlots(business.id, appointmentDate, service.durationMinutes, bufferMinutes, business.maxAppointmentsPerDay);
+      const slot = slots.find((s) => s.time === appointmentTime);
+      if (!slot || !slot.available) {
+        throw new SlotNoLongerAvailableError();
+      }
+
+      // Idempotency: identical client+service+date+time on the same
+      // (non-cancelled) row → return it instead of creating a duplicate.
+      const [existing] = await tx
+        .select()
+        .from(appointmentsTable)
+        .where(and(
+          eq(appointmentsTable.businessId, business.id),
+          eq(appointmentsTable.serviceId, service.id),
+          eq(appointmentsTable.phoneNumber, phoneNumber),
+          eq(appointmentsTable.appointmentDate, appointmentDate),
+          eq(appointmentsTable.appointmentTime, appointmentTime),
+          sql`${appointmentsTable.status} != 'cancelled'`,
+        ));
+      if (existing) {
+        idempotent = true;
+        return existing;
+      }
+
+      const [row] = await tx
+        .insert(appointmentsTable)
+        .values({
+          businessId: business.id,
+          serviceId: service.id,
+          serviceName: service.name,
+          clientName,
+          phoneNumber,
+          appointmentDate,
+          appointmentTime,
+          durationMinutes: service.durationMinutes,
+          status: appointmentStatus,
+          notes: notes ?? undefined,
+        })
+        .returning();
+      return row;
+    });
+  } catch (err) {
+    if (err instanceof SlotNoLongerAvailableError) {
+      res.status(409).json({ error: "This time slot is no longer available" });
+      return;
+    }
+    throw err;
   }
 
-  const [appointment] = await db
-    .insert(appointmentsTable)
-    .values({
-      businessId: business.id,
-      serviceId: service.id,
-      serviceName: service.name,
-      clientName,
-      phoneNumber,
-      appointmentDate,
-      appointmentTime,
-      durationMinutes: service.durationMinutes,
-      status: appointmentStatus,
-      notes: notes ?? undefined,
-    })
-    .returning();
+  if (idempotent) {
+    res.json({ ...appointment, requiresPayment });
+    return;
+  }
 
   if (business.requirePhoneVerification) consumeVerification(phoneNumber);
 

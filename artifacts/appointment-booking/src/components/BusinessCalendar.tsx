@@ -63,6 +63,15 @@ function statusTone(status: string): "confirmed" | "pending" | "past" | "cancell
 
 // ─── Holidays (month view highlighting + all-day labels) ────────────────────
 // Owner preference: skip Rosh Chodesh (noisy, not culturally a "holiday").
+//
+// hebcal renders names with nikud (Hebrew diacritics) — "יוֹם הָעַצְמָאוּת".
+// Owners asked for the plain form. Unicode block U+0591–U+05C7 covers all
+// Hebrew points and cantillation marks, so a single regex strips them
+// without touching the base letters.
+function stripNikud(s: string): string {
+  return s.replace(/[\u0591-\u05C7]/g, "");
+}
+
 function useHolidaysInRange(start: Date, end: Date): Map<string, string[]> {
   const key = `${ymd(start)}..${ymd(end)}`;
   const [cache] = useState(() => new Map<string, Map<string, string[]>>());
@@ -83,10 +92,12 @@ function useHolidaysInRange(start: Date, end: Date): Map<string, string[]> {
       const f = (ev as any).getFlags ? (ev as any).getFlags() : 0;
       if (f & (hebFlags as any).ROSH_CHODESH) continue;
       if (f & (hebFlags as any).SHABBAT_MEVARCHIM) continue;
-      const name = ev.render("he");
+      const rawName = ev.render("he");
       // Fallback string check — belt-and-braces in case the flag bit
-      // isn't set on some locale variants.
-      if (name.startsWith("ראש חודש")) continue;
+      // isn't set on some locale variants. Strip nikud only AFTER the
+      // prefix check so the test works on the raw library output.
+      if (rawName.startsWith("ראש חודש")) continue;
+      const name = stripNikud(rawName);
       const d = ev.getDate().greg();
       const k = ymd(d);
       const arr = m.get(k) ?? [];
