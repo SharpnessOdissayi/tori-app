@@ -16,7 +16,16 @@ const NAV_LINKS = [
  * shadow takes the place of the old border-bottom so the header blends
  * into the page instead of visually cutting it in half.
  */
-export default function Navbar({ leftContent }: { leftContent?: ReactNode }) {
+export default function Navbar({
+  leftContent,
+  startContent,
+}: {
+  leftContent?: ReactNode;
+  // Renders next to the logo on the reading-start side (right in RTL).
+  // Unlike leftContent this is visible on BOTH mobile and desktop — the
+  // owner's "פתח עמוד עסק" CTA uses it so it never hides on phones.
+  startContent?: ReactNode;
+}) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [location] = useLocation();
   const brand = "hsl(211 86% 59%)";
@@ -53,6 +62,13 @@ export default function Navbar({ leftContent }: { leftContent?: ReactNode }) {
               className="h-14 w-14 object-contain cursor-pointer select-none"
             />
           </Link>
+
+          {/* Reading-start slot — always visible, both mobile & desktop.
+              Sits right after the logo (on the right in RTL, on the
+              left in LTR). */}
+          {startContent && (
+            <div className="flex items-center">{startContent}</div>
+          )}
 
           <nav className="hidden md:flex items-center gap-1 mr-2">
             {NAV_LINKS.map((link) => {

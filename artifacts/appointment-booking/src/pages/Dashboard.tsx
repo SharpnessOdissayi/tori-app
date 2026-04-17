@@ -524,22 +524,23 @@ export default function Dashboard() {
       )}
 
       <Navbar
+        startContent={
+          headerProfile?.slug && (
+            <a
+              href={`/book/${headerProfile.slug}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs sm:text-sm font-semibold text-white shadow-sm whitespace-nowrap transition-all hover:brightness-105 active:scale-[0.98]"
+              style={{ background: "linear-gradient(135deg, #3c92f0 0%, #1e6fcf 100%)" }}
+              title="צפייה בעמוד העסק"
+            >
+              צפייה בעמוד העסק ↗
+            </a>
+          )
+        }
         leftContent={
           <div className="flex items-center gap-2">
             <NotificationBell token={token!} />
-            {/* "פתח עמוד עסק" — lived on the appointments tab until now.
-                Moved into the header so it's one click from every tab. */}
-            {headerProfile?.slug && (
-              <a
-                href={`/book/${headerProfile.slug}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="hidden sm:inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-primary text-primary-foreground hover:bg-primary/90 transition"
-                title="פתח עמוד עסק"
-              >
-                פתח עמוד עסק ↗
-              </a>
-            )}
             {headerProfile?.name && (
               <span className="hidden sm:block text-sm font-medium px-3 py-1.5 rounded-lg"
                 style={{ color: "#3c92f0", border: "1px solid #3c92f040" }}>
@@ -3605,9 +3606,7 @@ function BrandingTab() {
 
           <Separator />
 
-          {/* Font picker removed — every business profile renders in
-              Rubik. Form state still carries a value so existing
-              gradient / colour / radius saves work unchanged. */}
+          <FontPicker value={form.fontFamily} onChange={v => setForm(p => ({ ...p, fontFamily: v }))} />
 
           <Separator />
 

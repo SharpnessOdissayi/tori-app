@@ -414,10 +414,12 @@ export default function Book({ slugOverride }: { slugOverride?: string } = {}) {
 
   const primaryColor = business?.primaryColor ?? "#2563eb";
   const DayButtonComp = useMemo(() => makeHolidayDayButton(primaryColor), [primaryColor]);
-  // Owner decision: every business profile renders in Rubik regardless
-  // of what's saved on the record. The font picker was removed from
-  // the dashboard — Rubik is the single brand typeface.
-  const fontFamily = "Rubik";
+  // Default font is Rubik; the business can override it via the font
+  // picker in the dashboard Branding tab. Hebrew fallback chain
+  // ('Rubik', 'Heebo', sans-serif) is applied downstream so fonts
+  // without Hebrew glyphs (e.g. M PLUS Rounded 1c) still render
+  // Hebrew characters cleanly.
+  const fontFamily = business?.fontFamily ?? "Rubik";
   const backgroundColor = (business as any)?.backgroundColor ?? null;
   const borderRadius = (business as any)?.borderRadius ?? "medium";
   const buttonRadius = (business as any)?.buttonRadius ?? "medium";
