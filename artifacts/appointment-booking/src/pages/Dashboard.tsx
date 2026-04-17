@@ -4029,10 +4029,15 @@ function BrandingTab() {
               </div>
               <div className="space-y-3">
                 <Label>תמונת רקע (באנר)</Label>
-                <p className="text-xs text-muted-foreground">מומלץ: 1200×400px • PNG/JPG • עד 5MB</p>
+                <p className="text-xs text-muted-foreground">כל מידה • PNG/JPG • עד 5MB</p>
                 {form.bannerUrl && (
+                  // Preview renders the image at its natural aspect ratio
+                  // (w-full + h-auto) instead of cropping to a short strip.
+                  // Mirrors what the public page will show on mobile —
+                  // owners upload all sorts of sizes (square, tall, wide)
+                  // and the old h-24 + object-cover hid most of the picture.
                   <div className="relative">
-                    <img src={form.bannerUrl} alt="באנר" className="w-full h-24 rounded-xl object-cover border" />
+                    <img src={form.bannerUrl} alt="באנר" className="w-full h-auto rounded-xl border" />
                     <button className="absolute -top-2 -right-2 bg-destructive text-white rounded-full w-6 h-6 flex items-center justify-center text-xs"
                       onClick={() => setForm(p => ({ ...p, bannerUrl: "" }))}>✕</button>
                   </div>
