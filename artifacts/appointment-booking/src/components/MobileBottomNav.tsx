@@ -1,4 +1,4 @@
-import { LayoutDashboard, CalendarClock, BadgeCheck, UsersRound, LayoutGrid } from "lucide-react";
+import { Home, CalendarClock, BadgeCheck, UsersRound, LayoutGrid } from "lucide-react";
 
 // Fixed 5-tab bottom nav for the mobile business-owner experience.
 // Rendered on top of the dashboard content (not inside the scrolling
@@ -18,12 +18,12 @@ export function MobileBottomNav({
   // Order in RTL grid: items[0] renders rightmost, items[4] leftmost.
   // Owner preference: approvals (w/ badge) on the right, בית in the
   // centre, תפריט on the far left.
-  // Icons deliberately differ from the reference app — BadgeCheck
-  // instead of ThumbsUp, LayoutDashboard instead of House, etc.
+  // Owner requested a literal house glyph for "בית" so the label and icon
+  // agree — we were using LayoutDashboard which reads as a grid/widget view.
   const items: Array<{ id: BottomTab; label: string; icon: React.ReactNode; badge?: number }> = [
     { id: "approvals", label: "אישור תורים", icon: <BadgeCheck className="w-5 h-5" />, badge: pendingCount },
     { id: "calendar",  label: "יומן",        icon: <CalendarClock className="w-5 h-5" /> },
-    { id: "home",      label: "בית",         icon: <LayoutDashboard className="w-5 h-5" /> },
+    { id: "home",      label: "בית",         icon: <Home className="w-5 h-5" /> },
     { id: "customers", label: "לקוחות",      icon: <UsersRound className="w-5 h-5" /> },
     { id: "menu",      label: "תפריט",       icon: <LayoutGrid className="w-5 h-5" /> },
   ];
