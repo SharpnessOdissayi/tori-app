@@ -5,7 +5,7 @@ import {
 } from "date-fns";
 import { he } from "date-fns/locale";
 import { HebrewCalendar } from "@hebcal/core";
-import { ChevronRight, ChevronLeft, RefreshCw, Search, CalendarClock, ArrowDown, MessageSquare, Calendar, CalendarDays, LayoutGrid } from "lucide-react";
+import { ChevronRight, ChevronLeft, RefreshCw, Search, CalendarClock, ArrowDown, MessageSquare, Calendar, CalendarDays, LayoutGrid, X } from "lucide-react";
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 export type CalAppt = {
@@ -94,12 +94,18 @@ function useHolidaysInRange(start: Date, end: Date): Map<string, string[]> {
 // ─── Header ─────────────────────────────────────────────────────────────────
 function CalHeader({
   view, setView, cursor, setCursor, label,
+  searchOpen, onOpenSearch, onCloseSearch, searchQuery, setSearchQuery,
 }: {
   view: View;
   setView: (v: View) => void;
   cursor: Date;
   setCursor: (d: Date) => void;
   label: string;
+  searchOpen: boolean;
+  onOpenSearch: () => void;
+  onCloseSearch: () => void;
+  searchQuery: string;
+  setSearchQuery: (q: string) => void;
 }) {
   const stepBack = () => {
     if (view === "day") setCursor(addDays(cursor, -1));
@@ -123,6 +129,28 @@ function CalHeader({
     { v: "week",  icon: <CalendarDays className="w-4 h-4" />, label: "שבוע" },
     { v: "month", icon: <LayoutGrid   className="w-4 h-4" />, label: "חודש" },
   ];
+
+  // When search is open the header collapses into a single search input
+  // with a close (X) button — keeps the phone header compact and focused.
+  if (searchOpen) {
+    return (
+      <div className="flex items-center gap-2 px-3 py-3 bg-background border-b border-border" dir="rtl" style={{ fontFamily: "'Rubik', sans-serif" }}>
+        <Search className="w-4 h-4 text-muted-foreground shrink-0" />
+        <input
+          autoFocus
+          value={searchQuery}
+          onChange={e => setSearchQuery(e.target.value)}
+          placeholder="חפש לקוח לפי שם..."
+          className="flex-1 bg-transparent border-0 focus:outline-none text-sm"
+        />
+        <button onClick={() => { setSearchQuery(""); onCloseSearch(); }}
+          className="p-2 rounded-lg hover:bg-muted/60 text-muted-foreground"
+          aria-label="סגור חיפוש">
+          <X className="w-4 h-4" />
+        </button>
+      </div>
+    );
+  }
 
   return (
     <div className="flex items-center justify-between gap-2 px-3 py-3 bg-background border-b border-border" dir="rtl" style={{ fontFamily: "'Rubik', sans-serif" }}>
@@ -153,7 +181,7 @@ function CalHeader({
         <button onClick={stepForward} className="p-2 rounded-lg hover:bg-muted/60" aria-label="הבא"><ChevronLeft className="w-4 h-4" /></button>
       </div>
 
-      {/* "חזור להיום" + search (desktop only) on the left (reading end). */}
+      {/* "חזור להיום" + search on the left (reading end). */}
       <div className="flex items-center gap-1 shrink-0">
         <button onClick={() => setCursor(new Date())}
           className="px-3 py-1.5 rounded-xl text-xs font-bold text-white shadow-sm whitespace-nowrap"
@@ -161,7 +189,7 @@ function CalHeader({
           חזור להיום
         </button>
         <button onClick={() => setCursor(new Date())} className="p-2 rounded-lg hover:bg-muted/60 hidden sm:block" aria-label="רענן"><RefreshCw className="w-4 h-4" /></button>
-        <button className="p-2 rounded-lg hover:bg-muted/60 hidden sm:block" aria-label="חיפוש"><Search className="w-4 h-4" /></button>
+        <button onClick={onOpenSearch} className="p-2 rounded-lg hover:bg-muted/60" aria-label="חיפוש"><Search className="w-4 h-4" /></button>
       </div>
     </div>
   );
@@ -697,6 +725,19 @@ export function BusinessCalendar({
   const [view, setView] = useState<View>("week");
   const [cursor, setCursor] = useState<Date>(new Date());
   const [pendingReschedule, setPendingReschedule] = useState<{ appt: CalAppt; newDate: string; newTime: string } | null>(null);
+  // Client-name search. Magnifying-glass in the header toggles an input;
+  // non-empty query surfaces a dropdown of matches. Clicking a match
+  // jumps the cursor to that date + opens the appointment edit dialog
+  // via the same onApptClick prop the cards use.
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const searchResults = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+    if (!q) return [] as CalAppt[];
+    return appointments
+      .filter(a => (a.clientName || "").toLowerCase().includes(q) && a.status !== "cancelled")
+      .slice(0, 30);
+  }, [searchQuery, appointments]);
 
   const weekDaysForCursor = useMemo(() => {
     const start = startOfWeek(cursor, { weekStartsOn: 0 });
@@ -714,8 +755,54 @@ export function BusinessCalendar({
   }, [view, cursor, weekDaysForCursor]);
 
   return (
-    <div className="border rounded-2xl overflow-hidden bg-card">
-      <CalHeader view={view} setView={setView} cursor={cursor} setCursor={setCursor} label={headerLabel} />
+    <div className="border rounded-2xl overflow-hidden bg-card relative">
+      <CalHeader
+        view={view} setView={setView}
+        cursor={cursor} setCursor={setCursor}
+        label={headerLabel}
+        searchOpen={searchOpen}
+        onOpenSearch={() => setSearchOpen(true)}
+        onCloseSearch={() => setSearchOpen(false)}
+        searchQuery={searchQuery}
+        setSearchQuery={setSearchQuery}
+      />
+
+      {/* Search results dropdown — shown while the input has text.
+          Absolutely positioned so it doesn't push the calendar body
+          down while the owner types. */}
+      {searchOpen && searchQuery.trim() && (
+        <div dir="rtl" className="absolute inset-x-3 top-[52px] z-30 max-h-72 overflow-y-auto rounded-xl border border-border bg-popover shadow-lg">
+          {searchResults.length === 0 ? (
+            <div className="py-6 text-center text-sm text-muted-foreground">אין תוצאות עבור "{searchQuery}"</div>
+          ) : (
+            <ul className="divide-y">
+              {searchResults.map(a => (
+                <li key={a.id}>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setCursor(parseYmd(a.appointmentDate));
+                      setView("day");
+                      setSearchOpen(false);
+                      setSearchQuery("");
+                      onApptClick(a);
+                    }}
+                    className="w-full text-right px-3 py-2 hover:bg-muted/60 focus:bg-muted/60 focus:outline-none"
+                  >
+                    <div className="font-semibold text-sm">{a.clientName}</div>
+                    <div className="text-xs text-muted-foreground flex gap-2">
+                      <span>{a.serviceName}</span>
+                      <span>·</span>
+                      <span dir="ltr">{a.appointmentDate} {a.appointmentTime}</span>
+                    </div>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
+
       <div className="overflow-auto max-h-[calc(100vh-220px)]">
         {view === "month" && (
           <MonthView

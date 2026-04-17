@@ -3672,6 +3672,14 @@ function BrandingTab() {
               <div className="font-bold mb-2" style={{ color: form.primaryColor }}>תצוגה מקדימה של הצבע</div>
               <button className="px-4 py-2 rounded-lg text-white text-sm font-medium" style={{ backgroundColor: form.primaryColor }}>קבע תור</button>
             </div>
+            {/* Live readability check — if the primary colour doesn't
+                give white button text enough contrast (WCAG AA = 4.5:1
+                for body text, 3:1 for large text) warn the owner so
+                they don't ship unreadable buttons. */}
+            <ContrastWarning colors={[
+              { bg: form.primaryColor, fg: "#ffffff", context: "טקסט לבן על כפתור ראשי" },
+              { bg: "#ffffff", fg: form.primaryColor, context: "טקסט צבעוני על רקע לבן" },
+            ]} />
           </div>
 
           <Separator />
@@ -5496,6 +5504,42 @@ function SubscriptionStatusCard() {
         </DialogContent>
       </Dialog>
     </>
+  );
+}
+
+// ─── Contrast helpers — WCAG relative-luminance + ratio. Used by the
+// BrandingTab <ContrastWarning /> to surface unreadable colour combos
+// in real time as the owner tweaks the brand palette.
+function _luminance(hex: string): number {
+  const m = hex.replace("#", "").padEnd(6, "0");
+  const rs = [0, 2, 4].map(i => parseInt(m.substr(i, 2), 16) / 255);
+  const [r, g, b] = rs.map(v => v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4));
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+}
+function _contrastRatio(a: string, b: string): number {
+  const la = _luminance(a);
+  const lb = _luminance(b);
+  return (Math.max(la, lb) + 0.05) / (Math.min(la, lb) + 0.05);
+}
+
+function ContrastWarning({ colors }: { colors: Array<{ bg: string; fg: string; context: string }> }) {
+  const failing = colors
+    .filter(c => /^#?[0-9a-fA-F]{6}$/.test(c.bg.replace("#", "")) && /^#?[0-9a-fA-F]{6}$/.test(c.fg.replace("#", "")))
+    .map(c => ({ ...c, ratio: _contrastRatio(c.bg, c.fg) }))
+    .filter(c => c.ratio < 4.5);
+  if (failing.length === 0) return null;
+  return (
+    <div className="mt-2 rounded-xl border border-amber-300 bg-amber-50 p-3 text-xs text-amber-900 space-y-1">
+      <div className="font-bold flex items-center gap-1.5">
+        <span>⚠️</span> בדיקת קריאות
+      </div>
+      {failing.map((c, i) => (
+        <div key={i} className="flex items-center justify-between gap-2">
+          <span>{c.context} — יחס ניגודיות {c.ratio.toFixed(1)}:1 נמוך מהמומלץ (4.5:1)</span>
+        </div>
+      ))}
+      <div className="text-[11px] opacity-80">הטקסט עלול להיראות חלש או לא קריא ללקוחות. שקלי לבחור צבע כהה יותר.</div>
+    </div>
   );
 }
 
