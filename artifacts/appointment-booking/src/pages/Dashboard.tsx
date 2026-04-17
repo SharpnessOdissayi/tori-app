@@ -59,6 +59,7 @@ import { BusinessCalendar, openRescheduleWhatsApp, type CalAppt } from "@/compon
 import { MobileBottomNav, type BottomTab } from "@/components/MobileBottomNav";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { ServiceSortableList } from "@/components/ServiceSortableList";
+import { NewAppointmentDialog } from "@/components/NewAppointmentDialog";
 
 const DAYS = ["ראשון", "שני", "שלישי", "רביעי", "חמישי", "שישי", "שבת"];
 
@@ -554,9 +555,11 @@ export default function Dashboard() {
                 {headerProfile.name}
               </span>
             )}
+            {/* Desktop-only logout — mobile uses the welcome-strip logout
+                button below to avoid stacking two identical CTAs side by side. */}
             <button
               onClick={handleLogout}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm transition-all"
+              className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm transition-all"
               style={{ color: "#c0c0c0" }}
               onMouseEnter={e => (e.currentTarget.style.color = "#3c92f0")}
               onMouseLeave={e => (e.currentTarget.style.color = "#c0c0c0")}
@@ -576,7 +579,7 @@ export default function Dashboard() {
               {(() => { const h = new Date().getHours(); return h < 12 ? "בוקר טוב! ☀️" : h < 17 ? "צהריים טובים! 🌤️" : h < 21 ? "ערב טוב! 🌆" : "לילה טוב! 🌙"; })()}
             </p>
             <p className="font-semibold text-sm" style={{ color: "#3c92f0" }}>
-              {g_((headerProfile as any)?.ownerGender, "ברוך הבא", "ברוכה הבאה")}, {(headerProfile as any)?.ownerName?.split(" ")[0] ?? ""}!
+              שלום {(headerProfile as any)?.ownerName?.split(" ")[0] ?? ""}
             </p>
           </div>
           <button
@@ -1236,6 +1239,10 @@ function AppointmentsTab({ mobileFocus }: { mobileFocus?: "calendar" | "approval
   // new calendar view). Holds the selected appointment so we can show
   // details + the customer's reliability breakdown.
   const [editAppt, setEditAppt] = useState<CalAppt | null>(null);
+  // Manual "new appointment" dialog state — opened either from the "+"
+  // button in the calendar header (empty defaults) or by clicking an
+  // empty slot in the day/week grid (prefilled date + time).
+  const [newApptDialog, setNewApptDialog] = useState<{ open: boolean; date?: string; time?: string }>({ open: false });
 
   // Reschedule via drag: PATCH server, invalidate cache, optionally open
   // the owner's personal WhatsApp with a pre-filled message (per owner
@@ -1462,6 +1469,24 @@ function AppointmentsTab({ mobileFocus }: { mobileFocus?: "calendar" | "approval
         onApptClick={setEditAppt}
         onRescheduleServer={handleReschedule}
         serviceColors={serviceColors}
+        onNewAppointment={opts => setNewApptDialog({ open: true, date: opts?.date, time: opts?.time })}
+      />
+
+      <NewAppointmentDialog
+        open={newApptDialog.open}
+        onOpenChange={v => setNewApptDialog(s => ({ ...s, open: v }))}
+        services={(Array.isArray(servicesForColors) ? servicesForColors : []).map((s: any) => ({
+          id: s.id, name: s.name, durationMinutes: s.durationMinutes,
+        }))}
+        customers={(Array.isArray(customers) ? customers : []).map((c: any) => ({
+          clientName: c.clientName, phoneNumber: c.phoneNumber,
+        }))}
+        initialDate={newApptDialog.date}
+        initialTime={newApptDialog.time}
+        onCreated={() => {
+          queryClient.invalidateQueries({ queryKey: getListBusinessAppointmentsQueryKey() });
+          queryClient.invalidateQueries({ queryKey: getGetBusinessStatsQueryKey() });
+        }}
       />
 
       {/* Keep the legacy weekly mini-grid below for quick overview.
@@ -1494,7 +1519,7 @@ function AppointmentsTab({ mobileFocus }: { mobileFocus?: "calendar" | "approval
                   </div>
                   <div className="p-3 rounded-xl bg-muted/40">
                     <div className="text-xs text-muted-foreground">משך</div>
-                    <div className="font-semibold">{editAppt.durationMinutes} דק׳</div>
+                    <div className="font-semibold">{formatDuration(editAppt.durationMinutes)}</div>
                   </div>
                   <div className="p-3 rounded-xl bg-muted/40">
                     <div className="text-xs text-muted-foreground">תאריך</div>
@@ -1983,6 +2008,23 @@ function ServicesTab() {
 
   return (
     <>
+    {/* Share-link callout — same as the home tab. Placed at the top
+        of Services so owners discover it while managing their offering. */}
+    {profile?.slug && (
+      <Card className="border-primary/40 bg-primary/5 mb-4">
+        <CardHeader className="pb-2">
+          <CardTitle className="text-base flex items-center gap-2 text-primary">
+            <span>🔗</span> הלינק שלך לקביעת תורים
+          </CardTitle>
+          <CardDescription>
+            שלח/י את הלינק הזה ללקוחות. בשיתוף ב־WhatsApp תופיע תמונה ופרטי העסק.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <CopyLinkButton slug={profile.slug} />
+        </CardContent>
+      </Card>
+    )}
     <Card>
       <CardHeader className="flex flex-row items-center justify-between pb-4">
         <div>
@@ -2381,7 +2423,7 @@ function BookingRestrictionsCard() {
 
         <div className="flex justify-end pt-2">
           <Button onClick={save} disabled={updateMutation.isPending} size="lg">
-            {updateMutation.isPending ? "שומר..." : "שמור הגבלות"}
+            {updateMutation.isPending ? "שומר..." : "שמור"}
           </Button>
         </div>
       </CardContent>
@@ -2454,20 +2496,25 @@ function WorkingHoursTab() {
       </CardHeader>
       <CardContent className="space-y-3">
         {localHours.map((h, i) => (
-          <div key={i} className="flex items-center gap-4 p-4 border rounded-xl bg-card">
+          // RTL row: day name reads first (right), switch next, times on the
+          // far left. flex-wrap + compact time inputs prevent the box from
+          // overflowing the card frame on narrow phones.
+          <div key={i} dir="rtl" className="flex flex-wrap items-center gap-3 p-4 border rounded-xl bg-card">
+            <span className="font-medium w-14 shrink-0">{DAYS[h.dayOfWeek]}</span>
             <Switch checked={h.isEnabled} onCheckedChange={v => {
               const n = [...localHours]; n[i].isEnabled = v; setLocalHours(n);
             }} />
-            <span className="font-medium w-20">{DAYS[h.dayOfWeek]}</span>
-            {h.isEnabled ? (
-              <div className="flex items-center gap-2">
-                <Input type="time" value={h.startTime} onChange={e => { const n = [...localHours]; n[i].startTime = e.target.value; setLocalHours(n); }} className="w-32" dir="ltr" />
-                <span className="text-muted-foreground">—</span>
-                <Input type="time" value={h.endTime} onChange={e => { const n = [...localHours]; n[i].endTime = e.target.value; setLocalHours(n); }} className="w-32" dir="ltr" />
-              </div>
-            ) : (
-              <span className="text-muted-foreground text-sm">סגור</span>
-            )}
+            <div className="ms-auto">
+              {h.isEnabled ? (
+                <div className="flex items-center gap-2">
+                  <Input type="time" value={h.startTime} onChange={e => { const n = [...localHours]; n[i].startTime = e.target.value; setLocalHours(n); }} className="w-[7.5rem] sm:w-32" dir="ltr" />
+                  <span className="text-muted-foreground">—</span>
+                  <Input type="time" value={h.endTime} onChange={e => { const n = [...localHours]; n[i].endTime = e.target.value; setLocalHours(n); }} className="w-[7.5rem] sm:w-32" dir="ltr" />
+                </div>
+              ) : (
+                <span className="text-muted-foreground text-sm">סגור</span>
+              )}
+            </div>
           </div>
         ))}
         <div className="pt-4 border-t space-y-2">
@@ -2481,8 +2528,8 @@ function WorkingHoursTab() {
       </CardContent>
     </Card>
 
-    {/* Save / cancel at the bottom of the tab — normal flow, not sticky. */}
-    <div className="flex items-center justify-between gap-3 pt-6 mt-4 border-t">
+    {/* Save / cancel at the bottom of the tab — adjacent, not split. */}
+    <div className="flex items-center justify-end gap-2 pt-6 mt-4 border-t">
       <Button
         type="button"
         variant="outline"
@@ -2499,7 +2546,6 @@ function WorkingHoursTab() {
           }
           toast({ title: "השינויים בוטלו" });
         }}
-        className="flex-1 sm:flex-none"
       >
         בטל עריכה
       </Button>
@@ -2508,7 +2554,6 @@ function WorkingHoursTab() {
         size="lg"
         onClick={handleSave}
         disabled={updateMutation.isPending || updateProfileMutation.isPending}
-        className="flex-1 sm:flex-none"
       >
         {updateMutation.isPending || updateProfileMutation.isPending ? "שומר..." : "שמור הכל"}
       </Button>
@@ -2844,9 +2889,9 @@ function AnalyticsTab() {
   if (!data) return null;
 
   const stats = [
-    { label: "תורים קבועים עתידיים", value: data.future, color: "text-blue-600", bg: "bg-blue-50" },
-    { label: "תורים שהושלמו", value: data.past, color: "text-green-600", bg: "bg-green-50" },
     { label: "תורים שבוטלו", value: data.cancelled, color: "text-red-500", bg: "bg-red-50" },
+    { label: "תורים שהושלמו", value: data.past, color: "text-green-600", bg: "bg-green-50" },
+    { label: "תורים קבועים עתידיים", value: data.future, color: "text-blue-600", bg: "bg-blue-50" },
     { label: "סה\"כ תורים פעילים", value: data.total, color: "text-purple-600", bg: "bg-purple-50" },
   ];
 
@@ -3085,6 +3130,8 @@ function CustomersTab() {
   const [broadcastMessage, setBroadcastMessage] = useState("");
   const [broadcastLoading, setBroadcastLoading] = useState(false);
   const [quota, setQuota] = useState<{ sent: number; limit: number; remaining: number } | null>(null);
+  // Cancellation-breakdown popup — set to a customer record to open, null to close.
+  const [cancelBreakdown, setCancelBreakdown] = useState<any | null>(null);
 
   useEffect(() => {
     if (!token) return;
@@ -3245,9 +3292,14 @@ function CustomersTab() {
                         </span>
                       )}
                       {cancelledCount > 0 && (
-                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-orange-50 text-orange-700 border border-orange-100">
+                        <button
+                          type="button"
+                          onClick={() => setCancelBreakdown(c)}
+                          className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-orange-50 text-orange-700 border border-orange-100 hover:bg-orange-100 transition-colors cursor-pointer"
+                          title="הצג פירוט ביטולים"
+                        >
                           ↩️ {cancelledCount} ביטולים
-                        </span>
+                        </button>
                       )}
                     </div>
                   </div>
@@ -3278,6 +3330,49 @@ function CustomersTab() {
           ) : <EmptyState text="אין לקוחות עדיין" />}
         </CardContent>
       </Card>
+
+      {/* Cancellation breakdown dialog — opens when the owner taps a
+          customer's "↩️ N ביטולים" chip. Shows how many the client
+          cancelled vs how many the business cancelled. Older rows that
+          predate the cancelled_by column get bucketed as "לא ידוע". */}
+      <Dialog open={!!cancelBreakdown} onOpenChange={v => { if (!v) setCancelBreakdown(null); }}>
+        <DialogContent dir="rtl" className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>פירוט ביטולים — {cancelBreakdown?.clientName}</DialogTitle>
+            <DialogDescription>
+              מי ביטל כל תור. ביטולים ישנים לפני השדרוג יופיעו כ״לא ידוע״.
+            </DialogDescription>
+          </DialogHeader>
+          {cancelBreakdown && (() => {
+            const byClient = (cancelBreakdown as any).cancelledByClientCount ?? 0;
+            const byBusiness = (cancelBreakdown as any).cancelledByBusinessCount ?? 0;
+            const total = (cancelBreakdown as any).cancelledCount ?? 0;
+            const unknown = Math.max(0, total - byClient - byBusiness);
+            return (
+              <div className="space-y-3 pt-2">
+                <div className="flex items-center justify-between p-3 rounded-xl bg-orange-50 border border-orange-100">
+                  <span className="font-semibold text-orange-800">הלקוח/ה ביטל/ה</span>
+                  <span className="text-2xl font-bold text-orange-700">{byClient}</span>
+                </div>
+                <div className="flex items-center justify-between p-3 rounded-xl bg-blue-50 border border-blue-100">
+                  <span className="font-semibold text-blue-800">את/ה ביטלת</span>
+                  <span className="text-2xl font-bold text-blue-700">{byBusiness}</span>
+                </div>
+                {unknown > 0 && (
+                  <div className="flex items-center justify-between p-3 rounded-xl bg-muted/40 border">
+                    <span className="font-semibold text-muted-foreground">לא ידוע</span>
+                    <span className="text-2xl font-bold text-muted-foreground">{unknown}</span>
+                  </div>
+                )}
+                <div className="flex items-center justify-between pt-2 border-t">
+                  <span className="text-sm text-muted-foreground">סה״כ ביטולים</span>
+                  <span className="text-lg font-bold">{total}</span>
+                </div>
+              </div>
+            );
+          })()}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
@@ -4822,10 +4917,40 @@ function SettingsTab() {
                   <Label>שם העסק</Label>
                   <Input value={form.name} onChange={e => setForm(p => ({ ...p, name: e.target.value }))} required />
                 </div>
-                <div className="space-y-2">
-                  <Label>שם הבעלים</Label>
-                  <Input value={form.ownerName} onChange={e => setForm(p => ({ ...p, ownerName: e.target.value }))} required />
-                </div>
+                {/* Owner name is stored as a single `ownerName` in the DB but
+                    edited as two fields here. We split on whitespace on read
+                    and re-join on write so the existing backend/migration
+                    doesn't need to change. */}
+                {(() => {
+                  const parts = (form.ownerName || "").trim().split(/\s+/).filter(Boolean);
+                  const firstName = parts[0] ?? "";
+                  const lastName = parts.slice(1).join(" ");
+                  return (
+                    <>
+                      <div className="space-y-2">
+                        <Label>שם פרטי</Label>
+                        <Input
+                          value={firstName}
+                          onChange={e => {
+                            const fn = e.target.value;
+                            setForm(p => ({ ...p, ownerName: `${fn}${lastName ? " " + lastName : ""}` }));
+                          }}
+                          required
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>שם משפחה</Label>
+                        <Input
+                          value={lastName}
+                          onChange={e => {
+                            const ln = e.target.value;
+                            setForm(p => ({ ...p, ownerName: `${firstName}${ln ? " " + ln : ""}`.trim() }));
+                          }}
+                        />
+                      </div>
+                    </>
+                  );
+                })()}
                 <div className="space-y-2 sm:col-span-2">
                   <Label>איך לפנות אליך?</Label>
                   <div className="flex gap-2">
@@ -4864,27 +4989,12 @@ function SettingsTab() {
                 {/* Old "לינק לקביעת תור" block removed — the share
                     link now lives in the highlighted notice banner at
                     the top of the settings page. */}
-                <div className="space-y-2 sm:col-span-2">
-                  <Label>כתובת ייחודית של העסק (Slug)</Label>
-                  <div
-                    dir="ltr"
-                    className="flex items-stretch rounded-xl border bg-background overflow-hidden focus-within:ring-2 focus-within:ring-primary focus-within:border-primary transition-all"
-                  >
-                    <input
-                      dir="ltr"
-                      className="flex-1 min-w-0 px-4 py-2.5 bg-transparent text-sm outline-none font-mono"
-                      placeholder="my-business"
-                      value={form.slug ?? ""}
-                      onChange={e => setForm(p => ({ ...p, slug: e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, "") }))}
-                    />
-                    <span className="px-4 flex items-center text-sm text-muted-foreground whitespace-nowrap border-r bg-muted/50 font-mono">
-                      kavati.net/book/
-                    </span>
-                  </div>
-                  <p className="text-xs text-muted-foreground">
-                    רק אותיות באנגלית, מספרים ומקפים. שינוי הכתובת ישנה את הלינק להזמנת תור — לקוחות ישנים צריכים את הלינק החדש.
-                  </p>
-                </div>
+                {/* Slug editor removed per owner — the canonical
+                    share link is the /api/s/<slug> URL, and editing
+                    the slug directly caused confusion (the inline
+                    block still showed the old /book/<slug> form).
+                    The slug is still set at signup and can be changed
+                    by SuperAdmin if truly needed. */}
               </div>
             </div>
 

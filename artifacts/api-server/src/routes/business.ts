@@ -614,6 +614,55 @@ router.get("/business/appointments", requireBusinessAuth, async (req, res): Prom
   res.json(appointments.map((a) => ({ ...a, createdAt: a.createdAt.toISOString() })));
 });
 
+// Owner-created manual appointment — bypass the customer-facing OTP
+// verification + availability checks. Owner clicked a time slot or the
+// "new appointment" button in the calendar, picked a client + service,
+// and hit save. Goes in as status='confirmed' directly because the
+// owner is the source of truth.
+router.post("/business/appointments", requireBusinessAuth, async (req, res): Promise<void> => {
+  const businessId = req.business!.businessId;
+  const { serviceId, clientName, phoneNumber, appointmentDate, appointmentTime, notes } = (req.body ?? {}) as any;
+
+  const svcIdNum = Number(serviceId);
+  if (!svcIdNum || !clientName?.trim() || !appointmentDate || !appointmentTime) {
+    res.status(400).json({ error: "missing_fields", message: "שירות, שם לקוח, תאריך ושעה הם שדות חובה" });
+    return;
+  }
+
+  const [service] = await db
+    .select()
+    .from(servicesTable)
+    .where(and(eq(servicesTable.id, svcIdNum), eq(servicesTable.businessId, businessId)));
+  if (!service) { res.status(404).json({ error: "service_not_found" }); return; }
+
+  const [appointment] = await db
+    .insert(appointmentsTable)
+    .values({
+      businessId,
+      serviceId: svcIdNum,
+      serviceName: service.name,
+      clientName: String(clientName).trim(),
+      phoneNumber: String(phoneNumber ?? "").trim(),
+      appointmentDate: String(appointmentDate),
+      appointmentTime: String(appointmentTime),
+      durationMinutes: service.durationMinutes,
+      status: "confirmed",
+      notes: notes ? String(notes).slice(0, 1000) : undefined,
+    })
+    .returning();
+
+  logBusinessNotification({
+    businessId,
+    type: "new_booking",
+    appointmentId: appointment.id,
+    message: `תור חדש שקבעת: ${clientName} — ${service.name} ב-${appointmentDate} בשעה ${appointmentTime}`,
+    actorType: "business",
+    actorName: req.business!.businessName,
+  });
+
+  res.status(201).json({ ...appointment, createdAt: appointment.createdAt.toISOString() });
+});
+
 router.patch("/business/appointments/:id/approve", requireBusinessAuth, async (req, res): Promise<void> => {
   const rawId = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
   const id = Number(rawId);
@@ -840,6 +889,7 @@ router.get("/business/customers", requireBusinessAuth, async (req, res): Promise
       phoneNumber: appointmentsTable.phoneNumber,
       appointmentDate: appointmentsTable.appointmentDate,
       status: appointmentsTable.status,
+      cancelledBy: sql<string | null>`appointments.cancelled_by`,
       price: sql<number>`COALESCE(${servicesTable.price}, 0)`.as("price"),
     })
     .from(appointmentsTable)
@@ -850,10 +900,12 @@ router.get("/business/customers", requireBusinessAuth, async (req, res): Promise
   const customerMap = new Map<string, {
     clientName: string;
     phoneNumber: string;
-    totalVisits: number;       // attended (confirmed / completed / pending)
-    totalRevenue: number;      // revenue from attended visits only
-    noShowCount: number;       // status='no_show' (cancelReason='ברז')
-    cancelledCount: number;    // status='cancelled'
+    totalVisits: number;              // attended (confirmed / completed / pending)
+    totalRevenue: number;              // revenue from attended visits only
+    noShowCount: number;               // status='no_show' (cancelReason='ברז')
+    cancelledCount: number;            // status='cancelled' (any side)
+    cancelledByClientCount: number;    // subset: cancelled_by='client'
+    cancelledByBusinessCount: number;  // subset: cancelled_by='business'
     lastVisitDate: string;
     firstVisitDate: string;
   }>();
@@ -871,6 +923,8 @@ router.get("/business/customers", requireBusinessAuth, async (req, res): Promise
         totalRevenue: 0,
         noShowCount: 0,
         cancelledCount: 0,
+        cancelledByClientCount: 0,
+        cancelledByBusinessCount: 0,
         firstVisitDate: "",
         lastVisitDate: "",
       });
@@ -879,6 +933,8 @@ router.get("/business/customers", requireBusinessAuth, async (req, res): Promise
 
     if (a.status === "cancelled") {
       record.cancelledCount += 1;
+      if (a.cancelledBy === "client") record.cancelledByClientCount += 1;
+      else if (a.cancelledBy === "business") record.cancelledByBusinessCount += 1;
     } else if (a.status === "no_show") {
       record.noShowCount += 1;
     } else {

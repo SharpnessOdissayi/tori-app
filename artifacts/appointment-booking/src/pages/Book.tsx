@@ -2155,7 +2155,7 @@ export default function Book({ slugOverride }: { slugOverride?: string } = {}) {
                           {(selectedService as any).description}
                         </p>
                       )}
-                      <div className="text-xs text-muted-foreground">משך השירות: {selectedService.durationMinutes} דקות</div>
+                      <div className="text-xs text-muted-foreground">משך השירות: <bdi>{formatDuration(selectedService.durationMinutes)}</bdi></div>
                     </div>
                   )}
                   <h2 className="text-xl font-bold">בחר תאריך ושעה</h2>
@@ -2489,10 +2489,10 @@ export default function Book({ slugOverride }: { slugOverride?: string } = {}) {
           <a href="/terms" className="hover:text-foreground transition-colors">תנאי שימוש</a>
           <a href="/contact" className="hover:text-foreground transition-colors">יצירת קשר</a>
         </div>
-        <div>
-          מופעל על ידי{" "}
-          <a href="/" className="font-bold text-foreground hover:text-primary transition-colors">קבעתי</a>
-        </div>
+        <a href="/" className="inline-flex items-center justify-center gap-2 font-bold text-foreground hover:text-primary transition-colors">
+          <span>מופעל על ידי קבעתי</span>
+          <img src="/icon.svg" alt="קבעתי" className="w-16 h-16 object-contain shrink-0" />
+        </a>
       </footer>
 
       {/* Accessibility floating button (IS 5568 / WCAG 2.1) */}

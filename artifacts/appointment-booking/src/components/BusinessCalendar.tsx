@@ -5,7 +5,7 @@ import {
 } from "date-fns";
 import { he } from "date-fns/locale";
 import { HebrewCalendar, flags as hebFlags } from "@hebcal/core";
-import { ChevronRight, ChevronLeft, RefreshCw, Search, CalendarClock, ArrowDown, MessageSquare, Calendar, CalendarDays, LayoutGrid, X } from "lucide-react";
+import { ChevronRight, ChevronLeft, RefreshCw, Search, CalendarClock, ArrowDown, MessageSquare, Calendar, CalendarDays, LayoutGrid, X, Plus } from "lucide-react";
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 export type CalAppt = {
@@ -102,6 +102,7 @@ function useHolidaysInRange(start: Date, end: Date): Map<string, string[]> {
 function CalHeader({
   view, setView, cursor, setCursor, label,
   searchOpen, onOpenSearch, onCloseSearch, searchQuery, setSearchQuery,
+  onNewAppointment,
 }: {
   view: View;
   setView: (v: View) => void;
@@ -113,6 +114,7 @@ function CalHeader({
   onCloseSearch: () => void;
   searchQuery: string;
   setSearchQuery: (q: string) => void;
+  onNewAppointment?: () => void;
 }) {
   const stepBack = () => {
     if (view === "day") setCursor(addDays(cursor, -1));
@@ -190,6 +192,18 @@ function CalHeader({
 
       {/* "חזור להיום" + search on the left (reading end). */}
       <div className="flex items-center gap-1 shrink-0">
+        {onNewAppointment && (
+          <button
+            onClick={onNewAppointment}
+            title="תור חדש"
+            aria-label="תור חדש"
+            className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl text-xs font-bold text-white shadow-sm whitespace-nowrap"
+            style={{ background: "linear-gradient(135deg, #16a34a 0%, #15803d 100%)" }}
+          >
+            <Plus className="w-4 h-4" />
+            <span className="hidden sm:inline">תור חדש</span>
+          </button>
+        )}
         <button onClick={() => setCursor(new Date())}
           className="px-3 py-1.5 rounded-xl text-xs font-bold text-white shadow-sm whitespace-nowrap"
           style={{ background: "linear-gradient(135deg, #3c92f0 0%, #1e6fcf 100%)" }}>
@@ -455,13 +469,16 @@ function ApptCard({
 }
 
 function TimeGrid({
-  days, appts, onApptClick, onReschedule, serviceColors,
+  days, appts, onApptClick, onReschedule, serviceColors, onPickSlot,
 }: {
   days: Date[];
   appts: CalAppt[];
   onApptClick: (a: CalAppt) => void;
   onReschedule: (a: CalAppt, newDate: string, newTime: string) => void;
   serviceColors?: ServiceColorMap;
+  // Called when the owner clicks an empty slot in a day column —
+  // snaps to the nearest 30-min slot and passes date + HH:mm.
+  onPickSlot?: (date: string, time: string) => void;
 }) {
   const holidays = useHolidaysInRange(days[0], days[days.length - 1]);
   const today = new Date();
@@ -520,7 +537,21 @@ function TimeGrid({
             <div
               key={k}
               ref={el => registerCol(k, el)}
-              className={`relative border-l border-border ${isHoliday ? "bg-primary/5" : ""}`}
+              onClick={e => {
+                // Only fire when the click was on the column background
+                // itself — not on an appointment card (cards stop
+                // propagation) and not while a drag is active.
+                if (!onPickSlot) return;
+                if (drag) return;
+                const rect = (e.currentTarget as HTMLDivElement).getBoundingClientRect();
+                const relY = e.clientY - rect.top;
+                const slotIdx = Math.max(0, Math.min(
+                  Math.floor(relY / SLOT_PX),
+                  totalSlots - 1,
+                ));
+                onPickSlot(k, minutesToTime(slotIndexToMinutes(slotIdx)));
+              }}
+              className={`relative border-l border-border ${onPickSlot ? "cursor-pointer" : ""} ${isHoliday ? "bg-primary/5" : ""}`}
             >
               {/* Half-hour grid lines (bg every hour lighter, every 30 darker) */}
               {Array.from({ length: totalSlots }).map((_, i) => (
@@ -721,6 +752,7 @@ export function BusinessCalendar({
   onApptClick,
   onRescheduleServer,
   serviceColors,
+  onNewAppointment,
 }: {
   appointments: CalAppt[];
   onApptClick: (a: CalAppt) => void;
@@ -728,6 +760,10 @@ export function BusinessCalendar({
   // for the PATCH + WhatsApp open (so the calendar stays purely visual).
   onRescheduleServer: (appt: CalAppt, newDate: string, newTime: string, sendNotification: boolean) => void;
   serviceColors?: ServiceColorMap;
+  // Opens the parent's "new appointment" dialog. No args → open with
+  // empty defaults (from the header "+"); with args → prefilled from
+  // the empty slot the owner clicked.
+  onNewAppointment?: (opts?: { date?: string; time?: string }) => void;
 }) {
   const [view, setView] = useState<View>("week");
   const [cursor, setCursor] = useState<Date>(new Date());
@@ -772,6 +808,7 @@ export function BusinessCalendar({
         onCloseSearch={() => setSearchOpen(false)}
         searchQuery={searchQuery}
         setSearchQuery={setSearchQuery}
+        onNewAppointment={onNewAppointment ? () => onNewAppointment() : undefined}
       />
 
       {/* Search results dropdown — shown while the input has text.
@@ -825,6 +862,7 @@ export function BusinessCalendar({
             serviceColors={serviceColors}
             onApptClick={onApptClick}
             onReschedule={(a, nd, nt) => setPendingReschedule({ appt: a, newDate: nd, newTime: nt })}
+            onPickSlot={onNewAppointment ? (date, time) => onNewAppointment({ date, time }) : undefined}
           />
         )}
         {view === "day" && (
@@ -834,6 +872,7 @@ export function BusinessCalendar({
             serviceColors={serviceColors}
             onApptClick={onApptClick}
             onReschedule={(a, nd, nt) => setPendingReschedule({ appt: a, newDate: nd, newTime: nt })}
+            onPickSlot={onNewAppointment ? (date, time) => onNewAppointment({ date, time }) : undefined}
           />
         )}
       </div>

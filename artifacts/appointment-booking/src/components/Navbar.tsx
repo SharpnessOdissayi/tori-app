@@ -54,7 +54,7 @@ export default function Navbar({
         </button>
 
         {/* Logo + nav links + CTAs (desktop-right, mobile-left) */}
-        <div className="flex items-center flex-1 order-2 md:order-1 justify-end md:justify-start gap-3">
+        <div className="flex items-center md:flex-1 order-2 md:order-1 justify-end md:justify-start gap-3">
           <Link href="/">
             <img
               src="/icon.svg"
@@ -124,9 +124,12 @@ export default function Navbar({
           </nav>
         </div>
 
-        {/* LEFT: page-specific content (dashboard logout etc.) — desktop only */}
+        {/* LEFT: page-specific content (dashboard logout, bell, etc.). Visible
+            on mobile too now — used to be desktop-only, but the owner's
+            notifications bell needs to be reachable on phones. order-3 on
+            mobile parks it at the visual-left edge (end of RTL flex). */}
         {leftContent && (
-          <div className="hidden md:flex items-center gap-2 md:order-2">
+          <div className="flex items-center gap-2 order-3 md:order-2">
             {leftContent}
           </div>
         )}

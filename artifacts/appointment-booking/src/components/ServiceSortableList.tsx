@@ -2,6 +2,16 @@ import { useMemo, useRef, useState, type ReactNode } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Edit, Trash2, GripVertical } from "lucide-react";
 
+function formatDuration(minutes: number): string {
+  const h = Math.floor(minutes / 60);
+  const m = minutes % 60;
+  const hourPart = h === 0 ? "" : h === 1 ? "שעה" : h === 2 ? "שעתיים" : `${h} שעות`;
+  const minPart = m === 0 ? "" : m === 1 ? "דקה" : `${m} דקות`;
+  if (!hourPart) return minPart || "0 דקות";
+  if (!minPart) return hourPart;
+  return `${hourPart} ו-${minPart}`;
+}
+
 type ServiceLike = {
   id: number;
   name: string;
@@ -137,7 +147,7 @@ export function ServiceSortableList({
                   {!s.isActive && <Badge variant="secondary" className="text-xs">לא פעיל</Badge>}
                 </div>
                 <div className="text-sm text-muted-foreground mt-1" dir="rtl">
-                  <bdi>₪{(s.price / 100).toFixed(0)}</bdi>{" • "}<bdi>{s.durationMinutes} דק׳</bdi>
+                  <bdi>₪{(s.price / 100).toFixed(0)}</bdi>{" • "}<bdi>{formatDuration(s.durationMinutes)}</bdi>
                   {s.bufferMinutes > 0 && <span className="mr-2"> • מאגר: {s.bufferMinutes} דקות</span>}
                 </div>
               </div>
