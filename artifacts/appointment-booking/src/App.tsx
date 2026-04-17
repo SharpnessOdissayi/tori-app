@@ -16,6 +16,7 @@ import Privacy from "@/pages/Privacy";
 import Terms from "@/pages/Terms";
 import PaymentSuccess from "@/pages/PaymentSuccess";
 import PaymentFail from "@/pages/PaymentFail";
+import InstallApp from "@/pages/InstallApp";
 import AccessibilityFab from "@/components/AccessibilityFab";
 import ThemeToggleFab from "@/components/ThemeToggleFab";
 
@@ -67,6 +68,7 @@ function Router() {
       <Route path="/terms" component={Terms} />
       <Route path="/payment/success" component={PaymentSuccess} />
       <Route path="/payment/fail" component={PaymentFail} />
+      <Route path="/install-app" component={InstallApp} />
       <Route component={NotFound} />
     </Switch>
   );

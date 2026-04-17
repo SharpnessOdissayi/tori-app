@@ -1,6 +1,7 @@
 import { createRoot } from "react-dom/client";
 import App from "./App";
 import "./index.css";
+import { capturePromptEvent, registerServiceWorker } from "./lib/pwa";
 
 // When running as a native Android/iOS app via Capacitor,
 // all API calls must be absolute (pointing to the Railway server).
@@ -20,6 +21,12 @@ async function bootstrap() {
   } catch {
     // Running in browser without Capacitor — no action needed
   }
+
+  // PWA: capture the install prompt early so the InstallApp page can
+  // trigger it on demand, and register the service worker for offline
+  // + instant launch from the home-screen icon (production builds only).
+  capturePromptEvent();
+  registerServiceWorker();
 
   createRoot(document.getElementById("root")!).render(<App />);
 }

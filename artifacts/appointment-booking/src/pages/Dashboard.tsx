@@ -46,7 +46,7 @@ import {
   ExternalLink, Info, Upload, Image as ImageIcon, Crown, Zap, X, Copy, Check, Link,
   ChevronLeft, ChevronRight, Eye, EyeOff, Umbrella, DollarSign,
   MessageSquare, Send, Search, ChevronDown, Instagram, Bell, FileText,
-  XCircle, CheckCircle2, RotateCw, Hourglass
+  XCircle, CheckCircle2, RotateCw, Hourglass, Download
 } from "lucide-react";
 import { useLocation } from "wouter";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
@@ -712,6 +712,24 @@ export default function Dashboard() {
               </button>
             ))}
           </div>
+
+          {/* Full-width row under the grid — PWA install shortcut. Lives
+              here (not in the grid) so it doesn't visually compete with
+              the main categories and so it reads as a call-to-action. */}
+          <a
+            href="/install-app"
+            className="mt-2 flex items-center gap-3 p-4 rounded-2xl border border-primary/30 bg-gradient-to-l from-primary/10 to-primary/5 text-right hover:from-primary/15 hover:to-primary/10 transition-colors"
+          >
+            <div className="w-11 h-11 rounded-xl flex items-center justify-center text-white shrink-0"
+              style={{ background: "linear-gradient(135deg, #3c92f0 0%, #1e6fcf 100%)" }}>
+              <Download className="w-5 h-5" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="font-bold text-sm text-primary">התקן את קבעתי כאפליקציה</div>
+              <div className="text-[11px] text-muted-foreground mt-0.5">אייקון על המסך הבית · מסך מלא · התראות בזמן אמת</div>
+            </div>
+            <ChevronLeft className="w-4 h-4 text-primary/60 shrink-0" />
+          </a>
         </SheetContent>
       </Sheet>
     </div>
