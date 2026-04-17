@@ -74,18 +74,18 @@ const BUSINESS_CATEGORIES = [
   "וטרינר","קייטרינג ואירועים","אחר","העסק שלי לא נמצא ברשימה",
 ];
 
-// Curated short list (owner pick). Default is Rubik — every preset
-// inherits it, the dashboard UI is pinned to it. Assistant / Secular
-// One / Varela Round kept as Hebrew alternatives; the three Google
-// Fonts the owner pasted added for playful branding options.
+// Curated short list (owner pick). Default is Rubik. Every font here
+// supports Hebrew natively OR is fed through a fallback chain in
+// Book.tsx (see applyFontFamily below) so Hebrew characters always
+// render cleanly even when the primary face doesn't include them
+// (e.g. M PLUS Rounded 1c — Japanese/Latin, no Hebrew glyphs).
 const HEBREW_FONTS = [
   { value: "Rubik", label: "Rubik" },
   { value: "Assistant", label: "Assistant" },
   { value: "Secular One", label: "Secular One" },
   { value: "Varela Round", label: "Varela Round" },
   { value: "Playpen Sans Hebrew", label: "Playpen Sans Hebrew" },
-  { value: "Knewave", label: "Knewave" },
-  { value: "Emilys Candy", label: "Emilys Candy" },
+  { value: "M PLUS Rounded 1c", label: "M PLUS Rounded 1c" },
 ];
 
 const PRESET_COLORS = [
@@ -3412,100 +3412,10 @@ function BrandingTab() {
 
   return (
     <div className="space-y-6">
-      {/* Preset chooser — one-click professional looks */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <span className="w-8 h-8 rounded-lg bg-gradient-to-br from-blue-500 to-fuchsia-500 flex items-center justify-center text-white text-sm">✨</span>
-            עיצובים מוכנים
-          </CardTitle>
-          <CardDescription>בחרו עיצוב — תוכלו להשאיר אותו כמו שהוא או לשנות כל פרט בהמשך העמוד (צבע ראשי, פונט, פינות, כפתורים ועוד).</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-            {DESIGN_PRESETS.map(preset => {
-              const active = form.designPreset === preset.id;
-              const v = preset.values;
-              const buttonPx = v.buttonRadius === "none" || v.buttonRadius === "small" ? "6px"
-                : v.buttonRadius === "full" || v.buttonRadius === "large" ? "9999px" : "12px";
-              const cardPx = v.borderRadius === "none" || v.borderRadius === "small" ? "6px"
-                : v.borderRadius === "full" || v.borderRadius === "large" ? "20px" : "12px";
-              return (
-                <button
-                  key={preset.id}
-                  onClick={() => applyPreset(preset.id)}
-                  className={`relative rounded-2xl overflow-hidden transition-all text-right group ${active ? "ring-2 ring-primary shadow-xl scale-[1.02]" : "ring-1 ring-border hover:ring-primary/40 hover:shadow-lg hover:-translate-y-0.5"}`}
-                >
-                  {/* Mini mockup preview */}
-                  <div
-                    className="h-32 p-3 flex flex-col justify-between relative overflow-hidden"
-                    style={{
-                      background: v.gradientEnabled && v.gradientFrom && v.gradientTo
-                        ? `linear-gradient(${v.gradientAngle}deg, ${v.gradientFrom}, ${v.gradientTo})`
-                        : (v.backgroundColor || preset.preview.bg),
-                      fontFamily: `'${v.fontFamily}', sans-serif`,
-                    }}
-                  >
-                    {/* Decorative pattern dots */}
-                    {v.backgroundPattern === "dots" && (
-                      <div className="absolute inset-0 opacity-30"
-                        style={{ backgroundImage: "radial-gradient(rgba(0,0,0,0.2) 1px, transparent 1px)", backgroundSize: "8px 8px" }} />
-                    )}
-
-                    {/* Faux logo + title */}
-                    <div className="flex items-center gap-2 relative z-10">
-                      <div
-                        className="w-6 h-6 shadow"
-                        style={{
-                          background: v.primaryColor,
-                          borderRadius: cardPx,
-                        }}
-                      />
-                      <div
-                        className="h-2 w-14 rounded-full"
-                        style={{ background: v.themeMode === "dark" ? "rgba(255,255,255,0.6)" : "rgba(0,0,0,0.5)" }}
-                      />
-                    </div>
-
-                    {/* Faux service card */}
-                    <div
-                      className="relative z-10 px-2 py-1.5 flex items-center justify-between shadow-sm"
-                      style={{
-                        background: v.themeMode === "dark" ? "rgba(255,255,255,0.1)" : "rgba(255,255,255,0.85)",
-                        borderRadius: cardPx,
-                        backdropFilter: "blur(4px)",
-                      }}
-                    >
-                      <div
-                        className="h-1.5 w-10 rounded-full"
-                        style={{ background: v.accentColor || v.primaryColor, opacity: 0.6 }}
-                      />
-                      <div
-                        className="px-2 py-0.5 text-[9px] font-bold text-white"
-                        style={{ background: v.primaryColor, borderRadius: buttonPx }}
-                      >
-                        קבע
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Label */}
-                  <div className="p-3 bg-background text-right">
-                    <div className="font-bold text-sm">{preset.name}</div>
-                    <div className="text-xs text-muted-foreground line-clamp-1">{preset.description}</div>
-                  </div>
-
-                  {active && (
-                    <div className="absolute top-2 right-2 w-7 h-7 rounded-full bg-primary text-white flex items-center justify-center shadow-lg">
-                      <Check className="w-4 h-4" />
-                    </div>
-                  )}
-                </button>
-              );
-            })}
-          </div>
-        </CardContent>
-      </Card>
+      {/* Design presets removed per owner request — every business
+          now gets the same default look (Rubik, Kavati brand colours)
+          and customises only what they need: background, gradient,
+          primary colour, corner style. */}
 
       {/* Live preview — mirrors the real Book.tsx rendering */}
       {(() => {
@@ -3695,7 +3605,9 @@ function BrandingTab() {
 
           <Separator />
 
-          <FontPicker value={form.fontFamily} onChange={v => setForm(p => ({ ...p, fontFamily: v }))} />
+          {/* Font picker removed — every business profile renders in
+              Rubik. Form state still carries a value so existing
+              gradient / colour / radius saves work unchanged. */}
 
           <Separator />
 

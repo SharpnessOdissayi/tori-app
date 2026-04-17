@@ -414,7 +414,10 @@ export default function Book({ slugOverride }: { slugOverride?: string } = {}) {
 
   const primaryColor = business?.primaryColor ?? "#2563eb";
   const DayButtonComp = useMemo(() => makeHolidayDayButton(primaryColor), [primaryColor]);
-  const fontFamily = business?.fontFamily ?? "Heebo";
+  // Owner decision: every business profile renders in Rubik regardless
+  // of what's saved on the record. The font picker was removed from
+  // the dashboard — Rubik is the single brand typeface.
+  const fontFamily = "Rubik";
   const backgroundColor = (business as any)?.backgroundColor ?? null;
   const borderRadius = (business as any)?.borderRadius ?? "medium";
   const buttonRadius = (business as any)?.buttonRadius ?? "medium";
@@ -1208,7 +1211,7 @@ export default function Book({ slugOverride }: { slugOverride?: string } = {}) {
       <div
         dir="rtl"
         style={{
-          fontFamily: `'${fontFamily}', sans-serif`,
+          fontFamily: `'${fontFamily}', 'Rubik', 'Heebo', sans-serif`,
           background: pageBackground,
           backgroundImage: patternSvg,
         }}
@@ -1960,7 +1963,7 @@ export default function Book({ slugOverride }: { slugOverride?: string } = {}) {
 
   // ─── STEPS 1-5: Booking wizard ──────────────────────────────────────────────
   return (
-    <div className="kavati-biz-scope min-h-[100dvh] flex flex-col relative" dir="rtl" style={{ fontFamily: `'${fontFamily}', sans-serif`, background: pageBackground, backgroundImage: patternSvg, backgroundRepeat: patternSvg ? "repeat" : undefined }}>
+    <div className="kavati-biz-scope min-h-[100dvh] flex flex-col relative" dir="rtl" style={{ fontFamily: `'${fontFamily}', 'Rubik', 'Heebo', sans-serif`, background: pageBackground, backgroundImage: patternSvg, backgroundRepeat: patternSvg ? "repeat" : undefined }}>
       <div className="absolute top-0 w-full h-52 -z-10 rounded-b-[40px]" style={{ backgroundColor: primaryColor + "18" }} />
 
       {business.notificationEnabled && business.notificationMessage && (
