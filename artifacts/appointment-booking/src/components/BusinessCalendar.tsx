@@ -605,8 +605,11 @@ function TimeGrid({
 
   return (
     <div dir="rtl" className="flex flex-col">
-      {/* Column headers + "כל היום" row */}
-      <div className="grid border-b border-border text-xs" style={{ gridTemplateColumns: `repeat(${days.length}, minmax(0, 1fr)) 56px` }}>
+      {/* Column headers — time/"כל היום" column on the RIGHT (start in RTL),
+          then day columns flowing right-to-left. Owner preference: the
+          hours ruler should sit where reading starts, not on the far left. */}
+      <div className="grid border-b border-border text-xs" style={{ gridTemplateColumns: `56px repeat(${days.length}, minmax(0, 1fr))` }}>
+        <div className="py-1.5 px-1 text-[11px] font-semibold text-muted-foreground text-center border-l border-border">כל היום</div>
         {days.map(d => {
           const k = ymd(d);
           const isToday = isSameDay(d, today);
@@ -638,11 +641,31 @@ function TimeGrid({
             </div>
           );
         })}
-        <div className="py-1.5 px-1 text-[11px] font-semibold text-muted-foreground text-center">כל היום</div>
       </div>
 
-      {/* Body */}
-      <div className="relative grid" style={{ gridTemplateColumns: `repeat(${days.length}, minmax(0, 1fr)) 56px`, height: totalHeight }}>
+      {/* Body — same column order as the header: time ruler on the right,
+          then day columns. */}
+      <div className="relative grid" style={{ gridTemplateColumns: `56px repeat(${days.length}, minmax(0, 1fr))`, height: totalHeight }}>
+        {/* Time column (start in RTL = visually right). Labels for every
+            30-min slot; whole hours bold-ish, half-hours lighter so the
+            hour gridlines still dominate visually. */}
+        <div className="relative border-l border-border">
+          {Array.from({ length: totalSlots + 1 }).map((_, i) => {
+            const minutes = DAY_START_MINUTES + i * SLOT_MINUTES;
+            const label = minutesToTime(minutes);
+            const isHour = i % 2 === 0;
+            return (
+              <div
+                key={i}
+                className={`absolute inset-x-0 text-center font-mono ${isHour ? "text-[10px] text-muted-foreground" : "text-[9px] text-muted-foreground/60"}`}
+                style={{ top: i * SLOT_PX - 6 }}
+                dir="ltr"
+              >
+                {label}
+              </div>
+            );
+          })}
+        </div>
         {/* Day columns */}
         {days.map(d => {
           const k = ymd(d);
@@ -742,18 +765,6 @@ function TimeGrid({
             </div>
           );
         })}
-        {/* Time column (rightmost in RTL = leftmost in DOM order since we put it last) */}
-        <div className="relative">
-          {Array.from({ length: totalSlots + 1 }).map((_, i) => {
-            const label = minutesToTime(DAY_START_MINUTES + i * SLOT_MINUTES);
-            return (
-              <div key={i} className="absolute inset-x-0 text-[10px] text-muted-foreground text-center font-mono"
-                style={{ top: i * SLOT_PX - 6 }} dir="ltr">
-                {i % 2 === 0 ? label : ""}
-              </div>
-            );
-          })}
-        </div>
       </div>
     </div>
   );
