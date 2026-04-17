@@ -447,15 +447,23 @@ export default function Dashboard() {
     if (t === "menu") { setMenuOpen(true); return; }
     if (t === "home") { setActiveTab("appointments"); window.scrollTo({ top: 0, behavior: "smooth" }); return; }
     if (t === "calendar") setActiveTab("appointments");
-    if (t === "approvals") {
-      setActiveTab("appointments");
-      // Scroll to pending cards after render — the pending section is
-      // the first thing the "אישור תורים" button should show.
-      setTimeout(() => document.getElementById("appointments-pending-section")?.scrollIntoView({ behavior: "smooth", block: "start" }), 60);
-    }
+    // Dedicated approvals tab — shows only pending appointments with
+    // inline approve / reject buttons. Distinct from the calendar so
+    // the owner can triage new bookings without scrolling past the
+    // week grid.
+    if (t === "approvals") setActiveTab("approvals");
     if (t === "customers") setActiveTab("customers");
   };
   const { data: headerProfile } = useGetBusinessProfile();
+  // Lightweight root-level fetch so the bottom-nav badge reflects the
+  // actual pending count. Uses the same cache key as AppointmentsTab so
+  // we don't duplicate the request.
+  const { data: rootAppts } = useListBusinessAppointments({
+    query: { enabled: !!token },
+  });
+  const pendingCount = Array.isArray(rootAppts)
+    ? rootAppts.filter(a => a.status === "pending").length
+    : 0;
   const [showTour, setShowTour] = useState(() => !localStorage.getItem("kavati_tour_seen"));
 
   const handleLogout = () => {
@@ -592,6 +600,7 @@ export default function Dashboard() {
               nav + "תפריט" sheet rendered below the main content. */}
 
           <TabsContent value="appointments"><AppointmentsTab /></TabsContent>
+          <TabsContent value="approvals"><PendingApprovalsTab /></TabsContent>
           <TabsContent value="services"><ServicesTab /></TabsContent>
           <TabsContent value="hours">
             <div className="space-y-10">
@@ -634,6 +643,7 @@ export default function Dashboard() {
       <MobileBottomNav
         active={bottomTab}
         onChange={handleBottomTab}
+        pendingCount={pendingCount}
       />
 
       {/* Menu sheet — the rest of the legacy tabs accessible from "תפריט" */}
@@ -1524,6 +1534,121 @@ function AppointmentsTab({ mobileFocus }: { mobileFocus?: "calendar" | "approval
           </div>
         </DialogContent>
       </Dialog>
+    </div>
+  );
+}
+
+// Dedicated "אישור תורים" view — shows ONLY appointments with
+// status='pending', each with inline approve + reject buttons. Owner
+// reaches it by tapping the bottom-nav badge; the full appointments
+// tab still lists them too, but this view avoids any scrolling and
+// puts triage in one tight card.
+function PendingApprovalsTab() {
+  const { data: appointments } = useListBusinessAppointments();
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+  const [approvingId, setApprovingId] = useState<number | null>(null);
+  const [rejectingId, setRejectingId] = useState<number | null>(null);
+
+  const pending = (Array.isArray(appointments) ? appointments : []).filter(a => a.status === "pending");
+
+  const token = () => localStorage.getItem("biz_token") || sessionStorage.getItem("biz_token");
+
+  const approve = async (id: number) => {
+    setApprovingId(id);
+    try {
+      const r = await fetch(`/api/business/appointments/${id}/approve`, {
+        method: "PATCH",
+        headers: { Authorization: `Bearer ${token()}` },
+      });
+      if (!r.ok) throw new Error();
+      toast({ title: "✅ התור אושר" });
+      queryClient.invalidateQueries({ queryKey: getListBusinessAppointmentsQueryKey() });
+    } catch {
+      toast({ title: "שגיאה", description: "לא ניתן לאשר", variant: "destructive" });
+    } finally {
+      setApprovingId(null);
+    }
+  };
+
+  const reject = async (id: number) => {
+    setRejectingId(id);
+    try {
+      const r = await fetch(`/api/business/appointments/${id}`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${token()}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ cancelReason: "לקוח התחרט" }),
+      });
+      if (!r.ok) throw new Error();
+      toast({ title: "התור נדחה" });
+      queryClient.invalidateQueries({ queryKey: getListBusinessAppointmentsQueryKey() });
+    } catch {
+      toast({ title: "שגיאה", description: "לא ניתן לדחות", variant: "destructive" });
+    } finally {
+      setRejectingId(null);
+    }
+  };
+
+  return (
+    <div className="space-y-4">
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-base">
+            <CheckCircle className="w-5 h-5 text-primary" /> אישור תורים
+            {pending.length > 0 && (
+              <span className="ml-auto text-xs font-bold bg-primary text-primary-foreground rounded-full px-2 py-0.5">
+                {pending.length}
+              </span>
+            )}
+          </CardTitle>
+          <CardDescription>
+            תורים שנקבעו ע"י לקוחות וממתינים לאישור שלך.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {pending.length === 0 ? (
+            <EmptyState text="אין תורים ממתינים לאישור 🎉" />
+          ) : (
+            <div className="space-y-3">
+              {pending.map(apt => {
+                const dateStr = format(parseISO(apt.appointmentDate + "T" + apt.appointmentTime), "EEEE, d בMMMM yyyy", { locale: he });
+                return (
+                  <div key={apt.id} className="p-4 rounded-2xl border border-yellow-200 bg-yellow-50/40 space-y-3">
+                    <div>
+                      <div className="font-bold">{apt.clientName}</div>
+                      <div className="text-xs text-muted-foreground" dir="ltr">{apt.phoneNumber}</div>
+                      <div className="text-sm text-muted-foreground mt-1">
+                        {apt.serviceName} • {formatDuration(apt.durationMinutes)}
+                      </div>
+                      <div className="text-sm text-yellow-800 font-semibold mt-1">
+                        {dateStr} • {apt.appointmentTime}
+                      </div>
+                    </div>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => approve(apt.id)}
+                        disabled={approvingId === apt.id}
+                        className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl text-sm font-semibold bg-green-600 hover:bg-green-700 text-white transition disabled:opacity-60"
+                      >
+                        <CheckCircle className="w-4 h-4" />
+                        {approvingId === apt.id ? "מאשר..." : "אשר"}
+                      </button>
+                      <button
+                        onClick={() => reject(apt.id)}
+                        disabled={rejectingId === apt.id}
+                        className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl text-sm font-medium bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 transition disabled:opacity-60"
+                      >
+                        <X className="w-4 h-4" />
+                        {rejectingId === apt.id ? "דוחה..." : "דחה"}
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </CardContent>
+      </Card>
     </div>
   );
 }

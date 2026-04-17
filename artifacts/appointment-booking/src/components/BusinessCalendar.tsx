@@ -5,7 +5,7 @@ import {
 } from "date-fns";
 import { he } from "date-fns/locale";
 import { HebrewCalendar } from "@hebcal/core";
-import { ChevronRight, ChevronLeft, RefreshCw, Search, MoreHorizontal } from "lucide-react";
+import { ChevronRight, ChevronLeft, RefreshCw, Search, MoreHorizontal, CalendarClock, ArrowDown, MessageSquare, Calendar, CalendarDays, LayoutGrid } from "lucide-react";
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 export type CalAppt = {
@@ -106,38 +106,57 @@ function CalHeader({
     else setCursor(addMonths(cursor, 1));
   };
 
+  // Intentional design departure from the reference app:
+  // - No centred pill toggle above the header — it was too close to
+  //   the reference's look.
+  // - Instead, the three views live inline in the sub-header as small
+  //   icon buttons (Calendar / CalendarDays / LayoutGrid), grouped on
+  //   the reading-start side so the date label stays centred.
+  const viewButtons: Array<{ v: View; icon: React.ReactNode; label: string }> = [
+    { v: "day",   icon: <Calendar     className="w-4 h-4" />, label: "יום" },
+    { v: "week",  icon: <CalendarDays className="w-4 h-4" />, label: "שבוע" },
+    { v: "month", icon: <LayoutGrid   className="w-4 h-4" />, label: "חודש" },
+  ];
+
   return (
-    <div className="flex flex-col gap-3 px-3 py-2 bg-background" dir="rtl">
-      {/* View toggle */}
-      <div className="flex items-center justify-center">
-        <div className="inline-flex rounded-full border border-border bg-card p-0.5">
-          {(["חודש","שבוע","יום"] as const).map((label, i) => {
-            const v: View = i === 0 ? "month" : i === 1 ? "week" : "day";
-            const active = view === v;
-            return (
-              <button key={v} onClick={() => setView(v)}
-                className={`px-4 py-1.5 text-sm font-semibold rounded-full transition-colors ${active ? "bg-primary text-primary-foreground shadow-sm" : "text-muted-foreground"}`}>
-                {label}
-              </button>
-            );
-          })}
-        </div>
+    <div className="flex items-center justify-between gap-2 px-3 py-3 bg-background border-b border-border" dir="rtl" style={{ fontFamily: "'Rubik', sans-serif" }}>
+      {/* View switcher — icon segmented control on the right (reading start). */}
+      <div className="inline-flex rounded-xl border border-border bg-muted/40 p-0.5 shrink-0">
+        {viewButtons.map(({ v, icon, label }) => {
+          const active = view === v;
+          return (
+            <button
+              key={v}
+              onClick={() => setView(v)}
+              title={label}
+              aria-label={label}
+              aria-pressed={active}
+              className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all ${active ? "bg-primary text-primary-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"}`}
+            >
+              {icon}
+              <span className="hidden xs:inline sm:inline">{label}</span>
+            </button>
+          );
+        })}
       </div>
 
-      {/* Sub-header: navigation + label + "היום" */}
-      <div className="flex items-center justify-between gap-2">
-        <button className="p-2 rounded-lg hover:bg-muted/60" aria-label="עוד"><MoreHorizontal className="w-4 h-4" /></button>
-        <button onClick={() => setCursor(new Date())} className="p-2 rounded-lg hover:bg-muted/60" aria-label="רענן"><RefreshCw className="w-4 h-4" /></button>
+      {/* Prev / label / Next — centred. */}
+      <div className="flex-1 flex items-center justify-center gap-1">
         <button onClick={stepBack} className="p-2 rounded-lg hover:bg-muted/60" aria-label="הקודם"><ChevronRight className="w-4 h-4" /></button>
-
-        <div className="flex-1 text-center font-bold text-base underline decoration-dotted underline-offset-4">{label}</div>
-
+        <div className="font-bold text-sm sm:text-base px-1">{label}</div>
         <button onClick={stepForward} className="p-2 rounded-lg hover:bg-muted/60" aria-label="הבא"><ChevronLeft className="w-4 h-4" /></button>
-        <button className="p-2 rounded-lg hover:bg-muted/60" aria-label="חיפוש"><Search className="w-4 h-4" /></button>
+      </div>
+
+      {/* היום + search + more on the left (reading end). */}
+      <div className="flex items-center gap-1 shrink-0">
         <button onClick={() => setCursor(new Date())}
-          className="px-3 py-1.5 rounded-lg border border-primary/60 text-primary text-sm font-semibold hover:bg-primary/5">
+          className="px-3 py-1.5 rounded-xl text-xs font-bold text-white shadow-sm"
+          style={{ background: "linear-gradient(135deg, #3c92f0 0%, #1e6fcf 100%)" }}>
           היום
         </button>
+        <button onClick={() => setCursor(new Date())} className="p-2 rounded-lg hover:bg-muted/60 hidden sm:block" aria-label="רענן"><RefreshCw className="w-4 h-4" /></button>
+        <button className="p-2 rounded-lg hover:bg-muted/60 hidden sm:block" aria-label="חיפוש"><Search className="w-4 h-4" /></button>
+        <button className="p-2 rounded-lg hover:bg-muted/60 hidden sm:block" aria-label="עוד"><MoreHorizontal className="w-4 h-4" /></button>
       </div>
     </div>
   );
@@ -194,9 +213,12 @@ function MonthView({
               onClick={() => onPickDay(d)}
               className={`relative h-20 border-b border-l border-border text-right p-1 transition-colors ${inMonth ? "bg-white" : "bg-muted/40"} ${isToday ? "" : ""} hover:bg-primary/5`}
             >
-              <div className="flex items-start justify-between gap-1">
-                <div className={`text-xs font-semibold ${inMonth ? "text-foreground" : "text-muted-foreground"}`}>{format(d, "d")}</div>
-                {isToday && <span className="w-6 h-6 rounded-full bg-primary text-primary-foreground text-xs font-bold flex items-center justify-center -m-0.5">{format(d,"d")}</span>}
+              <div className="flex items-start justify-end">
+                {isToday ? (
+                  <span className="w-6 h-6 rounded-full bg-primary text-primary-foreground text-xs font-bold flex items-center justify-center -m-0.5">{format(d, "d")}</span>
+                ) : (
+                  <div className={`text-xs font-semibold ${inMonth ? "text-foreground" : "text-muted-foreground"}`}>{format(d, "d")}</div>
+                )}
               </div>
               {/* Holiday pill (max 1 line, truncate) */}
               {hasHoliday && (
@@ -522,35 +544,94 @@ function RescheduleConfirmDialog({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/40 p-4" onClick={onCancel}>
-      <div dir="rtl" className="w-full max-w-sm bg-background rounded-2xl shadow-2xl p-5 space-y-4" onClick={e => e.stopPropagation()}>
-        <h3 className="text-base font-bold text-center">האם לעדכן את התור?</h3>
-        <div className="space-y-2 text-sm">
-          <div className="flex items-center justify-between gap-2">
-            <span className="font-mono" dir="ltr">{newTime}, {fmtDate(newDate)}</span>
-            <span className="text-muted-foreground">←</span>
-            <span className="font-mono line-through text-muted-foreground" dir="ltr">{appt.appointmentTime}, {fmtDate(appt.appointmentDate)}</span>
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/50 p-3 backdrop-blur-sm animate-in fade-in duration-150" onClick={onCancel}>
+      <div
+        dir="rtl"
+        className="w-full max-w-sm bg-background rounded-3xl shadow-2xl overflow-hidden animate-in slide-in-from-bottom-4 duration-200"
+        onClick={e => e.stopPropagation()}
+        style={{ fontFamily: "'Rubik', sans-serif" }}
+      >
+        {/* Gradient header — Kavati blue → cyan. Distinct from the
+            reference app which used a plain white header. */}
+        <div
+          className="px-5 py-4 text-white flex items-center gap-3"
+          style={{ background: "linear-gradient(135deg, #3c92f0 0%, #95dbf4 100%)" }}
+        >
+          <div className="w-10 h-10 rounded-2xl bg-white/25 backdrop-blur-sm flex items-center justify-center shrink-0">
+            <CalendarClock className="w-5 h-5" />
           </div>
-          <div className="flex items-center justify-between gap-2">
-            <span className="font-mono" dir="ltr">{newEnd}, {fmtDate(newDate)}</span>
-            <span className="text-muted-foreground">←</span>
-            <span className="font-mono line-through text-muted-foreground" dir="ltr">{oldEnd}, {fmtDate(appt.appointmentDate)}</span>
+          <div className="flex-1">
+            <div className="text-[11px] font-medium opacity-90">עדכון תור</div>
+            <div className="text-base font-bold leading-tight">{appt.clientName}</div>
           </div>
         </div>
-        <label className="flex items-center justify-end gap-2 cursor-pointer text-sm">
-          <span>שליחת התראה ללקוח</span>
-          <input
-            type="checkbox"
-            checked={sendNotif}
-            onChange={e => setSendNotif(e.target.checked)}
-            className="w-4 h-4 accent-primary"
-          />
-        </label>
-        <div className="flex gap-2">
-          <button onClick={onCancel}
-            className="flex-1 py-2.5 rounded-xl border border-red-300 text-red-600 font-semibold hover:bg-red-50">ביטול</button>
-          <button onClick={() => onConfirm(sendNotif)}
-            className="flex-1 py-2.5 rounded-xl border border-primary bg-primary text-primary-foreground font-semibold hover:brightness-95">אישור</button>
+
+        <div className="p-5 space-y-4">
+          {/* Before/after cards — stacked with a big down arrow between
+              them. The struck-through "old" card is visually muted; the
+              "new" card pops in Kavati blue. */}
+          <div className="space-y-2">
+            <div className="rounded-2xl border border-border bg-muted/40 px-4 py-3">
+              <div className="text-[11px] font-semibold text-muted-foreground mb-1 flex items-center gap-1.5">
+                <span className="w-1.5 h-1.5 rounded-full bg-muted-foreground/60" />
+                מ־
+              </div>
+              <div className="flex items-baseline justify-between gap-2 font-mono text-muted-foreground line-through" dir="ltr">
+                <span className="text-lg font-bold">{appt.appointmentTime}–{oldEnd}</span>
+                <span className="text-xs">{fmtDate(appt.appointmentDate)}</span>
+              </div>
+            </div>
+
+            <div className="flex justify-center">
+              <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center">
+                <ArrowDown className="w-4 h-4 text-primary" />
+              </div>
+            </div>
+
+            <div className="rounded-2xl border-2 border-primary bg-primary/5 px-4 py-3 shadow-sm">
+              <div className="text-[11px] font-semibold text-primary mb-1 flex items-center gap-1.5">
+                <span className="w-1.5 h-1.5 rounded-full bg-primary" />
+                אל־
+              </div>
+              <div className="flex items-baseline justify-between gap-2 font-mono" dir="ltr">
+                <span className="text-xl font-extrabold text-primary">{newTime}–{newEnd}</span>
+                <span className="text-xs font-semibold text-foreground">{fmtDate(newDate)}</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Notification toggle — pill-style with icon. Different from
+              the reference's tiny checkbox; easier to hit on mobile. */}
+          <button
+            type="button"
+            onClick={() => setSendNotif(v => !v)}
+            className="w-full flex items-center justify-between gap-3 px-3 py-2.5 rounded-2xl border border-border bg-card hover:border-primary/40 transition-colors"
+            aria-pressed={sendNotif}
+          >
+            <span className={`relative inline-flex h-6 w-11 shrink-0 rounded-full transition-colors ${sendNotif ? "bg-primary" : "bg-muted"}`}>
+              <span className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow-sm transition-all ${sendNotif ? "right-0.5" : "left-0.5"}`} />
+            </span>
+            <span className="flex-1 flex items-center gap-2 text-right text-sm">
+              <MessageSquare className="w-4 h-4 text-muted-foreground" />
+              <span className="font-medium">שליחת הודעה ללקוח</span>
+            </span>
+          </button>
+
+          <div className="flex gap-2 pt-1">
+            <button
+              onClick={onCancel}
+              className="flex-1 py-3 rounded-2xl border border-border text-foreground font-semibold hover:bg-muted/60 transition-colors"
+            >
+              ביטול
+            </button>
+            <button
+              onClick={() => onConfirm(sendNotif)}
+              className="flex-1 py-3 rounded-2xl font-bold text-white shadow-md hover:brightness-105 active:scale-[0.99] transition-all"
+              style={{ background: "linear-gradient(135deg, #3c92f0 0%, #1e6fcf 100%)" }}
+            >
+              אשר שינוי
+            </button>
+          </div>
         </div>
       </div>
     </div>
