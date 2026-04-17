@@ -74,25 +74,18 @@ const BUSINESS_CATEGORIES = [
   "וטרינר","קייטרינג ואירועים","אחר","העסק שלי לא נמצא ברשימה",
 ];
 
+// Curated short list (owner pick). Default is Rubik — every preset
+// inherits it, the dashboard UI is pinned to it. Assistant / Secular
+// One / Varela Round kept as Hebrew alternatives; the three Google
+// Fonts the owner pasted added for playful branding options.
 const HEBREW_FONTS = [
-  { value: "Heebo", label: "Heebo" },
-  { value: "Assistant", label: "Assistant" },
   { value: "Rubik", label: "Rubik" },
+  { value: "Assistant", label: "Assistant" },
   { value: "Secular One", label: "Secular One" },
-  { value: "Noto Sans Hebrew", label: "Noto Sans Hebrew" },
-  { value: "Frank Ruhl Libre", label: "Frank Ruhl Libre" },
   { value: "Varela Round", label: "Varela Round" },
-  { value: "Alef", label: "Alef" },
-  { value: "Arimo", label: "Arimo" },
-  { value: "Open Sans", label: "Open Sans" },
-  { value: "Lato", label: "Lato" },
-  { value: "Poppins", label: "Poppins" },
-  { value: "Montserrat", label: "Montserrat" },
-  { value: "Inter", label: "Inter" },
-  { value: "Raleway", label: "Raleway" },
-  { value: "Nunito", label: "Nunito" },
-  { value: "Playfair Display", label: "Playfair Display" },
-  { value: "DM Sans", label: "DM Sans" },
+  { value: "Playpen Sans Hebrew", label: "Playpen Sans Hebrew" },
+  { value: "Knewave", label: "Knewave" },
+  { value: "Emilys Candy", label: "Emilys Candy" },
 ];
 
 const PRESET_COLORS = [
