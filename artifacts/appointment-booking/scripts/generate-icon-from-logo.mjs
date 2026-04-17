@@ -1,16 +1,17 @@
-// Rebuilds public/icon.svg from public/logo.svg so the favicon sits on
-// a SQUARE canvas with the artwork centered at ~90% of the width.
+// Rebuilds public/icon.svg from public/icon-source.svg so the favicon
+// sits on a SQUARE canvas with the artwork centered at ~90% of the
+// width.
 //
 // Run with:  node scripts/generate-icon-from-logo.mjs
 //
-// Why we can't just reuse logo.svg:
-//   - logo.svg has viewBox 841.89×595.28 (landscape), which makes the
-//     browser's favicon slot render the logo small with empty space
-//     on top/bottom.
+// Why we can't ship the source SVG as-is:
+//   - Source files from Illustrator use the A4 viewBox 841.89×595.28
+//     (landscape), so the browser's favicon slot renders the art
+//     small with empty space on top/bottom.
 //   - The actual ink sits in the middle of the viewBox, so even after
-//     clipping to square the logo would still not fill.
+//     clipping to square the icon would still not fill.
 // Strategy:
-//   1. Rasterize logo.svg at high density.
+//   1. Rasterize icon-source.svg at high density.
 //   2. sharp.trim() → get the art's bbox in pixel space.
 //   3. Convert pixel bbox back to SVG coordinate space using the
 //      viewBox ratio.
@@ -18,8 +19,9 @@
 //      that translates + scales the original paths so the bbox
 //      occupies 90% of the canvas width, centered.
 //
-// Also regenerates the PNG favicons + apple-touch-icon after updating
-// icon.svg by shelling out to generate-icons.mjs.
+// To update the icon, drop a new file at public/icon-source.svg and
+// re-run this script, then run generate-icons.mjs to rebuild the
+// PNG favicons + apple-touch-icon.
 
 import sharp from "sharp";
 import { readFile, writeFile } from "node:fs/promises";
@@ -28,17 +30,17 @@ import { fileURLToPath } from "node:url";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(__dirname, "..");
-const LOGO = resolve(ROOT, "public/logo.svg");
+const SOURCE = resolve(ROOT, "public/icon-source.svg");
 const ICON = resolve(ROOT, "public/icon.svg");
 
 const CANVAS = 800;
 const FILL_RATIO = 0.9; // logo width / canvas width
 
-const src = await readFile(LOGO, "utf8");
+const src = await readFile(SOURCE, "utf8");
 
 // Pull viewBox dimensions out of the source.
 const vbMatch = src.match(/viewBox=\"([^\"]+)\"/);
-if (!vbMatch) throw new Error("logo.svg missing viewBox");
+if (!vbMatch) throw new Error("icon-source.svg missing viewBox");
 const [, vbRaw] = vbMatch;
 const [vbX, vbY, vbW, vbH] = vbRaw.trim().split(/\s+/).map(Number);
 
