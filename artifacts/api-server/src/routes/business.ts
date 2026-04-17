@@ -239,6 +239,21 @@ router.patch("/business/profile", requireBusinessAuth, async (req, res): Promise
   if (d.invoiceAddress !== undefined)    (updates as any).invoiceAddress    = d.invoiceAddress    || null;
   if (d.autoSendReceipts !== undefined)  (updates as any).autoSendReceipts  = !!d.autoSendReceipts;
 
+  // Public profile fields — these historically only flowed through
+  // PATCH /business/branding, but the SettingsTab form saves via
+  // this /profile endpoint. Without them here, Instagram / website /
+  // contact phone / address / description edits silently disappeared
+  // on save. Mirror the same shape the branding handler uses.
+  if (d.businessDescription !== undefined) (updates as any).businessDescription = d.businessDescription ?? null;
+  if (d.contactPhone        !== undefined) (updates as any).contactPhone        = d.contactPhone        ?? null;
+  if (d.address             !== undefined) (updates as any).address             = d.address             ?? null;
+  if (d.city                !== undefined) (updates as any).city                = d.city                ?? null;
+  if (d.websiteUrl          !== undefined) (updates as any).websiteUrl          = d.websiteUrl          ?? null;
+  if (d.instagramUrl        !== undefined) (updates as any).instagramUrl        = d.instagramUrl        ?? null;
+  if (d.wazeUrl             !== undefined) (updates as any).wazeUrl             = d.wazeUrl             ?? null;
+  if (d.businessCategories  !== undefined) (updates as any).businessCategories  = d.businessCategories  ?? null;
+  if (d.galleryImages       !== undefined) (updates as any).galleryImages       = d.galleryImages       ?? null;
+
   const [updated] = await db
     .update(businessesTable)
     .set(updates)
