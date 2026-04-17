@@ -111,7 +111,9 @@ const FREE_MONTHLY_CUSTOMER_LIMIT = 20;
 function ReceiptActionsMenu({
   onCredit, onDelete, disabled,
 }: {
-  onCredit: () => void;
+  // null = hide the "credit" entry. Used for credit receipts (negative
+  // amount) where crediting again would create meaningless cascades.
+  onCredit: (() => void) | null;
   onDelete: () => void;
   disabled?: boolean;
 }) {
@@ -142,15 +144,19 @@ function ReceiptActionsMenu({
           dir="rtl"
           className="absolute end-0 top-9 z-50 w-44 bg-white rounded-xl shadow-lg border border-border overflow-hidden"
         >
-          <button
-            type="button"
-            onClick={() => { setOpen(false); onCredit(); }}
-            className="w-full text-right px-3 py-2.5 text-sm hover:bg-blue-50 flex items-center gap-2 text-blue-700"
-          >
-            <RefreshCcw className="w-4 h-4" />
-            הנפק זיכוי
-          </button>
-          <div className="border-t" />
+          {onCredit && (
+            <>
+              <button
+                type="button"
+                onClick={() => { setOpen(false); onCredit(); }}
+                className="w-full text-right px-3 py-2.5 text-sm hover:bg-blue-50 flex items-center gap-2 text-blue-700"
+              >
+                <RefreshCcw className="w-4 h-4" />
+                הנפק זיכוי
+              </button>
+              <div className="border-t" />
+            </>
+          )}
           <button
             type="button"
             onClick={() => { setOpen(false); onDelete(); }}
@@ -191,10 +197,21 @@ function IssueReceiptDialog({
   const initialEmail = (defaultEmail ?? "").trim();
   const [email, setEmail] = useState(initialEmail);
   const [amount, setAmount] = useState(defaultAmount);
+  const [amountTouched, setAmountTouched] = useState(false);
   const [description, setDescription] = useState(defaultDescription);
   const [paymentMethod, setPaymentMethod] = useState("credit_card");
   const [saving, setSaving] = useState(false);
   const isRegistered = Boolean(initialEmail);
+  // If `services` lands after the dialog opens (react-query race) or
+  // the appointment row resolves lazily, seed the amount + description
+  // from the matched service — but only when the owner hasn't typed
+  // anything yet, so manual edits are never overwritten.
+  useEffect(() => {
+    if (!amountTouched && defaultAmount && amount !== defaultAmount) {
+      setAmount(defaultAmount);
+    }
+    if (!description && defaultDescription) setDescription(defaultDescription);
+  }, [defaultAmount, defaultDescription, amountTouched, amount, description]);
   const handleSubmit = async () => {
     if (!email.trim() || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email.trim())) {
       toast({ title: "אימייל לא תקין", variant: "destructive" }); return;
@@ -270,7 +287,14 @@ function IssueReceiptDialog({
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1">
               <Label>סכום (₪)</Label>
-              <Input type="number" min="1" step="0.01" dir="ltr" value={amount} onChange={e => setAmount(e.target.value)} />
+              <Input
+                type="number"
+                min="1"
+                step="0.01"
+                dir="ltr"
+                value={amount}
+                onChange={e => { setAmount(e.target.value); setAmountTouched(true); }}
+              />
             </div>
             <div className="space-y-1">
               <Label>אמצעי תשלום</Label>
@@ -5716,7 +5740,7 @@ function ReceiptsTab() {
                     </div>
                   </div>
                   <ReceiptActionsMenu
-                    onCredit={() => handleCredit(r.id, r.receipt_number)}
+                    onCredit={r.amount_agorot < 0 ? null : () => handleCredit(r.id, r.receipt_number)}
                     onDelete={() => handleDelete(r.id, r.receipt_number)}
                     disabled={deletingId === r.id}
                   />

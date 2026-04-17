@@ -126,6 +126,16 @@ router.post("/business/receipts/:id/credit", requireBusinessAuth, async (req, re
   `);
   const orig = origRows.rows[0];
   if (!orig) { res.status(404).json({ error: "Receipt not found" }); return; }
+  // Block crediting a credit receipt — it would cascade into "זיכוי
+  // לקבלת זיכוי" chains that no one wants to reconcile. The delete
+  // button is still available if the owner wants to remove it.
+  if (orig.amount_agorot < 0) {
+    res.status(400).json({
+      error: "already_credit",
+      message: "לא ניתן להנפיק זיכוי עבור קבלת זיכוי — אפשר למחוק אותה אם לא רלוונטית.",
+    });
+    return;
+  }
 
   const [biz] = await db
     .select({
