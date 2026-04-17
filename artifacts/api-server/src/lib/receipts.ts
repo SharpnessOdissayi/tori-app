@@ -126,6 +126,7 @@ export interface IssueBusinessReceiptParams {
   businessTaxId:    string;
   businessLegalType?: "exempt" | "authorized" | "company" | null;
   businessAddress?: string | null;
+  businessEmail?:   string | null;      // owner email for the CC copy
   clientName?:      string | null;
   clientPhone?:     string | null;
   clientEmail?:     string | null;
@@ -147,28 +148,44 @@ export async function issueBusinessReceipt(params: IssueBusinessReceiptParams): 
        ${params.amountAgorot}, ${params.paymentMethod ?? "credit_card"}, ${params.description ?? null}, ${params.appointmentId ?? null})
   `);
 
-  // Email only if we have a client email address.
+  // Build the email once. We send a copy to the client (if they have an
+  // email on file) AND to the business owner — owners asked for a
+  // parallel copy to land in their own inbox so they have a permanent
+  // record without opening the dashboard. paymentMethod labels are
+  // translated to Hebrew for the email render.
+  const paymentLabel = paymentMethodLabel(params.paymentMethod);
+  const html = renderBusinessReceiptHtml({
+    receiptNumber,
+    date:              formatDateIL(),
+    issuerName:        params.businessLegalName,
+    issuerTaxId:       params.businessTaxId,
+    issuerLegalType:   legalTypeLabel(params.businessLegalType),
+    issuerAddress:     params.businessAddress ?? "",
+    clientName:        params.clientName ?? "",
+    description:       params.description ?? "תשלום עבור שירות",
+    amount:            formatILS(params.amountAgorot),
+    paymentMethod:     paymentLabel,
+  });
+  const subject = `קבלה מספר ${receiptNumber} — ${params.businessLegalName}`;
   if (params.clientEmail) {
-    const html = renderBusinessReceiptHtml({
-      receiptNumber,
-      date:              formatDateIL(),
-      issuerName:        params.businessLegalName,
-      issuerTaxId:       params.businessTaxId,
-      issuerLegalType:   legalTypeLabel(params.businessLegalType),
-      issuerAddress:     params.businessAddress ?? "",
-      clientName:        params.clientName ?? "",
-      description:       params.description ?? "תשלום עבור שירות",
-      amount:            formatILS(params.amountAgorot),
-      paymentMethod:     params.paymentMethod === "credit_card" ? "כרטיס אשראי" : (params.paymentMethod ?? ""),
-    });
-    try {
-      await sendEmail(params.clientEmail, `קבלה מספר ${receiptNumber} — ${params.businessLegalName}`, html);
-    } catch (e) {
-      logger.error({ err: e, receiptNumber }, "[receipts] business receipt email failed");
-    }
+    try { await sendEmail(params.clientEmail, subject, html); }
+    catch (e) { logger.error({ err: e, receiptNumber }, "[receipts] business receipt email to client failed"); }
+  }
+  if (params.businessEmail) {
+    try { await sendEmail(params.businessEmail, `עותק: ${subject}`, html); }
+    catch (e) { logger.error({ err: e, receiptNumber }, "[receipts] business receipt owner-copy failed"); }
   }
 
   return { receiptNumber };
+}
+
+function paymentMethodLabel(m?: string | null): string {
+  if (m === "credit_card") return "כרטיס אשראי";
+  if (m === "cash") return "מזומן";
+  if (m === "bit") return "ביט";
+  if (m === "paybox") return "פייבוקס";
+  if (m === "transfer") return "העברה בנקאית";
+  return m ?? "";
 }
 
 function legalTypeLabel(t?: string | null): string {

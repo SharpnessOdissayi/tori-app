@@ -46,7 +46,7 @@ import {
   ExternalLink, Info, Upload, Image as ImageIcon, Crown, Zap, X, Copy, Check, Link,
   ChevronLeft, ChevronRight, Eye, EyeOff, Ban, DollarSign,
   MessageSquare, Send, Search, ChevronDown, Instagram, Bell, FileText,
-  XCircle, CheckCircle2, RotateCw, Hourglass, Download
+  XCircle, CheckCircle2, RotateCw, Hourglass, Download, MoreVertical, RefreshCcw
 } from "lucide-react";
 import { useLocation } from "wouter";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
@@ -103,26 +103,97 @@ const FREE_MONTHLY_CUSTOMER_LIMIT = 20;
 //   150  → "שעתיים ו-30 דקות"
 //   180  → "3 שעות"
 //   330  → "5 שעות ו-30 דקות"
-// One-shot receipt issuer opened from an appointment card. Pre-fills
-// amount + description from the appointment's service and lets the
-// owner confirm / edit the client's email before hitting POST
-// /business/receipts. Fails loudly if the business profile doesn't
-// have a tax-id on file yet (server blocks it).
-function IssueReceiptFromAppointment({
-  appt, services, onClose, onIssued,
+// 3-dots action menu for a single receipt row. Click-outside to
+// dismiss; exposes "credit" (issue a קבלת זיכוי) and "delete" (hard-
+// delete the row) so the owner can reverse or wipe a receipt without
+// the trash-icon-only affordance.
+function ReceiptActionsMenu({
+  onCredit, onDelete, disabled,
 }: {
-  appt: CalAppt;
-  services: Array<{ id: number; price: number; name: string }>;
+  onCredit: () => void;
+  onDelete: () => void;
+  disabled?: boolean;
+}) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!open) return;
+    const handler = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [open]);
+  return (
+    <div className="relative shrink-0" ref={ref}>
+      <button
+        type="button"
+        onClick={() => setOpen(v => !v)}
+        disabled={disabled}
+        className="w-8 h-8 rounded-full hover:bg-muted/70 text-muted-foreground hover:text-foreground flex items-center justify-center transition-colors disabled:opacity-50"
+        aria-label="אפשרויות נוספות"
+        title="אפשרויות"
+      >
+        <MoreVertical className="w-4 h-4" />
+      </button>
+      {open && (
+        <div
+          dir="rtl"
+          className="absolute end-0 top-9 z-50 w-44 bg-white rounded-xl shadow-lg border border-border overflow-hidden"
+        >
+          <button
+            type="button"
+            onClick={() => { setOpen(false); onCredit(); }}
+            className="w-full text-right px-3 py-2.5 text-sm hover:bg-blue-50 flex items-center gap-2 text-blue-700"
+          >
+            <RefreshCcw className="w-4 h-4" />
+            הנפק זיכוי
+          </button>
+          <div className="border-t" />
+          <button
+            type="button"
+            onClick={() => { setOpen(false); onDelete(); }}
+            className="w-full text-right px-3 py-2.5 text-sm hover:bg-red-50 flex items-center gap-2 text-red-600"
+          >
+            <Trash2 className="w-4 h-4" />
+            מחק קבלה
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// One-shot receipt issuer. Accepts either an appointment (pre-fills
+// amount from the matching service price + description) or a bare
+// customer card (owner fills amount + description themselves). The
+// client email auto-fills from the client-portal session when the
+// customer logged in before booking; otherwise we surface a warning
+// telling the owner the client is "not registered" and an email is
+// needed before submit. Fails loudly if the business profile doesn't
+// have a tax-id on file yet (server blocks it).
+function IssueReceiptDialog({
+  appt, customer, services, defaultEmail, onClose,
+}: {
+  appt?: CalAppt;
+  customer?: { clientName: string; phoneNumber: string };
+  services?: Array<{ id: number; price: number; name: string }>;
+  defaultEmail?: string | null;
   onClose: () => void;
-  onIssued: () => void;
 }) {
   const { toast } = useToast();
-  const service = services.find(s => s.id === appt.serviceId);
+  const service = appt && services ? services.find(s => s.id === appt.serviceId) : undefined;
+  const clientName = appt?.clientName ?? customer?.clientName ?? "";
+  const clientPhone = appt?.phoneNumber ?? customer?.phoneNumber ?? "";
   const defaultAmount = service ? (service.price / 100).toFixed(2) : "";
-  const [email, setEmail] = useState("");
+  const defaultDescription = service?.name ?? appt?.serviceName ?? "";
+  const initialEmail = (defaultEmail ?? "").trim();
+  const [email, setEmail] = useState(initialEmail);
   const [amount, setAmount] = useState(defaultAmount);
+  const [description, setDescription] = useState(defaultDescription);
   const [paymentMethod, setPaymentMethod] = useState("credit_card");
   const [saving, setSaving] = useState(false);
+  const isRegistered = Boolean(initialEmail);
   const handleSubmit = async () => {
     if (!email.trim() || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email.trim())) {
       toast({ title: "אימייל לא תקין", variant: "destructive" }); return;
@@ -137,13 +208,13 @@ function IssueReceiptFromAppointment({
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
         body: JSON.stringify({
-          clientName: appt.clientName,
-          clientPhone: appt.phoneNumber,
+          clientName,
+          clientPhone,
           clientEmail: email.trim(),
           amountILS: Number(amount),
-          description: service?.name || appt.serviceName,
+          description: description || defaultDescription || null,
           paymentMethod,
-          appointmentId: appt.id,
+          appointmentId: appt?.id ?? null,
         }),
       });
       const data = await res.json().catch(() => ({}));
@@ -156,7 +227,6 @@ function IssueReceiptFromAppointment({
         return;
       }
       toast({ title: `קבלה מס' ${data.receiptNumber} הונפקה ונשלחה ל-${email.trim()}` });
-      onIssued();
       onClose();
     } finally {
       setSaving(false);
@@ -173,14 +243,28 @@ function IssueReceiptFromAppointment({
         </DialogHeader>
         <div className="space-y-3 pt-2 text-sm">
           <div className="p-3 rounded-xl bg-muted/40">
-            <div className="font-semibold">{appt.clientName}</div>
-            <div className="text-xs text-muted-foreground" dir="ltr">{appt.phoneNumber}</div>
-            <div className="text-xs text-muted-foreground mt-1">{service?.name || appt.serviceName} · {appt.appointmentDate} {appt.appointmentTime}</div>
+            <div className="font-semibold">{clientName}</div>
+            <div className="text-xs text-muted-foreground" dir="ltr">{clientPhone}</div>
+            {appt && (
+              <div className="text-xs text-muted-foreground mt-1">{defaultDescription} · {appt.appointmentDate} {appt.appointmentTime}</div>
+            )}
           </div>
+          {!isRegistered && (
+            <div className="p-2.5 rounded-lg bg-amber-50 border border-amber-200 text-amber-900 text-xs">
+              ⚠️ הלקוח לא רשום במערכת (לא התחבר עם מייל) — אנא מלא/י כתובת מייל ידנית כדי לשלוח את הקבלה.
+            </div>
+          )}
           <div className="space-y-1">
             <Label>אימייל הלקוח *</Label>
             <Input type="email" dir="ltr" value={email} onChange={e => setEmail(e.target.value)} placeholder="client@example.com" />
-            <p className="text-xs text-muted-foreground">אנא אמת/י שהמייל נכון — הקבלה תישלח אליו ישירות.</p>
+            <p className="text-xs text-muted-foreground">
+              📧 הקבלה תגיע למייל הזה מיד אחרי ההנפקה.
+              {isRegistered && <span> המייל נשלף אוטומטית מחשבון הלקוח.</span>}
+            </p>
+          </div>
+          <div className="space-y-1">
+            <Label>תיאור השירות</Label>
+            <Input value={description} onChange={e => setDescription(e.target.value)} placeholder="לדוגמה: תספורת, הלחמת ריסים" />
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1">
@@ -193,6 +277,7 @@ function IssueReceiptFromAppointment({
                 <option value="credit_card">כרטיס אשראי</option>
                 <option value="cash">מזומן</option>
                 <option value="bit">ביט</option>
+                <option value="paybox">פייבוקס</option>
                 <option value="transfer">העברה בנקאית</option>
                 <option value="other">אחר</option>
               </select>
@@ -1536,14 +1621,22 @@ function AppointmentsTab({ mobileFocus }: { mobileFocus?: "calendar" | "approval
   const { data: appointments } = useListBusinessAppointments();
   const { data: profile } = useGetBusinessProfile();
   const { data: customers } = useListBusinessCustomers();
-  // Quick phone→gender map for the ♂︎/♀︎ badge next to client names.
-  // Only clients who authed via the portal carry a gender on their
-  // session row — walk-ins booked by the owner stay unmarked.
+  // Quick phone→gender + phone→email maps. Gender drives the ♂︎/♀︎
+  // badge next to client names; email auto-fills the receipt dialog
+  // and flags walk-ins ("not registered") who have no email on file.
   const genderByPhone = useMemo(() => {
     const m = new Map<string, string>();
     for (const c of (Array.isArray(customers) ? customers : [])) {
       const g = (c as any).gender;
       if (g && c.phoneNumber) m.set(c.phoneNumber, g);
+    }
+    return m;
+  }, [customers]);
+  const emailByPhone = useMemo(() => {
+    const m = new Map<string, string>();
+    for (const c of (Array.isArray(customers) ? customers : [])) {
+      const e = (c as any).email;
+      if (e && c.phoneNumber) m.set(c.phoneNumber, e);
     }
     return m;
   }, [customers]);
@@ -2094,13 +2187,13 @@ function AppointmentsTab({ mobileFocus }: { mobileFocus?: "calendar" | "approval
       {/* Receipt issuance dialog — opens from the "הנפק קבלה" button in
           the appointment details view. */}
       {receiptForAppt && (
-        <IssueReceiptFromAppointment
+        <IssueReceiptDialog
           appt={receiptForAppt}
           services={(Array.isArray(servicesForColors) ? servicesForColors : []).map((s: any) => ({
             id: s.id, price: s.price, name: s.name,
           }))}
+          defaultEmail={emailByPhone.get(receiptForAppt.phoneNumber) ?? null}
           onClose={() => setReceiptForAppt(null)}
-          onIssued={() => {}}
         />
       )}
 
@@ -3873,6 +3966,10 @@ function CustomersTab() {
   const [quota, setQuota] = useState<{ sent: number; limit: number; remaining: number } | null>(null);
   // Cancellation-breakdown popup — set to a customer record to open, null to close.
   const [cancelBreakdown, setCancelBreakdown] = useState<any | null>(null);
+  // "הנפק קבלה" from a customer row. Pre-fills email from the
+  // customer session (null if they never logged in to the portal,
+  // which the dialog flags as "not registered").
+  const [issueReceiptFor, setIssueReceiptFor] = useState<{ clientName: string; phoneNumber: string; email: string | null } | null>(null);
 
   useEffect(() => {
     if (!token) return;
@@ -4059,6 +4156,19 @@ function CustomersTab() {
                         WhatsApp
                       </Button>
                     </a>
+                    {/* Issue receipt */}
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="gap-1.5 border-blue-200 text-blue-700 hover:bg-blue-50"
+                      onClick={() => setIssueReceiptFor({
+                        clientName: c.clientName,
+                        phoneNumber: c.phoneNumber,
+                        email: (c as any).email ?? null,
+                      })}
+                    >
+                      <FileText className="w-3.5 h-3.5" /> הנפק קבלה
+                    </Button>
                     {/* Revenue */}
                     <div className="text-right">
                       <div className="font-bold text-primary text-base">₪{(c.totalRevenue / 100).toFixed(0)}</div>
@@ -4115,6 +4225,15 @@ function CustomersTab() {
           })()}
         </DialogContent>
       </Dialog>
+
+      {/* Customer-level receipt issuance (no appointment context). */}
+      {issueReceiptFor && (
+        <IssueReceiptDialog
+          customer={{ clientName: issueReceiptFor.clientName, phoneNumber: issueReceiptFor.phoneNumber }}
+          defaultEmail={issueReceiptFor.email}
+          onClose={() => setIssueReceiptFor(null)}
+        />
+      )}
     </div>
   );
 }
@@ -5440,6 +5559,26 @@ function ReceiptsTab() {
     }
   };
 
+  const handleCredit = async (id: number, number: number) => {
+    if (!confirm(`להנפיק קבלת זיכוי עבור קבלה #${number}? הזיכוי יישלח במייל ללקוח ועותק אליך.`)) return;
+    setDeletingId(id);
+    try {
+      const token = localStorage.getItem("biz_token") || sessionStorage.getItem("biz_token");
+      const res = await fetch(`${API_BASE_DASH}/business/receipts/${id}/credit`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.message);
+      toast({ title: `קבלת זיכוי מס' ${data.receiptNumber} הונפקה` });
+      load();
+    } catch (e: any) {
+      toast({ title: "שגיאה בהנפקת קבלת זיכוי", description: e?.message, variant: "destructive" });
+    } finally {
+      setDeletingId(null);
+    }
+  };
+
   const handleIssue = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!form.amountILS || Number(form.amountILS) <= 0) {
@@ -5552,28 +5691,25 @@ function ReceiptsTab() {
               {rows.map(r => (
                 <div key={r.id} className="flex items-center justify-between gap-3 p-4 border rounded-xl">
                   <div className="flex-1 min-w-0">
-                    <div className="font-semibold">קבלה #{r.receipt_number}</div>
+                    <div className="font-semibold">
+                      {r.amount_agorot < 0 ? "קבלת זיכוי" : "קבלה"} #{r.receipt_number}
+                    </div>
                     <div className="text-xs text-muted-foreground">
                       {r.client_name ?? "—"} {r.client_email ? `· ${r.client_email}` : ""}
                     </div>
                     {r.description && <div className="text-xs text-muted-foreground mt-1">{r.description}</div>}
                   </div>
                   <div className="text-left shrink-0">
-                    <div className="font-bold text-lg">₪{(r.amount_agorot / 100).toFixed(2)}</div>
+                    <div className={`font-bold text-lg ${r.amount_agorot < 0 ? "text-red-600" : ""}`}>₪{(r.amount_agorot / 100).toFixed(2)}</div>
                     <div className="text-[10px] text-muted-foreground">
                       {new Date(r.issued_at).toLocaleDateString("he-IL")}
                     </div>
                   </div>
-                  <button
-                    type="button"
-                    onClick={() => handleDelete(r.id, r.receipt_number)}
+                  <ReceiptActionsMenu
+                    onCredit={() => handleCredit(r.id, r.receipt_number)}
+                    onDelete={() => handleDelete(r.id, r.receipt_number)}
                     disabled={deletingId === r.id}
-                    title="מחק קבלה"
-                    className="shrink-0 w-8 h-8 rounded-full bg-red-50 hover:bg-red-100 text-red-600 flex items-center justify-center transition-colors disabled:opacity-50"
-                    aria-label="מחק קבלה"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </button>
+                  />
                 </div>
               ))}
             </div>

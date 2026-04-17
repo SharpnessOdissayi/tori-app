@@ -926,19 +926,21 @@ router.get("/business/customers", requireBusinessAuth, async (req, res): Promise
     .where(eq(appointmentsTable.businessId, businessId))
     .orderBy(appointmentsTable.appointmentDate);
 
-  // Pull the client's self-reported gender from client_sessions —
-  // only clients who logged in via the portal have a row there, so
+  // Pull the client's self-reported gender + email from client_sessions
+  // — only clients who logged in via the portal have a row there, so
   // we fall back to null for walk-ins booked directly by the owner.
   // Keyed by phone to match the appointments join key.
-  const sessions = await db.execute<{ phone_number: string; gender: string | null }>(sql`
-    SELECT DISTINCT ON (phone_number) phone_number, gender
+  const sessions = await db.execute<{ phone_number: string; gender: string | null; email: string | null }>(sql`
+    SELECT DISTINCT ON (phone_number) phone_number, gender, email
     FROM client_sessions
     WHERE phone_number IS NOT NULL
     ORDER BY phone_number, created_at DESC
   `);
   const genderByPhone = new Map<string, string>();
+  const emailByPhone = new Map<string, string>();
   for (const row of sessions.rows) {
     if (row.gender) genderByPhone.set(row.phone_number, row.gender);
+    if (row.email) emailByPhone.set(row.phone_number, row.email);
   }
 
   const customerMap = new Map<string, {
@@ -991,7 +993,11 @@ router.get("/business/customers", requireBusinessAuth, async (req, res): Promise
   }
 
   const enriched = Array.from(customerMap.values())
-    .map(c => ({ ...c, gender: genderByPhone.get(c.phoneNumber) ?? null }))
+    .map(c => ({
+      ...c,
+      gender: genderByPhone.get(c.phoneNumber) ?? null,
+      email: emailByPhone.get(c.phoneNumber) ?? null,
+    }))
     .sort((a, b) => b.totalVisits - a.totalVisits);
   res.json(enriched);
 });

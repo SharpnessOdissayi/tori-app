@@ -40,10 +40,12 @@ router.post("/business/receipts", requireBusinessAuth, async (req, res): Promise
 
   // Pull the business's own invoice profile (tax id, legal name, address).
   // Without a tax_id we refuse to issue — a receipt without an issuer ID
-  // isn't a valid receipt.
+  // isn't a valid receipt. Also grab the owner email so we can CC them
+  // on every issued receipt (owner requested a permanent copy).
   const [biz] = await db
     .select({
       name:        businessesTable.name,
+      ownerEmail:  businessesTable.email,
       legalName:   (businessesTable as any).businessLegalName,
       taxId:       (businessesTable as any).businessTaxId,
       legalType:   (businessesTable as any).businessLegalType,
@@ -66,6 +68,7 @@ router.post("/business/receipts", requireBusinessAuth, async (req, res): Promise
     businessTaxId:     biz.taxId,
     businessLegalType: (biz.legalType as any) ?? null,
     businessAddress:   biz.address ?? null,
+    businessEmail:     biz.ownerEmail ?? null,
     clientName:        clientName ?? null,
     clientPhone:       clientPhone ?? null,
     clientEmail:       clientEmail ?? null,
@@ -94,6 +97,68 @@ router.get("/business/receipts/:id", requireBusinessAuth, async (req, res): Prom
   const row = rows.rows[0];
   if (!row) { res.status(404).json({ error: "Receipt not found" }); return; }
   res.json(row);
+});
+
+// POST /business/receipts/:id/credit — issue a cancellation receipt
+// (קבלת זיכוי) that references the original. Creates a NEW numbered
+// receipt with a negative amount equal to the original, so the owner
+// keeps an audit trail (the original isn't touched) and the net sum
+// of receipts returns to zero.
+router.post("/business/receipts/:id/credit", requireBusinessAuth, async (req, res): Promise<void> => {
+  const businessId = req.business!.businessId;
+  const id = Number(req.params.id);
+  if (!id || isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
+
+  const origRows = await db.execute<{
+    receipt_number: number;
+    client_name: string | null;
+    client_phone: string | null;
+    client_email: string | null;
+    amount_agorot: number;
+    payment_method: string | null;
+    description: string | null;
+    appointment_id: number | null;
+  }>(sql`
+    SELECT receipt_number, client_name, client_phone, client_email,
+           amount_agorot, payment_method, description, appointment_id
+    FROM business_receipts
+    WHERE id = ${id} AND business_id = ${businessId}
+  `);
+  const orig = origRows.rows[0];
+  if (!orig) { res.status(404).json({ error: "Receipt not found" }); return; }
+
+  const [biz] = await db
+    .select({
+      name:        businessesTable.name,
+      ownerEmail:  businessesTable.email,
+      legalName:   (businessesTable as any).businessLegalName,
+      taxId:       (businessesTable as any).businessTaxId,
+      legalType:   (businessesTable as any).businessLegalType,
+      address:     (businessesTable as any).invoiceAddress,
+    })
+    .from(businessesTable)
+    .where(eq(businessesTable.id, businessId));
+  if (!biz?.taxId) {
+    res.status(400).json({ error: "missing_tax_id", message: "חובה למלא ח.פ / ת.ז. לפני הנפקת קבלת זיכוי" });
+    return;
+  }
+
+  const result = await issueBusinessReceipt({
+    businessId,
+    businessLegalName: biz.legalName ?? biz.name,
+    businessTaxId:     biz.taxId,
+    businessLegalType: (biz.legalType as any) ?? null,
+    businessAddress:   biz.address ?? null,
+    businessEmail:     biz.ownerEmail ?? null,
+    clientName:        orig.client_name,
+    clientPhone:       orig.client_phone,
+    clientEmail:       orig.client_email,
+    amountAgorot:      -Math.abs(orig.amount_agorot),
+    description:       `זיכוי לקבלה #${orig.receipt_number}${orig.description ? ` — ${orig.description}` : ""}`,
+    paymentMethod:     orig.payment_method ?? "credit_card",
+    appointmentId:     orig.appointment_id,
+  });
+  res.status(201).json({ receiptNumber: result.receiptNumber });
 });
 
 // DELETE /business/receipts/:id — hard-delete a receipt row.
