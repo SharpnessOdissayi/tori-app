@@ -804,7 +804,7 @@ export default function Book({ slugOverride }: { slugOverride?: string } = {}) {
   }, []);
 
   if (businessLoading) return (
-    <div className="min-h-screen flex items-center justify-center">
+    <div className="min-h-screen flex items-center justify-center" style={{ background: "#ffffff" }}>
       <div className="text-center space-y-3">
         <div className="w-12 h-12 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto" style={{ borderColor: primaryColor + " transparent transparent transparent" }} />
         <p className="text-muted-foreground">טוען...</p>
@@ -812,7 +812,7 @@ export default function Book({ slugOverride }: { slugOverride?: string } = {}) {
     </div>
   );
   if (businessError || !business) return (
-    <div className="min-h-screen flex items-center justify-center text-center p-8">
+    <div className="min-h-screen flex items-center justify-center text-center p-8" style={{ background: "#ffffff" }}>
       <div>
         <div className="text-4xl mb-4">😔</div>
         <h1 className="text-2xl font-bold text-destructive mb-2">העסק לא נמצא</h1>

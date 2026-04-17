@@ -56,7 +56,7 @@ export default function HomeOrBook() {
   if (resolved === "pending") {
     // Blank screen while we figure out which business owns the host. Very
     // short (single API call) so no spinner needed.
-    return <div style={{ minHeight: "100dvh", background: "#fafafa" }} />;
+    return <div style={{ minHeight: "100dvh", background: "#ffffff" }} />;
   }
 
   if (resolved === "custom" && slug) {
