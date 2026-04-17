@@ -95,14 +95,22 @@ const PRESET_COLORS = [
 const FREE_SERVICE_LIMIT = 3;
 const FREE_MONTHLY_CUSTOMER_LIMIT = 20;
 
+// Hebrew duration formatter with dual form for hours.
+//   60   → "שעה"
+//   90   → "שעה ו-30 דקות"
+//   120  → "שעתיים"
+//   150  → "שעתיים ו-30 דקות"
+//   180  → "3 שעות"
+//   330  → "5 שעות ו-30 דקות"
+// Intended for RTL rendering contexts (the whole dashboard is dir="rtl").
 function formatDuration(minutes: number): string {
-  if (minutes < 60) return `${minutes} דקות`;
   const h = Math.floor(minutes / 60);
   const m = minutes % 60;
-  if (h === 1 && m === 0) return "שעה";
-  if (h === 1 && m > 0) return `שעה ו-${m} דקות`;
-  if (m === 0) return `${h} שעות`;
-  return `${h} שעות ו-${m} דקות`;
+  const hourPart = h === 0 ? "" : h === 1 ? "שעה" : h === 2 ? "שעתיים" : `${h} שעות`;
+  const minPart = m === 0 ? "" : m === 1 ? "דקה" : `${m} דקות`;
+  if (!hourPart) return minPart || "0 דקות";
+  if (!minPart) return hourPart;
+  return `${hourPart} ו-${minPart}`;
 }
 
 
@@ -1919,14 +1927,14 @@ function ServicesTab() {
 
   const [isAdding, setIsAdding] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
-  const [form, setForm] = useState({ name: "", price: "", priceStartsFrom: false, durationMinutes: "30", bufferMinutes: "0", isActive: true, imageUrl: "", description: "", color: "" });
+  const [form, setForm] = useState({ name: "", price: "", priceStartsFrom: false, durationHours: "0", durationMinutes: "30", bufferMinutes: "0", isActive: true, imageUrl: "", description: "", color: "" });
 
   const activeServices = Array.isArray(services) ? services.filter(s => s.isActive) : [];
   const isPro = profile?.subscriptionPlan !== "free";
   const atLimit = !isPro && activeServices.length >= FREE_SERVICE_LIMIT;
 
   const reset = () => {
-    setForm({ name: "", price: "", priceStartsFrom: false, durationMinutes: "30", bufferMinutes: "0", isActive: true, imageUrl: "", description: "", color: "" });
+    setForm({ name: "", price: "", priceStartsFrom: false, durationHours: "0", durationMinutes: "30", bufferMinutes: "0", isActive: true, imageUrl: "", description: "", color: "" });
     setIsAdding(false);
     setEditingId(null);
     imageUpload.reset?.();
@@ -1939,7 +1947,9 @@ function ServicesTab() {
       name: form.name,
       price: Math.round(parseFloat(form.price) * 100),
       priceStartsFrom: form.priceStartsFrom,
-      durationMinutes: parseInt(form.durationMinutes),
+      // Combine hours + minutes into total minutes stored on the row.
+      // Guard against bad input: empty strings → 0; negative → 0.
+      durationMinutes: Math.max(0, (parseInt(form.durationHours) || 0) * 60 + (parseInt(form.durationMinutes) || 0)),
       bufferMinutes: parseInt(form.bufferMinutes),
       imageUrl,
       description: form.description || null,
@@ -2024,8 +2034,21 @@ function ServicesTab() {
                 </label>
               </div>
               <div className="space-y-2">
-                <Label>משך זמן (דקות) *</Label>
-                <Input required type="number" min="5" step="5" value={form.durationMinutes} onChange={e => setForm(p => ({ ...p, durationMinutes: e.target.value }))} />
+                <Label>משך השירות *</Label>
+                <div className="flex gap-2" dir="rtl">
+                  <div className="flex-1">
+                    <Input type="number" min="0" max="23" step="1"
+                      value={form.durationHours}
+                      onChange={e => setForm(p => ({ ...p, durationHours: e.target.value }))} />
+                    <p className="text-[11px] text-muted-foreground mt-1 text-center">שעות</p>
+                  </div>
+                  <div className="flex-1">
+                    <Input type="number" min="0" max="59" step="5"
+                      value={form.durationMinutes}
+                      onChange={e => setForm(p => ({ ...p, durationMinutes: e.target.value }))} />
+                    <p className="text-[11px] text-muted-foreground mt-1 text-center">דקות</p>
+                  </div>
+                </div>
               </div>
               <div className="space-y-2">
                 <Label>זמן הפסקה לאחר השירות (דקות)</Label>
@@ -2132,7 +2155,20 @@ function ServicesTab() {
           emptyFallback={!services?.length && !isAdding ? <EmptyState text="אין שירותים מוגדרים עדיין" className="col-span-full" /> : null}
           onEdit={s => {
             setEditingId(s.id);
-            setForm({ name: s.name, price: (s.price / 100).toString(), priceStartsFrom: (s as any).priceStartsFrom ?? false, durationMinutes: s.durationMinutes.toString(), bufferMinutes: (s.bufferMinutes ?? 0).toString(), isActive: s.isActive, imageUrl: s.imageUrl ?? "", description: (s as any).description ?? "", color: (s as any).color ?? "" });
+            setForm({
+              name: s.name,
+              price: (s.price / 100).toString(),
+              priceStartsFrom: (s as any).priceStartsFrom ?? false,
+              // Split stored total minutes back into hours + minutes
+              // for the two-field form.
+              durationHours: Math.floor((s.durationMinutes ?? 0) / 60).toString(),
+              durationMinutes: ((s.durationMinutes ?? 0) % 60).toString(),
+              bufferMinutes: (s.bufferMinutes ?? 0).toString(),
+              isActive: s.isActive,
+              imageUrl: s.imageUrl ?? "",
+              description: (s as any).description ?? "",
+              color: (s as any).color ?? "",
+            });
             setIsAdding(false);
           }}
           onDelete={s => { if (confirm("למחוק שירות?")) deleteMutation.mutate({ id: s.id }, {

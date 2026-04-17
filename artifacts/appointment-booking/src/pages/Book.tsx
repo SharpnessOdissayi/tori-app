@@ -233,14 +233,23 @@ function AnnouncementDialog({
   );
 }
 
+// Hebrew duration formatter with dual form for hours (שעתיים). Shared
+// shape with the Dashboard helper of the same name. RTL-safe — used
+// inside dir="rtl" scopes throughout the profile page.
+//   60   → "שעה"
+//   90   → "שעה ו-30 דקות"
+//   120  → "שעתיים"
+//   150  → "שעתיים ו-30 דקות"
+//   180  → "3 שעות"
+//   330  → "5 שעות ו-30 דקות"
 function formatDuration(minutes: number): string {
-  if (minutes < 60) return `${minutes} דקות`;
   const h = Math.floor(minutes / 60);
   const m = minutes % 60;
-  if (h === 1 && m === 0) return "שעה";
-  if (h === 1 && m > 0) return `שעה ו-${m} דקות`;
-  if (m === 0) return `${h} שעות`;
-  return `${h} שעות ו-${m} דקות`;
+  const hourPart = h === 0 ? "" : h === 1 ? "שעה" : h === 2 ? "שעתיים" : `${h} שעות`;
+  const minPart = m === 0 ? "" : m === 1 ? "דקה" : `${m} דקות`;
+  if (!hourPart) return minPart || "0 דקות";
+  if (!minPart) return hourPart;
+  return `${hourPart} ו-${minPart}`;
 }
 
 
@@ -1444,11 +1453,17 @@ export default function Book({ slugOverride }: { slugOverride?: string } = {}) {
             <p className="text-center text-muted-foreground text-sm mb-4 max-w-sm mx-auto">{businessDescription}</p>
           )}
 
-          {/* Address row */}
-          {addressFull && (
-            <div className="flex justify-center items-center gap-1.5 mb-3 text-sm text-muted-foreground">
-              <MapPin className="w-4 h-4 shrink-0" />
-              <span>{addressFull}</span>
+          {/* Address + city — rendered on two lines under the name
+              so both are clearly visible. Each line is conditional, so
+              a business that only has a street or only has a city
+              sees exactly the fields they filled in. */}
+          {(address || city) && (
+            <div className="flex justify-center items-start gap-1.5 mb-3 text-sm text-muted-foreground">
+              <MapPin className="w-4 h-4 shrink-0 mt-0.5" />
+              <div className="flex flex-col items-center leading-tight">
+                {address && <span>{address}</span>}
+                {city && <span>{city}</span>}
+              </div>
             </div>
           )}
 
