@@ -6162,7 +6162,7 @@ function SettingsTab() {
               <Input value={form.address} onChange={e => setForm(p => ({ ...p, address: e.target.value }))} placeholder="רחוב הרצל 1, תל אביב" />
             </div>
             <div className="space-y-2">
-              <Label>עיר (לחיפוש בספריית קבעתי)</Label>
+              <Label>שם העיר</Label>
               <Input value={form.city} onChange={e => setForm(p => ({ ...p, city: e.target.value }))} placeholder="תל אביב" />
             </div>
           </div>
