@@ -9,8 +9,6 @@
     <meta name="robots" content="index, follow" />
     <link rel="canonical" href="https://kavati.net/" />
     <link rel="icon" type="image/svg+xml" href="/icon.svg" />
-    <!-- PNG fallback for browsers that don't render SVG favicons (older Edge, some email clients) -->
-    <link rel="alternate icon" type="image/png" href="/logo.png" />
     <!-- PWA -->
     <link rel="manifest" href="/manifest.json" />
     <meta name="theme-color" content="#3c92f0" />
@@ -19,9 +17,9 @@
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="default" />
     <meta name="apple-mobile-web-app-title" content="קבעתי" />
-    <!-- iOS home-screen icon — iOS reliably supports SVG from iOS 16+, falls back to PNG -->
+    <!-- iOS 16+ renders SVG home-screen icons; older iOS may show a generic glyph
+         until we generate a 180×180 PNG from icon.svg for the Play Store submission. -->
     <link rel="apple-touch-icon" href="/icon.svg" />
-    <link rel="apple-touch-icon" href="/logo.png" />
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Rubik:wght@400;500;600;700&family=Assistant:wght@400;500;600;700&family=Secular+One&family=Varela+Round&family=Playpen+Sans+Hebrew:wght@400..700&display=swap" rel="stylesheet">
