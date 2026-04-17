@@ -1516,7 +1516,7 @@ function AppointmentsTab({ mobileFocus }: { mobileFocus?: "calendar" | "approval
             <div className="space-y-3">
               {pending.map(apt => (
                 <div key={apt.id} className="flex flex-col sm:flex-row justify-between items-start sm:items-center p-4 border border-yellow-200 rounded-xl bg-white gap-3">
-                  <div className="flex-1">
+                  <div className="flex-1 min-w-0">
                     <div className="font-semibold">{apt.clientName}
                       <span className="text-muted-foreground text-sm font-normal mr-2" dir="ltr">{apt.phoneNumber}</span>
                     </div>
@@ -1524,6 +1524,15 @@ function AppointmentsTab({ mobileFocus }: { mobileFocus?: "calendar" | "approval
                     <div className="text-yellow-700 font-medium text-sm mt-1">
                       {format(parseISO(apt.appointmentDate + "T" + apt.appointmentTime), "EEEE, d בMMMM yyyy", { locale: he })} • {apt.appointmentTime}
                     </div>
+                    {apt.notes && (
+                      // Client note shown before the approve/reject
+                      // buttons so the owner has the full context of
+                      // what the client wrote when deciding what to do.
+                      <div className="mt-2 p-2 rounded-lg bg-amber-50 border border-amber-200 text-amber-900 text-xs flex items-start gap-1.5">
+                        <MessageSquare className="w-3.5 h-3.5 shrink-0 mt-0.5" />
+                        <div className="whitespace-pre-wrap break-words">{apt.notes}</div>
+                      </div>
+                    )}
                   </div>
                   <div className="flex gap-2">
                     <button
@@ -2195,6 +2204,12 @@ function PendingApprovalsTab() {
                       <div className="text-sm text-yellow-800 font-semibold mt-1">
                         {dateStr} • {apt.appointmentTime}
                       </div>
+                      {apt.notes && (
+                        <div className="mt-2 p-2 rounded-lg bg-amber-50 border border-amber-200 text-amber-900 text-xs flex items-start gap-1.5">
+                          <MessageSquare className="w-3.5 h-3.5 shrink-0 mt-0.5" />
+                          <div className="whitespace-pre-wrap break-words">{apt.notes}</div>
+                        </div>
+                      )}
                     </div>
                     <div className="flex gap-2">
                       <button
