@@ -443,20 +443,21 @@ export default function Dashboard() {
     setToken(null);
   };
 
-  // Apply business font to the whole dashboard
+  // Dashboard UI is locked to Rubik — owner feedback: the business-owner
+  // interface should look consistent regardless of the font they chose
+  // for their customer-facing profile. Load the stylesheet once on mount
+  // so the text renders in the intended face even before any profile
+  // data arrives.
   useEffect(() => {
-    const fontFamily = (headerProfile as any)?.fontFamily;
-    if (!fontFamily || fontFamily === "inherit") return;
-    const id = `gfont-dash-${fontFamily.replace(/\s+/g, "-")}`;
+    const id = "gfont-dash-rubik";
     if (!document.getElementById(id)) {
       const link = document.createElement("link");
       link.id = id;
       link.rel = "stylesheet";
-      link.href = `https://fonts.googleapis.com/css2?family=${encodeURIComponent(fontFamily)}:wght@400;500;600;700&display=swap`;
+      link.href = "https://fonts.googleapis.com/css2?family=Rubik:wght@400;500;600;700&display=swap";
       document.head.appendChild(link);
     }
-    document.documentElement.style.setProperty("--dashboard-font", `'${fontFamily}', sans-serif`);
-  }, [headerProfile]);
+  }, []);
 
   const completeTour = () => {
     localStorage.setItem("kavati_tour_seen", "true");
@@ -473,11 +474,11 @@ export default function Dashboard() {
   const isProPlan = headerProfile?.subscriptionPlan === "pro";
 
   return (
-    // Uses the --dashboard-font CSS variable so that BrandingTab's live
-    // font picker (which writes to the same variable) takes effect
-    // immediately across the dashboard — not only after the owner saves.
+    // Dashboard font is fixed to Rubik regardless of the business's
+    // saved brand font — the owner UI is meant to feel consistent for
+    // staff across every business on the platform.
     <div className="portal-dark-scope min-h-screen bg-muted/30" dir="rtl"
-      style={{ fontFamily: "var(--dashboard-font, inherit)" }}
+      style={{ fontFamily: "'Rubik', sans-serif" }}
     >
       {showTour && (
         <OnboardingTour
@@ -492,7 +493,7 @@ export default function Dashboard() {
             <NotificationBell token={token!} />
             {headerProfile?.name && (
               <span className="hidden sm:block text-sm font-medium px-3 py-1.5 rounded-lg"
-                style={{ color: "#d4af37", border: "1px solid #d4af3740" }}>
+                style={{ color: "#548dca", border: "1px solid #548dca40" }}>
                 {headerProfile.name}
               </span>
             )}
@@ -500,7 +501,7 @@ export default function Dashboard() {
               onClick={handleLogout}
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm transition-all"
               style={{ color: "#c0c0c0" }}
-              onMouseEnter={e => (e.currentTarget.style.color = "#d4af37")}
+              onMouseEnter={e => (e.currentTarget.style.color = "#548dca")}
               onMouseLeave={e => (e.currentTarget.style.color = "#c0c0c0")}
             >
               <LogOut className="w-4 h-4" />
@@ -514,10 +515,10 @@ export default function Dashboard() {
         {/* Mobile-only welcome header */}
         <div className="sm:hidden flex items-center justify-between mb-4">
           <div>
-            <p className="font-bold text-lg" style={{ color: "#d4af37" }}>
+            <p className="font-bold text-lg" style={{ color: "#548dca" }}>
               {(() => { const h = new Date().getHours(); return h < 12 ? "בוקר טוב! ☀️" : h < 17 ? "צהריים טובים! 🌤️" : h < 21 ? "ערב טוב! 🌆" : "לילה טוב! 🌙"; })()}
             </p>
-            <p className="font-semibold text-sm" style={{ color: "#d4af37" }}>
+            <p className="font-semibold text-sm" style={{ color: "#548dca" }}>
               ברוכ/ה הבא/ה, {(headerProfile as any)?.ownerName?.split(" ")[0] ?? ""}!
             </p>
           </div>
@@ -713,7 +714,7 @@ function NotificationBell({ token }: { token: string }) {
         onClick={() => { setOpen(v => !v); if (!open) { fetchNotifs(); } }}
         className="relative flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm transition-all"
         style={{ color: "#c0c0c0" }}
-        onMouseEnter={e => (e.currentTarget.style.color = "#d4af37")}
+        onMouseEnter={e => (e.currentTarget.style.color = "#548dca")}
         onMouseLeave={e => (e.currentTarget.style.color = "#c0c0c0")}
       >
         <Bell className="w-4 h-4" />
@@ -2198,6 +2199,11 @@ function AnalyticsTab() {
   const [drilldown, setDrilldown] = useState<{ name: string; phone: string } | null>(null);
   const [drilldownAppts, setDrilldownAppts] = useState<any[]>([]);
   const [drilldownLoading, setDrilldownLoading] = useState(false);
+  // Cancellation + attendance detail sections are collapsed by default —
+  // the owner asked for a cleaner analytics screen where the rankings
+  // only surface when they actually click the relevant stat tile.
+  const [showCancelDetails, setShowCancelDetails] = useState(false);
+  const [showAttendedDetails, setShowAttendedDetails] = useState(false);
   const { toast } = useToast();
 
   const token = localStorage.getItem("biz_token") || sessionStorage.getItem("biz_token");
@@ -2305,14 +2311,36 @@ function AnalyticsTab() {
             </div>
           ) : null}
 
-          {/* Stats grid */}
+          {/* Stats grid — "תורים שהושלמו" and "תורים שבוטלו" are
+              click-to-expand (open rankings below); the other two are
+              passive display tiles. */}
           <div className="grid grid-cols-2 gap-3">
-            {stats.map(s => (
-              <div key={s.label} className={`${s.bg} rounded-2xl p-4 text-center`}>
-                <div className={`text-3xl font-bold ${s.color}`}>{s.value}</div>
-                <div className="text-xs text-muted-foreground mt-1">{s.label}</div>
-              </div>
-            ))}
+            {stats.map(s => {
+              const isCancelled = s.label === "תורים שבוטלו";
+              const isCompleted = s.label === "תורים שהושלמו";
+              const isToggle = isCancelled || isCompleted;
+              const isOpen = (isCancelled && showCancelDetails) || (isCompleted && showAttendedDetails);
+              const onClick = isCancelled
+                ? () => setShowCancelDetails(v => !v)
+                : isCompleted
+                ? () => setShowAttendedDetails(v => !v)
+                : undefined;
+              return (
+                <button
+                  key={s.label}
+                  type="button"
+                  disabled={!isToggle}
+                  onClick={onClick}
+                  className={`${s.bg} rounded-2xl p-4 text-center transition-all ${isToggle ? "cursor-pointer hover:brightness-95 active:scale-[0.98]" : "cursor-default"} ${isOpen ? "ring-2 ring-primary/40" : ""}`}
+                >
+                  <div className={`text-3xl font-bold ${s.color}`}>{s.value}</div>
+                  <div className="text-xs text-muted-foreground mt-1 flex items-center justify-center gap-1">
+                    {s.label}
+                    {isToggle && <span className="text-[10px] opacity-60">{isOpen ? "▲" : "▼"}</span>}
+                  </div>
+                </button>
+              );
+            })}
           </div>
 
           <div className="mt-4 pt-4 border-t text-center text-sm text-muted-foreground">
@@ -2321,8 +2349,11 @@ function AnalyticsTab() {
         </CardContent>
       </Card>
 
-      {/* No-show ranking */}
-      {data.topNoShows?.length > 0 && (
+      {/* Cancellation rankings — shown only when the owner expands the
+          "תורים שבוטלו" tile above. Keeps both ברזים and ביטולים tucked
+          under one toggle since they answer the same question ("who's
+          been flaky?"). */}
+      {showCancelDetails && data.topNoShows?.length > 0 && (
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-base">🚫 ברזים — מי לא הגיע הכי הרבה</CardTitle>
@@ -2345,8 +2376,7 @@ function AnalyticsTab() {
         </Card>
       )}
 
-      {/* Cancellation ranking */}
-      {data.topCancellers?.length > 0 && (
+      {showCancelDetails && data.topCancellers?.length > 0 && (
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-base">↩️ ביטולים — מי ביטל הכי הרבה</CardTitle>
@@ -2362,6 +2392,34 @@ function AnalyticsTab() {
                     <p className="text-xs text-muted-foreground" dir="ltr">{c.phone}</p>
                   </div>
                   <span className="text-sm font-bold text-orange-600 bg-orange-100 px-2.5 py-1 rounded-full">{c.count}x</span>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Top attendees — shown when the "תורים שהושלמו" tile is expanded.
+          Blue palette mirrors the "favorite customer" ✓ badge on the
+          Customers list so the owner recognises the same ranking there. */}
+      {showAttendedDetails && data.topAttendees?.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-base">⭐ מי הגיע הכי הרבה</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-2">
+              {data.topAttendees.map((c: any, i: number) => (
+                <div key={c.phone} className="flex items-center gap-3 p-2.5 rounded-xl bg-blue-50 border border-blue-100">
+                  <span className="text-lg font-bold text-blue-400 w-6 text-center">{i + 1}</span>
+                  <div className="flex-1 min-w-0">
+                    <p className="font-semibold text-sm truncate flex items-center gap-1.5">
+                      {c.name}
+                      {i < 3 && <CheckCircle className="w-4 h-4 text-blue-500 fill-blue-100" />}
+                    </p>
+                    <p className="text-xs text-muted-foreground" dir="ltr">{c.phone}</p>
+                  </div>
+                  <span className="text-sm font-bold text-blue-600 bg-blue-100 px-2.5 py-1 rounded-full">{c.count}x</span>
                 </div>
               ))}
             </div>
@@ -2560,16 +2618,42 @@ function CustomersTab() {
         <CardContent>
           {customerList.length ? (
             <div className="space-y-3">
-              {customerList.map((c, i) => (
+              {customerList.map((c, i) => {
+                // Top-3 attendees are "favorite customers" — surfaced with a
+                // blue ✓ next to the name. Backend already sorts by
+                // totalVisits desc, so `i < 3` picks the top three.
+                const isFavorite = i < 3 && c.totalVisits > 0;
+                const noShowCount = (c as any).noShowCount ?? 0;
+                const cancelledCount = (c as any).cancelledCount ?? 0;
+                return (
                 <div key={i} className="flex flex-col sm:flex-row justify-between items-start sm:items-center p-4 border rounded-xl hover:border-primary/40 transition-colors gap-3">
                   <div className="flex-1 min-w-0">
                     <div className="font-semibold flex items-center gap-2 flex-wrap">
+                      {isFavorite && <CheckCircle className="w-4 h-4 text-blue-500 fill-blue-100" aria-label="לקוח/ה מועדף/ת" />}
                       {c.clientName}
                       {c.totalVisits >= 5 && <Badge className="text-xs bg-amber-100 text-amber-700 border-amber-200">לקוחה נאמנה</Badge>}
                     </div>
                     <div className="text-sm text-muted-foreground mt-0.5" dir="ltr">{c.phoneNumber}</div>
                     <div className="text-xs text-muted-foreground mt-1">
-                      ביקור ראשון: {c.firstVisitDate} • אחרון: {c.lastVisitDate}
+                      {c.firstVisitDate ? <>ביקור ראשון: {c.firstVisitDate} • אחרון: {c.lastVisitDate}</> : "טרם ביקר/ה"}
+                    </div>
+                    {/* Reliability breakdown — attendance / no-shows / cancellations.
+                        Zero-count chips are hidden so a perfectly-attended
+                        customer doesn't get visual "0 ברזים" noise. */}
+                    <div className="flex flex-wrap gap-1.5 mt-2">
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-blue-50 text-blue-700 border border-blue-100">
+                        ✓ {c.totalVisits} הגיע/ה
+                      </span>
+                      {noShowCount > 0 && (
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-red-50 text-red-700 border border-red-100">
+                          🚫 {noShowCount} ברזים
+                        </span>
+                      )}
+                      {cancelledCount > 0 && (
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-orange-50 text-orange-700 border border-orange-100">
+                          ↩️ {cancelledCount} ביטולים
+                        </span>
+                      )}
                     </div>
                   </div>
                   <div className="flex items-center gap-2 flex-wrap">
@@ -2593,7 +2677,8 @@ function CustomersTab() {
                     </div>
                   </div>
                 </div>
-              ))}
+                );
+              })}
             </div>
           ) : <EmptyState text="אין לקוחות עדיין" />}
         </CardContent>

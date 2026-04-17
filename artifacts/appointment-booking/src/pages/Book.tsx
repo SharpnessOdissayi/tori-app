@@ -369,9 +369,14 @@ export default function Book({ slugOverride }: { slugOverride?: string } = {}) {
   // an empty slot list but at least doesn't crash).
   const rescheduleServiceId = Number(existingBooking?.serviceId ?? 0);
   const rescheduleDateStr = rescheduleDate?.toISOString().split("T")[0] ?? "";
+  // Tell the availability endpoint to ignore the appointment being
+  // rescheduled so its current slot (and any adjacent ones shadowed by
+  // it) show as free. Without this the reschedule picker claims the
+  // client's own slot is taken.
+  const rescheduleExcludeId = Number(existingBooking?.id ?? 0) || undefined;
   const { data: rescheduleAvailability } = useGetPublicAvailability(
     businessSlug || "",
-    { date: rescheduleDateStr, serviceId: rescheduleServiceId },
+    { date: rescheduleDateStr, serviceId: rescheduleServiceId, ...(rescheduleExcludeId ? { excludeAppointmentId: rescheduleExcludeId } : {}) } as any,
     { query: { enabled: !!rescheduleDateStr && rescheduleStep === "picking" && rescheduleServiceId > 0 } }
   );
 

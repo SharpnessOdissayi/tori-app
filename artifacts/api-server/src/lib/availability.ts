@@ -30,7 +30,8 @@ export async function computeAvailableSlots(
   date: string,
   serviceDurationMinutes: number,
   bufferMinutes: number,
-  maxAppointmentsPerDay?: number | null
+  maxAppointmentsPerDay?: number | null,
+  excludeAppointmentId?: number | null
 ): Promise<{ time: string; available: boolean }[]> {
   const dayOfWeek = dayOfWeekFromISO(date);
 
@@ -80,6 +81,7 @@ export async function computeAvailableSlots(
 
   const allAppointments = await db
     .select({
+      id: appointmentsTable.id,
       appointmentTime: appointmentsTable.appointmentTime,
       durationMinutes: appointmentsTable.durationMinutes,
       status: appointmentsTable.status,
@@ -92,8 +94,14 @@ export async function computeAvailableSlots(
       )
     );
 
+  // Also exclude the appointment being rescheduled — otherwise a client
+  // picking "same day, 30 min later" sees the slot as blocked by the
+  // very appointment they're trying to move.
   const existingAppointments = allAppointments.filter(
-    a => a.status !== "cancelled" && a.status !== "pending_payment"
+    a => a.status !== "cancelled"
+      && a.status !== "no_show"
+      && a.status !== "pending_payment"
+      && (excludeAppointmentId == null || a.id !== excludeAppointmentId)
   );
 
   // If the business has a daily cap and it's already reached by confirmed

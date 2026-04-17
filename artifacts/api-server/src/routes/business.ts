@@ -833,15 +833,18 @@ router.get("/business/customers", requireBusinessAuth, async (req, res): Promise
   const customerMap = new Map<string, {
     clientName: string;
     phoneNumber: string;
-    totalVisits: number;
-    totalRevenue: number;
+    totalVisits: number;       // attended (confirmed / completed / pending)
+    totalRevenue: number;      // revenue from attended visits only
+    noShowCount: number;       // status='no_show' (cancelReason='ברז')
+    cancelledCount: number;    // status='cancelled'
     lastVisitDate: string;
     firstVisitDate: string;
   }>();
 
   for (const a of appointments) {
-    // Skip cancelled / unpaid appointments from visit counts
-    if (a.status === "cancelled" || a.status === "pending_payment") continue;
+    // Abandoned deposit attempts — not a meaningful signal either way.
+    if (a.status === "pending_payment") continue;
+
     const key = a.phoneNumber;
     if (!customerMap.has(key)) {
       customerMap.set(key, {
@@ -849,18 +852,28 @@ router.get("/business/customers", requireBusinessAuth, async (req, res): Promise
         phoneNumber: a.phoneNumber,
         totalVisits: 0,
         totalRevenue: 0,
-        firstVisitDate: a.appointmentDate,
-        lastVisitDate: a.appointmentDate,
+        noShowCount: 0,
+        cancelledCount: 0,
+        firstVisitDate: "",
+        lastVisitDate: "",
       });
     }
     const record = customerMap.get(key)!;
-    record.totalVisits += 1;
-    record.totalRevenue += Number(a.price) || 0;
-    if (a.appointmentDate > record.lastVisitDate) record.lastVisitDate = a.appointmentDate;
-    if (a.appointmentDate < record.firstVisitDate) record.firstVisitDate = a.appointmentDate;
+
+    if (a.status === "cancelled") {
+      record.cancelledCount += 1;
+    } else if (a.status === "no_show") {
+      record.noShowCount += 1;
+    } else {
+      // Attended (confirmed / completed / pending)
+      record.totalVisits += 1;
+      record.totalRevenue += Number(a.price) || 0;
+      if (!record.firstVisitDate || a.appointmentDate < record.firstVisitDate) record.firstVisitDate = a.appointmentDate;
+      if (!record.lastVisitDate  || a.appointmentDate > record.lastVisitDate)  record.lastVisitDate  = a.appointmentDate;
+    }
   }
 
-  res.json(Array.from(customerMap.values()).sort((a, b) => b.totalRevenue - a.totalRevenue));
+  res.json(Array.from(customerMap.values()).sort((a, b) => b.totalVisits - a.totalVisits));
 });
 
 // POST /business/broadcast — send WhatsApp message to all customers
@@ -1109,7 +1122,20 @@ router.get("/business/analytics", requireBusinessAuth, async (req, res): Promise
   const topCancellers = Object.values(cancelByClient).sort((a, b) => b.count - a.count).slice(0, 10);
   const topNoShows = Object.values(noShowByClient).sort((a, b) => b.count - a.count).slice(0, 10);
 
-  res.json({ total, future, past, cancelled, avg, currentMonth: currentCount, prevMonth: prevCount, trending, topCancellers, topNoShows });
+  // Top attendees — ranking of customers by how many appointments they
+  // actually showed up for. Powers the "תורים שהושלמו" expand-on-click
+  // panel in AnalyticsTab and the blue-checkmark "favorite customer"
+  // markers on the Customers list.
+  const attendedByClient: Record<string, { name: string; phone: string; count: number }> = {};
+  allAppts.forEach((a: any) => {
+    if (a.status === "cancelled" || a.status === "no_show" || a.status === "pending_payment") return;
+    const key = a.phoneNumber;
+    if (!attendedByClient[key]) attendedByClient[key] = { name: a.clientName, phone: a.phoneNumber, count: 0 };
+    attendedByClient[key].count++;
+  });
+  const topAttendees = Object.values(attendedByClient).sort((a, b) => b.count - a.count).slice(0, 10);
+
+  res.json({ total, future, past, cancelled, avg, currentMonth: currentCount, prevMonth: prevCount, trending, topCancellers, topNoShows, topAttendees });
 });
 
 // GET /business/revenue

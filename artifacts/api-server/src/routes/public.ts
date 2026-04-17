@@ -256,7 +256,13 @@ router.get("/public/:businessSlug/availability", async (req, res): Promise<void>
   }
 
   const bufferMinutes = service.bufferMinutes > 0 ? service.bufferMinutes : business.bufferMinutes;
-  const slots = await computeAvailableSlots(business.id, date, service.durationMinutes, bufferMinutes, business.maxAppointmentsPerDay);
+  // Optional excludeAppointmentId (reschedule flow) — read straight from
+  // req.query since the zod QueryParams schema only knows date+serviceId.
+  const excludeRaw = req.query.excludeAppointmentId;
+  const excludeAppointmentId = typeof excludeRaw === "string" && excludeRaw.trim()
+    ? Number(excludeRaw) || null
+    : null;
+  const slots = await computeAvailableSlots(business.id, date, service.durationMinutes, bufferMinutes, business.maxAppointmentsPerDay, excludeAppointmentId);
 
   const minLeadHours: number = (business as any).minLeadHours ?? 0;
   const minAllowed = new Date(Date.now() + minLeadHours * 60 * 60 * 1000);
