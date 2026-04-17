@@ -1851,10 +1851,72 @@ export default function Book({ slugOverride }: { slugOverride?: string } = {}) {
                         <div className="w-full h-24" style={{ background: `linear-gradient(135deg, ${primaryColor}30, ${accentColor}30)` }} />
                       )}
                       <div className="p-3">
-                        <div className="font-bold text-sm line-clamp-1">{service.name}</div>
+                        {/* Owner preference: show the full service name,
+                            wrap instead of truncating so long names like
+                            "מילוי הלחמת ריסים" aren't cut off. */}
+                        <div className="font-bold text-sm leading-tight break-words">{service.name}</div>
                         <div className="flex justify-between items-center mt-2 text-xs">
                           <span className="text-muted-foreground flex items-center gap-1"><Clock className="w-3 h-3" /><bdi>{formatDuration(service.durationMinutes)}</bdi></span>
                           <span className="font-bold" style={{ color: primaryColor }}>{priceStr}</span>
+                        </div>
+                      </div>
+                    </button>
+                  );
+                }
+
+                if (serviceCardStyle === "split") {
+                  return (
+                    <button
+                      key={service.id}
+                      onClick={() => { setSelectedServiceId(service.id); setStep(2); }}
+                      className={`w-full text-right border rounded-2xl overflow-hidden shadow-sm flex ${hoverClass}`}
+                    >
+                      {service.imageUrl ? (
+                        <img src={service.imageUrl} alt={service.name} className="w-28 shrink-0 object-cover" />
+                      ) : (
+                        <div className="w-28 shrink-0" style={{ background: `linear-gradient(135deg, ${primaryColor}, ${accentColor})` }} />
+                      )}
+                      <div className="flex-1 min-w-0 p-3 flex flex-col justify-between gap-2">
+                        <div>
+                          <div className="font-bold text-sm leading-tight break-words">{service.name}</div>
+                          <div className="text-xs text-muted-foreground mt-0.5 flex items-center gap-1">
+                            <Clock className="w-3 h-3" /><bdi>{formatDuration(service.durationMinutes)}</bdi>
+                          </div>
+                        </div>
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="text-sm font-bold" style={{ color: primaryColor }}>{priceStr}</span>
+                          <span
+                            className="px-3 py-1 text-[11px] font-medium text-white shadow-sm rounded-full"
+                            style={{ backgroundColor: primaryColor }}
+                          >
+                            קבע
+                          </span>
+                        </div>
+                      </div>
+                    </button>
+                  );
+                }
+
+                if (serviceCardStyle === "banner") {
+                  return (
+                    <button
+                      key={service.id}
+                      onClick={() => { setSelectedServiceId(service.id); setStep(2); }}
+                      className={`w-full relative overflow-hidden shadow-md rounded-2xl h-28 flex items-end p-4 text-start text-white ${hoverClass}`}
+                      style={
+                        service.imageUrl
+                          ? { backgroundImage: `url(${service.imageUrl})`, backgroundSize: "cover", backgroundPosition: "center" }
+                          : { background: `linear-gradient(120deg, ${primaryColor} 0%, ${accentColor} 100%)` }
+                      }
+                    >
+                      {/* Dark overlay for contrast over user-uploaded images */}
+                      <div className="absolute inset-0 bg-gradient-to-t from-black/55 via-black/20 to-transparent" />
+                      <div className="relative z-10">
+                        <div className="font-extrabold text-base leading-tight break-words drop-shadow">{service.name}</div>
+                        <div className="flex items-center gap-2 mt-1 text-xs opacity-95">
+                          <span className="flex items-center gap-1"><Clock className="w-3 h-3" /><bdi>{formatDuration(service.durationMinutes)}</bdi></span>
+                          <span>·</span>
+                          <span className="font-bold">{priceStr}</span>
                         </div>
                       </div>
                     </button>

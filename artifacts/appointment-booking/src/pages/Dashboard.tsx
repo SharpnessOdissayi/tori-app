@@ -4163,7 +4163,10 @@ function BrandingTab() {
                           <div key={i} className="overflow-hidden shadow-sm" style={{ background: cardBg, borderRadius: cardPx }}>
                             <div className="h-16" style={{ background: `linear-gradient(135deg, ${form.primaryColor}40, ${(form.accentColor || form.primaryColor)}40)` }} />
                             <div className="p-2">
-                              <div className="font-bold text-xs truncate" style={{ color: textMain }}>{name}</div>
+                              {/* Owner preference: full name, even if it
+                                  wraps — scanning a grid of services, the
+                                  name is the primary data, so no truncate. */}
+                              <div className="font-bold text-xs leading-tight break-words" style={{ color: textMain }}>{name}</div>
                               <div className="flex justify-between gap-1 text-xs mt-1">
                                 <span className="truncate" style={{ color: textMuted }}>{duration}</span>
                                 <span className="shrink-0 font-bold" style={{ color: form.primaryColor }}>{price}</span>
@@ -4173,6 +4176,44 @@ function BrandingTab() {
                         );
                       })}
                     </div>
+                  ) : form.serviceCardStyle === "split" ? (
+                    // Side-by-side layout: image (or gradient placeholder)
+                    // on one half, full service info + price badge on the
+                    // other. Reads like a menu item in a café.
+                    <div className="overflow-hidden shadow-sm flex" style={{ background: cardBg, borderRadius: cardPx, border: `1px solid ${isDark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.06)"}` }}>
+                      <div className="w-24 shrink-0" style={{ background: `linear-gradient(135deg, ${form.primaryColor}, ${form.accentColor || form.primaryColor})` }} />
+                      <div className="flex-1 min-w-0 p-3 flex flex-col justify-between gap-2">
+                        <div>
+                          <div className="font-bold text-sm leading-tight break-words" style={{ color: textMain }}>{previewServiceName}</div>
+                          <div className="text-[11px] mt-0.5" style={{ color: textMuted }}>{previewDurationStr}</div>
+                        </div>
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="text-sm font-bold" style={{ color: form.primaryColor }}>{previewPriceStr}</span>
+                          <button className="px-3 py-1 text-[11px] font-medium text-white shadow" style={{ background: form.primaryColor, borderRadius: buttonPx }}>קבע</button>
+                        </div>
+                      </div>
+                    </div>
+                  ) : form.serviceCardStyle === "banner" ? (
+                    // Wide banner with the name + price overlaid on a
+                    // branded gradient — feels premium/hero-style and
+                    // works well for salons with strong branding.
+                    <button
+                      className="w-full overflow-hidden shadow-md relative h-24 flex items-end p-3 text-start"
+                      style={{
+                        borderRadius: cardPx,
+                        background: `linear-gradient(120deg, ${form.primaryColor} 0%, ${form.accentColor || form.primaryColor} 100%)`,
+                      }}
+                    >
+                      <div className="relative z-10 text-white">
+                        <div className="font-extrabold text-base leading-tight break-words drop-shadow">{previewServiceName}</div>
+                        <div className="flex items-center gap-2 mt-1 text-[11px] opacity-95">
+                          <span>{previewDurationStr}</span>
+                          <span>·</span>
+                          <span className="font-bold">{previewPriceStr}</span>
+                        </div>
+                      </div>
+                      <div className="absolute inset-0 bg-gradient-to-t from-black/30 to-transparent" />
+                    </button>
                   ) : (
                     <div className="overflow-hidden shadow-sm" style={{ background: cardBg, borderRadius: cardPx, border: `1px solid ${isDark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.06)"}` }}>
                       <div className="p-4">
@@ -4462,13 +4503,15 @@ function BrandingTab() {
           <div className="space-y-6 pt-4 border-t">
             <div>
               <h3 className="font-semibold text-base border-b pb-2 mb-3">סגנון כרטיסיות שירות</h3>
-              <p className="text-xs text-muted-foreground mb-3">איך כרטיסי השירותים (תספורת, טיפול וכד') מוצגים בעמוד ההזמנות — קלאסי, שורה מינימלית, רשת 2×2 או בועה</p>
+              <p className="text-xs text-muted-foreground mb-3">איך כרטיסי השירותים (תספורת, טיפול וכד') מוצגים בעמוד ההזמנות</p>
               <div className="grid grid-cols-2 gap-2">
                 {[
-                  { id: "card", label: "כרטיס", desc: "קלאסי עם תמונה" },
+                  { id: "card",    label: "כרטיס",   desc: "קלאסי עם תמונה" },
                   { id: "minimal", label: "מינימלי", desc: "שורת טקסט + כפתור" },
-                  { id: "grid", label: "רשת", desc: "2 עמודות עם תמונה" },
-                  { id: "bubble", label: "בועה", desc: "עגול ומעוצב" },
+                  { id: "grid",    label: "רשת",     desc: "2 עמודות עם תמונה" },
+                  { id: "bubble",  label: "בועה",    desc: "עגול ומעוצב" },
+                  { id: "split",   label: "מפוצל",   desc: "תמונה בצד, פרטים ומחיר" },
+                  { id: "banner",  label: "באנר",    desc: "רקע מלא + טקסט עליו" },
                 ].map(opt => (
                   <button
                     key={opt.id}
