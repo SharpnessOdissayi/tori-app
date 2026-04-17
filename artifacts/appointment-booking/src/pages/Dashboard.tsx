@@ -1706,7 +1706,7 @@ function HomeTab({ onJump }: { onJump: (tab: string) => void }) {
               <span>🔗</span> הלינק שלך לקביעת תורים
             </CardTitle>
             <CardDescription>
-              שלח/י את הלינק הזה ללקוחות. בשיתוף ב־WhatsApp תופיע תמונה ופרטי העסק.
+              שלח/י את הלינק הזה ללקוחות. בשיתוף ב־ווצאפ תופיע תמונה ופרטי העסק.
             </CardDescription>
           </CardHeader>
           <CardContent>
