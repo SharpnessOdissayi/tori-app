@@ -73,4 +73,31 @@ export async function runSubscriptionBilling() {
       logger.error({ err, businessId: biz.id }, "[SubscriptionCron] Unexpected error");
     }
   }
+
+  // Trial expiry — businesses without a tranzilaToken are on the
+  // 14-day Pro trial. Once their subscriptionRenewDate passes and they
+  // still haven't added a payment method, drop them back to free.
+  const expiredTrials = await db
+    .select({ id: businessesTable.id })
+    .from(businessesTable)
+    .where(
+      and(
+        eq(businessesTable.subscriptionPlan, "pro"),
+        isNull((businessesTable as any).tranzilaToken),
+        lte((businessesTable as any).subscriptionRenewDate, now),
+      ),
+    );
+  if (expiredTrials.length > 0) {
+    logger.info({ count: expiredTrials.length }, "[SubscriptionCron] Expiring trials");
+    for (const biz of expiredTrials) {
+      await db
+        .update(businessesTable)
+        .set({
+          subscriptionPlan:        "free",
+          maxServicesAllowed:      3,
+          maxAppointmentsPerMonth: 20,
+        } as any)
+        .where(eq(businessesTable.id, biz.id));
+    }
+  }
 }

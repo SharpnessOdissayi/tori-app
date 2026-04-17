@@ -158,8 +158,15 @@ router.post("/auth/business/register", async (req, res): Promise<void> => {
 
   const passwordHash = await bcrypt.hash(password, 10);
 
-  const maxServicesAllowed = subscriptionPlan === "pro" ? 999 : 3;
-  const maxAppointmentsPerMonth = subscriptionPlan === "pro" ? 9999 : 20;
+  // Every new business gets a 14-day Pro trial — no card needed.
+  // The owner picks "free" or "pro" in the register flow to signal
+  // which tier they *intend* to stay on after the trial; during the
+  // trial itself they get full Pro access so they can evaluate the
+  // product without the free-tier ceilings.
+  // If they don't add a payment method before subscriptionRenewDate,
+  // the subscription cron auto-downgrades them to free.
+  const trialEndsAt = new Date();
+  trialEndsAt.setDate(trialEndsAt.getDate() + 14);
 
   const [business] = await db
     .insert(businessesTable)
@@ -170,10 +177,13 @@ router.post("/auth/business/register", async (req, res): Promise<void> => {
       phone,
       email,
       passwordHash,
-      subscriptionPlan,
-      maxServicesAllowed,
-      maxAppointmentsPerMonth,
+      // Always start as Pro for the trial window — pricing copy promises
+      // 14 days of full Pro at signup regardless of the plan they picked.
+      subscriptionPlan: "pro",
+      maxServicesAllowed: 999,
+      maxAppointmentsPerMonth: 9999,
       subscriptionStartDate: new Date(),
+      subscriptionRenewDate: trialEndsAt,
       businessCategories: businessCategories ? JSON.stringify(businessCategories) : null,
       address: address || null,
       websiteUrl: websiteUrl || null,

@@ -107,6 +107,15 @@ export const businessesTable = pgTable("businesses", {
   serviceCardStyle: text("service_card_style"),             // "card" | "minimal" | "grid" | "bubble"
   animationStyle: text("animation_style"),                  // "none" | "subtle" | "bouncy"
   hoverEffect: text("hover_effect"),                        // "none" | "lift" | "glow"
+  // ─── Receipt / invoice profile ───
+  // Fields that go on every receipt the business issues. Stored here
+  // (not on the receipt row) because they change infrequently and the
+  // owner fills them once in Settings → קבלות.
+  businessTaxId: text("business_tax_id"),                   // ח.פ. / ע.מ. / ת.ז.
+  businessLegalType: text("business_legal_type"),           // "exempt" | "authorized" | "company"
+  businessLegalName: text("business_legal_name"),           // עוסק מורשה / שם משפטי לקבלה
+  invoiceAddress: text("invoice_address"),                  // כתובת הרשומה במע"מ (יכולה להיות שונה מכתובת העסק)
+  autoSendReceipts: boolean("auto_send_receipts").notNull().default(false),
 });
 
 export const insertBusinessSchema = createInsertSchema(businessesTable).omit({ id: true, createdAt: true });

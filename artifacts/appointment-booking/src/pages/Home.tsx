@@ -44,7 +44,7 @@ export default function Home() {
             <br />
             תזכורות בווצאפ, הודעות פוש מותאמות אישית בכניסה ללינק קביעת התורים ועוד המון מחכים לך בפנים!
             <br />
-            <span className="text-primary font-semibold">הנחה של 50% לחודש הראשון למנוי הפרו!</span>
+            <span className="text-primary font-semibold">14 ימי ניסיון חינם עם מנוי פרו מלא — ללא כרטיס אשראי!</span>
           </p>
 
           <div className="flex flex-col sm:flex-row gap-4 justify-center pt-2">

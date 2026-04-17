@@ -144,12 +144,11 @@ function StepPlan({ onNext }: { onNext: (plan: Plan) => void }) {
             <span className="font-bold text-lg text-blue-700">פרו</span>
           </div>
           <div className="flex items-baseline gap-2 mb-1">
-            <span className="text-3xl font-bold text-blue-700">₪50</span>
-            <span className="text-sm text-blue-500 line-through">₪100</span>
-            <span className="text-[10px] font-bold text-amber-700 bg-amber-100 px-1.5 py-0.5 rounded">🎉 -50%</span>
+            <span className="text-3xl font-bold text-blue-700">חינם</span>
+            <span className="text-[10px] font-bold text-amber-700 bg-amber-100 px-1.5 py-0.5 rounded">🎉 14 ימים</span>
           </div>
           <div className="text-sm text-blue-500 mb-4">
-            <span className="font-semibold">מבצע פתיחה!</span> לחודש הראשון — לאחר מכן ₪100/חודש
+            <span className="font-semibold">ניסיון חינם ל-14 ימים</span> — לאחר מכן ₪100/חודש, ביטול בכל עת
           </div>
           <ul className="space-y-2 text-sm text-right text-blue-700">
             <li className="flex items-center gap-2"><CheckCircle className="w-4 h-4 text-green-500 shrink-0" /> שירותים ללא הגבלה</li>
@@ -183,23 +182,23 @@ function StepPayment({ onNext, onBack }: { onNext: () => void; onBack: () => voi
         </button>
         <div>
           <h2 className="text-xl font-bold">תשלום — תוכנית פרו</h2>
-          <p className="text-sm text-muted-foreground">חודש ראשון ב-₪50 בלבד</p>
+          <p className="text-sm text-muted-foreground">14 ימי ניסיון חינם, אחר כך ₪100/חודש</p>
         </div>
       </div>
 
       <Card className="border-2 border-blue-200 bg-blue-50/50">
         <CardContent className="pt-6 space-y-4">
           <div className="flex justify-between text-sm">
-            <span>תוכנית פרו — חודש ראשון</span>
-            <span className="font-bold">₪50</span>
+            <span>תוכנית פרו — 14 ימי ניסיון</span>
+            <span className="font-bold text-green-600">חינם</span>
           </div>
           <div className="flex justify-between text-sm text-muted-foreground">
-            <span>לאחר מכן</span>
+            <span>מהיום ה-15</span>
             <span>₪100/חודש</span>
           </div>
           <div className="border-t pt-3 flex justify-between font-bold">
             <span>לתשלום עכשיו</span>
-            <span className="text-blue-600">₪50</span>
+            <span className="text-green-600">₪0</span>
           </div>
         </CardContent>
       </Card>
@@ -213,8 +212,8 @@ function StepPayment({ onNext, onBack }: { onNext: () => void; onBack: () => voi
           </div>
         </div>
         <ul className="text-sm text-muted-foreground space-y-1.5 pr-1">
-          <li>• השלמת הרישום תעביר אותך לעמוד התשלום</li>
-          <li>• חיוב ראשון ₪50, מהחודש השני ₪100/חודש</li>
+          <li>• השלמת הרישום תפעיל את 14 ימי הניסיון — לא יגבה חיוב כעת</li>
+          <li>• אחרי 14 הימים, חיוב חודשי של ₪100 (אפשר להוסיף אמצעי תשלום בכל עת)</li>
           <li>• ניתן לבטל בכל עת מהדשבורד — ללא קנסות</li>
         </ul>
       </div>
@@ -295,7 +294,7 @@ function StepDetails({
   const [sendingCode, setSendingCode]           = useState(false);
   const [codeSent, setCodeSent]                 = useState(false);
   const [verifyingCode, setVerifyingCode]       = useState(false);
-  const emailIsVerified = verifiedEmail && verifiedEmail === form.email.trim().toLowerCase();
+  const emailIsVerified = Boolean(verifiedEmail && verifiedEmail === form.email.trim().toLowerCase());
 
   const sendVerificationCode = async () => {
     const email = form.email.trim().toLowerCase();
