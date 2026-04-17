@@ -651,7 +651,15 @@ function _htmlEscape(s: string): string {
 
 router.get("/s/:businessSlug", async (req, res): Promise<void> => {
   const slug = String(req.params.businessSlug ?? "").toLowerCase().replace(/[^a-z0-9-]/g, "");
-  const host = `${req.protocol}://${req.get("host")}`;
+  // Always redirect to the CANONICAL public host, not req.get("host").
+  // The api-server is reachable via multiple hostnames (the primary
+  // www.kavati.net domain, the raw Railway *.up.railway.app URL, a
+  // custom domain per Pro business, …) and only the primary one has
+  // the SPA dist available. Hard-coding the canonical target keeps
+  // every share link landing on the working page regardless of how
+  // the /api/s/:slug URL was reached. Configurable via env for staging.
+  const canonical = (process.env.PUBLIC_CANONICAL_HOST || "https://www.kavati.net").replace(/\/$/, "");
+  const host = canonical;
   const bookUrl = `${host}/book/${encodeURIComponent(slug)}`;
 
   // Fall back to a plain redirect when the slug is unknown — the SPA
