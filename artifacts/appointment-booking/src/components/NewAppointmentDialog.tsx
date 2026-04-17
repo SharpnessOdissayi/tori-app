@@ -55,20 +55,35 @@ export function NewAppointmentDialog({
     setNotes("");
   }, [open, initialDate, initialTime, services]);
 
-  // Customer suggestions — matches phone OR name, capped at 6.
+  // Customer suggestions — matches name OR phone, capped at 6. Name is
+  // the primary key now (owners know a client by name, not by 10 digits
+  // of a phone), so name matches rank first.
   const suggestions = useMemo(() => {
-    const q = phone.trim() || name.trim();
+    const q = name.trim() || phone.trim();
     if (!q) return [] as CustomerLite[];
     const qLow = q.toLowerCase();
     return customers
-      .filter(c => c.phoneNumber.includes(q) || c.clientName.toLowerCase().includes(qLow))
+      .filter(c => c.clientName.toLowerCase().includes(qLow) || c.phoneNumber.includes(q))
       .slice(0, 6);
-  }, [phone, name, customers]);
+  }, [name, phone, customers]);
 
   const pickSuggestion = (c: CustomerLite) => {
     setPhone(c.phoneNumber);
     setName(c.clientName);
   };
+
+  // Auto-fill the phone when the typed name exactly matches a known
+  // customer (case-insensitive). Owners asked for "I type the name, the
+  // phone fills itself" — no need to click a suggestion if the match is
+  // unambiguous. Skips auto-fill when the owner has already typed a phone
+  // manually, so we don't overwrite their input.
+  useEffect(() => {
+    const typed = name.trim().toLowerCase();
+    if (!typed) return;
+    if (phone.trim().length > 0) return;
+    const exact = customers.find(c => c.clientName.toLowerCase() === typed);
+    if (exact) setPhone(exact.phoneNumber);
+  }, [name, customers, phone]);
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -112,19 +127,14 @@ export function NewAppointmentDialog({
         </DialogHeader>
         <form onSubmit={submit} className="space-y-4 pt-2">
           <div className="space-y-2">
-            <Label>מספר טלפון</Label>
-            <Input
-              type="tel"
-              dir="ltr"
-              value={phone}
-              onChange={e => setPhone(e.target.value)}
-              placeholder=""
-            />
-            <p className="text-[11px] text-muted-foreground">אם הלקוח כבר קיים — השם יתמלא אוטומטית כשתבחרי אותו מהרשימה</p>
+            <Label>שם לקוח *</Label>
+            <Input required value={name} onChange={e => setName(e.target.value)} />
+            <p className="text-[11px] text-muted-foreground">אם הלקוח כבר קיים — הטלפון יתמלא אוטומטית</p>
           </div>
 
-          {/* Customer suggestions dropdown — shown when user types
-              anything in phone/name and there's a match. */}
+          {/* Suggestions dropdown — matches on the typed name (or phone)
+              and fills both fields on pick. Sits between the two fields
+              so the owner sees it right after typing. */}
           {suggestions.length > 0 && (
             <div className="border rounded-xl overflow-hidden bg-muted/20 divide-y">
               {suggestions.map(c => (
@@ -142,8 +152,14 @@ export function NewAppointmentDialog({
           )}
 
           <div className="space-y-2">
-            <Label>שם לקוח *</Label>
-            <Input required value={name} onChange={e => setName(e.target.value)} />
+            <Label>מספר טלפון</Label>
+            <Input
+              type="tel"
+              dir="ltr"
+              value={phone}
+              onChange={e => setPhone(e.target.value)}
+              placeholder=""
+            />
           </div>
 
           <div className="space-y-2">

@@ -518,7 +518,23 @@ function TimeGrid({
               <div className={`text-[11px] font-semibold ${isToday ? "text-primary" : "text-muted-foreground"}`}>{weekday}</div>
               <div className={`text-sm font-bold ${isToday ? "text-primary" : ""}`}>{format(d, "d.M")}</div>
               {names.length > 0 && (
-                <div className="mt-1 text-[10px] font-bold text-primary bg-primary/10 rounded px-1 py-0.5 truncate">{names[0]}</div>
+                // Removed `truncate` — on mobile the column is ~45px wide,
+                // so "יום הזכרון" rendered as "יום הז..." and owners couldn't
+                // tell which holiday it was. Allowing wrap + tap-to-toast
+                // (handled below) lets them see the full text without
+                // enlarging the header row.
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    alert(names.join(" • "));
+                  }}
+                  className="mt-1 w-full text-[10px] font-bold text-primary bg-primary/10 rounded px-1 py-0.5 leading-tight break-words text-right hover:bg-primary/20 transition-colors"
+                  title={names.join(" • ")}
+                >
+                  {names[0]}
+                  {names.length > 1 && <span className="mr-1 opacity-75">+{names.length - 1}</span>}
+                </button>
               )}
             </div>
           );
