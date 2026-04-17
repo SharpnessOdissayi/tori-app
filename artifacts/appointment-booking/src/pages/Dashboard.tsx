@@ -1562,6 +1562,29 @@ function AppointmentsTab({ mobileFocus }: { mobileFocus?: "calendar" | "approval
         timeOff={timeOff ?? []}
         onApptClick={setEditAppt}
         onTimeOffClick={setEditTimeOff}
+        onTimeOffReschedule={async (t, newDate, newStartTime, newEndTime) => {
+          const token = localStorage.getItem("biz_token") || sessionStorage.getItem("biz_token");
+          try {
+            const body: any = { date: newDate };
+            if (t.fullDay) {
+              body.fullDay = true;
+            } else {
+              body.fullDay = false;
+              if (newStartTime) body.startTime = newStartTime;
+              if (newEndTime)   body.endTime   = newEndTime;
+            }
+            const r = await fetch(`/api/business/time-off/${t.id}`, {
+              method: "PATCH",
+              headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+              body: JSON.stringify(body),
+            });
+            if (!r.ok) throw new Error();
+            toast({ title: "האילוץ הועבר" });
+            queryClient.invalidateQueries({ queryKey: ["time-off"] });
+          } catch {
+            toast({ title: "שגיאה בהעברת האילוץ", variant: "destructive" });
+          }
+        }}
         onRescheduleServer={handleReschedule}
         serviceColors={serviceColors}
         onNewAppointment={opts => setNewApptDialog({ open: true, date: opts?.date, time: opts?.time, tab: "appointment" })}

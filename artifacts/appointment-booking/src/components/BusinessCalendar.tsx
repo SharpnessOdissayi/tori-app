@@ -380,20 +380,29 @@ type DragState = {
   previewMin: number;
 };
 
+// Parallel state for time-off blocks. Unlike appointments, partial
+// blocks carry TWO minute anchors (start + end) so we can drop them
+// elsewhere while preserving their length; full-day blocks only move
+// between dates.
+type TimeOffDragState = {
+  item: TimeOffItem;
+  startY: number;
+  originDate: string;
+  originStartMin: number;  // relevant only for partial
+  originEndMin: number;    // relevant only for partial
+  colEl: HTMLDivElement | null;
+  previewDate: string;
+  previewStartMin: number; // relevant only for partial
+  previewEndMin: number;   // relevant only for partial
+};
+
 function useDragReschedule(
-  onDrop: (appt: CalAppt, newDate: string, newTime: string) => void
+  onDrop: (appt: CalAppt, newDate: string, newTime: string) => void,
+  colRefs: React.MutableRefObject<Map<string, HTMLDivElement>>,
 ) {
   const [drag, setDrag] = useState<DragState | null>(null);
   const dragRef = useRef<DragState | null>(null);
   dragRef.current = drag;
-
-  // Use refs for columns so we can hit-test on pointermove. Keyed by YYYY-MM-DD.
-  const colRefs = useRef<Map<string, HTMLDivElement>>(new Map());
-
-  const registerCol = (date: string, el: HTMLDivElement | null) => {
-    if (el) colRefs.current.set(date, el);
-    else colRefs.current.delete(date);
-  };
 
   const onPointerDown = (e: React.PointerEvent, appt: CalAppt, colEl: HTMLDivElement | null) => {
     (e.target as Element).setPointerCapture?.(e.pointerId);
@@ -458,9 +467,119 @@ function useDragReschedule(
       window.removeEventListener("pointerup", handleUp);
       window.removeEventListener("pointercancel", handleUp);
     };
-  }, [drag?.appt.id]); // re-bind when the dragged appt changes
+  }, [drag?.appt.id, colRefs, onDrop]);
 
-  return { drag, onPointerDown, registerCol };
+  return { drag, onPointerDown };
+}
+
+// Drag hook for time-off blocks. Full-day blocks only change date on
+// drop (the vertical axis is meaningless — the block always spans the
+// entire visible grid). Partial blocks move the start AND end minutes
+// by the same delta so the duration stays fixed.
+function useDragTimeOff(
+  onDrop: (item: TimeOffItem, newDate: string, newStartTime: string | null, newEndTime: string | null) => void,
+  colRefs: React.MutableRefObject<Map<string, HTMLDivElement>>,
+) {
+  const [drag, setDrag] = useState<TimeOffDragState | null>(null);
+  const dragRef = useRef<TimeOffDragState | null>(null);
+  dragRef.current = drag;
+
+  const onPointerDown = (e: React.PointerEvent, item: TimeOffItem, colEl: HTMLDivElement | null) => {
+    (e.target as Element).setPointerCapture?.(e.pointerId);
+    const startMin = item.fullDay ? DAY_START_MINUTES : timeToMinutes(item.startTime ?? "00:00");
+    const endMin   = item.fullDay ? DAY_END_MINUTES   : timeToMinutes(item.endTime   ?? "23:59");
+    setDrag({
+      item,
+      startY: e.clientY,
+      originDate: item.date,
+      originStartMin: startMin,
+      originEndMin: endMin,
+      colEl,
+      previewDate: item.date,
+      previewStartMin: startMin,
+      previewEndMin: endMin,
+    });
+  };
+
+  useEffect(() => {
+    if (!drag) return;
+    const duration = drag.originEndMin - drag.originStartMin;
+    let lastSnapKey = `${drag.previewDate}|${drag.previewStartMin}`;
+
+    const handleMove = (e: PointerEvent) => {
+      let hitDate: string | null = null;
+      let hitRect: DOMRect | null = null;
+      for (const [d, el] of colRefs.current.entries()) {
+        const r = el.getBoundingClientRect();
+        if (e.clientX >= r.left && e.clientX <= r.right) {
+          hitDate = d;
+          hitRect = r;
+          break;
+        }
+      }
+      if (!hitDate || !hitRect) return;
+
+      // Full-day blocks only snap by date; start/end are fixed to the
+      // full visible window so we skip the vertical math entirely.
+      if (drag.item.fullDay) {
+        const snapKey = `${hitDate}|`;
+        if (snapKey !== lastSnapKey) {
+          lastSnapKey = snapKey;
+          navigator.vibrate?.(5);
+          setDrag(prev => prev ? { ...prev, previewDate: hitDate! } : prev);
+        }
+        return;
+      }
+
+      const relY = e.clientY - hitRect.top;
+      const slotIdx = Math.max(0, Math.min(
+        Math.floor(relY / SLOT_PX),
+        Math.floor((DAY_END_MINUTES - DAY_START_MINUTES) / SLOT_MINUTES) - 1,
+      ));
+      let snappedStart = slotIndexToMinutes(slotIdx);
+      // Keep the block inside the visible grid — clamp the end to
+      // DAY_END_MINUTES and shift the start back if needed.
+      if (snappedStart + duration > DAY_END_MINUTES) {
+        snappedStart = DAY_END_MINUTES - duration;
+      }
+      if (snappedStart < DAY_START_MINUTES) snappedStart = DAY_START_MINUTES;
+      const snappedEnd = snappedStart + duration;
+
+      const snapKey = `${hitDate}|${snappedStart}`;
+      if (snapKey !== lastSnapKey) {
+        lastSnapKey = snapKey;
+        navigator.vibrate?.(5);
+        setDrag(prev => prev ? { ...prev, previewDate: hitDate!, previewStartMin: snappedStart, previewEndMin: snappedEnd } : prev);
+      }
+    };
+
+    const handleUp = () => {
+      const d = dragRef.current;
+      if (d) {
+        const moved = d.previewDate !== d.originDate
+          || d.previewStartMin !== d.originStartMin;
+        if (moved) {
+          if (d.item.fullDay) {
+            onDrop(d.item, d.previewDate, null, null);
+          } else {
+            onDrop(d.item, d.previewDate, minutesToTime(d.previewStartMin), minutesToTime(d.previewEndMin));
+          }
+        }
+      }
+      setDrag(null);
+    };
+
+    window.addEventListener("pointermove", handleMove);
+    window.addEventListener("pointerup", handleUp);
+    window.addEventListener("pointercancel", handleUp);
+    return () => {
+      window.removeEventListener("pointermove", handleMove);
+      window.removeEventListener("pointerup", handleUp);
+      window.removeEventListener("pointercancel", handleUp);
+    };
+  }, [drag?.item.id, colRefs, onDrop]);
+
+  return { drag, onPointerDown };
 }
 
 // Pick a readable foreground (white or near-black) for a given hex bg.
@@ -540,22 +659,42 @@ const TIME_OFF_STRIPES =
   "repeating-linear-gradient(135deg, rgba(239,68,68,0.18) 0 8px, rgba(239,68,68,0.30) 8px 16px)";
 
 function TimeOffBlock({
-  top, height, label, fullDay, onClick,
+  top, height, label, fullDay, isDragging, onClick, onPointerDown,
 }: {
   top: number;
   height: number;
   label: string;
   fullDay: boolean;
+  isDragging?: boolean;
   onClick?: () => void;
+  onPointerDown?: (e: React.PointerEvent) => void;
 }) {
-  const clickable = !!onClick;
+  const interactive = !!(onClick || onPointerDown);
+  // Distinguish click vs drag — if the pointer moved only a few px
+  // between down and up, treat as a click (opens edit dialog). Past
+  // that threshold the drag hook takes over and click is suppressed.
+  const downPos = useRef<{ x: number; y: number } | null>(null);
   return (
     <div
-      role={clickable ? "button" : undefined}
-      tabIndex={clickable ? 0 : undefined}
-      onClick={onClick ? (e) => { e.stopPropagation(); onClick(); } : undefined}
-      className={`absolute right-0 left-0 z-0 border-y border-red-400/60 overflow-hidden ${clickable ? "cursor-pointer hover:brightness-95" : "pointer-events-none"}`}
-      style={{ top, height, background: TIME_OFF_STRIPES }}
+      role={interactive ? "button" : undefined}
+      tabIndex={interactive ? 0 : undefined}
+      onPointerDown={onPointerDown ? (e) => {
+        downPos.current = { x: e.clientX, y: e.clientY };
+        onPointerDown(e);
+      } : undefined}
+      onClick={onClick ? (e) => {
+        e.stopPropagation();
+        // Ignore synthetic click that follows a real drag.
+        const start = downPos.current;
+        if (start) {
+          const dx = Math.abs(e.clientX - start.x);
+          const dy = Math.abs(e.clientY - start.y);
+          if (dx > 5 || dy > 5) return;
+        }
+        onClick();
+      } : undefined}
+      className={`absolute right-0 left-0 z-0 border-y border-red-400/60 overflow-hidden ${interactive ? "cursor-grab active:cursor-grabbing hover:brightness-95" : "pointer-events-none"} ${isDragging ? "ring-2 ring-red-500 opacity-80" : ""}`}
+      style={{ top, height, background: TIME_OFF_STRIPES, touchAction: isDragging ? "none" : "pan-y" }}
       title={label}
     >
       <div className="px-1.5 py-1 text-[10px] font-bold text-red-800 leading-tight truncate flex items-center gap-1">
@@ -567,7 +706,7 @@ function TimeOffBlock({
 }
 
 function TimeGrid({
-  days, appts, timeOff, onApptClick, onReschedule, serviceColors, onPickSlot, onTimeOffClick,
+  days, appts, timeOff, onApptClick, onReschedule, serviceColors, onPickSlot, onTimeOffClick, onTimeOffReschedule,
 }: {
   days: Date[];
   appts: CalAppt[];
@@ -581,6 +720,9 @@ function TimeGrid({
   // Called when the owner clicks a time-off (constraint) block —
   // parent opens an edit/delete dialog.
   onTimeOffClick?: (t: TimeOffItem) => void;
+  // Called after the owner drags a time-off block to a new date/time.
+  // newStartTime/newEndTime are null for full-day items (date only).
+  onTimeOffReschedule?: (t: TimeOffItem, newDate: string, newStartTime: string | null, newEndTime: string | null) => void;
 }) {
   const holidays = useHolidaysInRange(days[0], days[days.length - 1]);
   const today = new Date();
@@ -609,7 +751,17 @@ function TimeGrid({
     return m;
   }, [timeOff]);
 
-  const { drag, onPointerDown, registerCol } = useDragReschedule(onReschedule);
+  // Shared column refs so both the appointment-drag hook and the
+  // time-off-drag hook can hit-test the same day columns.
+  const colRefs = useRef<Map<string, HTMLDivElement>>(new Map());
+  const registerCol = (date: string, el: HTMLDivElement | null) => {
+    if (el) colRefs.current.set(date, el);
+    else colRefs.current.delete(date);
+  };
+  const { drag, onPointerDown } = useDragReschedule(onReschedule, colRefs);
+  const noopTimeOffDrop = (_: TimeOffItem, __: string, ___: string | null, ____: string | null) => {};
+  const { drag: timeOffDrag, onPointerDown: onTimeOffPointerDown } =
+    useDragTimeOff(onTimeOffReschedule ?? noopTimeOffDrop, colRefs);
 
   // "Now" line position (only shown when today is in the view).
   const nowMinutes = today.getHours() * 60 + today.getMinutes();
@@ -717,8 +869,14 @@ function TimeGrid({
                   span the whole visible grid; partial blocks clip to the
                   [startTime, endTime] window. */}
               {offs.map(t => {
-                const sMin = t.fullDay ? DAY_START_MINUTES : timeToMinutes(t.startTime ?? "00:00");
-                const eMin = t.fullDay ? DAY_END_MINUTES   : timeToMinutes(t.endTime   ?? "23:59");
+                const isDragging = timeOffDrag?.item.id === t.id;
+                // Hide the source copy when the drag preview is on a different column.
+                const hideSource = isDragging && timeOffDrag!.previewDate !== k;
+                if (hideSource) return null;
+                const baseStart = t.fullDay ? DAY_START_MINUTES : timeToMinutes(t.startTime ?? "00:00");
+                const baseEnd   = t.fullDay ? DAY_END_MINUTES   : timeToMinutes(t.endTime   ?? "23:59");
+                const sMin = isDragging ? timeOffDrag!.previewStartMin : baseStart;
+                const eMin = isDragging ? timeOffDrag!.previewEndMin   : baseEnd;
                 const top = Math.max(0, (sMin - DAY_START_MINUTES) / SLOT_MINUTES * SLOT_PX);
                 const rawHeight = (eMin - sMin) / SLOT_MINUTES * SLOT_PX;
                 const height = Math.max(SLOT_PX * 0.6, Math.min(totalHeight - top, rawHeight));
@@ -730,10 +888,25 @@ function TimeGrid({
                     height={height}
                     label={label}
                     fullDay={t.fullDay}
+                    isDragging={isDragging}
                     onClick={onTimeOffClick ? () => onTimeOffClick(t) : undefined}
+                    onPointerDown={onTimeOffReschedule ? (e) => onTimeOffPointerDown(e, t, null) : undefined}
                   />
                 );
               })}
+              {/* Drag ghost for cross-column moves of a time-off block. */}
+              {timeOffDrag && timeOffDrag.previewDate === k && timeOffDrag.originDate !== k && (
+                (() => {
+                  const t = timeOffDrag.item;
+                  const top = Math.max(0, (timeOffDrag.previewStartMin - DAY_START_MINUTES) / SLOT_MINUTES * SLOT_PX);
+                  const rawHeight = (timeOffDrag.previewEndMin - timeOffDrag.previewStartMin) / SLOT_MINUTES * SLOT_PX;
+                  const height = Math.max(SLOT_PX * 0.6, Math.min(totalHeight - top, rawHeight));
+                  const label = (t.note && t.note.trim()) || (t.fullDay ? "אילוץ — יום שלם" : `${t.startTime ?? ""}–${t.endTime ?? ""}`);
+                  return (
+                    <TimeOffBlock top={top} height={height} label={label} fullDay={t.fullDay} isDragging />
+                  );
+                })()
+              )}
               {/* Appointments */}
               {list.map(a => {
                 const mStart = timeToMinutes(a.appointmentTime);
@@ -914,6 +1087,7 @@ export function BusinessCalendar({
   timeOff,
   onApptClick,
   onTimeOffClick,
+  onTimeOffReschedule,
   onRescheduleServer,
   serviceColors,
   onNewAppointment,
@@ -927,6 +1101,9 @@ export function BusinessCalendar({
   onApptClick: (a: CalAppt) => void;
   // Clicking a time-off block — parent opens its edit/delete dialog.
   onTimeOffClick?: (t: TimeOffItem) => void;
+  // Called after the owner drags a time-off block to a new date/time.
+  // Parent issues the PATCH and invalidates the ["time-off"] query.
+  onTimeOffReschedule?: (t: TimeOffItem, newDate: string, newStartTime: string | null, newEndTime: string | null) => void;
   // Called after the owner confirms a reschedule. Parent is responsible
   // for the PATCH + WhatsApp open (so the calendar stays purely visual).
   onRescheduleServer: (appt: CalAppt, newDate: string, newTime: string, sendNotification: boolean) => void;
@@ -1039,6 +1216,7 @@ export function BusinessCalendar({
             serviceColors={serviceColors}
             onApptClick={onApptClick}
             onTimeOffClick={onTimeOffClick}
+            onTimeOffReschedule={onTimeOffReschedule}
             onReschedule={(a, nd, nt) => setPendingReschedule({ appt: a, newDate: nd, newTime: nt })}
             onPickSlot={onNewAppointment ? (date, time) => onNewAppointment({ date, time }) : undefined}
           />
@@ -1051,6 +1229,7 @@ export function BusinessCalendar({
             serviceColors={serviceColors}
             onApptClick={onApptClick}
             onTimeOffClick={onTimeOffClick}
+            onTimeOffReschedule={onTimeOffReschedule}
             onReschedule={(a, nd, nt) => setPendingReschedule({ appt: a, newDate: nd, newTime: nt })}
             onPickSlot={onNewAppointment ? (date, time) => onNewAppointment({ date, time }) : undefined}
           />
