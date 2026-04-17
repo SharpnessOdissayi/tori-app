@@ -466,7 +466,12 @@ export default function Book({ slugOverride }: { slugOverride?: string } = {}) {
     return /^https?:\/\//i.test(t) ? t : `https://${t}`;
   };
   const instagramUrl = (business as any)?.instagramUrl ?? null;
-  const wazeUrl = (business as any)?.wazeUrl ?? (address ? `https://waze.com/ul?q=${encodeURIComponent(address)}&navigate=yes` : null);
+  // Waze search quality drops hard when given only a street — two "הרצל 5" in
+  // different cities collapse to whichever Waze guessed first. Owner reported
+  // Waze opening the wrong address; fix is to include city first, then street
+  // + number (the order that resolves best in Hebrew address searches).
+  const wazeQuery = [city, address].filter(Boolean).join(" ").trim();
+  const wazeUrl = (business as any)?.wazeUrl ?? (wazeQuery ? `https://waze.com/ul?q=${encodeURIComponent(wazeQuery)}&navigate=yes` : null);
   const businessDescription = (business as any)?.businessDescription ?? null;
   const requirePhoneVerification = (business as any)?.requirePhoneVerification ?? false;
   const bannerPosition = (business as any)?.bannerPosition ?? "center";
