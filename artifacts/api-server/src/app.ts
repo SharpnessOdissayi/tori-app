@@ -1,4 +1,4 @@
-import express, { type Express } from "express";
+import express, { type Express, type Request, type Response, type NextFunction } from "express";
 import cors from "cors";
 import pinoHttp from "pino-http";
 import path from "path";
@@ -6,6 +6,8 @@ import fs from "fs";
 import { fileURLToPath } from "url";
 import router from "./routes";
 import { logger } from "./lib/logger";
+import { db, businessesTable } from "@workspace/db";
+import { eq } from "drizzle-orm";
 
 const app: Express = express();
 
@@ -31,6 +33,73 @@ app.use(
 app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+
+// ─── Custom-domain rewrite ──────────────────────────────────────────────────
+// Mounted BEFORE the /api router so that after we rewrite req.url the
+// api-server's /api/s/:slug handler picks it up.
+//
+// When a Pro business connects their own domain (e.g. book.mybusiness.co.il)
+// we want every hit on that host to land on the share page /api/s/<slug>
+// — the HTML any scraper (WhatsApp/FB) sees will have that business's
+// og:image + og:title + og:description, and human visitors bounce through
+// to the booking page with a logo-branded splash.
+//
+// customDomain → slug cache refreshes every 2 minutes. An in-memory
+// map is plenty: each Pro business has at most one custom domain, and
+// we're talking about hundreds of rows, not millions.
+let customDomainCache: Map<string, string> = new Map();
+let customDomainCacheAt = 0;
+const CACHE_TTL_MS = 2 * 60 * 1000;
+
+async function refreshCustomDomainCache() {
+  try {
+    const rows = await db
+      .select({ domain: businessesTable.customDomain, slug: businessesTable.slug })
+      .from(businessesTable)
+      .where(eq(businessesTable.customDomainVerified, true));
+    const next = new Map<string, string>();
+    for (const r of rows) {
+      const d = (r.domain ?? "").trim().toLowerCase();
+      if (d) next.set(d, r.slug);
+    }
+    customDomainCache = next;
+    customDomainCacheAt = Date.now();
+  } catch (e) {
+    logger.error({ err: e }, "customDomain cache refresh failed");
+  }
+}
+
+// Hostnames that should NOT be treated as a custom domain — Kavati's
+// own primary domain + any Railway internal host + localhost.
+const CANONICAL_HOSTS = new Set([
+  "kavati.net",
+  "www.kavati.net",
+  "localhost",
+]);
+function isCanonicalHost(host: string): boolean {
+  const h = host.toLowerCase().split(":")[0];
+  return CANONICAL_HOSTS.has(h)
+    || h.endsWith(".up.railway.app")
+    || h.endsWith(".railway.app");
+}
+
+app.use(async (req: Request, _res: Response, next: NextFunction) => {
+  const host = (req.headers.host || "").toLowerCase().split(":")[0];
+  if (!host || isCanonicalHost(host)) return next();
+  // Don't intercept /api/* on a custom domain — a business might still
+  // want to hit its own host's API routes programmatically.
+  if (req.path.startsWith("/api/")) return next();
+
+  if (Date.now() - customDomainCacheAt > CACHE_TTL_MS) await refreshCustomDomainCache();
+  const slug = customDomainCache.get(host);
+  if (!slug) return next();
+
+  // Rewrite the URL path so the downstream /api/s/:slug handler picks
+  // this up. We DON'T redirect (302) — keeping the owner's brand host
+  // in the address bar makes for a cleaner "your link" feel.
+  req.url = `/api/s/${encodeURIComponent(slug)}`;
+  return next();
+});
 
 app.use("/api", router);
 
