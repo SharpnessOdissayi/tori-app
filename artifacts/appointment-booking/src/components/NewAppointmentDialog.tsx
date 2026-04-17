@@ -7,7 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Calendar as CalendarIcon, Ban, Plane, User, Coffee, HelpCircle, Clock } from "lucide-react";
+import { Calendar as CalendarIcon, Ban, Clock } from "lucide-react";
 import { format } from "date-fns";
 import { he } from "date-fns/locale";
 import { useToast } from "@/hooks/use-toast";
@@ -30,17 +30,6 @@ type CustomerLite = { clientName: string; phoneNumber: string };
 // (time-off / personal block / break). One shared Date/Time header avoids
 // teaching the owner two different forms.
 export type CalendarEntryTab = "appointment" | "timeoff";
-
-const TIME_OFF_TYPES: Array<{
-  value: string;
-  label: string;
-  icon: React.ReactNode;
-}> = [
-  { value: "vacation", label: "חופשה", icon: <Plane className="w-4 h-4" /> },
-  { value: "personal", label: "אישי", icon: <User className="w-4 h-4" /> },
-  { value: "break", label: "הפסקה", icon: <Coffee className="w-4 h-4" /> },
-  { value: "other", label: "אחר", icon: <HelpCircle className="w-4 h-4" /> },
-];
 
 // ── Date / time pickers ────────────────────────────────────────────────────
 // Owner asked to drop all the device-default date/time dialogs — the iOS
@@ -185,7 +174,6 @@ export function NewAppointmentDialog({
 
   // Time-off tab state
   const [toName, setToName] = useState("");
-  const [toType, setToType] = useState<string>("other");
   const [toDate, setToDate] = useState("");
   const [toFullDay, setToFullDay] = useState(false);
   const [toStartTime, setToStartTime] = useState("");
@@ -208,7 +196,6 @@ export function NewAppointmentDialog({
     setNotes("");
 
     setToName("");
-    setToType("other");
     setToDate(initialDate ?? today);
     setToFullDay(false);
     setToStartTime(initialTime ?? "");
@@ -296,7 +283,7 @@ export function NewAppointmentDialog({
       // `note` on the DB row is used as the display name for the constraint.
       // The optional free-text notes from the owner are appended after
       // a separator so both survive without a schema migration.
-      const notePayload = [toName.trim(), toNotes.trim() ? `(${toNotes.trim()})` : "", toType !== "other" ? `[${toType}]` : ""]
+      const notePayload = [toName.trim(), toNotes.trim() ? `(${toNotes.trim()})` : ""]
         .filter(Boolean)
         .join(" ");
       const res = await fetch("/api/business/time-off", {
@@ -458,25 +445,6 @@ export function NewAppointmentDialog({
                 onChange={(e) => setToName(e.target.value)}
                 placeholder="למשל: חופשה, תספורת אישית, פגישה"
               />
-            </div>
-
-            <div className="space-y-2">
-              <Label>סוג (אופציונלי)</Label>
-              <Select value={toType} onValueChange={setToType}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {TIME_OFF_TYPES.map((t) => (
-                    <SelectItem key={t.value} value={t.value}>
-                      <span className="inline-flex items-center gap-2">
-                        {t.icon}
-                        {t.label}
-                      </span>
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
             </div>
 
             <div className="space-y-2">
