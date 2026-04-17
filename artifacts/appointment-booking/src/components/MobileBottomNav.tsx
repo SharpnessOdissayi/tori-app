@@ -55,7 +55,7 @@ export function MobileBottomNav({
               <span className={`relative flex items-center justify-center transition-all ${isCentre && isActive ? "-mt-3 w-12 h-12 rounded-full bg-primary text-primary-foreground shadow-lg" : ""}`}>
                 {item.icon}
                 {item.badge != null && item.badge > 0 && (
-                  <span className="absolute -top-1.5 -right-2 bg-red-500 text-white text-[9px] font-bold rounded-full min-w-[16px] h-4 px-1 flex items-center justify-center shadow">
+                  <span className="absolute -top-1.5 -end-2 bg-red-500 text-white text-[9px] font-bold rounded-full min-w-[16px] h-4 px-1 flex items-center justify-center shadow">
                     {item.badge > 9 ? "9+" : item.badge}
                   </span>
                 )}

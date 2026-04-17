@@ -899,7 +899,7 @@ function NotificationBell({ token, onNotificationClick }: { token: string; onNot
       >
         <Bell className="w-4 h-4" />
         {unread > 0 && (
-          <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[10px] font-bold rounded-full w-4 h-4 flex items-center justify-center">
+          <span className="absolute -top-1 -end-1 bg-red-500 text-white text-[10px] font-bold rounded-full w-4 h-4 flex items-center justify-center">
             {unread > 9 ? "9+" : unread}
           </span>
         )}
@@ -914,7 +914,7 @@ function NotificationBell({ token, onNotificationClick }: { token: string; onNot
           />
           {/* Panel — fixed position, below navbar, responsive width */}
           <div
-            className="fixed top-14 left-2 right-2 sm:left-auto sm:right-4 sm:w-96 max-h-[80vh] bg-white rounded-2xl shadow-2xl border border-gray-200 z-[1000] overflow-hidden flex flex-col"
+            className="fixed top-14 inset-x-2 sm:inset-x-auto sm:end-4 sm:w-96 max-h-[80vh] bg-white rounded-2xl shadow-2xl border border-gray-200 z-[1000] overflow-hidden flex flex-col"
             dir="rtl"
           >
             <div className="flex items-center justify-between px-4 py-3 border-b bg-gray-50 shrink-0">
@@ -1905,7 +1905,7 @@ function HomeTab({ onJump }: { onJump: (tab: string) => void }) {
                 <div className="flex items-center gap-2 flex-wrap">
                   <span className="font-semibold text-sm">{u.title}</span>
                   {u.tag && <span className="text-[10px] font-bold bg-primary text-primary-foreground px-1.5 py-0.5 rounded">{u.tag}</span>}
-                  <span className="text-[11px] text-muted-foreground mr-auto" dir="ltr">{u.date}</span>
+                  <span className="text-[11px] text-muted-foreground ms-auto" dir="ltr">{u.date}</span>
                 </div>
                 <p className="text-xs text-muted-foreground leading-relaxed mt-1">{u.body}</p>
               </li>
@@ -1975,7 +1975,7 @@ function PendingApprovalsTab() {
           <CardTitle className="flex items-center gap-2 text-base">
             <CheckCircle className="w-5 h-5 text-primary" /> אישור תורים
             {pending.length > 0 && (
-              <span className="ml-auto text-xs font-bold bg-primary text-primary-foreground rounded-full px-2 py-0.5">
+              <span className="ms-auto text-xs font-bold bg-primary text-primary-foreground rounded-full px-2 py-0.5">
                 {pending.length}
               </span>
             )}
@@ -3308,7 +3308,7 @@ function CustomersTab() {
                 onChange={e => setBroadcastMessage(e.target.value)}
                 maxLength={1000}
               />
-              <div className="text-xs text-muted-foreground text-left mt-1">{broadcastMessage.length}/1000</div>
+              <div className="text-xs text-muted-foreground text-end mt-1">{broadcastMessage.length}/1000</div>
             </div>
             <div className="flex gap-2">
               <Button variant="outline" className="flex-1" onClick={() => setShowBroadcast(false)}>ביטול</Button>
