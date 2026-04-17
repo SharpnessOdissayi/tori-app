@@ -3446,12 +3446,18 @@ function BrandingTab() {
         // inline-style object would silently overwrite the other — the
         // symptom being "the 'נועז' gradient never shows when a pattern is
         // also selected" (the bold preset uses both).
+        // Waves are a repeating SVG data-URI rather than a CSS gradient
+        // because gradients can't easily draw curves. The other three
+        // stay as CSS for sharpness at any pattern size.
+        const wavesSvg = "url(\"data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='80' height='20'><path d='M0 10 Q 20 0 40 10 T 80 10' fill='none' stroke='rgba(0,0,0,0.08)' stroke-width='1.5'/></svg>\")";
         const patternLayer = form.backgroundPattern === "dots"
           ? "radial-gradient(rgba(0,0,0,0.08) 1px, transparent 1px)"
           : form.backgroundPattern === "grid"
           ? "linear-gradient(rgba(0,0,0,0.05) 1px, transparent 1px), linear-gradient(90deg, rgba(0,0,0,0.05) 1px, transparent 1px)"
           : form.backgroundPattern === "circles"
           ? "radial-gradient(circle, rgba(0,0,0,0.04) 18px, transparent 19px)"
+          : form.backgroundPattern === "waves"
+          ? wavesSvg
           : "";
         const gradientLayer = form.gradientEnabled && form.gradientFrom && form.gradientTo
           ? `linear-gradient(${form.gradientAngle}deg, ${form.gradientFrom}, ${form.gradientTo})`
@@ -3463,6 +3469,7 @@ function BrandingTab() {
           ? (form.backgroundPattern === "dots"    ? "16px 16px, cover"
             : form.backgroundPattern === "grid"   ? "24px 24px, 24px 24px, cover"
             : form.backgroundPattern === "circles" ? "60px 60px, cover"
+            : form.backgroundPattern === "waves"   ? "80px 20px, cover"
             : "cover")
           : "cover";
 
