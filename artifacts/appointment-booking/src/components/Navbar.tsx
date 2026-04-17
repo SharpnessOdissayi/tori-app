@@ -39,13 +39,15 @@ export default function Navbar({
         boxShadow: "0 1px 0 rgba(0,0,0,0.03), 0 8px 24px -18px rgba(60,146,240,0.35)",
       }}
     >
-      <div className="relative w-full px-4 sm:px-6 h-16 flex items-center justify-between">
+      {/* Flow (RTL): hamburger → logo → startContent → nav → [spacer] → leftContent.
+          Dropped the order/justify-between juggling — a plain flex row with a
+          flex-1 spacer puts leftContent (bell) at the visual-left edge on both
+          mobile and desktop without per-breakpoint order hacks. */}
+      <div className="relative w-full px-4 sm:px-6 h-16 flex items-center gap-2 sm:gap-3">
 
-        {/* Mobile hamburger — rendered FIRST so in RTL it sits on the right
-            edge of the screen per owner's earlier request. Desktop hides it
-            via md:hidden, so desktop layout is untouched. */}
+        {/* Mobile hamburger — rightmost in RTL (first child) */}
         <button
-          className="md:hidden p-2 rounded-lg order-1 transition-colors hover:bg-black/5"
+          className="md:hidden p-2 rounded-lg transition-colors hover:bg-black/5 shrink-0"
           style={{ color: brand }}
           onClick={() => setMenuOpen(v => !v)}
           aria-label="תפריט"
@@ -53,83 +55,78 @@ export default function Navbar({
           {menuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
         </button>
 
-        {/* Logo + nav links + CTAs (desktop-right, mobile-left) */}
-        <div className="flex items-center md:flex-1 order-2 md:order-1 justify-end md:justify-start gap-3">
-          <Link href="/">
-            <img
-              src="/icon.svg"
-              alt="קבעתי"
-              className="h-14 w-14 object-contain cursor-pointer select-none"
-            />
-          </Link>
+        <Link href="/">
+          <img
+            src="/icon.svg"
+            alt="קבעתי"
+            className="h-12 w-12 sm:h-14 sm:w-14 object-contain cursor-pointer select-none shrink-0"
+          />
+        </Link>
 
-          {/* Reading-start slot — always visible, both mobile & desktop.
-              Sits right after the logo (on the right in RTL, on the
-              left in LTR). */}
-          {startContent && (
-            <div className="flex items-center">{startContent}</div>
+        {/* Reading-start slot — always visible. Sits right after the logo
+            (on the right in RTL, on the left in LTR). */}
+        {startContent && (
+          <div className="flex items-center min-w-0">{startContent}</div>
+        )}
+
+        <nav className="hidden md:flex items-center gap-1 mr-2">
+          {NAV_LINKS.map((link) => {
+            const isActive = location === link.href;
+            return (
+              <Link key={link.href} href={link.href}>
+                <span
+                  className="px-3 py-2 text-sm font-medium cursor-pointer rounded-lg transition-colors whitespace-nowrap"
+                  style={{
+                    color: isActive ? brand : "#475569",
+                    background: isActive ? "rgba(60,146,240,0.10)" : "transparent",
+                  }}
+                  onMouseEnter={e => {
+                    if (!isActive) e.currentTarget.style.background = "rgba(60,146,240,0.06)";
+                  }}
+                  onMouseLeave={e => {
+                    if (!isActive) e.currentTarget.style.background = "transparent";
+                  }}
+                >
+                  {link.label}
+                </span>
+              </Link>
+            );
+          })}
+
+          {/* CTAs — visible when no page-specific leftContent is injected */}
+          {!leftContent && (
+            <>
+              <Link href="/portal">
+                <span
+                  className="px-3 py-2 text-sm font-medium cursor-pointer rounded-lg transition-colors whitespace-nowrap"
+                  style={{
+                    color: location === "/portal" ? brand : "#475569",
+                    background: location === "/portal" ? "rgba(60,146,240,0.10)" : "transparent",
+                  }}
+                >
+                  כניסה ללקוחות
+                </span>
+              </Link>
+              <Link href="/register">
+                <span
+                  className="mr-2 px-5 py-2.5 rounded-full text-sm font-semibold cursor-pointer transition-all whitespace-nowrap text-white"
+                  style={{
+                    background: "linear-gradient(135deg, #3c92f0 0%, #1e6fcf 100%)",
+                    boxShadow: "0 6px 16px -6px rgba(60,146,240,0.6)",
+                  }}
+                >
+                  הצטרפות למערכת קבעתי
+                </span>
+              </Link>
+            </>
           )}
+        </nav>
 
-          <nav className="hidden md:flex items-center gap-1 mr-2">
-            {NAV_LINKS.map((link) => {
-              const isActive = location === link.href;
-              return (
-                <Link key={link.href} href={link.href}>
-                  <span
-                    className="px-3 py-2 text-sm font-medium cursor-pointer rounded-lg transition-colors whitespace-nowrap"
-                    style={{
-                      color: isActive ? brand : "#475569",
-                      background: isActive ? "rgba(60,146,240,0.10)" : "transparent",
-                    }}
-                    onMouseEnter={e => {
-                      if (!isActive) e.currentTarget.style.background = "rgba(60,146,240,0.06)";
-                    }}
-                    onMouseLeave={e => {
-                      if (!isActive) e.currentTarget.style.background = "transparent";
-                    }}
-                  >
-                    {link.label}
-                  </span>
-                </Link>
-              );
-            })}
+        {/* Spacer — pushes leftContent to the visual-left edge */}
+        <div className="flex-1" />
 
-            {/* CTAs — visible when no page-specific leftContent is injected */}
-            {!leftContent && (
-              <>
-                <Link href="/portal">
-                  <span
-                    className="px-3 py-2 text-sm font-medium cursor-pointer rounded-lg transition-colors whitespace-nowrap"
-                    style={{
-                      color: location === "/portal" ? brand : "#475569",
-                      background: location === "/portal" ? "rgba(60,146,240,0.10)" : "transparent",
-                    }}
-                  >
-                    כניסה ללקוחות
-                  </span>
-                </Link>
-                <Link href="/register">
-                  <span
-                    className="mr-2 px-5 py-2.5 rounded-full text-sm font-semibold cursor-pointer transition-all whitespace-nowrap text-white"
-                    style={{
-                      background: "linear-gradient(135deg, #3c92f0 0%, #1e6fcf 100%)",
-                      boxShadow: "0 6px 16px -6px rgba(60,146,240,0.6)",
-                    }}
-                  >
-                    הצטרפות למערכת קבעתי
-                  </span>
-                </Link>
-              </>
-            )}
-          </nav>
-        </div>
-
-        {/* LEFT: page-specific content (dashboard logout, bell, etc.). Visible
-            on mobile too now — used to be desktop-only, but the owner's
-            notifications bell needs to be reachable on phones. order-3 on
-            mobile parks it at the visual-left edge (end of RTL flex). */}
         {leftContent && (
-          <div className="flex items-center gap-2 order-3 md:order-2">
+          <div className="flex items-center gap-2 shrink-0">
             {leftContent}
           </div>
         )}

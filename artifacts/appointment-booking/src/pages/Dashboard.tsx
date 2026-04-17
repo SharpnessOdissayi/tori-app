@@ -4016,7 +4016,10 @@ function BrandingTab() {
                 <Label>לוגו העסק</Label>
                 <p className="text-xs text-muted-foreground">מומלץ: 400×400px • PNG/JPG • עד 2MB</p>
                 {form.logoUrl && (
-                  <div className="relative">
+                  // inline-block so the wrapper shrinks to the logo size —
+                  // otherwise the X ends up pinned to the corner of the full
+                  // grid cell (next to the banner column) instead of the logo.
+                  <div className="relative inline-block">
                     <img src={form.logoUrl} alt="לוגו" className="w-24 h-24 rounded-xl object-cover border" />
                     <button className="absolute -top-2 -right-2 bg-destructive text-white rounded-full w-6 h-6 flex items-center justify-center text-xs"
                       onClick={() => setForm(p => ({ ...p, logoUrl: "" }))}>✕</button>
@@ -4029,7 +4032,7 @@ function BrandingTab() {
               </div>
               <div className="space-y-3">
                 <Label>תמונת רקע (באנר)</Label>
-                <p className="text-xs text-muted-foreground">כל מידה • PNG/JPG • עד 5MB</p>
+                <p className="text-xs text-muted-foreground">מומלץ למובייל: 800×500px (יחס ~16:10) • כל מידה נתמכת • PNG/JPG • עד 5MB</p>
                 {form.bannerUrl && (
                   // Preview renders the image at its natural aspect ratio
                   // (w-full + h-auto) instead of cropping to a short strip.

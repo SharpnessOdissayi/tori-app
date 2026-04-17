@@ -1405,14 +1405,17 @@ export default function Book({ slugOverride }: { slugOverride?: string } = {}) {
           </DialogContent>
         </Dialog>
 
-        {/* Hero banner */}
+        {/* Hero banner — image shows at its own aspect ratio (w-full + h-auto)
+            so no content gets cropped on mobile. Placeholder falls back to
+            the old 224px strip since there's no intrinsic height to pull
+            from when no banner has been uploaded. */}
         <div className="relative">
           {showBanner && bannerUrl ? (
             <img
               src={bannerUrl}
               alt={business.name}
-              className="w-full object-cover"
-              style={{ height: "224px", objectPosition: bannerPosition }}
+              className="w-full h-auto"
+              style={{ objectPosition: bannerPosition }}
             />
           ) : (
             <div
@@ -2098,7 +2101,7 @@ export default function Book({ slugOverride }: { slugOverride?: string } = {}) {
             <img src={logoUrl} alt={business.name} className="w-20 h-20 rounded-2xl object-cover mx-auto mb-4 shadow-md border" />
           )}
           {showBanner && bannerUrl && (!showLogo || !logoUrl) && (
-            <img src={bannerUrl} alt={business.name} className="w-full h-32 rounded-2xl object-cover mb-4 shadow-md" style={{ objectPosition: bannerPosition }} />
+            <img src={bannerUrl} alt={business.name} className="w-full h-auto rounded-2xl mb-4 shadow-md" style={{ objectPosition: bannerPosition }} />
           )}
           {showBusinessName && (
             <>
