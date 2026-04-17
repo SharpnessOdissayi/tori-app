@@ -46,7 +46,7 @@ import {
   ExternalLink, Info, Upload, Image as ImageIcon, Crown, Zap, X, Copy, Check, Link,
   ChevronLeft, ChevronRight, Eye, EyeOff, Umbrella, DollarSign,
   MessageSquare, Send, Search, ChevronDown, Instagram, Bell, FileText,
-  XCircle, CheckCircle2, RotateCw, Hourglass, Download
+  XCircle, CheckCircle2, RotateCw, Hourglass, Download, Star
 } from "lucide-react";
 import { useLocation } from "wouter";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
@@ -3235,12 +3235,59 @@ function CustomersTab() {
   // Cancellation-breakdown popup — set to a customer record to open, null to close.
   const [cancelBreakdown, setCancelBreakdown] = useState<any | null>(null);
 
+  // Reviews moderation — owner can see the wall of reviews on their
+  // public profile and delete any that are abusive / off-topic / spam.
+  // The GET endpoint returns ALL reviews for the business (including
+  // email/phone) so the owner knows who wrote each one.
+  type OwnerReview = {
+    id: number;
+    clientEmail: string;
+    clientPhone: string | null;
+    clientName: string;
+    avatarUrl: string | null;
+    rating: number;
+    text: string | null;
+    createdAt: string;
+  };
+  const [reviews, setReviews] = useState<OwnerReview[]>([]);
+  const [reviewsLoading, setReviewsLoading] = useState(true);
+  const [deletingReviewId, setDeletingReviewId] = useState<number | null>(null);
+  const [reviewToDelete, setReviewToDelete] = useState<OwnerReview | null>(null);
+
+  const loadReviews = async () => {
+    if (!token) return;
+    setReviewsLoading(true);
+    try {
+      const r = await fetch("/api/business/reviews", { headers: { Authorization: `Bearer ${token}` } });
+      if (r.ok) setReviews(await r.json());
+    } catch {} finally { setReviewsLoading(false); }
+  };
+
+  const handleDeleteReview = async (id: number) => {
+    setDeletingReviewId(id);
+    try {
+      const r = await fetch(`/api/business/reviews/${id}`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!r.ok) throw new Error();
+      setReviews(prev => prev.filter(x => x.id !== id));
+      setReviewToDelete(null);
+      toast({ title: "הביקורת נמחקה" });
+    } catch {
+      toast({ title: "שגיאה במחיקת הביקורת", variant: "destructive" });
+    } finally {
+      setDeletingReviewId(null);
+    }
+  };
+
   useEffect(() => {
     if (!token) return;
     fetch("/api/business/broadcast/quota", { headers: { Authorization: `Bearer ${token}` } })
       .then(r => r.ok ? r.json() : null)
       .then(data => { if (data) setQuota(data); })
       .catch(() => {});
+    loadReviews();
   }, [token]);
 
   const handleBroadcast = async () => {
@@ -3432,6 +3479,122 @@ function CustomersTab() {
           ) : <EmptyState text="אין לקוחות עדיין" />}
         </CardContent>
       </Card>
+
+      {/* Reviews moderation — the public wall that appears on the
+          /book/:slug "ביקורות" tab. Each row has a red trash button
+          so the owner can remove abusive / off-topic / spam reviews.
+          Hidden entirely when there are no reviews, so the tab stays
+          clean for brand-new businesses. */}
+      {(reviewsLoading || reviews.length > 0) && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Star className="w-5 h-5 text-amber-400 fill-amber-400" />
+              ביקורות לקוחות
+              {reviews.length > 0 && (
+                <span className="text-sm font-normal text-muted-foreground">({reviews.length})</span>
+              )}
+            </CardTitle>
+            <CardDescription>
+              ניהול הביקורות שמופיעות בעמוד העסק שלך. ניתן למחוק ביקורות לא הולמות.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            {reviewsLoading ? (
+              <div className="py-6 text-center text-muted-foreground text-sm">טוען ביקורות...</div>
+            ) : (
+              <div className="space-y-3">
+                {reviews.map(r => (
+                  <div key={r.id} className="flex flex-col sm:flex-row justify-between items-start gap-3 p-4 border rounded-xl bg-card hover:border-primary/40 transition-colors">
+                    <div className="flex items-start gap-3 flex-1 min-w-0">
+                      {r.avatarUrl ? (
+                        <img src={r.avatarUrl} alt={r.clientName}
+                          className="w-10 h-10 rounded-full object-cover shrink-0 border" />
+                      ) : (
+                        <div className="w-10 h-10 rounded-full bg-muted flex items-center justify-center shrink-0 text-sm font-bold text-muted-foreground">
+                          {r.clientName.charAt(0)}
+                        </div>
+                      )}
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center flex-wrap gap-2">
+                          <span className="font-semibold">{r.clientName}</span>
+                          <span className="inline-flex items-center gap-0.5">
+                            {Array.from({ length: 5 }).map((_, i) => (
+                              <Star
+                                key={i}
+                                className={`w-3.5 h-3.5 ${i < r.rating ? "text-amber-400 fill-amber-400" : "text-muted-foreground/30"}`}
+                              />
+                            ))}
+                          </span>
+                          <span className="text-xs text-muted-foreground">
+                            {format(new Date(r.createdAt), "d בMMMM yyyy", { locale: he })}
+                          </span>
+                        </div>
+                        {r.text && (
+                          <div className="mt-1 text-sm whitespace-pre-wrap break-words">{r.text}</div>
+                        )}
+                        <div className="mt-1 text-xs text-muted-foreground truncate" dir="ltr">
+                          {r.clientEmail}{r.clientPhone ? ` • ${r.clientPhone}` : ""}
+                        </div>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setReviewToDelete(r)}
+                      disabled={deletingReviewId === r.id}
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-red-50 hover:bg-red-100 text-red-600 border border-red-100 transition-all disabled:opacity-60 shrink-0"
+                      aria-label="מחק ביקורת"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                      {deletingReviewId === r.id ? "מוחק..." : "מחק"}
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Delete-review confirmation dialog — makes the destructive
+          action explicit so an errant tap doesn't nuke a review. */}
+      <Dialog open={!!reviewToDelete} onOpenChange={v => { if (!v) setReviewToDelete(null); }}>
+        <DialogContent dir="rtl" className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>למחוק את הביקורת?</DialogTitle>
+            <DialogDescription>
+              הביקורת של <b>{reviewToDelete?.clientName}</b> תוסר לצמיתות מעמוד העסק. אי אפשר לשחזר.
+            </DialogDescription>
+          </DialogHeader>
+          {reviewToDelete && (
+            <div className="mt-2 p-3 rounded-xl bg-muted/50 border text-sm">
+              <div className="flex items-center gap-1.5 mb-1">
+                {Array.from({ length: 5 }).map((_, i) => (
+                  <Star
+                    key={i}
+                    className={`w-3.5 h-3.5 ${i < reviewToDelete.rating ? "text-amber-400 fill-amber-400" : "text-muted-foreground/30"}`}
+                  />
+                ))}
+              </div>
+              {reviewToDelete.text && (
+                <div className="whitespace-pre-wrap break-words text-foreground/80">{reviewToDelete.text}</div>
+              )}
+            </div>
+          )}
+          <div className="flex gap-2 pt-2">
+            <Button variant="outline" className="flex-1" onClick={() => setReviewToDelete(null)}>
+              ביטול
+            </Button>
+            <Button
+              className="flex-1 bg-red-600 hover:bg-red-700 text-white"
+              disabled={deletingReviewId !== null}
+              onClick={() => reviewToDelete && handleDeleteReview(reviewToDelete.id)}
+            >
+              {deletingReviewId !== null ? "מוחק..." : "מחק"}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* Cancellation breakdown dialog — opens when the owner taps a
           customer's "↩️ N ביטולים" chip. Shows how many the client

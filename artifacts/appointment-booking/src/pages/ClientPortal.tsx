@@ -688,10 +688,10 @@ export default function ClientPortal() {
                 <p className="text-gray-400 text-xs">היכנסי לקישור של עסק כדי להוסיפו</p>
               </div>
             ) : (
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-2 gap-3 items-stretch">
                 {businesses.map(biz => (
                   <div key={biz.businessId}
-                    className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 flex flex-col items-center gap-3 relative">
+                    className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 flex flex-col items-center gap-2 relative h-full">
                     {editMode && (
                       <button onClick={() => removeBusiness(biz.slug)}
                         className="absolute top-2 left-2 w-6 h-6 rounded-full bg-red-100 text-red-500 flex items-center justify-center hover:bg-red-200 transition">
@@ -699,20 +699,28 @@ export default function ClientPortal() {
                       </button>
                     )}
                     <BusinessAvatar biz={biz} size={60} />
-                    {/* Business name rendered in the font the owner
-                        chose in their dashboard branding, so the
-                        portal card previews feel on-brand. */}
-                    <p
-                      className="font-semibold text-sm text-center text-gray-900 leading-tight"
-                      dir="auto"
-                      style={{ fontFamily: biz.fontFamily ? `'${biz.fontFamily}', 'Rubik', sans-serif` : undefined }}
-                    >
-                      {biz.name}
-                    </p>
-                    {biz.address && <p className="text-xs text-gray-400 text-center">{biz.address}</p>}
+                    {/* Fixed-height text block so the "לפרופיל העסק"
+                        button lands at the same Y across every card,
+                        regardless of whether the name wraps to two
+                        lines or the business has no address. Name
+                        clamps to 2 lines; address slot is always
+                        reserved with min-height so cards align. */}
+                    <div className="w-full flex flex-col items-center gap-1 mt-1">
+                      <p
+                        className="font-semibold text-sm text-center text-gray-900 leading-tight line-clamp-2 min-h-[2.25rem]"
+                        dir="auto"
+                        style={{ fontFamily: biz.fontFamily ? `'${biz.fontFamily}', 'Rubik', sans-serif` : undefined }}
+                        title={biz.name}
+                      >
+                        {biz.name}
+                      </p>
+                      <p className="text-xs text-gray-400 text-center line-clamp-1 min-h-[1rem] w-full">
+                        {biz.address || ""}
+                      </p>
+                    </div>
                     {!editMode && (
                       <button onClick={() => navigate(`/book/${biz.slug}`)}
-                        className="w-full py-2 rounded-xl text-xs font-bold text-white transition-all"
+                        className="w-full py-2 rounded-xl text-xs font-bold text-white transition-all mt-auto"
                         style={{ background: biz.primaryColor ?? "#3c92f0" }}>
                         לפרופיל העסק
                       </button>

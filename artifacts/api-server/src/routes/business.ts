@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { logBusinessNotification, logClientNotification } from "./notifications";
-import { db, businessesTable, servicesTable, workingHoursTable, breakTimesTable, appointmentsTable, waitlistTable, timeOffTable } from "@workspace/db";
-import { eq, and, gte, sql, count } from "drizzle-orm";
+import { db, businessesTable, servicesTable, workingHoursTable, breakTimesTable, appointmentsTable, waitlistTable, timeOffTable, reviewsTable } from "@workspace/db";
+import { eq, and, gte, sql, count, desc } from "drizzle-orm";
 import { sendClientCancellation, sendClientReschedule, sendClientConfirmation, sendWhatsApp } from "../lib/whatsapp";
 import { isBusinessPro } from "../lib/plan";
 import {
@@ -1140,6 +1140,42 @@ router.delete("/business/time-off/:id", requireBusinessAuth, async (req, res): P
   const id = Number(req.params.id);
   if (!id || isNaN(id)) { res.status(400).json({ error: "id לא תקין" }); return; }
   await db.delete(timeOffTable).where(and(eq(timeOffTable.id, id), eq(timeOffTable.businessId, req.business!.businessId)));
+  res.json({ ok: true });
+});
+
+// GET /business/reviews — owner-side view of their public wall. Same
+// columns as the public endpoint PLUS clientEmail and clientPhone so
+// the owner can identify who left a particular review when deciding
+// whether to delete it.
+router.get("/business/reviews", requireBusinessAuth, async (req, res): Promise<void> => {
+  const rows = await db
+    .select({
+      id: reviewsTable.id,
+      clientEmail: reviewsTable.clientEmail,
+      clientPhone: reviewsTable.clientPhone,
+      clientName: reviewsTable.clientName,
+      avatarUrl: reviewsTable.avatarUrl,
+      rating: reviewsTable.rating,
+      text: reviewsTable.text,
+      createdAt: reviewsTable.createdAt,
+    })
+    .from(reviewsTable)
+    .where(eq(reviewsTable.businessId, req.business!.businessId))
+    .orderBy(desc(reviewsTable.createdAt));
+  res.json(rows);
+});
+
+// DELETE /business/reviews/:id — owner removes an unwanted or abusive
+// review from their wall. Row is hard-deleted; the client can still
+// post a new review later (upsert on business_id + client_email).
+router.delete("/business/reviews/:id", requireBusinessAuth, async (req, res): Promise<void> => {
+  const id = Number(req.params.id);
+  if (!id || isNaN(id)) { res.status(400).json({ error: "id לא תקין" }); return; }
+  const deleted = await db
+    .delete(reviewsTable)
+    .where(and(eq(reviewsTable.id, id), eq(reviewsTable.businessId, req.business!.businessId)))
+    .returning({ id: reviewsTable.id });
+  if (deleted.length === 0) { res.status(404).json({ error: "Not found" }); return; }
   res.json({ ok: true });
 });
 
