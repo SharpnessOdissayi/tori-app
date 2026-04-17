@@ -2150,6 +2150,11 @@ function ServicesTab() {
             </div>
           </form>
         )}
+        {services && services.length > 1 && (
+          <p className="text-xs text-muted-foreground mb-2">
+            💡 ניתן להזיז שירותים בגרירה (ידית ⋮⋮) כדי לקבוע את הסדר בעמוד העסק
+          </p>
+        )}
         <ServiceSortableList
           services={Array.isArray(services) ? services : []}
           emptyFallback={!services?.length && !isAdding ? <EmptyState text="אין שירותים מוגדרים עדיין" className="col-span-full" /> : null}
@@ -3820,10 +3825,8 @@ function BrandingTab() {
                 give white button text enough contrast (WCAG AA = 4.5:1
                 for body text, 3:1 for large text) warn the owner so
                 they don't ship unreadable buttons. */}
-            <ContrastWarning colors={[
-              { bg: form.primaryColor, fg: "#ffffff", context: "טקסט לבן על כפתור ראשי" },
-              { bg: "#ffffff", fg: form.primaryColor, context: "טקסט צבעוני על רקע לבן" },
-            ]} />
+            {/* Contrast warning removed per owner — the helper is kept in
+                the file in case we want to resurrect it later. */}
           </div>
 
           <Separator />

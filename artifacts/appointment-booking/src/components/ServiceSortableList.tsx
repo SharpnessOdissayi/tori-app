@@ -91,6 +91,9 @@ export function ServiceSortableList({
 
   return (
     <div
+      dir="rtl"
+      // Explicit rtl so service #1 renders in the right-hand column
+      // (grid flow follows writing direction).
       className="grid grid-cols-1 md:grid-cols-2 gap-4"
       onPointerMove={onPointerMove}
       onPointerUp={endDrag}
