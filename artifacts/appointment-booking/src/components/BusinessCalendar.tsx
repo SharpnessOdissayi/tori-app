@@ -1637,8 +1637,13 @@ export function BusinessCalendar({
     return format(cursor, "MMMM yyyy", { locale: he });
   }, [view, cursor, weekDaysForCursor]);
 
+  // overflow-clip (not overflow-hidden) on the outer card: overflow-hidden
+  // on an ancestor silently disables position:sticky on descendants, which
+  // was breaking the sticky day/date/holidays row inside <TimeGrid>.
+  // overflow-clip clips rounded corners the same way without creating a
+  // scroll box, so sticky keeps working.
   return (
-    <div className="border rounded-2xl overflow-hidden bg-card relative">
+    <div className="border rounded-2xl overflow-clip bg-card relative">
       <CalHeader
         view={view} setView={setView}
         cursor={cursor} setCursor={setCursor}
