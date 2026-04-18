@@ -7180,21 +7180,40 @@ function TestChargeButton() {
         method: "POST",
         headers: { Authorization: `Bearer ${token}` },
       });
-      const json = await res.json().catch(() => ({}));
-      if (json?.ok) {
+      // Don't assume JSON — when the endpoint fails at the edge (Railway
+      // 502, CORS, 404 from stale deploy) the response body can be HTML
+      // or plain text. Try JSON, then fall back to the raw text so we
+      // always have something to show the owner.
+      const contentType = res.headers.get("content-type") ?? "";
+      let json: any = {};
+      let rawText = "";
+      if (contentType.includes("application/json")) {
+        json = await res.json().catch(() => ({}));
+      } else {
+        rawText = (await res.text().catch(() => "")).slice(0, 200);
+      }
+      if (res.ok && json?.ok) {
         toast({
           title: "✅ חיוב בדיקה הצליח — ₪1",
           description: `Transaction ID: ${json.transactionId ?? "?"}, Auth: ${json.authNumber ?? "?"}`,
         });
       } else {
+        const code = json?.responseCode ?? String(res.status);
+        const msg  = json?.message ?? json?.error ?? rawText ?? "הבקשה נכשלה ללא הודעה";
         toast({
           title: "❌ חיוב בדיקה נכשל",
-          description: `${json?.message ?? "שגיאה לא ידועה"} (code: ${json?.responseCode ?? "?"})`,
+          description: `${msg} (HTTP ${res.status}, code: ${code})`,
           variant: "destructive",
+        });
+        // Dump the full server response to the browser console so the
+        // owner (or I) can copy-paste it when reporting a failed test.
+        // eslint-disable-next-line no-console
+        console.error("[test-charge] failed response", {
+          status: res.status, statusText: res.statusText, json, rawText,
         });
       }
     } catch (err: any) {
-      toast({ title: "שגיאה", description: err?.message ?? "נסה שוב", variant: "destructive" });
+      toast({ title: "שגיאה ברשת", description: err?.message ?? "נסה שוב", variant: "destructive" });
     } finally {
       setTesting(false);
     }
@@ -7361,13 +7380,14 @@ function SubscriptionStatusCard() {
           )}
 
           {/* Test ₪1 charge — diagnostic button. Visible only when the
-              business already has a saved Tranzila token (= they've
-              completed their first iframe payment), because without one
-              there's nothing to charge. Fires the same one-off charge
-              path used by SMS pack purchases, so if this works, pack
-              purchases will too. Temporary — remove once production is
-              green. */}
-          {isPro && (profile as any)?.tranzilaToken && (
+              business has a saved Tranzila token (= they've completed
+              their first iframe payment). The profile exposes this as
+              the boolean `hasTranzilaToken` flag (not the raw token
+              value), per routes/business.ts. Earlier version checked
+              the raw-token field which is never in the response, so
+              the button showed up even for tokenless businesses and
+              every click 400'd. Fixed. */}
+          {isPro && (profile as any)?.hasTranzilaToken ? (
             <div className="pt-3 border-t">
               <div className="flex items-center justify-between gap-2 flex-wrap">
                 <div className="text-xs text-muted-foreground">
@@ -7377,7 +7397,13 @@ function SubscriptionStatusCard() {
                 <TestChargeButton />
               </div>
             </div>
-          )}
+          ) : isPro ? (
+            // Pro/עסקי but no token — show a hint so the owner knows
+            // why the test button isn't available and how to fix it.
+            <div className="pt-3 border-t text-xs text-muted-foreground">
+              💳 לא נשמר עדיין טוקן כרטיס אשראי. אחרי התשלום הראשון דרך ה-iframe יופיע כאן כפתור בדיקה.
+            </div>
+          ) : null}
         </CardContent>
       </Card>
 
@@ -7724,25 +7750,33 @@ function SmsBulkCard() {
             </div>
             {/* Temporary test button — verifies the one-off charge path
                 with a ₪1 transaction. The charge is sent with only the
-                token + expiry: no CVV and no card_holder_id (ת.ז.). If
-                Tranzila accepts it, every subsequent pack-purchase and
-                add-on charge will too. Remove this row once we're
-                confident the flow is stable in production. */}
-            <div className="mt-3 pt-3 border-t border-blue-200/60 flex items-center justify-between gap-2 text-xs text-blue-700">
-              <div>
-                <div>🧪 בדיקת חיוב (₪1) לטוקן השמור שלך</div>
-                <div className="text-[10px] text-blue-600/80 mt-0.5">ללא CVV וללא ת.ז. — לוודא שהטרמינל מקבל טוקן בלבד</div>
+                token + expiry: no CVV and no card_holder_id (ת.ז.).
+                Rendered only when the business has a saved token
+                (hasTranzilaToken === true on the profile); otherwise
+                every click 400'd with "no_payment_method" and the
+                error toast said "unknown error" (the message field
+                wasn't populated in earlier deploys). */}
+            {(profile as any)?.hasTranzilaToken ? (
+              <div className="mt-3 pt-3 border-t border-blue-200/60 flex items-center justify-between gap-2 text-xs text-blue-700">
+                <div>
+                  <div>🧪 בדיקת חיוב (₪1) לטוקן השמור שלך</div>
+                  <div className="text-[10px] text-blue-600/80 mt-0.5">ללא CVV וללא ת.ז. — לוודא שהטרמינל מקבל טוקן בלבד</div>
+                </div>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="text-xs h-7 shrink-0"
+                  onClick={handleTestCharge}
+                  disabled={testing}
+                >
+                  {testing ? "מחייב…" : "חיוב ₪1"}
+                </Button>
               </div>
-              <Button
-                size="sm"
-                variant="outline"
-                className="text-xs h-7 shrink-0"
-                onClick={handleTestCharge}
-                disabled={testing}
-              >
-                {testing ? "מחייב…" : "חיוב ₪1"}
-              </Button>
-            </div>
+            ) : (
+              <div className="mt-3 pt-3 border-t border-blue-200/60 text-[11px] text-blue-600/80">
+                💳 אין טוקן שמור — לא ניתן להריץ בדיקת חיוב. לאחר התשלום הראשון דרך ה-iframe כפתור הבדיקה יופיע כאן.
+              </div>
+            )}
           </div>
 
           {/* Composer */}

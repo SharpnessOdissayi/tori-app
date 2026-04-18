@@ -233,16 +233,30 @@ export async function chargeTokenOneOff(
   dcDisableId?: string,
 ): Promise<OneOffChargeResult> {
   if (!TERMINAL || !PUBLIC_KEY || !SECRET_KEY) {
+    // Log which env var is missing so Railway admin can see it. Without
+    // this the frontend used to show "unknown error" with nothing in logs
+    // and we had no way to tell whether the problem was env config or
+    // something downstream.
+    console.log("[TranzilaCharge] one-off ABORT — missing env vars", {
+      hasTerminal:  !!TERMINAL,
+      hasPublicKey: !!PUBLIC_KEY,
+      hasSecretKey: !!SECRET_KEY,
+      businessId,
+      amountILS,
+    });
     return {
       success:      false,
       responseCode: "ENV",
+      message:      "הגדרת סליקה חסרה בשרת — צור קשר עם התמיכה.",
       rawResponse:  "Tranzila REST env vars missing",
     };
   }
   if (!token) {
+    console.log("[TranzilaCharge] one-off ABORT — no token", { businessId });
     return {
       success:      false,
       responseCode: "NOTOKEN",
+      message:      "אין טוקן שמור — סיים קודם את החיוב הראשון דרך ה-iframe.",
       rawResponse:  "no stored TranzilaTK",
     };
   }

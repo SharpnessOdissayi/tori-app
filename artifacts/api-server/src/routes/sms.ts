@@ -365,21 +365,56 @@ router.post("/sms/purchase-pack", async (req, res): Promise<void> => {
 
 // ─── POST /api/sms/test-charge ────────────────────────────────────────────
 // Dev/diagnostic endpoint — charges ₪1 to the caller's saved Tranzila
-// token and returns the full result. Used by a "🧪 בדיקת חיוב ₪1" button
+// token and returns the full result. Used by "🧪 בדיקת חיוב ₪1" buttons
 // in the dashboard so the owner can verify the one-off charge flow works
 // against THEIR real token before relying on it for SMS pack purchases.
 // Remove the button + this endpoint once we're confident the flow is
 // stable in production.
+//
+// Logging is verbose here on purpose — when this endpoint returns an
+// error to the owner, the Railway logs need to tell us exactly what
+// happened. Earlier test-runs returned "unknown error" with nothing in
+// logs; added explicit entry/auth/token/result logs to fix that.
 router.post("/sms/test-charge", async (req, res): Promise<void> => {
-  const businessId = getBusinessId(req.headers.authorization ?? "");
-  if (!businessId) { res.status(401).json({ error: "Unauthorized" }); return; }
+  // ALWAYS log entry — even if auth rejects, we want proof the endpoint
+  // is reachable on Railway. Without this, a missing-deploy 404 was
+  // indistinguishable from an auth failure.
+  const hasAuthHeader = typeof req.headers.authorization === "string" && req.headers.authorization.length > 0;
+  console.log("[test-charge] ENTRY", { hasAuthHeader, ip: req.ip });
+  logger.info({ hasAuthHeader }, "[test-charge] entry");
 
-  const biz = await loadBusiness(businessId);
-  if (!biz) { res.status(404).json({ error: "Business not found" }); return; }
-  if (!biz.tranzilaToken || !biz.tranzilaTokenExpiry) {
-    res.status(400).json({ error: "no_payment_method" });
+  const businessId = getBusinessId(req.headers.authorization ?? "");
+  if (!businessId) {
+    console.log("[test-charge] REJECTED — no valid JWT");
+    res.status(401).json({ error: "Unauthorized", message: "אסימון הזדהות לא תקף — התנתק והיכנס שוב." });
     return;
   }
+  console.log("[test-charge] authed", { businessId });
+
+  const biz = await loadBusiness(businessId);
+  if (!biz) {
+    console.log("[test-charge] business not found", { businessId });
+    res.status(404).json({ error: "Business not found", message: "העסק לא נמצא." });
+    return;
+  }
+  if (!biz.tranzilaToken || !biz.tranzilaTokenExpiry) {
+    console.log("[test-charge] no saved token", {
+      businessId,
+      hasToken: !!biz.tranzilaToken,
+      hasExpiry: !!biz.tranzilaTokenExpiry,
+    });
+    res.status(400).json({
+      error: "no_payment_method",
+      message: "אין טוקן שמור. סיים קודם את תשלום המנוי הראשון דרך ה-iframe.",
+    });
+    return;
+  }
+
+  console.log("[test-charge] calling chargeTokenOneOff", {
+    businessId,
+    tokenPreview: biz.tranzilaToken.slice(0, 4) + "***",
+    expiry: biz.tranzilaTokenExpiry,
+  });
 
   const result = await chargeTokenOneOff(
     biz.tranzilaToken,
@@ -391,6 +426,15 @@ router.post("/sms/test-charge", async (req, res): Promise<void> => {
     // we can trigger multiple tests in a session without Tranzila
     // rejecting for duplication.
   );
+
+  console.log("[test-charge] result", {
+    businessId,
+    success:        result.success,
+    responseCode:   result.responseCode,
+    message:        result.message,
+    transactionId:  result.transactionId,
+    rawPreview:     result.rawResponse.slice(0, 200),
+  });
 
   res.json({
     ok:             result.success,
