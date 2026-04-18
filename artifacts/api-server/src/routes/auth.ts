@@ -189,11 +189,8 @@ router.post("/auth/business/login", async (req, res): Promise<void> => {
       // dashboard reads this flag and restricts views to the staff's own
       // calendar + hides billing/settings tabs.
       const token = signBusinessToken({
-        businessId: owningBusiness.id,
-        email:      owningBusiness.email,
-        // @ts-expect-error extending the payload — consumers that only know
-        // about businessId + email still work; staff-aware consumers pick up
-        // this key.
+        businessId:    owningBusiness.id,
+        email:         owningBusiness.email,
         staffMemberId: staff.id,
       });
       res.json({

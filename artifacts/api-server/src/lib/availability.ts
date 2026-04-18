@@ -1,5 +1,5 @@
 import { db, workingHoursTable, breakTimesTable, appointmentsTable, timeOffTable } from "@workspace/db";
-import { eq, and } from "drizzle-orm";
+import { eq, and, isNull, sql } from "drizzle-orm";
 
 function timeToMinutes(time: string): number {
   const [h, m] = time.split(":").map(Number);
@@ -31,19 +31,46 @@ export async function computeAvailableSlots(
   serviceDurationMinutes: number,
   bufferMinutes: number,
   maxAppointmentsPerDay?: number | null,
-  excludeAppointmentId?: number | null
+  excludeAppointmentId?: number | null,
+  // Optional: when provided, compute slots only for this staff member.
+  // Working hours prefer a per-staff override (working_hours.staff_member_id)
+  // falling back to the business-wide row. Only THIS staff's appointments
+  // block the slot, so a second stylist isn't blocked by the first's day.
+  // Time-off and breaks remain business-wide (schema doesn't have a
+  // staff_member_id on those tables yet).
+  staffMemberId?: number | null
 ): Promise<{ time: string; available: boolean }[]> {
   const dayOfWeek = dayOfWeekFromISO(date);
 
-  const [workingHour] = await db
-    .select()
-    .from(workingHoursTable)
-    .where(
-      and(
-        eq(workingHoursTable.businessId, businessId),
-        eq(workingHoursTable.dayOfWeek, dayOfWeek)
-      )
-    );
+  // Prefer per-staff hours when a staff is specified. If none exist for
+  // this day, fall back to the business-level row (staff_member_id IS NULL).
+  let workingHour: typeof workingHoursTable.$inferSelect | undefined;
+  if (staffMemberId) {
+    const [staffHour] = await db
+      .select()
+      .from(workingHoursTable)
+      .where(
+        and(
+          eq(workingHoursTable.businessId, businessId),
+          eq(workingHoursTable.dayOfWeek, dayOfWeek),
+          eq((workingHoursTable as any).staffMemberId, staffMemberId),
+        )
+      );
+    workingHour = staffHour;
+  }
+  if (!workingHour) {
+    const [defaultHour] = await db
+      .select()
+      .from(workingHoursTable)
+      .where(
+        and(
+          eq(workingHoursTable.businessId, businessId),
+          eq(workingHoursTable.dayOfWeek, dayOfWeek),
+          isNull((workingHoursTable as any).staffMemberId),
+        )
+      );
+    workingHour = defaultHour;
+  }
 
   if (!workingHour || !workingHour.isEnabled) {
     return [];
@@ -79,6 +106,11 @@ export async function computeAvailableSlots(
       )
     );
 
+  // Appointments to subtract from slots. When a staff is specified we only
+  // block on THEIR appointments — a second worker's calendar shouldn't be
+  // consumed by the first worker's day. Legacy rows where staff_member_id
+  // is NULL are treated as the owner's, so when the caller IS the owner
+  // (no staffMemberId) they still see everything.
   const allAppointments = await db
     .select({
       id: appointmentsTable.id,
@@ -88,10 +120,16 @@ export async function computeAvailableSlots(
     })
     .from(appointmentsTable)
     .where(
-      and(
-        eq(appointmentsTable.businessId, businessId),
-        eq(appointmentsTable.appointmentDate, date)
-      )
+      staffMemberId
+        ? and(
+            eq(appointmentsTable.businessId, businessId),
+            eq(appointmentsTable.appointmentDate, date),
+            eq((appointmentsTable as any).staffMemberId, staffMemberId),
+          )
+        : and(
+            eq(appointmentsTable.businessId, businessId),
+            eq(appointmentsTable.appointmentDate, date),
+          )
     );
 
   // Also exclude the appointment being rescheduled — otherwise a client

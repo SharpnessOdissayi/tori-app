@@ -665,10 +665,23 @@ router.put("/business/break-times", requireBusinessAuth, async (req, res): Promi
 });
 
 router.get("/business/appointments", requireBusinessAuth, async (req, res): Promise<void> => {
+  // Staff scoping: when the JWT carries staffMemberId, the caller is a
+  // non-owner staff member. Return ONLY appointments booked against them
+  // (appointments.staffMemberId === their id). Owner logins see every
+  // row as before. Pre-existing appointments with a null staffMemberId
+  // belong to the owner by convention and stay hidden from staff.
+  const staffMemberId = req.business!.staffMemberId ?? null;
+  const whereClause = staffMemberId
+    ? and(
+        eq(appointmentsTable.businessId, req.business!.businessId),
+        eq((appointmentsTable as any).staffMemberId, staffMemberId),
+      )
+    : eq(appointmentsTable.businessId, req.business!.businessId);
+
   const appointments = await db
     .select()
     .from(appointmentsTable)
-    .where(eq(appointmentsTable.businessId, req.business!.businessId))
+    .where(whereClause)
     .orderBy(appointmentsTable.appointmentDate, appointmentsTable.appointmentTime);
 
   res.json(appointments.map((a) => ({ ...a, createdAt: a.createdAt.toISOString() })));

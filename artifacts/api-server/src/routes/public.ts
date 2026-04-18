@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { logBusinessNotification } from "./notifications";
-import { db, businessesTable, servicesTable, appointmentsTable, waitlistTable, workingHoursTable, clientSessionsTable, reviewsTable } from "@workspace/db";
+import { db, businessesTable, servicesTable, appointmentsTable, waitlistTable, workingHoursTable, clientSessionsTable, reviewsTable, staffMembersTable, staffServicesTable } from "@workspace/db";
 import { eq, and, gte, sql, countDistinct, count, ilike, or, gt, desc } from "drizzle-orm";
 import {
   GetPublicBusinessParams,
@@ -209,6 +209,34 @@ router.get("/public/:businessSlug/services", async (req, res): Promise<void> => 
     return;
   }
 
+  // Optional ?staffId filter — used by the public booking page's staff
+  // picker to narrow services to what a chosen worker performs. Convention
+  // (per schema comment in staff-services.ts): a staff with ZERO rows in
+  // staff_services is assumed to perform EVERY service. So if the staff
+  // has any link rows, we filter strictly; otherwise we show them all.
+  const staffIdRaw = typeof req.query.staffId === "string" ? req.query.staffId.trim() : "";
+  const staffIdNum = staffIdRaw ? Number(staffIdRaw) : NaN;
+  const staffId    = Number.isFinite(staffIdNum) && staffIdNum > 0 ? staffIdNum : null;
+
+  if (staffId) {
+    const links = await db
+      .select({ serviceId: staffServicesTable.serviceId })
+      .from(staffServicesTable)
+      .where(eq(staffServicesTable.staffMemberId, staffId));
+    if (links.length > 0) {
+      const allowed = new Set(links.map(l => l.serviceId));
+      const services = await db
+        .select()
+        .from(servicesTable)
+        .where(and(eq(servicesTable.businessId, business.id), eq(servicesTable.isActive, true)))
+        .orderBy(servicesTable.sortOrder, servicesTable.createdAt);
+      const filtered = services.filter(s => allowed.has(s.id));
+      res.json(filtered.map((s) => ({ ...s, description: (s as any).description ?? null, createdAt: s.createdAt.toISOString() })));
+      return;
+    }
+    // staff has no links → treat as "does everything" and fall through.
+  }
+
   const services = await db
     .select()
     .from(servicesTable)
@@ -216,6 +244,50 @@ router.get("/public/:businessSlug/services", async (req, res): Promise<void> => 
     .orderBy(servicesTable.sortOrder, servicesTable.createdAt);
 
   res.json(services.map((s) => ({ ...s, description: (s as any).description ?? null, createdAt: s.createdAt.toISOString() })));
+});
+
+// GET /public/:businessSlug/staff — active non-owner staff members the
+// public booking page renders as a picker. Owner (is_owner=true) is
+// excluded from the list — they're the default / fallback booking
+// target when the customer doesn't pick anyone. Only returns active
+// rows so a disabled staff member vanishes from the client UI
+// immediately without a redeploy.
+router.get("/public/:businessSlug/staff", async (req, res): Promise<void> => {
+  const paramsParsed = GetPublicBusinessParams.safeParse(req.params);
+  if (!paramsParsed.success) {
+    res.status(400).json({ error: "Invalid slug" });
+    return;
+  }
+
+  const [business] = await db
+    .select({ id: businessesTable.id })
+    .from(businessesTable)
+    .where(and(eq(businessesTable.slug, paramsParsed.data.businessSlug), eq(businessesTable.isActive, true)));
+
+  if (!business) {
+    res.status(404).json({ error: "Business not found" });
+    return;
+  }
+
+  const rows = await db
+    .select({
+      id:        staffMembersTable.id,
+      name:      staffMembersTable.name,
+      color:     staffMembersTable.color,
+      avatarUrl: staffMembersTable.avatarUrl,
+      isOwner:   staffMembersTable.isOwner,
+      sortOrder: staffMembersTable.sortOrder,
+    })
+    .from(staffMembersTable)
+    .where(and(
+      eq(staffMembersTable.businessId, business.id),
+      eq(staffMembersTable.isActive, true),
+    ))
+    .orderBy(staffMembersTable.sortOrder, staffMembersTable.id);
+
+  // Keep the owner in the list so the client can book "with the owner"
+  // explicitly. UI can decide whether to render them first or hide.
+  res.json(rows);
 });
 
 router.get("/public/:businessSlug/hours", async (req, res): Promise<void> => {
@@ -286,7 +358,15 @@ router.get("/public/:businessSlug/availability", async (req, res): Promise<void>
   const excludeAppointmentId = typeof excludeRaw === "string" && excludeRaw.trim()
     ? Number(excludeRaw) || null
     : null;
-  const slots = await computeAvailableSlots(business.id, date, service.durationMinutes, bufferMinutes, business.maxAppointmentsPerDay, excludeAppointmentId);
+  // Optional ?staffId — when the public booking page's picker narrowed the
+  // booking to a specific worker, availability must consider only that
+  // worker's calendar (their working hours override + their own
+  // appointments), not the whole business. Owner bookings (no staffId)
+  // keep the business-wide behaviour.
+  const staffIdRaw = typeof req.query.staffId === "string" ? req.query.staffId.trim() : "";
+  const staffIdNum = staffIdRaw ? Number(staffIdRaw) : NaN;
+  const staffId    = Number.isFinite(staffIdNum) && staffIdNum > 0 ? staffIdNum : null;
+  const slots = await computeAvailableSlots(business.id, date, service.durationMinutes, bufferMinutes, business.maxAppointmentsPerDay, excludeAppointmentId, staffId);
 
   const minLeadHours: number = (business as any).minLeadHours ?? 0;
   const minAllowed = new Date(Date.now() + minLeadHours * 60 * 60 * 1000);
@@ -565,6 +645,14 @@ router.post("/public/:businessSlug/appointments", async (req, res): Promise<void
         return existing;
       }
 
+      // Capture which staff member the client picked on the booking page
+      // (if any). Read straight off req.body — the Zod schema doesn't
+      // whitelist this field, so passing it through parsed.data would
+      // drop it. Null = legacy behaviour: owner's calendar.
+      const rawStaffId = (req.body as any)?.staffMemberId;
+      const staffMemberIdForInsert =
+        typeof rawStaffId === "number" && rawStaffId > 0 ? rawStaffId : null;
+
       const [row] = await tx
         .insert(appointmentsTable)
         .values({
@@ -578,6 +666,7 @@ router.post("/public/:businessSlug/appointments", async (req, res): Promise<void
           durationMinutes: service.durationMinutes,
           status: appointmentStatus,
           notes: notes ?? undefined,
+          ...(staffMemberIdForInsert ? { staffMemberId: staffMemberIdForInsert } as any : {}),
         })
         .returning();
       return row;

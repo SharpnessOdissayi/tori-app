@@ -405,6 +405,16 @@ export default function Book({ slugOverride }: { slugOverride?: string } = {}) {
   const [selectedServiceId, setSelectedServiceId] = useState<number | null>(null);
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(undefined);
   const [selectedTime, setSelectedTime] = useState<string | null>(null);
+  // Multi-staff support (עסקי tier). When the business has more than one
+  // active staff member, the customer picks WHO they want the booking
+  // with; services, availability, and the new-appointment payload all
+  // scope to that staff. Null selectedStaffId = no pick yet (renders the
+  // picker) or a shop with only the owner (picker hidden, behaves as
+  // before). staffList is a flat snapshot fetched once from the new
+  // /public/:slug/staff endpoint.
+  type PublicStaff = { id: number; name: string; color: string | null; avatarUrl: string | null; isOwner: boolean };
+  const [staffList, setStaffList] = useState<PublicStaff[]>([]);
+  const [selectedStaffId, setSelectedStaffId] = useState<number | null>(null);
   const [clientData, setClientData] = useState({ name: "", phone: "", notes: "" });
   const [waitlistData, setWaitlistData] = useState({ name: "", phone: "", notes: "" });
 
@@ -441,6 +451,43 @@ export default function Book({ slugOverride }: { slugOverride?: string } = {}) {
   const { toast } = useToast();
   const { data: business, isLoading: businessLoading, error: businessError } = useGetPublicBusiness(businessSlug || "");
   const { data: services, isLoading: servicesLoading } = useGetPublicServices(businessSlug || "");
+
+  // Fetch staff once when we have a slug. We don't block render on this —
+  // the UI falls back to the single-staff flow until data arrives.
+  useEffect(() => {
+    if (!businessSlug) return;
+    fetch(`${API_BASE}/public/${businessSlug}/staff`)
+      .then(r => r.ok ? r.json() : [])
+      .then(d => setStaffList(Array.isArray(d) ? d : []))
+      .catch(() => setStaffList([]));
+  }, [businessSlug, API_BASE]);
+
+  // Multi-staff shops show the picker; single-staff shops skip it and
+  // auto-select the owner so the rest of the flow is identical.
+  // The backend already filters to active staff only — no extra check needed.
+  const hasMultiStaff = staffList.length >= 2;
+  useEffect(() => {
+    if (!hasMultiStaff && staffList.length === 1 && !selectedStaffId) {
+      setSelectedStaffId(staffList[0].id);
+    }
+  }, [hasMultiStaff, staffList, selectedStaffId]);
+
+  // When a staff is picked, refetch services filtered to their link rows
+  // (staff_services). Null = show every service (business-wide list).
+  const [staffServices, setStaffServices] = useState<typeof services | null>(null);
+  useEffect(() => {
+    if (!businessSlug || !selectedStaffId) { setStaffServices(null); return; }
+    fetch(`${API_BASE}/public/${businessSlug}/services?staffId=${selectedStaffId}`)
+      .then(r => r.ok ? r.json() : [])
+      .then(d => setStaffServices(Array.isArray(d) ? d : []))
+      .catch(() => setStaffServices(null));
+  }, [businessSlug, selectedStaffId, API_BASE]);
+
+  // Staff-scoped availability. The generated hook doesn't know about
+  // staffId (it's not in the OpenAPI spec yet), so when staff is
+  // selected we override with a raw fetch and feed it through the same
+  // UI code path as the regular availability response.
+  const [staffAvailability, setStaffAvailability] = useState<{ slots: string[]; isFullyBooked: boolean } | null>(null);
 
   // Show announcement popup if active and not dismissed
   useEffect(() => {
@@ -490,8 +537,29 @@ export default function Book({ slugOverride }: { slugOverride?: string } = {}) {
   const { data: availability, isLoading: availabilityLoading } = useGetPublicAvailability(
     businessSlug || "",
     { date: dateStr, serviceId: selectedServiceId! },
-    { query: { enabled: !!dateStr && !!selectedServiceId } }
+    // When a staff is selected, let the raw-fetch effect below handle it;
+    // disable the generated hook to avoid double-requests + avoid the
+    // business-wide fallback shadowing the staff-scoped slots.
+    { query: { enabled: !!dateStr && !!selectedServiceId && !selectedStaffId } }
   );
+
+  // Staff-scoped availability via raw fetch — runs only when all three
+  // inputs are present. Clears on any reset to avoid stale slot data.
+  useEffect(() => {
+    if (!businessSlug || !dateStr || !selectedServiceId || !selectedStaffId) {
+      setStaffAvailability(null);
+      return;
+    }
+    fetch(`${API_BASE}/public/${businessSlug}/availability?date=${dateStr}&serviceId=${selectedServiceId}&staffId=${selectedStaffId}`)
+      .then(r => r.ok ? r.json() : null)
+      .then(d => setStaffAvailability(d && typeof d === "object" ? d : null))
+      .catch(() => setStaffAvailability(null));
+  }, [businessSlug, dateStr, selectedServiceId, selectedStaffId, API_BASE]);
+
+  // Merged views used by render code below — transparent fallback so every
+  // reference keeps working whether or not staff is selected.
+  const effectiveAvailability = selectedStaffId ? staffAvailability : availability;
+  const effectiveServices = (selectedStaffId && staffServices) ? staffServices : services;
 
   // Availability for reschedule flow. The serviceId drives the slot
   // duration and buffer — without it the backend can't return real
@@ -1194,7 +1262,7 @@ export default function Book({ slugOverride }: { slugOverride?: string } = {}) {
 
   const handleNext = () => setStep(s => s + 1);
   const handleBack = () => setStep(s => s === 2 ? 0 : s - 1);
-  const servicesList = Array.isArray(services) ? services : [];
+  const servicesList = Array.isArray(effectiveServices) ? effectiveServices : [];
   const selectedService = servicesList.find(s => s.id === selectedServiceId);
 
   const handleSendOtp = async () => {
@@ -1267,7 +1335,10 @@ export default function Book({ slugOverride }: { slugOverride?: string } = {}) {
           appointmentTime: selectedTime,
           notes: clientData.notes || undefined,
           ...(phoneVerificationToken ? { phoneVerificationToken } : {}),
-        },
+          // Tag the booking with the picked staff so the owner's
+          // calendar + staff's own dashboard can scope to them.
+          ...(selectedStaffId ? ({ staffMemberId: selectedStaffId } as any) : {}),
+        } as any,
       },
       {
         onSuccess: (data: any) => {
@@ -1390,8 +1461,8 @@ export default function Book({ slugOverride }: { slugOverride?: string } = {}) {
     );
   };
 
-  const slots: string[] = availability?.slots ?? [];
-  const isFullyBooked = availability?.isFullyBooked ?? false;
+  const slots: string[] = effectiveAvailability?.slots ?? [];
+  const isFullyBooked = effectiveAvailability?.isFullyBooked ?? false;
 
   // ─── STEP 0: Profile landing page ──────────────────────────────────────────
   if (step === 0) {
@@ -1822,6 +1893,73 @@ export default function Book({ slugOverride }: { slugOverride?: string } = {}) {
 
           {/* Services tab */}
           {activeTab === "services" && (
+            <>
+              {/* Staff picker — shown only for businesses with 2+ active
+                  staff AND only until the customer picks one. After the
+                  pick, a compact "booked with {name}" pill replaces it
+                  (clickable to change). Single-staff / owner-only shops
+                  skip this entirely. */}
+              {hasMultiStaff && !selectedStaffId && (
+                <div className="mb-4">
+                  <div className="text-sm font-semibold text-foreground mb-2">עם מי לקבוע את התור?</div>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                    {staffList.map(s => (
+                      <button
+                        key={s.id}
+                        onClick={() => setSelectedStaffId(s.id)}
+                        className="flex flex-col items-center gap-1.5 p-3 border rounded-xl hover:shadow-md transition-all text-center bg-white"
+                        style={{ borderColor: s.color ?? "#e5e7eb" }}
+                      >
+                        {s.avatarUrl ? (
+                          <img src={s.avatarUrl} alt={s.name} className="w-12 h-12 rounded-full object-cover" />
+                        ) : (
+                          <div
+                            className="w-12 h-12 rounded-full flex items-center justify-center text-white font-bold"
+                            style={{ backgroundColor: s.color ?? primaryColor }}
+                          >
+                            {s.name.charAt(0)}
+                          </div>
+                        )}
+                        <div className="text-sm font-medium truncate w-full">{s.name}</div>
+                        {s.isOwner && <div className="text-[10px] text-muted-foreground">(בעל/ת העסק)</div>}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {hasMultiStaff && selectedStaffId && (
+                <div className="mb-4 flex items-center justify-between gap-2 p-3 rounded-xl border bg-muted/30">
+                  <div className="flex items-center gap-2 min-w-0">
+                    {(() => {
+                      const s = staffList.find(x => x.id === selectedStaffId);
+                      if (!s) return null;
+                      return (
+                        <>
+                          {s.avatarUrl ? (
+                            <img src={s.avatarUrl} alt={s.name} className="w-8 h-8 rounded-full object-cover" />
+                          ) : (
+                            <div className="w-8 h-8 rounded-full flex items-center justify-center text-white text-sm font-bold shrink-0"
+                                 style={{ backgroundColor: s.color ?? primaryColor }}>
+                              {s.name.charAt(0)}
+                            </div>
+                          )}
+                          <div className="text-sm truncate">
+                            <span className="text-muted-foreground">תור עם:</span>{" "}
+                            <span className="font-semibold">{s.name}</span>
+                          </div>
+                        </>
+                      );
+                    })()}
+                  </div>
+                  <button
+                    onClick={() => { setSelectedStaffId(null); setSelectedServiceId(null); }}
+                    className="text-xs text-primary underline shrink-0"
+                  >
+                    שנה עובד
+                  </button>
+                </div>
+              )}
+
             <div className={`${serviceCardStyle === "grid" ? "grid grid-cols-2 gap-3" : "space-y-3"} ${animationStyle === "subtle" ? "animate-in fade-in duration-500" : animationStyle === "bouncy" ? "animate-in zoom-in-95 duration-500" : ""}`}>
               {servicesLoading && <div className="text-center py-8 text-muted-foreground col-span-2">טוען שירותים...</div>}
               {servicesList.filter(s => s.isActive).map(service => {
@@ -1999,9 +2137,14 @@ export default function Book({ slugOverride }: { slugOverride?: string } = {}) {
                 );
               })}
               {!servicesLoading && !servicesList.filter(s => s.isActive).length && (
-                <div className="text-center py-8 text-muted-foreground col-span-2">אין שירותים זמינים כרגע</div>
+                <div className="text-center py-8 text-muted-foreground col-span-2">
+                  {selectedStaffId
+                    ? "אין שירותים זמינים עבור העובד שנבחר"
+                    : "אין שירותים זמינים כרגע"}
+                </div>
               )}
             </div>
+            </>
           )}
 
           {/* Hours tab */}

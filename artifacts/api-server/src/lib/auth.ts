@@ -16,6 +16,10 @@ export const JWT_SECRET: string = rawJwtSecret;
 export interface BusinessTokenPayload {
   businessId: number;
   email: string;
+  // Optional: when present, the caller is a non-owner staff member and
+  // handlers should scope list/read endpoints to this staff's data only
+  // (appointments, calendar, etc.). Owner logins omit this field.
+  staffMemberId?: number;
 }
 
 export function signBusinessToken(payload: BusinessTokenPayload): string {
