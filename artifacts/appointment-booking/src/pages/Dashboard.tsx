@@ -280,9 +280,35 @@ function IssueReceiptDialog({
               {isRegistered && <span> המייל נשלף אוטומטית מחשבון הלקוח.</span>}
             </p>
           </div>
+          {/* When there's no appointment context (Customers page), let the
+              owner pick a service from the list — selecting one seeds the
+              amount + description with the stored price/name. */}
+          {!appt && services && services.length > 0 && (
+            <div className="space-y-1">
+              <Label>סוג הטיפול</Label>
+              <select
+                className="w-full h-9 rounded-md border border-input bg-transparent px-3 text-sm"
+                onChange={e => {
+                  const id = Number(e.target.value);
+                  const s = services.find(x => x.id === id);
+                  if (s) {
+                    setAmount((s.price / 100).toFixed(2));
+                    setAmountTouched(true);
+                    setDescription(s.name);
+                  }
+                }}
+                defaultValue=""
+              >
+                <option value="" disabled>בחר/י טיפול (או הקלד/י ידנית למטה)</option>
+                {services.map(s => (
+                  <option key={s.id} value={s.id}>{s.name} — ₪{(s.price / 100).toFixed(0)}</option>
+                ))}
+              </select>
+            </div>
+          )}
           <div className="space-y-1">
             <Label>תיאור השירות</Label>
-            <Input value={description} onChange={e => setDescription(e.target.value)} placeholder="לדוגמה: תספורת, הלחמת ריסים" />
+            <Input value={description} onChange={e => setDescription(e.target.value)} placeholder="לדוגמה: קעקוע, עגיל באוזן" />
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1">
@@ -3991,6 +4017,7 @@ function RevenueTab() {
 
 function CustomersTab() {
   const { data: customers, isLoading } = useListBusinessCustomers();
+  const { data: services } = useListBusinessServices();
   const { toast } = useToast();
   const token = localStorage.getItem("biz_token") || sessionStorage.getItem("biz_token");
 
@@ -4253,10 +4280,13 @@ function CustomersTab() {
         </DialogContent>
       </Dialog>
 
-      {/* Customer-level receipt issuance (no appointment context). */}
+      {/* Customer-level receipt issuance (no appointment context). Pass the
+          service list so the owner can pick a treatment and auto-fill the
+          amount + description. */}
       {issueReceiptFor && (
         <IssueReceiptDialog
           customer={{ clientName: issueReceiptFor.clientName, phoneNumber: issueReceiptFor.phoneNumber }}
+          services={services as any}
           defaultEmail={issueReceiptFor.email}
           onClose={() => setIssueReceiptFor(null)}
         />
@@ -5758,7 +5788,7 @@ function SettingsTab() {
   const baselineCategoriesRef = useRef<string[] | null>(null);
 
   const [form, setForm] = useState({
-    name: "", ownerName: "", ownerGender: "male" as "male" | "female", phone: "", email: "",
+    name: "", ownerName: "", ownerFirstName: "", ownerLastName: "", ownerGender: "male" as "male" | "female", phone: "", email: "",
     requireAppointmentApproval: false, requirePhoneVerification: false,
     tranzilaEnabled: false,
     depositAmount: "0",
@@ -5798,9 +5828,26 @@ function SettingsTab() {
 
   useEffect(() => {
     if (profile) {
+      // Prefer the stored split (ownerFirstName/ownerLastName); only fall back
+      // to the heuristic "last token is surname" when those are null — so
+      // legacy rows still get a sensible split until the owner re-saves.
+      const storedFirst = (profile as any).ownerFirstName as string | null | undefined;
+      const storedLast  = (profile as any).ownerLastName  as string | null | undefined;
+      let initialFirst = "";
+      let initialLast  = "";
+      if (storedFirst != null || storedLast != null) {
+        initialFirst = storedFirst ?? "";
+        initialLast  = storedLast  ?? "";
+      } else {
+        const parts = (profile.ownerName || "").trim().split(/\s+/).filter(Boolean);
+        initialFirst = parts.length > 1 ? parts.slice(0, -1).join(" ") : (parts[0] ?? "");
+        initialLast  = parts.length > 1 ? parts[parts.length - 1] : "";
+      }
       const next = {
         name: profile.name,
         ownerName: profile.ownerName,
+        ownerFirstName: initialFirst,
+        ownerLastName: initialLast,
         ownerGender: (((profile as any).ownerGender === "female" ? "female" : "male") as "male" | "female"),
         phone: (profile as any).phone ?? "",
         email: (profile as any).email ?? "",
@@ -5865,6 +5912,8 @@ function SettingsTab() {
       data: {
         name: form.name,
         ownerName: form.ownerName,
+        ownerFirstName: form.ownerFirstName,
+        ownerLastName:  form.ownerLastName,
         ownerGender: form.ownerGender,
         phone: form.phone || null,
         email: form.email || undefined,
@@ -5972,44 +6021,40 @@ function SettingsTab() {
                   <Label>שם העסק</Label>
                   <Input value={form.name} onChange={e => setForm(p => ({ ...p, name: e.target.value }))} required />
                 </div>
-                {/* Owner name is stored as a single `ownerName` in the DB but
-                    edited as two fields here. We split on whitespace on read
-                    and re-join on write so the existing backend/migration
-                    doesn't need to change. Multi-word first name support:
-                    the LAST token is treated as the family name, everything
-                    before it is the first name — so "לילך שרה כהן" reads
-                    back as first="לילך שרה", last="כהן" instead of losing
-                    the middle name to the surname slot. */}
-                {(() => {
-                  const parts = (form.ownerName || "").trim().split(/\s+/).filter(Boolean);
-                  const firstName = parts.length > 1 ? parts.slice(0, -1).join(" ") : (parts[0] ?? "");
-                  const lastName = parts.length > 1 ? parts[parts.length - 1] : "";
-                  return (
-                    <>
-                      <div className="space-y-2">
-                        <Label>שם פרטי</Label>
-                        <Input
-                          value={firstName}
-                          onChange={e => {
-                            const fn = e.target.value;
-                            setForm(p => ({ ...p, ownerName: `${fn}${lastName ? " " + lastName : ""}` }));
-                          }}
-                          required
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <Label>שם משפחה</Label>
-                        <Input
-                          value={lastName}
-                          onChange={e => {
-                            const ln = e.target.value;
-                            setForm(p => ({ ...p, ownerName: `${firstName}${ln ? " " + ln : ""}`.trim() }));
-                          }}
-                        />
-                      </div>
-                    </>
-                  );
-                })()}
+                {/* Owner name is edited as two separate fields and stored that
+                    way (ownerFirstName + ownerLastName) so a two-word surname
+                    like "בן עמי" paired with a two-word first name like
+                    "לילך ספיר" survives a reload. The server still keeps a
+                    joined `ownerName` for greetings/emails/etc. */}
+                <div className="space-y-2">
+                  <Label>שם פרטי</Label>
+                  <Input
+                    value={form.ownerFirstName}
+                    onChange={e => {
+                      const fn = e.target.value;
+                      setForm(p => ({
+                        ...p,
+                        ownerFirstName: fn,
+                        ownerName: `${fn}${p.ownerLastName ? " " + p.ownerLastName : ""}`.trim(),
+                      }));
+                    }}
+                    required
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>שם משפחה</Label>
+                  <Input
+                    value={form.ownerLastName}
+                    onChange={e => {
+                      const ln = e.target.value;
+                      setForm(p => ({
+                        ...p,
+                        ownerLastName: ln,
+                        ownerName: `${p.ownerFirstName}${ln ? " " + ln : ""}`.trim(),
+                      }));
+                    }}
+                  />
+                </div>
                 <div className="space-y-2 sm:col-span-2">
                   <Label>איך לפנות אליך?</Label>
                   <div className="flex gap-2">
@@ -6332,9 +6377,23 @@ function SettingsTab() {
             onClick={() => {
               // Revert all form fields from the last-loaded profile.
               if (profile) {
+                const storedFirst = (profile as any).ownerFirstName as string | null | undefined;
+                const storedLast  = (profile as any).ownerLastName  as string | null | undefined;
+                let revertFirst = "";
+                let revertLast  = "";
+                if (storedFirst != null || storedLast != null) {
+                  revertFirst = storedFirst ?? "";
+                  revertLast  = storedLast  ?? "";
+                } else {
+                  const parts = (profile.ownerName || "").trim().split(/\s+/).filter(Boolean);
+                  revertFirst = parts.length > 1 ? parts.slice(0, -1).join(" ") : (parts[0] ?? "");
+                  revertLast  = parts.length > 1 ? parts[parts.length - 1] : "";
+                }
                 setForm({
                   name: profile.name,
                   ownerName: profile.ownerName,
+                  ownerFirstName: revertFirst,
+                  ownerLastName: revertLast,
                   phone: (profile as any).phone ?? "",
                   email: (profile as any).email ?? "",
                   requireAppointmentApproval: (profile as any).requireAppointmentApproval ?? false,

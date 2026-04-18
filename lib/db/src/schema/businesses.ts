@@ -8,6 +8,13 @@ export const businessesTable = pgTable("businesses", {
   username: text("username").unique(),
   name: text("name").notNull(),
   ownerName: text("owner_name").notNull(),
+  // Split of ownerName into first + last name, stored separately so that a
+  // multi-word surname (e.g. "בן עמי") and a multi-word first name
+  // (e.g. "לילך ספיר") are preserved across reloads. When these are set,
+  // Settings uses them directly; ownerName is derived from first + " " + last
+  // on save for backwards compat with every other consumer.
+  ownerFirstName: text("owner_first_name"),
+  ownerLastName:  text("owner_last_name"),
   ownerGender: text("owner_gender"), // "male" | "female" | "other" | null
   email: text("email").notNull().unique(),
   passwordHash: text("password_hash").notNull(),

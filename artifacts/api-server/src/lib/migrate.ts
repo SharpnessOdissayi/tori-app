@@ -238,6 +238,11 @@ export async function runMigrations() {
       // Uses lowercase so domain matching is case-insensitive.
       "ALTER TABLE businesses ADD COLUMN IF NOT EXISTS latitude TEXT",
       "ALTER TABLE businesses ADD COLUMN IF NOT EXISTS longitude TEXT",
+      // Split owner name (first + last) so multi-word surnames like "בן עמי"
+      // survive a reload. NULL means fall back to the heuristic split of
+      // owner_name for legacy rows.
+      "ALTER TABLE businesses ADD COLUMN IF NOT EXISTS owner_first_name TEXT",
+      "ALTER TABLE businesses ADD COLUMN IF NOT EXISTS owner_last_name TEXT",
     ];
 
     // Cancellation tracking

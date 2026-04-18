@@ -54,6 +54,8 @@ function mapBusiness(b: typeof businessesTable.$inferSelect) {
     slug: b.slug,
     name: b.name,
     ownerName: b.ownerName,
+    ownerFirstName: (b as any).ownerFirstName ?? null,
+    ownerLastName:  (b as any).ownerLastName  ?? null,
     ownerGender: (b as any).ownerGender ?? null,
     email: b.email,
     bufferMinutes: b.bufferMinutes,
@@ -179,6 +181,23 @@ router.patch("/business/profile", requireBusinessAuth, async (req, res): Promise
   const updates: Partial<typeof businessesTable.$inferInsert> = {};
   if (parsed.data.name !== undefined) updates.name = parsed.data.name;
   if (parsed.data.ownerName !== undefined) updates.ownerName = parsed.data.ownerName;
+  // Accept split first/last names (outside the generated zod schema). When
+  // either is provided, persist both AND recompute ownerName so the rest of
+  // the app (emails, headers, receipts) keeps working without changes.
+  {
+    const ofn = (req.body as any)?.ownerFirstName;
+    const oln = (req.body as any)?.ownerLastName;
+    const hasFirst = typeof ofn === "string";
+    const hasLast  = typeof oln === "string";
+    if (hasFirst || hasLast) {
+      const fn = String(ofn ?? "").trim();
+      const ln = String(oln ?? "").trim();
+      if (hasFirst) (updates as any).ownerFirstName = fn || null;
+      if (hasLast)  (updates as any).ownerLastName  = ln || null;
+      const joined = [fn, ln].filter(Boolean).join(" ").trim();
+      if (joined) updates.ownerName = joined;
+    }
+  }
   if ((parsed.data as any).ownerGender !== undefined) (updates as any).ownerGender = (parsed.data as any).ownerGender || null;
   if (parsed.data.phone !== undefined) updates.phone = parsed.data.phone ?? undefined;
   if ((parsed.data as any).email !== undefined && (parsed.data as any).email) {
