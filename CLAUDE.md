@@ -70,7 +70,7 @@ Strong success criteria let you loop independently. Weak criteria ("make it work
 
 - RTL Hebrew SaaS — all UI is `dir="rtl"`, use Hebrew text in user-facing strings
 - Stack: React + Wouter + React Query + Drizzle ORM + PostgreSQL, deployed on Railway
-- Never open a local preview server — the app runs live at kavati.net
+- Local preview (vite dev) is OK for iteration; only push to main when changes are ready. Production is kavati.net on Railway.
 - Do not mix Hebrew and English in the same response — pick one language per reply
 - WhatsApp templates are pre-approved by Meta — never change template names or param counts
 - Soft-delete appointments (status='cancelled') — never hard-delete

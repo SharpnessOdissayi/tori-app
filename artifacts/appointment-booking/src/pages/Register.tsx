@@ -100,16 +100,23 @@ function slugify(text: string): string {
 function StepPlan({ onNext }: { onNext: (plan: Plan) => void }) {
   return (
     <div className="space-y-6">
-      <div className="text-center space-y-2">
-        <a href="/" className="inline-block">
-          <img src="/logo.svg" alt="קבעתי" className="h-16 object-contain mx-auto" />
+      <div className="text-center">
+        {/* Logo pulled 50% closer to the welcome heading (mb-1 = 0.25rem
+            gap, vs. the original space-y-2 = 0.5rem). h1 + p keep their
+            original spacing via a nested space-y-2 container. */}
+        <a href="/" className="inline-block mb-1">
+          <img src="/logo.svg" alt="קבעתי" className="h-[6.24rem] object-contain mx-auto" />
         </a>
-        <h1 className="text-3xl font-bold">ברוכים הבאים לקבעתי</h1>
-        <p className="text-muted-foreground">בחר את התוכנית המתאימה לעסק שלך</p>
+        <div className="space-y-2">
+          <h1 className="text-3xl font-bold">ברוכים הבאים לקבעתי</h1>
+          <p className="text-muted-foreground">בחר את התוכנית המתאימה לעסק שלך</p>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">
-        {/* Free Plan */}
+        {/* Free Plan — 14-day Pro trial, no credit card. Auto-cancels on day 14.
+            Stripped-down card: just name/price/trial note/CTA. The full feature
+            list lives in the comparison grid below to avoid duplication. */}
         <button
           onClick={() => onNext("free")}
           className="text-right border-2 rounded-2xl p-6 hover:border-primary hover:bg-primary/5 transition-all group focus:outline-none focus:ring-2 focus:ring-primary"
@@ -118,49 +125,85 @@ function StepPlan({ onNext }: { onNext: (plan: Plan) => void }) {
             <Zap className="w-5 h-5 text-slate-500" />
             <span className="font-bold text-lg">חינמי</span>
           </div>
-          <div className="text-3xl font-bold mb-1">חינם</div>
-          <div className="text-sm text-muted-foreground mb-4">ללא עלות, ללא כרטיס אשראי</div>
-          <ul className="space-y-2 text-sm text-right">
-            <li className="flex items-center gap-2"><CheckCircle className="w-4 h-4 text-green-500 shrink-0" /> עד 3 שירותים</li>
-            <li className="flex items-center gap-2"><CheckCircle className="w-4 h-4 text-green-500 shrink-0" /> עד 20 לקוחות בחודש</li>
-            <li className="flex items-center gap-2"><CheckCircle className="w-4 h-4 text-green-500 shrink-0" /> עמוד הזמנות</li>
-            <li className="flex items-center gap-2"><CheckCircle className="w-4 h-4 text-green-500 shrink-0" /> לוח בקרה מלא</li>
-          </ul>
-          <div className="mt-5 w-full py-2 rounded-xl border-2 border-slate-400 text-slate-600 font-semibold text-sm group-hover:bg-slate-500 group-hover:text-white transition-colors">
+          <div className="flex items-baseline gap-2 mb-2">
+            <span className="text-3xl font-bold">חינם</span>
+            <span className="text-[10px] font-bold text-amber-700 bg-amber-100 px-1.5 py-0.5 rounded">🎉 14 ימי פרו</span>
+          </div>
+          <div className="text-sm text-muted-foreground">
+            ניסיון פרו ללא כרטיס אשראי — ביטול אוטומטי בתום 14 ימים
+          </div>
+          <div className="mt-5 w-full py-2.5 rounded-xl border-2 border-slate-400 text-slate-600 font-semibold text-sm group-hover:bg-slate-500 group-hover:text-white transition-colors text-center">
             התחל חינם
           </div>
         </button>
 
-        {/* Pro Plan */}
+        {/* Pro Plan — 14-day trial, credit card required, auto-billed after.
+            Same stripped-down structure as Free; full features are listed in
+            the comparison grid below. */}
         <button
           onClick={() => onNext("pro")}
           className="text-right border-2 border-blue-400 rounded-2xl p-6 bg-blue-50 hover:bg-blue-100 hover:border-blue-500 transition-all group relative focus:outline-none focus:ring-2 focus:ring-blue-500"
         >
-          <div className="absolute -top-3 left-4">
-            <Badge className="bg-blue-500 text-white px-3 py-1">מומלץ</Badge>
-          </div>
           <div className="flex items-center gap-2 mb-3">
             <Crown className="w-5 h-5 text-blue-500" />
             <span className="font-bold text-lg text-blue-700">פרו</span>
           </div>
-          <div className="flex items-baseline gap-2 mb-1">
-            <span className="text-3xl font-bold text-blue-700">חינם</span>
-            <span className="text-[10px] font-bold text-amber-700 bg-amber-100 px-1.5 py-0.5 rounded">🎉 14 ימים</span>
+          <div className="flex items-baseline gap-2 mb-2 flex-wrap">
+            <span className="text-3xl font-bold text-blue-700">₪100</span>
+            <span className="text-sm text-blue-700">/חודש</span>
+            <span className="text-[10px] font-bold text-amber-700 bg-amber-100 px-1.5 py-0.5 rounded">🎉 14 ימים חינם</span>
           </div>
-          <div className="text-sm text-blue-500 mb-4">
-            <span className="font-semibold">ניסיון חינם ל-14 ימים</span> — לאחר מכן ₪100/חודש, ביטול בכל עת
+          <div className="text-sm text-blue-600">
+            14 ימי ניסיון חינם — חיוב אוטומטי אחרי ימי הניסיון, ביטול בכל עת
           </div>
-          <ul className="space-y-2 text-sm text-right text-blue-700">
-            <li className="flex items-center gap-2"><CheckCircle className="w-4 h-4 text-green-500 shrink-0" /> שירותים ללא הגבלה</li>
-            <li className="flex items-center gap-2"><CheckCircle className="w-4 h-4 text-green-500 shrink-0" /> תורים ללא הגבלה</li>
-            <li className="flex items-center gap-2"><CheckCircle className="w-4 h-4 text-green-500 shrink-0" /> עיצוב מותאם אישית</li>
-            <li className="flex items-center gap-2"><CheckCircle className="w-4 h-4 text-green-500 shrink-0" /> אינטגרציית WhatsApp</li>
-            <li className="flex items-center gap-2"><CheckCircle className="w-4 h-4 text-green-500 shrink-0" /> תמיכה מועדפת</li>
-          </ul>
-          <div className="mt-5 w-full py-2 rounded-xl bg-blue-500 text-white font-semibold text-sm group-hover:bg-blue-600 transition-colors text-center">
-            בחר תוכנית פרו
+          <div className="mt-5 w-full py-2.5 rounded-xl bg-blue-500 text-white font-semibold text-sm group-hover:bg-blue-600 transition-colors text-center">
+            בחר פרו
           </div>
         </button>
+      </div>
+
+      {/* Full feature comparison — same two columns as the plan cards above,
+          but with the complete list for each tier so visitors can see exactly
+          what they get. Pro column shows *additions* on top of Free. */}
+      <div className="pt-6 mt-2 border-t">
+        <h3 className="text-center font-semibold text-base mb-5">מה כלול בכל מסלול?</h3>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          {/* Free column */}
+          <div className="rounded-2xl border p-5 bg-white">
+            <div className="flex items-center gap-2 mb-3 pb-3 border-b">
+              <Zap className="w-5 h-5 text-slate-500" />
+              <span className="font-bold">חינמי</span>
+            </div>
+            <ul className="space-y-2 text-sm">
+              <li className="flex items-start gap-2"><CheckCircle className="w-4 h-4 text-green-500 shrink-0 mt-0.5" /> עד 3 שירותים</li>
+              <li className="flex items-start gap-2"><CheckCircle className="w-4 h-4 text-green-500 shrink-0 mt-0.5" /> עד 20 לקוחות בחודש</li>
+              <li className="flex items-start gap-2"><CheckCircle className="w-4 h-4 text-green-500 shrink-0 mt-0.5" /> עמוד הזמנות ציבורי</li>
+              <li className="flex items-start gap-2"><CheckCircle className="w-4 h-4 text-green-500 shrink-0 mt-0.5" /> יומן שבועי ויומי</li>
+              <li className="flex items-start gap-2"><CheckCircle className="w-4 h-4 text-green-500 shrink-0 mt-0.5" /> ניהול שעות עבודה</li>
+              <li className="flex items-start gap-2"><CheckCircle className="w-4 h-4 text-green-500 shrink-0 mt-0.5" /> פורטל לקוחות</li>
+              <li className="flex items-start gap-2"><CheckCircle className="w-4 h-4 text-green-500 shrink-0 mt-0.5" /> תזכורות WhatsApp בסיסיות</li>
+              <li className="flex items-start gap-2 pt-1 text-amber-700 font-medium"><span>🎉</span> 14 ימי פרו חינם בהתחלה</li>
+            </ul>
+          </div>
+          {/* Pro column */}
+          <div className="rounded-2xl border-2 border-blue-400 p-5 bg-blue-50">
+            <div className="flex items-center gap-2 mb-3 pb-3 border-b border-blue-200">
+              <Crown className="w-5 h-5 text-blue-500" />
+              <span className="font-bold text-blue-700">פרו</span>
+              <span className="text-xs text-blue-600 font-normal mr-1">(כל מה שבחינמי ועוד:)</span>
+            </div>
+            <ul className="space-y-2 text-sm text-blue-900">
+              <li className="flex items-start gap-2"><CheckCircle className="w-4 h-4 text-green-500 shrink-0 mt-0.5" /> שירותים ללא הגבלה</li>
+              <li className="flex items-start gap-2"><CheckCircle className="w-4 h-4 text-green-500 shrink-0 mt-0.5" /> לקוחות ללא הגבלה</li>
+              <li className="flex items-start gap-2"><CheckCircle className="w-4 h-4 text-green-500 shrink-0 mt-0.5" /> עיצוב מותאם אישית (לוגו, צבעים, באנר)</li>
+              <li className="flex items-start gap-2"><CheckCircle className="w-4 h-4 text-green-500 shrink-0 mt-0.5" /> אינטגרציית WhatsApp מלאה</li>
+              <li className="flex items-start gap-2"><CheckCircle className="w-4 h-4 text-green-500 shrink-0 mt-0.5" /> סטטיסטיקות ונתונים פיננסיים</li>
+              <li className="flex items-start gap-2"><CheckCircle className="w-4 h-4 text-green-500 shrink-0 mt-0.5" /> קבלות אוטומטיות</li>
+              <li className="flex items-start gap-2"><CheckCircle className="w-4 h-4 text-green-500 shrink-0 mt-0.5" /> גלריית תמונות</li>
+              <li className="flex items-start gap-2"><CheckCircle className="w-4 h-4 text-green-500 shrink-0 mt-0.5" /> תמיכה מועדפת</li>
+            </ul>
+          </div>
+        </div>
       </div>
 
       <p className="text-center text-xs text-muted-foreground">
