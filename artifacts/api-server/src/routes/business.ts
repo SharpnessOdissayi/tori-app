@@ -918,6 +918,7 @@ router.delete("/business/appointments/:id", requireBusinessAuth, async (req, res
       clientName: appointmentsTable.clientName,
       appointmentDate: appointmentsTable.appointmentDate,
       appointmentTime: appointmentsTable.appointmentTime,
+      status: appointmentsTable.status,
     })
     .from(appointmentsTable)
     .where(and(eq(appointmentsTable.id, paramsParsed.data.id), eq(appointmentsTable.businessId, req.business!.businessId)));
@@ -939,18 +940,29 @@ router.delete("/business/appointments/:id", requireBusinessAuth, async (req, res
     .set({ status: cancelledStatus, ...(({ cancelledBy: "business", cancelReason }) as any) })
     .where(eq(appointmentsTable.id, appt.id));
 
-  // Notify client via WhatsApp (non-blocking) — Pro only AND owner has
-  // opted in via notifyOnCancel (default off). Some owners prefer to
-  // call the customer themselves rather than send an automated message.
+  // Notify client via WhatsApp (non-blocking) — paid plan only.
+  // A "pending" appointment being cancelled is really a REJECTION, and the
+  // client always needs to know so they can re-book — so we bypass the
+  // notifyOnCancel opt-in there. For "confirmed" appointments the owner
+  // can still prefer to call the customer manually, so notifyOnCancel
+  // (default off) gates those.
   const [, month, day] = appt.appointmentDate.split("-");
   const formattedDate = `${day}/${month}`;
   const [bizCancelPref] = await db
     .select({ notifyOnCancel: (businessesTable as any).notifyOnCancel })
     .from(businessesTable)
     .where(eq(businessesTable.id, req.business!.businessId));
-  const shouldNotify = !!bizCancelPref?.notifyOnCancel;
-  if (shouldNotify && (await isBusinessPro(req.business!.businessId))) {
-    sendClientCancellation(appt.phoneNumber, appt.clientName, req.business!.businessName, formattedDate, appt.appointmentTime).catch(() => {});
+  const isRejection = appt.status === "pending";
+  const shouldNotify = isRejection || !!bizCancelPref?.notifyOnCancel;
+  const paid = await isBusinessPro(req.business!.businessId);
+  if (shouldNotify && paid) {
+    sendClientCancellation(appt.phoneNumber, appt.clientName, req.business!.businessName, formattedDate, appt.appointmentTime)
+      .then(() => console.log(`[cancel${isRejection ? "/reject" : ""}] WhatsApp sent for appt ${appt.id} → ${appt.phoneNumber}`))
+      .catch(err => console.error(`[cancel${isRejection ? "/reject" : ""}] WhatsApp FAILED for appt ${appt.id} → ${appt.phoneNumber}:`, err?.message ?? err));
+  } else if (!paid) {
+    console.warn(`[cancel] Skipping WhatsApp for appt ${appt.id} — business ${req.business!.businessId} not on a paid plan`);
+  } else {
+    console.log(`[cancel] Skipping WhatsApp for appt ${appt.id} — notifyOnCancel is off (confirmed appointment)`);
   }
 
   // Log notification for client
