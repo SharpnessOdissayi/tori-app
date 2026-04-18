@@ -20,6 +20,7 @@ export * from "./businessProfile";
 export * from "./businessProfileThemeMode";
 export * from "./businessStats";
 export * from "./createBusinessBody";
+export * from "./createBusinessBodySubscriptionPlan";
 export * from "./createPublicAppointmentBody";
 export * from "./createServiceBody";
 export * from "./customerRecord";

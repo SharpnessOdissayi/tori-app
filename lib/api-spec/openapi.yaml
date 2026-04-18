@@ -940,7 +940,14 @@ components:
           type: string
 
     CreateBusinessBody:
+      # additionalProperties: true mirrors AdminUpdateBusinessBody — the
+      # super-admin create handler reads extra fields via (data as any):
+      # phone, address, websiteUrl, instagramUrl, subscriptionPlan, city.
+      # Without passthrough Zod silently drops them and super-admin creates
+      # never save those columns (phone in particular → owner can't log in
+      # via phone+password because phone is null).
       type: object
+      additionalProperties: true
       properties:
         name:
           type: string
@@ -951,6 +958,19 @@ components:
         email:
           type: string
         password:
+          type: string
+        phone:
+          type: string
+        subscriptionPlan:
+          type: string
+          enum: [free, basic, pro]
+        address:
+          type: string
+        city:
+          type: string
+        websiteUrl:
+          type: string
+        instagramUrl:
           type: string
       required: [name, slug, ownerName, email, password]
 

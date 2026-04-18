@@ -14,4 +14,5 @@ export interface UpdateServiceBody {
   /** @nullable */
   imageUrl?: string | null;
   isActive?: boolean;
+  [key: string]: unknown;
 }

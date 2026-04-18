@@ -16,4 +16,5 @@ export interface AdminUpdateBusinessBody {
   ownerName?: string;
   email?: string;
   password?: string;
+  [key: string]: unknown;
 }

@@ -43,6 +43,12 @@ export const SuperAdminCreateBusinessBody = zod.object({
   ownerName: zod.string(),
   email: zod.string(),
   password: zod.string(),
+  phone: zod.string().optional(),
+  subscriptionPlan: zod.enum(["free", "basic", "pro"]).optional(),
+  address: zod.string().optional(),
+  city: zod.string().optional(),
+  websiteUrl: zod.string().optional(),
+  instagramUrl: zod.string().optional(),
 });
 
 export const SuperAdminUpdateBusinessParams = zod.object({
@@ -62,7 +68,7 @@ export const SuperAdminUpdateBusinessBody = zod.object({
   ownerName: zod.string().optional(),
   email: zod.string().email().optional(),
   password: zod.string().optional(),
-}).passthrough();
+});
 
 export const SuperAdminUpdateBusinessResponse = zod.object({
   id: zod.number(),
@@ -157,7 +163,7 @@ export const UpdateBusinessProfileBody = zod.object({
   bufferMinutes: zod.number().optional(),
   notificationEnabled: zod.boolean().optional(),
   notificationMessage: zod.string().nullish(),
-}).passthrough();
+});
 
 export const UpdateBusinessProfileResponse = zod.object({
   id: zod.number(),
@@ -192,7 +198,7 @@ export const UpdateBusinessBrandingBody = zod.object({
   logoUrl: zod.string().nullish(),
   bannerUrl: zod.string().nullish(),
   themeMode: zod.string().nullish(),
-}).passthrough();
+});
 
 export const UpdateBusinessBrandingResponse = zod.object({
   id: zod.number(),
@@ -227,7 +233,7 @@ export const UpdateBusinessIntegrationsBody = zod.object({
   googleCalendarEnabled: zod.boolean().optional(),
   stripeEnabled: zod.boolean().optional(),
   stripePublicKey: zod.string().nullish(),
-}).passthrough();
+});
 
 export const UpdateBusinessIntegrationsResponse = zod.object({
   id: zod.number(),
@@ -280,7 +286,7 @@ export const CreateBusinessServiceBody = zod.object({
     .optional()
     .describe("Buffer time after this service in minutes"),
   imageUrl: zod.string().nullish(),
-}).passthrough();
+});
 
 export const UpdateBusinessServiceParams = zod.object({
   id: zod.coerce.number(),
@@ -293,7 +299,7 @@ export const UpdateBusinessServiceBody = zod.object({
   bufferMinutes: zod.number().optional(),
   imageUrl: zod.string().nullish(),
   isActive: zod.boolean().optional(),
-}).passthrough();
+});
 
 export const UpdateBusinessServiceResponse = zod.object({
   id: zod.number(),

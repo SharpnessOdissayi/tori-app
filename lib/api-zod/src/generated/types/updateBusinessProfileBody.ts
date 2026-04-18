@@ -13,4 +13,5 @@ export interface UpdateBusinessProfileBody {
   notificationEnabled?: boolean;
   /** @nullable */
   notificationMessage?: string | null;
+  [key: string]: unknown;
 }

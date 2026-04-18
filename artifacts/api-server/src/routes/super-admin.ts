@@ -72,21 +72,25 @@ router.post("/super-admin/businesses", async (req, res): Promise<void> => {
     return;
   }
 
-  const { name, slug, ownerName, email, password, phone } = bodyParsed.data;
-  const extra = bodyParsed.data as any;
-  const plan = extra.subscriptionPlan === "pro" ? "pro" : "free";
+  const {
+    name, slug, ownerName, email, password,
+    phone, subscriptionPlan, address, city, websiteUrl, instagramUrl,
+  } = bodyParsed.data;
+  const plan = subscriptionPlan === "pro" ? "pro" : "free";
   const passwordHash = await bcrypt.hash(password, 10);
 
   const [business] = await db
     .insert(businessesTable)
     .values({
-      slug, name, ownerName, email, passwordHash, phone: phone ?? null,
+      slug, name, ownerName, email, passwordHash,
+      phone: phone ?? null,
       subscriptionPlan: plan,
       maxServicesAllowed: plan === "pro" ? 999 : 3,
       maxAppointmentsPerMonth: plan === "pro" ? 9999 : 20,
-      address: extra.address || null,
-      websiteUrl: extra.websiteUrl || null,
-      instagramUrl: extra.instagramUrl || null,
+      address: address || null,
+      city: city || null,
+      websiteUrl: websiteUrl || null,
+      instagramUrl: instagramUrl || null,
     } as any)
     .returning();
 

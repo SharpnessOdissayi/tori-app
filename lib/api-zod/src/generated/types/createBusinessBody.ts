@@ -5,6 +5,7 @@
  * Multitenant SaaS Appointment Booking API
  * OpenAPI spec version: 0.3.0
  */
+import type { CreateBusinessBodySubscriptionPlan } from "./createBusinessBodySubscriptionPlan";
 
 export interface CreateBusinessBody {
   name: string;
@@ -12,4 +13,11 @@ export interface CreateBusinessBody {
   ownerName: string;
   email: string;
   password: string;
+  phone?: string;
+  subscriptionPlan?: CreateBusinessBodySubscriptionPlan;
+  address?: string;
+  city?: string;
+  websiteUrl?: string;
+  instagramUrl?: string;
+  [key: string]: unknown;
 }

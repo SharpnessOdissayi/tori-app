@@ -15,4 +15,5 @@ export interface UpdateIntegrationsBody {
   stripeEnabled?: boolean;
   /** @nullable */
   stripePublicKey?: string | null;
+  [key: string]: unknown;
 }

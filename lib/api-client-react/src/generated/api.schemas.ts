@@ -48,7 +48,17 @@ export interface AdminUpdateBusinessBody {
   ownerName?: string;
   email?: string;
   password?: string;
+  [key: string]: unknown;
 }
+
+export type CreateBusinessBodySubscriptionPlan =
+  (typeof CreateBusinessBodySubscriptionPlan)[keyof typeof CreateBusinessBodySubscriptionPlan];
+
+export const CreateBusinessBodySubscriptionPlan = {
+  free: "free",
+  basic: "basic",
+  pro: "pro",
+} as const;
 
 export interface CreateBusinessBody {
   name: string;
@@ -56,6 +66,13 @@ export interface CreateBusinessBody {
   ownerName: string;
   email: string;
   password: string;
+  phone?: string;
+  subscriptionPlan?: CreateBusinessBodySubscriptionPlan;
+  address?: string;
+  city?: string;
+  websiteUrl?: string;
+  instagramUrl?: string;
+  [key: string]: unknown;
 }
 
 export interface BusinessCreatedResponse {
@@ -131,6 +148,7 @@ export interface UpdateBusinessProfileBody {
   notificationEnabled?: boolean;
   /** @nullable */
   notificationMessage?: string | null;
+  [key: string]: unknown;
 }
 
 export interface UpdateBrandingBody {
@@ -155,6 +173,7 @@ export interface UpdateIntegrationsBody {
   stripeEnabled?: boolean;
   /** @nullable */
   stripePublicKey?: string | null;
+  [key: string]: unknown;
 }
 
 export interface PublicBusinessInfo {
@@ -211,6 +230,7 @@ export interface UpdateServiceBody {
   /** @nullable */
   imageUrl?: string | null;
   isActive?: boolean;
+  [key: string]: unknown;
 }
 
 export interface WorkingHour {
