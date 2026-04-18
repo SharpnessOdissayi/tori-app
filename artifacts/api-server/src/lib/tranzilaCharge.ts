@@ -251,8 +251,17 @@ export async function chargeTokenOneOff(
   const expireYear  = 2000 + parseInt(expiry.slice(2, 4), 10);
 
   // Per Tranzila's convention on TOK terminals: pass the token in
-  // card_number. No CVV required (the terminal is pre-configured to accept
-  // token-based charges without cardholder-present checks).
+  // card_number. We intentionally DO NOT send:
+  //   · cvv           — the TOK terminal (lilash2tok) is configured to
+  //                     accept token-based charges without CVV since the
+  //                     original card was already verified by the iframe
+  //                     at signup and the token is a one-time proof.
+  //   · card_holder_id (תעודת זהות) — same reasoning; the cardholder's
+  //                     ID was optionally captured during the iframe step
+  //                     and isn't required to re-charge the token.
+  // If Tranzila starts rejecting token-only charges with error 20111 or
+  // similar, check the Terminal settings → "Require CVV / Require ID"
+  // toggles. Both should be OFF for our TOK terminal.
   const body: Record<string, unknown> = {
     terminal_name:     TERMINAL,
     txn_currency_code: "ILS",
@@ -260,6 +269,8 @@ export async function chargeTokenOneOff(
     expire_month:      expireMonth,
     expire_year:       expireYear,
     card_number:       token,
+    // cvv:            — intentionally omitted
+    // card_holder_id: — intentionally omitted
     payment_plan:      1,
     response_language: "hebrew",
     created_by_user:   "kavati-system",

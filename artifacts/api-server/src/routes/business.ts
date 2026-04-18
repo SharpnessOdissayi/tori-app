@@ -198,10 +198,10 @@ router.patch("/business/profile", requireBusinessAuth, async (req, res): Promise
       if (joined) updates.ownerName = joined;
     }
   }
-  if ((parsed.data as any).ownerGender !== undefined) (updates as any).ownerGender = (parsed.data as any).ownerGender || null;
+  if ((req.body as any).ownerGender !== undefined) (updates as any).ownerGender = (req.body as any).ownerGender || null;
   if (parsed.data.phone !== undefined) updates.phone = parsed.data.phone ?? undefined;
-  if ((parsed.data as any).email !== undefined && (parsed.data as any).email) {
-    const newEmail = (parsed.data as any).email as string;
+  if ((req.body as any).email !== undefined && (req.body as any).email) {
+    const newEmail = (req.body as any).email as string;
     const [existing] = await db.select({ id: businessesTable.id }).from(businessesTable).where(eq(businessesTable.email, newEmail));
     if (existing && existing.id !== req.business!.businessId) {
       res.status(409).json({ error: "אימייל זה כבר בשימוש" });
@@ -213,9 +213,16 @@ router.patch("/business/profile", requireBusinessAuth, async (req, res): Promise
   if (parsed.data.notificationEnabled !== undefined) updates.notificationEnabled = parsed.data.notificationEnabled;
   if (parsed.data.notificationMessage !== undefined) updates.notificationMessage = parsed.data.notificationMessage ?? undefined;
   if (parsed.data.requireAppointmentApproval !== undefined) updates.requireAppointmentApproval = parsed.data.requireAppointmentApproval;
-  if ((parsed.data as any).requirePhoneVerification !== undefined) updates.requirePhoneVerification = (parsed.data as any).requirePhoneVerification;
-  // Booking restrictions
-  const d = parsed.data as any;
+  if ((req.body as any).requirePhoneVerification !== undefined) updates.requirePhoneVerification = (req.body as any).requirePhoneVerification;
+  // Booking restrictions + every other field not explicitly in
+  // UpdateBusinessProfileBody. Orval's Zod output for openapi's
+  // `additionalProperties: true` drops .passthrough(), so the generated
+  // schema silently strips unknown fields — which means parsed.data only
+  // carries the 5 fields enumerated above. Read extras straight off the
+  // raw body (type-safe guards below still protect us from garbage).
+  // Reported by owner: "הגבלות בניהול שירותים" wouldn't save — fixed
+  // here so minLeadHours / maxAppointmentsPerCustomer / etc. all land.
+  const d = req.body as any;
   if (d.minLeadHours !== undefined) updates.minLeadHours = d.minLeadHours ?? 0;
   if (d.cancellationHours !== undefined) updates.cancellationHours = d.cancellationHours ?? 0;
   if (d.maxFutureWeeks !== undefined) updates.maxFutureWeeks = d.maxFutureWeeks ?? 15;
@@ -335,8 +342,9 @@ router.patch("/business/branding", requireBusinessAuth, async (req, res): Promis
   if (parsed.data.showLogo !== undefined) updates.showLogo = parsed.data.showLogo;
   if (parsed.data.showBanner !== undefined) updates.showBanner = parsed.data.showBanner;
   if (parsed.data.headerLayout !== undefined) updates.headerLayout = parsed.data.headerLayout;
-  // Profile landing page fields
-  const bd = parsed.data as any;
+  // Profile landing page fields — same Zod-strip caveat as in PATCH
+  // /business/profile. Read from req.body directly to preserve extras.
+  const bd = req.body as any;
   if (bd.websiteUrl !== undefined) (updates as any).websiteUrl = bd.websiteUrl ?? null;
   if (bd.instagramUrl !== undefined) (updates as any).instagramUrl = bd.instagramUrl ?? null;
   if (bd.wazeUrl !== undefined) (updates as any).wazeUrl = bd.wazeUrl ?? null;

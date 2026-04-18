@@ -852,7 +852,30 @@ export default function Dashboard() {
   // Mobile bottom-nav state. "home" → subscription/revenue overview,
   // "calendar" + "approvals" → appointments tab (different scroll/focus),
   // "customers" → customers, "menu" → open the full-tab drawer.
-  const [bottomTab, setBottomTab] = useState<BottomTab>("calendar");
+  // Map an activeTab name to the bottom-nav slot that should highlight.
+  // Tabs that don't have a dedicated bottom-nav slot (settings, services,
+  // branding, staff, …) light up the "menu" slot so the user sees where
+  // they'd go to switch. Keep this in sync with the `onChange` mapping
+  // below.
+  const activeToBottom = (tab: string): BottomTab => {
+    if (tab === "home")         return "home";
+    if (tab === "appointments") return "calendar";
+    if (tab === "approvals")    return "approvals";
+    if (tab === "customers")    return "customers";
+    return "menu";
+  };
+  const [bottomTab, setBottomTab] = useState<BottomTab>(() => activeToBottom(
+    typeof window !== "undefined" ? (localStorage.getItem("kavati_dash_active_tab") ?? "appointments") : "appointments"
+  ));
+  // Keep bottomTab aligned with activeTab whenever activeTab changes from
+  // anywhere (menu sheet, programmatic jumps, url hash, etc.). Without
+  // this, reloading with a cached non-calendar activeTab used to leave
+  // the bottom-nav stuck on "calendar" highlighted while the actual
+  // page rendered was Home (or whatever). Reported bug → fixed.
+  useEffect(() => {
+    setBottomTab(activeToBottom(activeTab));
+    /* eslint-disable-next-line react-hooks/exhaustive-deps */
+  }, [activeTab]);
   const [menuOpen, setMenuOpen] = useState(false);
   const handleBottomTab = (t: BottomTab) => {
     setBottomTab(t);
@@ -1022,24 +1045,29 @@ export default function Dashboard() {
       />
 
       <main className="max-w-6xl mx-auto px-4 py-6">
-        {/* Mobile-only welcome header */}
-        <div className="sm:hidden flex items-center justify-between mb-4">
-          <div>
-            <p className="font-bold text-lg" style={{ color: "#3c92f0" }}>
-              {(() => { const h = new Date().getHours(); return h < 12 ? "בוקר טוב! ☀️" : h < 17 ? "צהריים טובים! 🌤️" : h < 21 ? "ערב טוב! 🌆" : "לילה טוב! 🌙"; })()}
-            </p>
-            <p className="font-semibold text-sm" style={{ color: "#3c92f0" }}>
-              שלום {(headerProfile as any)?.ownerName?.split(" ")[0] ?? ""}
-            </p>
+        {/* Mobile-only welcome header — hidden on the calendar tab so
+            the יומן surface is a pure calendar (matches the Dibs
+            layout we're mirroring). Greeting + logout live on the
+            home tab and every non-calendar tab. */}
+        {activeTab !== "appointments" && (
+          <div className="sm:hidden flex items-center justify-between mb-4">
+            <div>
+              <p className="font-bold text-lg" style={{ color: "#3c92f0" }}>
+                {(() => { const h = new Date().getHours(); return h < 12 ? "בוקר טוב! ☀️" : h < 17 ? "צהריים טובים! 🌤️" : h < 21 ? "ערב טוב! 🌆" : "לילה טוב! 🌙"; })()}
+              </p>
+              <p className="font-semibold text-sm" style={{ color: "#3c92f0" }}>
+                שלום {(headerProfile as any)?.ownerName?.split(" ")[0] ?? ""}
+              </p>
+            </div>
+            <button
+              onClick={handleLogout}
+              className="flex items-center gap-1.5 px-3 py-2 rounded-xl border text-sm font-medium text-muted-foreground hover:text-foreground hover:border-foreground/40 transition-all"
+            >
+              <LogOut className="w-4 h-4" />
+              יציאה
+            </button>
           </div>
-          <button
-            onClick={handleLogout}
-            className="flex items-center gap-1.5 px-3 py-2 rounded-xl border text-sm font-medium text-muted-foreground hover:text-foreground hover:border-foreground/40 transition-all"
-          >
-            <LogOut className="w-4 h-4" />
-            יציאה
-          </button>
-        </div>
+        )}
 
         <SubscriptionBanner />
         {isStaffMode && authMe?.staff && (
@@ -7494,15 +7522,21 @@ function SmsBulkCard() {
                 רכוש חבילה נוספת
               </Button>
             </div>
-            {/* Temporary test button — verifies the one-off charge path with
-                a ₪1 transaction. Remove once we're confident the pack
-                purchase flow works in production. */}
+            {/* Temporary test button — verifies the one-off charge path
+                with a ₪1 transaction. The charge is sent with only the
+                token + expiry: no CVV and no card_holder_id (ת.ז.). If
+                Tranzila accepts it, every subsequent pack-purchase and
+                add-on charge will too. Remove this row once we're
+                confident the flow is stable in production. */}
             <div className="mt-3 pt-3 border-t border-blue-200/60 flex items-center justify-between gap-2 text-xs text-blue-700">
-              <span>🧪 בדיקת חיוב (₪1) לטוקן השמור שלך</span>
+              <div>
+                <div>🧪 בדיקת חיוב (₪1) לטוקן השמור שלך</div>
+                <div className="text-[10px] text-blue-600/80 mt-0.5">ללא CVV וללא ת.ז. — לוודא שהטרמינל מקבל טוקן בלבד</div>
+              </div>
               <Button
                 size="sm"
                 variant="outline"
-                className="text-xs h-7"
+                className="text-xs h-7 shrink-0"
                 onClick={handleTestCharge}
                 disabled={testing}
               >

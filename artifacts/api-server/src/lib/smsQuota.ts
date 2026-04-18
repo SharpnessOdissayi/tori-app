@@ -106,8 +106,12 @@ export async function reserveQuota(
         AND sms_extra_balance     = ${snap.extraBalance}
         AND sms_extra_balance    >= ${fromExtra}
     `);
-    // @ts-expect-error node-postgres driver attaches rowCount here
-    const updated: number = result?.rowCount ?? (result as any)?.count ?? 0;
+    // The node-postgres driver exposes rowCount here; when run through
+    // pg-pool the property may also arrive as `count`. Cast to any so
+    // the typecheck survives both driver shapes — @ts-expect-error
+    // was flagged as unused once the lib/db rebuild produced the right
+    // types, so we drop to a plain `as any` cast.
+    const updated: number = (result as any)?.rowCount ?? (result as any)?.count ?? 0;
     if (updated > 0) {
       const reservations: QuotaReservation[] = [];
       if (fromMonthly > 0) reservations.push({ fromSource: "monthly", reservedCount: fromMonthly });
@@ -174,8 +178,7 @@ export async function resetMonthlyQuotas(): Promise<number> {
     WHERE sms_reset_date IS NOT NULL
       AND sms_reset_date <= NOW()
   `);
-  // @ts-expect-error driver difference
-  const count: number = result?.rowCount ?? (result as any)?.count ?? 0;
+  const count: number = (result as any)?.rowCount ?? (result as any)?.count ?? 0;
   if (count > 0) logger.info({ count }, "[smsQuota] reset monthly counters");
   return count;
 }
