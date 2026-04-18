@@ -455,22 +455,45 @@ function CopyLinkButton({ slug }: { slug: string }) {
       setTimeout(() => setCopied(false), 2000);
     });
   };
+  const whatsappText = `הנה הלינק שלי לקביעת תור אצלי — תקבעו בזמן שנוח לכם:\n${fullUrl}`;
+  const whatsappHref = `https://wa.me/?text=${encodeURIComponent(whatsappText)}`;
+
   return (
-    <div className="space-y-2">
-      <div className="flex items-center gap-2 p-3 bg-muted rounded-xl border">
-        <Link className="w-4 h-4 text-muted-foreground shrink-0" />
-        <span className="flex-1 text-sm font-mono break-all text-foreground select-all" dir="ltr">{fullUrl}</span>
-        <Button
+    <div className="space-y-4">
+      {/* URL row — the copy button sits at the START of the flex row (which
+          in RTL is the right-hand side) so it's the first thing the thumb
+          hits on mobile. Matches the Dibs reference layout but rebuilt in
+          our Kavati primary-color palette. */}
+      <div className="flex items-stretch gap-2">
+        <button
           type="button"
-          variant={copied ? "default" : "outline"}
-          size="sm"
-          className={`gap-1.5 shrink-0 transition-all ${copied ? "bg-green-600 hover:bg-green-700 border-green-600 text-white" : ""}`}
           onClick={handleCopy}
+          className={`shrink-0 px-4 rounded-xl border text-sm font-semibold flex items-center gap-1.5 transition-all ${copied
+            ? "bg-emerald-600 border-emerald-600 text-white shadow-sm"
+            : "bg-card border-border hover:bg-muted"
+          }`}
         >
-          {copied ? <><Check className="w-3.5 h-3.5" /> הועתק!</> : <><Copy className="w-3.5 h-3.5" /> העתק</>}
-        </Button>
+          {copied ? <><Check className="w-4 h-4" /> הועתק</> : <><Copy className="w-4 h-4" /> העתקה</>}
+        </button>
+        <div className="flex-1 flex items-center px-3 bg-muted/60 rounded-xl border border-border min-w-0">
+          <span className="text-sm font-mono text-foreground select-all truncate" dir="ltr">{fullUrl}</span>
+        </div>
       </div>
-      <p className="text-xs text-muted-foreground">שתף את הלינק הזה עם הלקוחות שלך כדי שיוכלו לקבוע תור</p>
+
+      {/* WhatsApp share — green gradient, full width, icon on the right.
+          Uses wa.me/?text= with a pre-written Hebrew message so the owner
+          doesn't have to type. Opens in a new tab so the dashboard stays. */}
+      <a
+        href={whatsappHref}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="flex items-center justify-center gap-2 w-full py-3 rounded-xl bg-gradient-to-r from-emerald-500 to-green-600 hover:from-emerald-600 hover:to-green-700 text-white font-bold text-sm shadow-md transition-all active:scale-[0.98]"
+      >
+        <svg viewBox="0 0 24 24" className="w-5 h-5 fill-current" aria-hidden>
+          <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/>
+        </svg>
+        שיתוף בווטסאפ
+      </a>
     </div>
   );
 }
@@ -2137,7 +2160,11 @@ function AppointmentsTab({ mobileFocus }: { mobileFocus?: "calendar" | "approval
       {/* "פתח עמוד עסק" used to live here — moved to the global
           Navbar so it's reachable from every dashboard tab. */}
 
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+      {/* Stats + pending + upcoming list on desktop only. Mobile (<sm)
+          now gets a calendar-only יומן screen — summary + pending live
+          on the Home tab instead, and the rich upcoming list was
+          relocated to Home. */}
+      <div className="hidden sm:grid grid-cols-2 md:grid-cols-4 gap-4">
         {[
           { title: "סה״כ פגישות", value: stats?.totalAppointments ?? 0 },
           { title: "היום", value: stats?.todayCount ?? 0 },
@@ -2154,7 +2181,7 @@ function AppointmentsTab({ mobileFocus }: { mobileFocus?: "calendar" | "approval
       </div>
 
       {pending.length > 0 && (
-        <Card className="border-yellow-300 bg-yellow-50/50">
+        <Card className="hidden sm:block border-yellow-300 bg-yellow-50/50">
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-yellow-800">
               <span>⏳</span> ממתינים לאישור ({pending.length})
@@ -2240,12 +2267,16 @@ function AppointmentsTab({ mobileFocus }: { mobileFocus?: "calendar" | "approval
         </Card>
       )}
 
-      <UpcomingAppointmentsCard
-        items={upcoming}
-        genderByPhone={genderByPhone}
-        onCancel={handleCancel}
-        cancelling={cancelMutation.isPending}
-      />
+      {/* Upcoming-appointments card hidden on mobile — lives on Home
+          instead so the mobile יומן tab is a pure calendar surface. */}
+      <div className="hidden sm:block">
+        <UpcomingAppointmentsCard
+          items={upcoming}
+          genderByPhone={genderByPhone}
+          onCancel={handleCancel}
+          cancelling={cancelMutation.isPending}
+        />
+      </div>
 
       {/* Weekly calendar — 7-day overview with Israeli holidays */}
       {/* New business calendar — month / week / day with drag-to-reschedule.
@@ -2736,14 +2767,44 @@ function HomeTab({ onJump }: { onJump: (tab: string) => void }) {
   const { data: profile } = useGetBusinessProfile();
   const { data: appointments } = useListBusinessAppointments();
   const { data: stats } = useGetBusinessStats();
+  // Customers feed the genderByPhone map for the upcoming-card avatars.
+  const { data: customers } = useListBusinessCustomers();
+  const cancelMutation = useCancelBusinessAppointment();
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
 
   const aptList = Array.isArray(appointments) ? appointments : [];
   const now = new Date().toISOString().split("T")[0];
   const pending = aptList.filter(a => a.status === "pending");
+  // Show more of them on Home than before — the rich card paginates so
+  // there's no downside to passing the full upcoming list.
   const upcoming = aptList
     .filter(a => a.appointmentDate >= now && a.status !== "pending" && a.status !== "cancelled" && a.status !== "pending_payment")
-    .sort((a, b) => (a.appointmentDate + a.appointmentTime).localeCompare(b.appointmentDate + b.appointmentTime))
-    .slice(0, 5);
+    .sort((a, b) => (a.appointmentDate + a.appointmentTime).localeCompare(b.appointmentDate + b.appointmentTime));
+
+  const genderByPhone = useMemo(() => {
+    const m = new Map<string, string>();
+    for (const c of (Array.isArray(customers) ? customers : [])) {
+      const g = (c as any).gender;
+      if (g && c.phoneNumber) m.set(c.phoneNumber, g);
+    }
+    return m;
+  }, [customers]);
+
+  // Same cancel handler shape UpcomingAppointmentsCard expects — mirrors
+  // the one in AppointmentsTab but without the reason-picker modal since
+  // Home is a "quick look" surface and the full flow lives in the
+  // calendar / list views.
+  const handleCancel = async (id: number) => {
+    if (!confirm("לבטל את הפגישה?")) return;
+    try {
+      await cancelMutation.mutateAsync({ id });
+      await queryClient.invalidateQueries({ queryKey: ["appointments"] });
+      toast({ title: "הפגישה בוטלה" });
+    } catch (err: any) {
+      toast({ title: "שגיאה בביטול", description: err?.message ?? "נסה שוב", variant: "destructive" });
+    }
+  };
 
   const greeting = (() => {
     const h = new Date().getHours();
@@ -2758,15 +2819,16 @@ function HomeTab({ onJump }: { onJump: (tab: string) => void }) {
         <h2 className="text-2xl font-bold">{(profile as any)?.ownerName?.split(" ")[0] ?? profile?.name ?? ""}</h2>
       </div>
 
-      {/* Share-link banner — primary CTA for new owners */}
+      {/* Share-link banner — primary CTA for new owners. Copy + layout
+          modelled on the Dibs share-link card (title question + subtitle
+          + URL row + prominent WhatsApp button) but rebuilt in Kavati
+          colors. CopyLinkButton holds the interactive bits. */}
       {profile?.slug && (
-        <Card className="border-primary/40 bg-primary/5">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-base flex items-center gap-2 text-primary">
-              <span>🔗</span> הלינק שלך לקביעת תורים
-            </CardTitle>
-            <CardDescription>
-              שלח/י את הלינק הזה ללקוחות. בשיתוף ב־ווצאפ תופיע תמונה ופרטי העסק.
+        <Card className="border-primary/30 bg-card">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-lg">למה שהלקוחות לא יקבעו בעצמם?</CardTitle>
+            <CardDescription className="text-sm">
+              זה הקישור הייחודי שלכם — תוכלו לשתף אותו איפה שתרצו.
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -2790,6 +2852,18 @@ function HomeTab({ onJump }: { onJump: (tab: string) => void }) {
         ))}
       </div>
 
+      {/* Rich upcoming-appointments card — relocated here from the
+          calendar page so the home screen is the one-stop overview. The
+          calendar page is now just a calendar. Reuses the same
+          UpcomingAppointmentsCard component so there's a single source
+          of truth for the layout (pagination, cancel button, etc.). */}
+      <UpcomingAppointmentsCard
+        items={upcoming}
+        genderByPhone={genderByPhone}
+        onCancel={handleCancel}
+        cancelling={cancelMutation.isPending}
+      />
+
       {/* Pending approvals shortcut */}
       {pending.length > 0 && (
         <button
@@ -2804,40 +2878,6 @@ function HomeTab({ onJump }: { onJump: (tab: string) => void }) {
           <ChevronLeft className="w-5 h-5 text-amber-700 shrink-0" />
         </button>
       )}
-
-      {/* Next upcoming appointments */}
-      <Card>
-        <CardHeader className="flex flex-row items-center justify-between pb-2">
-          <CardTitle className="text-base">פגישות הקרובות</CardTitle>
-          <button onClick={() => onJump("appointments")} className="text-xs font-semibold text-primary hover:underline">
-            לכל הפגישות ←
-          </button>
-        </CardHeader>
-        <CardContent>
-          {upcoming.length === 0 ? (
-            <EmptyState text="אין פגישות קרובות" />
-          ) : (
-            <div className="space-y-2">
-              {upcoming.map(a => (
-                <div key={a.id} className="flex items-center justify-between p-3 rounded-xl border hover:border-primary/40 transition-colors">
-                  <div className="min-w-0 flex-1">
-                    <div className="font-semibold truncate flex items-center gap-1.5">
-                      <span className="truncate">{a.clientName}</span>
-                      {a.notes && (
-                        <MessageSquare className="w-3.5 h-3.5 text-amber-600 shrink-0" aria-label="יש הערה" />
-                      )}
-                    </div>
-                    <div className="text-xs text-muted-foreground truncate">{a.serviceName}</div>
-                  </div>
-                  <div className="text-sm text-primary font-mono shrink-0" dir="ltr">
-                    {a.appointmentDate.slice(5)} · {a.appointmentTime}
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </CardContent>
-      </Card>
 
       {/* Quick actions */}
       <div>
