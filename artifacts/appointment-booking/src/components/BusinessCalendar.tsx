@@ -415,18 +415,65 @@ function useDragReschedule(
   const dragRef = useRef<DragState | null>(null);
   dragRef.current = drag;
 
+  // Long-press activation: owners were accidentally dragging appointments
+  // whenever they tried to scroll the calendar. Drag now only starts after
+  // the finger has been held still for LONG_PRESS_MS — a normal swipe/tap
+  // cancels the activation and scrolling works as expected.
+  const LONG_PRESS_MS = 400;
+  const LONG_PRESS_CANCEL_PX = 10;
+
   const onPointerDown = (e: React.PointerEvent, appt: CalAppt, colEl: HTMLDivElement | null) => {
-    (e.target as Element).setPointerCapture?.(e.pointerId);
+    const target = e.target as Element;
+    target.setPointerCapture?.(e.pointerId);
+    const pointerId = e.pointerId;
+    const startX = e.clientX;
+    const startY = e.clientY;
     const originMin = timeToMinutes(appt.appointmentTime);
-    setDrag({
-      appt,
-      startY: e.clientY,
-      originDate: appt.appointmentDate,
-      originMin,
-      colEl,
-      previewDate: appt.appointmentDate,
-      previewMin: originMin,
-    });
+
+    let activated = false;
+    let cancelled = false;
+
+    const cleanupPre = () => {
+      window.removeEventListener("pointermove", preMove);
+      window.removeEventListener("pointerup", preEnd);
+      window.removeEventListener("pointercancel", preEnd);
+    };
+
+    const preMove = (pe: PointerEvent) => {
+      if (activated || cancelled) return;
+      const dx = Math.abs(pe.clientX - startX);
+      const dy = Math.abs(pe.clientY - startY);
+      if (dx > LONG_PRESS_CANCEL_PX || dy > LONG_PRESS_CANCEL_PX) {
+        cancelled = true;
+        clearTimeout(timer);
+        cleanupPre();
+        target.releasePointerCapture?.(pointerId);
+      }
+    };
+    const preEnd = () => {
+      cancelled = true;
+      clearTimeout(timer);
+      cleanupPre();
+    };
+    window.addEventListener("pointermove", preMove);
+    window.addEventListener("pointerup", preEnd);
+    window.addEventListener("pointercancel", preEnd);
+
+    const timer = setTimeout(() => {
+      if (cancelled) return;
+      activated = true;
+      cleanupPre();
+      navigator.vibrate?.(15);
+      setDrag({
+        appt,
+        startY,
+        originDate: appt.appointmentDate,
+        originMin,
+        colEl,
+        previewDate: appt.appointmentDate,
+        previewMin: originMin,
+      });
+    }, LONG_PRESS_MS);
   };
 
   useEffect(() => {
@@ -495,21 +542,65 @@ function useDragTimeOff(
   const dragRef = useRef<TimeOffDragState | null>(null);
   dragRef.current = drag;
 
+  // Same 400ms long-press gate the appointment drag uses. Prevents a
+  // stray scroll gesture from dragging the אילוץ off its slot.
+  const LONG_PRESS_MS = 400;
+  const LONG_PRESS_CANCEL_PX = 10;
+
   const onPointerDown = (e: React.PointerEvent, item: TimeOffItem, colEl: HTMLDivElement | null) => {
-    (e.target as Element).setPointerCapture?.(e.pointerId);
+    const target = e.target as Element;
+    target.setPointerCapture?.(e.pointerId);
+    const pointerId = e.pointerId;
+    const startX = e.clientX;
+    const startY = e.clientY;
     const startMin = item.fullDay ? DAY_START_MINUTES : timeToMinutes(item.startTime ?? "00:00");
     const endMin   = item.fullDay ? DAY_END_MINUTES   : timeToMinutes(item.endTime   ?? "23:59");
-    setDrag({
-      item,
-      startY: e.clientY,
-      originDate: item.date,
-      originStartMin: startMin,
-      originEndMin: endMin,
-      colEl,
-      previewDate: item.date,
-      previewStartMin: startMin,
-      previewEndMin: endMin,
-    });
+
+    let activated = false;
+    let cancelled = false;
+
+    const cleanupPre = () => {
+      window.removeEventListener("pointermove", preMove);
+      window.removeEventListener("pointerup", preEnd);
+      window.removeEventListener("pointercancel", preEnd);
+    };
+    const preMove = (pe: PointerEvent) => {
+      if (activated || cancelled) return;
+      const dx = Math.abs(pe.clientX - startX);
+      const dy = Math.abs(pe.clientY - startY);
+      if (dx > LONG_PRESS_CANCEL_PX || dy > LONG_PRESS_CANCEL_PX) {
+        cancelled = true;
+        clearTimeout(timer);
+        cleanupPre();
+        target.releasePointerCapture?.(pointerId);
+      }
+    };
+    const preEnd = () => {
+      cancelled = true;
+      clearTimeout(timer);
+      cleanupPre();
+    };
+    window.addEventListener("pointermove", preMove);
+    window.addEventListener("pointerup", preEnd);
+    window.addEventListener("pointercancel", preEnd);
+
+    const timer = setTimeout(() => {
+      if (cancelled) return;
+      activated = true;
+      cleanupPre();
+      navigator.vibrate?.(15);
+      setDrag({
+        item,
+        startY,
+        originDate: item.date,
+        originStartMin: startMin,
+        originEndMin: endMin,
+        colEl,
+        previewDate: item.date,
+        previewStartMin: startMin,
+        previewEndMin: endMin,
+      });
+    }, LONG_PRESS_MS);
   };
 
   useEffect(() => {
@@ -1041,10 +1132,13 @@ function TimeGrid({
                   </>
                 );
               })()}
-              {/* Half-hour grid lines (bg every hour lighter, every 30 darker) */}
+              {/* Half-hour grid lines. border-foreground/15 stays visible
+                  over both the white (working-hours) cells AND the darker
+                  bg-foreground/10 off-hours overlay — otherwise the gray
+                  area read as one flat block with no slot separation. */}
               {Array.from({ length: totalSlots }).map((_, i) => (
                 <div key={i}
-                  className="absolute inset-x-0 border-t border-border/40"
+                  className="absolute inset-x-0 border-t border-foreground/15"
                   style={{ top: i * SLOT_PX, height: SLOT_PX }}
                 />
               ))}
