@@ -192,6 +192,9 @@ export function NewAppointmentDialog({
   const [date, setDate] = useState("");
   const [time, setTime] = useState("");
   const [notes, setNotes] = useState("");
+  // Opt-in WhatsApp on manual booking — off by default so the owner
+  // doesn't accidentally notify a walk-in about a tour they penciled in.
+  const [sendNotification, setSendNotification] = useState(false);
 
   // Time-off tab state
   const [toName, setToName] = useState("");
@@ -223,6 +226,7 @@ export function NewAppointmentDialog({
     setDate(initialDate ?? today);
     setTime(initialTime ?? "");
     setNotes("");
+    setSendNotification(false);
 
     setToName("");
     setToDate(initialDate ?? today);
@@ -312,6 +316,7 @@ export function NewAppointmentDialog({
           appointmentDate: date,
           appointmentTime: time,
           notes: notes.trim() || null,
+          sendNotification,
         }),
       });
       if (!res.ok) {
@@ -423,7 +428,10 @@ export function NewAppointmentDialog({
           <form onSubmit={submitAppointment} className="space-y-4 pt-2">
             <div className="space-y-2">
               <Label>שם לקוח *</Label>
-              <Input required value={name} onChange={(e) => setName(e.target.value)} />
+              {/* autoFocus so opening the dialog drops the cursor straight
+                  into the name field — owners type a name 95% of the time
+                  before touching any other field. */}
+              <Input autoFocus required value={name} onChange={(e) => setName(e.target.value)} />
               <p className="text-[11px] text-muted-foreground">אם הלקוח כבר קיים — הטלפון יתמלא אוטומטית</p>
             </div>
 
@@ -495,6 +503,17 @@ export function NewAppointmentDialog({
             {apptConflicts.length > 0 && (
               <ConflictWarning conflicts={apptConflicts} />
             )}
+
+            {/* Opt-in WhatsApp confirmation. Off by default so we never
+                send a "new booking" template to a walk-in the owner only
+                penciled in for a follow-up. */}
+            <label className="flex items-center gap-2 rounded-xl border px-3 py-2.5 cursor-pointer select-none hover:border-primary/40 transition-colors">
+              <Checkbox
+                checked={sendNotification}
+                onCheckedChange={v => setSendNotification(v === true)}
+              />
+              <span className="text-sm font-medium flex-1">שלח/י ללקוח הודעת WhatsApp על קביעת התור</span>
+            </label>
 
             <div className="flex gap-2 pt-2">
               <Button type="button" variant="outline" className="flex-1" onClick={() => onOpenChange(false)} disabled={saving}>

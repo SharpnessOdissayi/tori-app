@@ -670,7 +670,7 @@ router.get("/business/appointments", requireBusinessAuth, async (req, res): Prom
 // owner is the source of truth.
 router.post("/business/appointments", requireBusinessAuth, async (req, res): Promise<void> => {
   const businessId = req.business!.businessId;
-  const { serviceId, clientName, phoneNumber, appointmentDate, appointmentTime, notes } = (req.body ?? {}) as any;
+  const { serviceId, clientName, phoneNumber, appointmentDate, appointmentTime, notes, sendNotification } = (req.body ?? {}) as any;
 
   const svcIdNum = Number(serviceId);
   if (!svcIdNum || !clientName?.trim() || !appointmentDate || !appointmentTime) {
@@ -709,11 +709,12 @@ router.post("/business/appointments", requireBusinessAuth, async (req, res): Pro
     actorName: req.business!.businessName,
   });
 
-  // Notify the client via WhatsApp (non-blocking) — Pro-only, and only
-  // when a phone number was entered. Uses the same pre-approved
-  // confirmation template the /approve endpoint fires, so owners never
-  // have to remember to "approve" an appointment they themselves created.
-  if (appointment.phoneNumber && await isBusinessPro(businessId)) {
+  // Notify the client via WhatsApp (non-blocking) — Pro-only, only when
+  // a phone number was entered, AND only when the owner explicitly
+  // opted in via the "שלח/י ללקוח הודעת WhatsApp" checkbox in the new-
+  // appointment dialog. Default is off so casual walk-in pencil-ins
+  // don't ping the client.
+  if (sendNotification === true && appointment.phoneNumber && await isBusinessPro(businessId)) {
     const [business] = await db
       .select({ name: businessesTable.name, slug: businessesTable.slug })
       .from(businessesTable)
@@ -780,7 +781,7 @@ router.patch("/business/appointments/:id/reschedule", requireBusinessAuth, async
     return;
   }
 
-  const { newDate, newTime } = req.body ?? {};
+  const { newDate, newTime, sendNotification } = req.body ?? {};
   if (!newDate || !newTime) {
     res.status(400).json({ error: "newDate and newTime are required" });
     return;
@@ -806,10 +807,13 @@ router.patch("/business/appointments/:id/reschedule", requireBusinessAuth, async
     .where(eq(appointmentsTable.id, appt.id))
     .returning();
 
-  // Notify client via WhatsApp (non-blocking) — Pro only
+  // Notify client via WhatsApp (non-blocking) — Pro-only, and opt-in:
+  // the drag-confirm dialog + edit form now expose a "שלח/י התראה" toggle
+  // that defaults to off, so owners don't blast a reschedule template
+  // every time they tidy the calendar.
   const [, month, day] = newDate.split("-");
   const formattedDate = `${day}/${month}`;
-  if (await isBusinessPro(req.business!.businessId)) {
+  if (sendNotification === true && await isBusinessPro(req.business!.businessId)) {
     sendClientReschedule(appt.phoneNumber, appt.clientName, formattedDate, newTime).catch(() => {});
   }
 

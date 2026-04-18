@@ -568,10 +568,20 @@ function useDragReschedule(
       setDrag(null);
     };
 
+    // Block page scroll during an active drag. The card's touch-action
+    // was "pan-y" before activation (so a swipe could scroll normally) —
+    // flipping CSS mid-gesture doesn't help because the browser locks in
+    // the gesture interpretation at touchstart. Registering a non-passive
+    // touchmove listener that calls preventDefault() cancels any ongoing
+    // scroll and keeps the finger's movement pinned to the drag.
+    const blockScroll = (e: TouchEvent) => { e.preventDefault(); };
+
+    window.addEventListener("touchmove", blockScroll, { passive: false });
     window.addEventListener("pointermove", handleMove);
     window.addEventListener("pointerup", handleUp);
     window.addEventListener("pointercancel", handleUp);
     return () => {
+      window.removeEventListener("touchmove", blockScroll);
       window.removeEventListener("pointermove", handleMove);
       window.removeEventListener("pointerup", handleUp);
       window.removeEventListener("pointercancel", handleUp);
@@ -722,10 +732,15 @@ function useDragTimeOff(
       setDrag(null);
     };
 
+    // Same block-scroll-during-drag trick the appointment hook uses.
+    const blockScroll = (e: TouchEvent) => { e.preventDefault(); };
+
+    window.addEventListener("touchmove", blockScroll, { passive: false });
     window.addEventListener("pointermove", handleMove);
     window.addEventListener("pointerup", handleUp);
     window.addEventListener("pointercancel", handleUp);
     return () => {
+      window.removeEventListener("touchmove", blockScroll);
       window.removeEventListener("pointermove", handleMove);
       window.removeEventListener("pointerup", handleUp);
       window.removeEventListener("pointercancel", handleUp);
@@ -1324,7 +1339,10 @@ function RescheduleConfirmDialog({
   onCancel: () => void;
   onConfirm: (sendNotification: boolean) => void;
 }) {
-  const [sendNotif, setSendNotif] = useState(true);
+  // Off by default — owners asked for opt-in notifications on manual
+  // schedule changes (drag / edit / create). Ticking the toggle both
+  // triggers the server template and opens the owner's personal WA.
+  const [sendNotif, setSendNotif] = useState(false);
   const conflicts = useMemo(() => {
     if (!appt || !newDate || !newTime) return [];
     const startMin = timeToMinutes(newTime);

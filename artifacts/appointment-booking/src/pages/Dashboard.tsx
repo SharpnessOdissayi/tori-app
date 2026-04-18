@@ -1863,6 +1863,9 @@ function AppointmentsTab({ mobileFocus }: { mobileFocus?: "calendar" | "approval
   const [editApptMode, setEditApptMode] = useState(false);
   const [editApptForm, setEditApptForm] = useState({ date: "", time: "", notes: "" });
   const [editApptSaving, setEditApptSaving] = useState(false);
+  // Opt-in WhatsApp on inline edit (off by default) — same rule as the
+  // drag-confirm dialog.
+  const [editApptSendNotif, setEditApptSendNotif] = useState(false);
   // Clicking a time-off block on the calendar opens an edit/delete
   // dialog with the current values — owner can shift the date/time,
   // tweak the note, or delete the constraint outright.
@@ -1884,7 +1887,9 @@ function AppointmentsTab({ mobileFocus }: { mobileFocus?: "calendar" | "approval
       const res = await fetch(`/api/business/appointments/${appt.id}/reschedule`, {
         method: "PATCH",
         headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-        body: JSON.stringify({ newDate, newTime }),
+        // sendNotification drives the server-side template push; it's
+        // opt-in so an owner tidying the calendar doesn't spam clients.
+        body: JSON.stringify({ newDate, newTime, sendNotification: sendNotif }),
       });
       if (!res.ok) throw new Error();
       toast({ title: "התור עודכן" });
@@ -2190,7 +2195,11 @@ function AppointmentsTab({ mobileFocus }: { mobileFocus?: "calendar" | "approval
                     const rs = await fetch(`/api/business/appointments/${editAppt.id}/reschedule`, {
                       method: "PATCH",
                       headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-                      body: JSON.stringify({ newDate: editApptForm.date, newTime: editApptForm.time }),
+                      body: JSON.stringify({
+                        newDate: editApptForm.date,
+                        newTime: editApptForm.time,
+                        sendNotification: editApptSendNotif,
+                      }),
                     });
                     if (!rs.ok) throw new Error();
                   }
@@ -2278,6 +2287,18 @@ function AppointmentsTab({ mobileFocus }: { mobileFocus?: "calendar" | "approval
                       </div>
                     );
                   })()}
+                  {/* Notify-client toggle — off by default so edits don't
+                      blast a template; owner ticks it when the change is
+                      worth pinging the client about. */}
+                  <label className="flex items-center gap-2 rounded-xl border px-3 py-2.5 cursor-pointer select-none hover:border-primary/40 transition-colors">
+                    <input
+                      type="checkbox"
+                      checked={editApptSendNotif}
+                      onChange={e => setEditApptSendNotif(e.target.checked)}
+                      className="w-4 h-4 accent-primary"
+                    />
+                    <span className="text-sm font-medium flex-1">שלח/י התראה ב-WhatsApp ללקוח על השינוי</span>
+                  </label>
                   <div className="flex gap-2 pt-2">
                     <Button
                       variant="outline"
@@ -2342,6 +2363,33 @@ function AppointmentsTab({ mobileFocus }: { mobileFocus?: "calendar" | "approval
                     </span>
                   </div>
                 </div>
+                {/* Quick reach-out buttons — tap to call or open WhatsApp
+                    with a pre-filled greeting using the client's phone on
+                    this appointment. Only render when we actually have a
+                    phone number stored. */}
+                {editAppt.phoneNumber && (() => {
+                  const e164 = editAppt.phoneNumber.replace(/\D/g, "").replace(/^0/, "972");
+                  const waMsg = encodeURIComponent(`שלום ${editAppt.clientName}, `);
+                  return (
+                    <div className="grid grid-cols-2 gap-2">
+                      <a
+                        href={`tel:${editAppt.phoneNumber}`}
+                        className="inline-flex items-center justify-center gap-1.5 h-10 rounded-xl bg-primary text-primary-foreground font-semibold text-sm hover:brightness-105 active:scale-[0.99] transition-all"
+                      >
+                        <Phone className="w-4 h-4" /> חייג
+                      </a>
+                      <a
+                        href={`https://wa.me/${e164}?text=${waMsg}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center justify-center gap-1.5 h-10 rounded-xl text-white font-semibold text-sm hover:brightness-105 active:scale-[0.99] transition-all"
+                        style={{ background: "linear-gradient(135deg, #25d366 0%, #128c7e 100%)" }}
+                      >
+                        <MessageSquare className="w-4 h-4" /> WhatsApp
+                      </a>
+                    </div>
+                  );
+                })()}
                 <div className="flex gap-2 pt-2 flex-wrap">
                   <Button variant="outline" onClick={() => setEditAppt(null)}>סגור</Button>
                   <Button
