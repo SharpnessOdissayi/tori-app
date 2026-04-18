@@ -249,7 +249,23 @@
   }
 
   body {
-    @apply font-sans antialiased bg-background text-foreground;
+    @apply font-sans antialiased text-foreground;
+    /* Global ambient gradient — replicates the Home-hero soft-blue wash
+       across the entire site so marketing, auth, booking, and owner
+       pages all share the same brand atmosphere. fixed = stays put when
+       the page scrolls; the angle and intensities are slightly stronger
+       than the original hero-only version (0.22 center / 0.30 corner) to
+       be noticeable without competing with card content. */
+    background-color: hsl(var(--background));
+    background-image:
+      radial-gradient(ellipse 80% 60% at 50% -10%, rgba(60,146,240,0.22), transparent 60%),
+      radial-gradient(ellipse 40% 40% at 90% 20%, rgba(149,219,244,0.30), transparent 60%);
+    background-attachment: fixed;
+  }
+  .dark body {
+    background-image:
+      radial-gradient(ellipse 80% 60% at 50% -10%, rgba(60,146,240,0.28), transparent 60%),
+      radial-gradient(ellipse 40% 40% at 90% 20%, rgba(60,146,240,0.14), transparent 60%);
   }
 }
 
@@ -284,26 +300,15 @@
   object-fit: cover; display: block;
 }
 
-/* Each phone gets its own tilt so they don't look like a rigid row, and a
-   slow vertical drift to give the hero a bit of life without being noisy. */
-@keyframes kv-float-a { 0%,100% { transform: rotate(-5deg) translateY(0); } 50% { transform: rotate(-5deg) translateY(-6px); } }
-@keyframes kv-float-b { 0%,100% { transform: rotate( 3deg) translateY(0); } 50% { transform: rotate( 3deg) translateY(-6px); } }
-@keyframes kv-float-c { 0%,100% { transform: rotate(-3deg) translateY(0); } 50% { transform: rotate(-3deg) translateY(-6px); } }
-@keyframes kv-float-d { 0%,100% { transform: rotate( 5deg) translateY(0); } 50% { transform: rotate( 5deg) translateY(-6px); } }
-.kv-float-a { animation: kv-float-a 7s   ease-in-out infinite; }
-.kv-float-b { animation: kv-float-b 8s   ease-in-out infinite; }
-.kv-float-c { animation: kv-float-c 9s   ease-in-out infinite; }
-.kv-float-d { animation: kv-float-d 8.5s ease-in-out infinite; }
+/* Each phone gets its own tilt so the row isn't a rigid line. Owner asked
+   to drop the vertical drift animation — the static tilt alone is enough
+   and the continuous motion was distracting. Classes kept so existing
+   JSX doesn't need changes. */
+.kv-float-a { transform: rotate(-5deg); }
+.kv-float-b { transform: rotate( 3deg); }
+.kv-float-c { transform: rotate(-3deg); }
+.kv-float-d { transform: rotate( 5deg); }
 
-.kv-hero-bg {
-  background:
-    radial-gradient(ellipse 80% 60% at 50% -10%, rgba(60,146,240,0.18), transparent 60%),
-    radial-gradient(ellipse 40% 40% at 90% 20%, rgba(149,219,244,0.25), transparent 60%),
-    white;
-}
-.dark .kv-hero-bg {
-  background:
-    radial-gradient(ellipse 80% 60% at 50% -10%, rgba(60,146,240,0.22), transparent 60%),
-    radial-gradient(ellipse 40% 40% at 90% 20%, rgba(60,146,240,0.10), transparent 60%),
-    hsl(var(--background));
-}
+/* Legacy class — the gradient moved to `body` so it shows on every page.
+   Kept as a no-op so any JSX still referencing it compiles. */
+.kv-hero-bg { background: transparent; }
