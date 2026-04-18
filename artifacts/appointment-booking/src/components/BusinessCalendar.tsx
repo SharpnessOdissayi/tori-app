@@ -1536,6 +1536,23 @@ export function BusinessCalendar({
 }) {
   const [view, setView] = useState<View>("week");
   const [cursor, setCursor] = useState<Date>(new Date());
+  // First-visit drag hint — shows for 5s the first time an owner opens
+  // the calendar, then never again. The tip is stickier than a toast
+  // and lives above the grid so the gesture it describes is right
+  // under it when the owner reads the text.
+  const [showDragHint, setShowDragHint] = useState(false);
+  useEffect(() => {
+    try {
+      if (typeof window === "undefined") return;
+      if (localStorage.getItem("cal_drag_hint_shown") === "1") return;
+      setShowDragHint(true);
+      const t = setTimeout(() => {
+        setShowDragHint(false);
+        try { localStorage.setItem("cal_drag_hint_shown", "1"); } catch {}
+      }, 5000);
+      return () => clearTimeout(t);
+    } catch {}
+  }, []);
   // Working-hours for the current business — one row per weekday, each
   // marked enabled or not. We feed this into <TimeGrid> so slots outside
   // the open window get a gray background, but stay clickable.
@@ -1634,6 +1651,21 @@ export function BusinessCalendar({
         onNewAppointment={onNewAppointment ? () => onNewAppointment() : undefined}
         onNewTimeOff={onNewTimeOff ? () => onNewTimeOff() : undefined}
       />
+
+      {/* First-visit drag hint. Sits right below the header, fades after
+          5s, and persists the dismissal in localStorage so it never
+          re-appears. animate-in slide-in-from-top gives it a soft arrival;
+          animate-out fade-out on the root would over-complicate state, so
+          we simply unmount after the timeout. */}
+      {showDragHint && (
+        <div
+          dir="rtl"
+          className="absolute left-3 right-3 top-[52px] z-40 px-4 py-3 rounded-2xl shadow-lg border border-primary/30 bg-primary/95 text-primary-foreground text-sm font-semibold flex items-center gap-2 animate-in slide-in-from-top-2 fade-in duration-300"
+        >
+          <span className="text-base">💡</span>
+          <span>ניתן להזיז תורים ואילוצים ביומן על ידי גרירה שלהם (החזקה של 0.4 שניות)</span>
+        </div>
+      )}
 
       {/* Search results dropdown — shown while the input has text.
           Absolutely positioned so it doesn't push the calendar body
