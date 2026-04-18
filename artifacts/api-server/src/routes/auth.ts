@@ -184,6 +184,12 @@ router.post("/auth/business/register", async (req, res): Promise<void> => {
       maxAppointmentsPerMonth: 9999,
       subscriptionStartDate: new Date(),
       subscriptionRenewDate: trialEndsAt,
+      // Trial allowance = 50 bulk SMS for the 14-day window. When the
+      // trial converts to a paid tier (Tranzila notify webhook), the
+      // quota is bumped to 100 (פרו) or 500 (עסקי). When the trial
+      // lapses to free, the cron sets it to 0.
+      smsMonthlyQuota: 50,
+      smsResetDate: trialEndsAt,
       businessCategories: businessCategories ? JSON.stringify(businessCategories) : null,
       address: address || null,
       websiteUrl: websiteUrl || null,

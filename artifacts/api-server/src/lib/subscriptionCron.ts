@@ -68,6 +68,10 @@ export async function runSubscriptionBilling() {
             subscriptionPlan:        "free",
             maxServicesAllowed:      3,
             maxAppointmentsPerMonth: 20,
+            // Free tier has 0 bulk-SMS credits — zero the monthly quota
+            // so the business can't keep drawing from a stale allowance.
+            // Extra balance (purchased packs) carries over untouched.
+            smsMonthlyQuota:         0,
           } as any)
           .where(eq(businessesTable.id, biz.id));
       }
@@ -163,6 +167,9 @@ export async function runSubscriptionBilling() {
           subscriptionPlan:        "free",
           maxServicesAllowed:      3,
           maxAppointmentsPerMonth: 20,
+          // Trial expired without a card — drop SMS quota from the
+          // 50 trial allowance down to 0 (Free tier has no bulk SMS).
+          smsMonthlyQuota:         0,
         } as any)
         .where(eq(businessesTable.id, biz.id));
     }

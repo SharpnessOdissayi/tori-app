@@ -160,10 +160,24 @@ router.post("/tranzila/notify", async (req, res): Promise<void> => {
         const renewDate = new Date();
         renewDate.setDate(renewDate.getDate() + 30);
 
+        // Trial → paid conversion: bump the bulk-SMS monthly quota from
+        // the trial-time 50 up to the paid-tier allowance (100 for פרו,
+        // 500 for עסקי). Don't touch if they've already paid — that
+        // case re-enters this block from a recurring monthly charge and
+        // the quota is already correct.
+        const [bizBefore] = await db
+          .select({ plan: businessesTable.subscriptionPlan, hadToken: businessesTable.tranzilaToken })
+          .from(businessesTable)
+          .where(eq(businessesTable.id, businessId));
+        const isFirstPayment = !bizBefore?.hadToken;
+        const paidQuota = bizBefore?.plan === "pro-plus" ? 500 : 100;
+
         await db
           .update(businessesTable)
           .set({
-            subscriptionPlan:        "pro",
+            // Preserve pro-plus if the business was on it; otherwise fall
+            // back to Pro (the default paid tier for trial conversions).
+            subscriptionPlan:        bizBefore?.plan === "pro-plus" ? "pro-plus" : "pro",
             maxServicesAllowed:      999,
             maxAppointmentsPerMonth: 9999,
             subscriptionStartDate:   new Date(),
@@ -171,6 +185,7 @@ router.post("/tranzila/notify", async (req, res): Promise<void> => {
             subscriptionCancelledAt: null,
             tranzilaToken:           token   || null,
             tranzilaTokenExpiry:     expdate || null,
+            ...(isFirstPayment ? { smsMonthlyQuota: paidQuota } : {}),
           } as any)
           .where(eq(businessesTable.id, businessId));
 
