@@ -1044,7 +1044,7 @@ export default function Dashboard() {
               { value: "waitlist",     icon: <ListOrdered className="w-6 h-6" />, label: "המתנה" },
               { value: "receipts",     icon: <FileText className="w-6 h-6" />,  label: "קבלות" },
               { value: "branding",     icon: <Palette className="w-6 h-6" />,   label: "עיצוב" },
-              { value: "integrations", icon: <Phone className="w-6 h-6" />,     label: "הודעות" },
+              { value: "integrations", icon: <Phone className="w-6 h-6" />,     label: "תזכורות והודעות" },
               { value: "settings",     icon: <Settings className="w-6 h-6" />,  label: "הגדרות" },
             ].map(({ value, icon, label }) => (
               <button
