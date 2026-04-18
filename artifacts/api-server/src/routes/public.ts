@@ -1136,4 +1136,54 @@ router.get("/public/:businessSlug/next-slots", async (req, res): Promise<void> =
   res.json(results);
 });
 
+// GET /public/:businessSlug/available-dates?serviceId=X
+// Returns ["YYYY-MM-DD", ...] — every future date in the business's
+// booking window that has at least one bookable slot for the service.
+// The booking page uses this to gray out closed days / time-offs /
+// fully-booked days in the date picker instead of letting a customer
+// click into an empty day and see "אין תורים פנויים".
+router.get("/public/:businessSlug/available-dates", async (req, res): Promise<void> => {
+  const { businessSlug } = req.params;
+  const serviceId = Number(req.query.serviceId);
+  if (!serviceId || isNaN(serviceId)) { res.status(400).json({ error: "serviceId נדרש" }); return; }
+
+  const [business] = await db.select().from(businessesTable).where(eq(businessesTable.slug, businessSlug));
+  if (!business) { res.status(404).json({ error: "עסק לא נמצא" }); return; }
+
+  const [service] = await db.select().from(servicesTable).where(and(eq(servicesTable.id, serviceId), eq(servicesTable.businessId, business.id)));
+  if (!service) { res.status(404).json({ error: "שירות לא נמצא" }); return; }
+
+  const bufferMinutes = service.bufferMinutes > 0 ? service.bufferMinutes : (business.bufferMinutes ?? 0);
+  const minLeadHours: number = (business as any).minLeadHours ?? 0;
+  const minAllowedNS = new Date(Date.now() + minLeadHours * 60 * 60 * 1000);
+
+  // Booking window: respect futureBookingMode (weeks vs date). Default 15 weeks.
+  const today = new Date();
+  const mode = (business as any).futureBookingMode ?? "weeks";
+  const weeks = (business as any).maxFutureWeeks ?? 15;
+  const maxDateStr = (business as any).maxFutureDate as string | null;
+  const horizon = new Date(today);
+  if (mode === "date" && maxDateStr) {
+    const [y, m, d] = maxDateStr.split("-").map(Number);
+    if (y && m && d) horizon.setFullYear(y, m - 1, d);
+    else horizon.setDate(today.getDate() + weeks * 7);
+  } else {
+    horizon.setDate(today.getDate() + weeks * 7);
+  }
+  const totalDays = Math.max(1, Math.ceil((horizon.getTime() - today.getTime()) / (24 * 60 * 60 * 1000)));
+  const cappedDays = Math.min(totalDays, 180); // safety cap — one slot-compute per day
+
+  const out: string[] = [];
+  for (let off = 0; off < cappedDays; off++) {
+    const d = new Date(today);
+    d.setDate(today.getDate() + off);
+    const dateStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+    const slots = await computeAvailableSlots(business.id, dateStr, service.durationMinutes, bufferMinutes, business.maxAppointmentsPerDay);
+    const hasFree = slots.some(s => s.available && israelTimeToUTC(dateStr, s.time) >= minAllowedNS);
+    if (hasFree) out.push(dateStr);
+  }
+
+  res.json(out);
+});
+
 export default router;

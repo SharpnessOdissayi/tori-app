@@ -528,6 +528,26 @@ export default function Book({ slugOverride }: { slugOverride?: string } = {}) {
   const createMutation = useCreatePublicAppointment();
   const waitlistMutation = useJoinWaitlist();
 
+  // Dates that have at least one bookable slot for the currently-selected
+  // service. Loaded lazily when the owner opens the full calendar — dates
+  // NOT in this set get the same greyed-out / unclickable treatment as
+  // past dates so the customer isn't lured into an empty day.
+  const [availableDates, setAvailableDates] = useState<Set<string>>(new Set());
+  const [availableDatesLoaded, setAvailableDatesLoaded] = useState(false);
+  useEffect(() => {
+    if (!businessSlug || !selectedServiceId || !useCalendar) return;
+    setAvailableDatesLoaded(false);
+    let aborted = false;
+    fetch(`${API_BASE}/public/${businessSlug}/available-dates?serviceId=${selectedServiceId}`)
+      .then(r => r.ok ? r.json() : [])
+      .then((arr: string[]) => {
+        if (!aborted) setAvailableDates(new Set(Array.isArray(arr) ? arr : []));
+      })
+      .catch(() => { if (!aborted) setAvailableDates(new Set()); })
+      .finally(() => { if (!aborted) setAvailableDatesLoaded(true); });
+    return () => { aborted = true; };
+  }, [businessSlug, selectedServiceId, useCalendar, API_BASE]);
+
   const primaryColor = business?.primaryColor ?? "#2563eb";
   const DayButtonComp = useMemo(() => makeHolidayDayButton(primaryColor), [primaryColor]);
   // Default font is Rubik; the business can override it via the font
@@ -2491,7 +2511,18 @@ export default function Book({ slugOverride }: { slugOverride?: string } = {}) {
                       <div className="flex justify-center bg-muted/20 p-4 rounded-xl" dir="rtl">
                         <DayPicker mode="single" selected={selectedDate}
                           onSelect={(date) => { if (date) { setSelectedDate(date); setSelectedTime(null); } }}
-                          locale={he} weekStartsOn={0} disabled={{ before: new Date() }}
+                          locale={he} weekStartsOn={0}
+                          // Gray out past dates + any date the backend says has
+                          // no bookable slots for this service. Wait until
+                          // availableDatesLoaded flips true so the whole
+                          // calendar doesn't briefly appear fully-disabled.
+                          disabled={(date) => {
+                            const d = new Date(date); d.setHours(0, 0, 0, 0);
+                            const today = new Date(); today.setHours(0, 0, 0, 0);
+                            if (d < today) return true;
+                            if (!availableDatesLoaded) return false;
+                            return !availableDates.has(toKey(date));
+                          }}
                           dir="rtl"
                           components={{ DayButton: DayButtonComp }}
                           classNames={{ week: "[&>td]:pb-6" }}
