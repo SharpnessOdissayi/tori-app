@@ -140,6 +140,11 @@ function makeHolidayDayButton(primaryColor: string) {
     const isSelected = modifiers.selected;
     const isToday = modifiers.today;
     const isDisabled = modifiers.disabled;
+    // Custom modifier set from DayPicker's modifiers={{ fullDay: ... }} prop.
+    // A "full" day is a would-be workday where every slot is booked — still
+    // clickable so the customer can join the waitlist, but rendered in muted
+    // gray so it visually stands apart from days with free slots.
+    const isFullDay = (modifiers as any).fullDay as boolean | undefined;
     return (
       <div className="relative inline-flex flex-col items-center w-9" title={holiday ?? undefined}>
         <button
@@ -147,6 +152,7 @@ function makeHolidayDayButton(primaryColor: string) {
           className="w-9 h-9 rounded-full flex items-center justify-center text-sm transition hover:bg-muted/50 disabled:opacity-30 disabled:hover:bg-transparent"
           style={{
             ...(buttonProps.style ?? {}),
+            ...(isFullDay && !isSelected ? { color: "#9ca3af" } : {}),
             ...(isSelected ? { backgroundColor: primaryColor, color: "white", fontWeight: 700 } : {}),
             ...(isToday && !isSelected ? { fontWeight: 700, color: primaryColor } : {}),
           }}
@@ -528,22 +534,33 @@ export default function Book({ slugOverride }: { slugOverride?: string } = {}) {
   const createMutation = useCreatePublicAppointment();
   const waitlistMutation = useJoinWaitlist();
 
-  // Dates that have at least one bookable slot for the currently-selected
-  // service. Loaded lazily when the owner opens the full calendar — dates
-  // NOT in this set get the same greyed-out / unclickable treatment as
-  // past dates so the customer isn't lured into an empty day.
+  // Classified per-date availability for the currently-selected service.
+  //   available = at least one free slot → normal day in the picker
+  //   full      = would-be workday but every slot is taken → still
+  //               clickable so the customer can join the waitlist
+  // Any other date inside the booking window is closed (weekday off or
+  // full-day time-off) and gets disabled like past dates.
   const [availableDates, setAvailableDates] = useState<Set<string>>(new Set());
+  const [fullDates, setFullDates] = useState<Set<string>>(new Set());
   const [availableDatesLoaded, setAvailableDatesLoaded] = useState(false);
   useEffect(() => {
     if (!businessSlug || !selectedServiceId || !useCalendar) return;
     setAvailableDatesLoaded(false);
     let aborted = false;
     fetch(`${API_BASE}/public/${businessSlug}/available-dates?serviceId=${selectedServiceId}`)
-      .then(r => r.ok ? r.json() : [])
-      .then((arr: string[]) => {
-        if (!aborted) setAvailableDates(new Set(Array.isArray(arr) ? arr : []));
+      .then(r => r.ok ? r.json() : { available: [], full: [] })
+      .then((data: { available?: string[]; full?: string[] } | string[]) => {
+        if (aborted) return;
+        // Backward-compat: older builds returned a flat array.
+        if (Array.isArray(data)) {
+          setAvailableDates(new Set(data));
+          setFullDates(new Set());
+        } else {
+          setAvailableDates(new Set(data.available ?? []));
+          setFullDates(new Set(data.full ?? []));
+        }
       })
-      .catch(() => { if (!aborted) setAvailableDates(new Set()); })
+      .catch(() => { if (!aborted) { setAvailableDates(new Set()); setFullDates(new Set()); } })
       .finally(() => { if (!aborted) setAvailableDatesLoaded(true); });
     return () => { aborted = true; };
   }, [businessSlug, selectedServiceId, useCalendar, API_BASE]);
@@ -2512,17 +2529,19 @@ export default function Book({ slugOverride }: { slugOverride?: string } = {}) {
                         <DayPicker mode="single" selected={selectedDate}
                           onSelect={(date) => { if (date) { setSelectedDate(date); setSelectedTime(null); } }}
                           locale={he} weekStartsOn={0}
-                          // Gray out past dates + any date the backend says has
-                          // no bookable slots for this service. Wait until
-                          // availableDatesLoaded flips true so the whole
-                          // calendar doesn't briefly appear fully-disabled.
+                          // Disable past dates + closed days (not in available
+                          // nor full lists). Full days stay clickable so the
+                          // customer lands on the day's time-slot screen and
+                          // can join the waitlist from there.
                           disabled={(date) => {
                             const d = new Date(date); d.setHours(0, 0, 0, 0);
                             const today = new Date(); today.setHours(0, 0, 0, 0);
                             if (d < today) return true;
                             if (!availableDatesLoaded) return false;
-                            return !availableDates.has(toKey(date));
+                            const key = toKey(date);
+                            return !availableDates.has(key) && !fullDates.has(key);
                           }}
+                          modifiers={{ fullDay: (date) => fullDates.has(toKey(date)) }}
                           dir="rtl"
                           components={{ DayButton: DayButtonComp }}
                           classNames={{ week: "[&>td]:pb-6" }}
@@ -2556,8 +2575,8 @@ export default function Book({ slugOverride }: { slugOverride?: string } = {}) {
                     </div>
                   ) : (
                     <div className="text-center py-12 bg-muted/20 rounded-xl space-y-4">
-                      <p className="text-lg font-medium">אין תורים פנויים ביום זה</p>
-                      <p className="text-muted-foreground text-sm">רוצה שנודיע לך כשיתפנה מקום?</p>
+                      <p className="text-lg font-medium">יום זה מלא — אין תורים פנויים</p>
+                      <p className="text-muted-foreground text-sm">אפשר להצטרף לרשימת ההמתנה — נודיע לך כשיתפנה מקום.</p>
                       <Button
                         variant="outline"
                         onClick={() => {

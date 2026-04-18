@@ -1137,11 +1137,14 @@ router.get("/public/:businessSlug/next-slots", async (req, res): Promise<void> =
 });
 
 // GET /public/:businessSlug/available-dates?serviceId=X
-// Returns ["YYYY-MM-DD", ...] — every future date in the business's
-// booking window that has at least one bookable slot for the service.
-// The booking page uses this to gray out closed days / time-offs /
-// fully-booked days in the date picker instead of letting a customer
-// click into an empty day and see "אין תורים פנויים".
+// Returns { available: [...], full: [...] } — two lists of dates in the
+// business's booking window.
+//   available = at least one bookable slot (green in the picker)
+//   full      = the business WOULD have worked that day but every slot
+//               is taken — still clickable so customers can join the
+//               waitlist from inside the day.
+// Dates that are in neither list are closed (weekday off / full-day
+// time-off) and the picker greys them out like past dates.
 router.get("/public/:businessSlug/available-dates", async (req, res): Promise<void> => {
   const { businessSlug } = req.params;
   const serviceId = Number(req.query.serviceId);
@@ -1173,17 +1176,20 @@ router.get("/public/:businessSlug/available-dates", async (req, res): Promise<vo
   const totalDays = Math.max(1, Math.ceil((horizon.getTime() - today.getTime()) / (24 * 60 * 60 * 1000)));
   const cappedDays = Math.min(totalDays, 180); // safety cap — one slot-compute per day
 
-  const out: string[] = [];
+  const available: string[] = [];
+  const full: string[] = [];
   for (let off = 0; off < cappedDays; off++) {
     const d = new Date(today);
     d.setDate(today.getDate() + off);
     const dateStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
     const slots = await computeAvailableSlots(business.id, dateStr, service.durationMinutes, bufferMinutes, business.maxAppointmentsPerDay);
+    if (slots.length === 0) continue; // closed weekday or full-day time-off
     const hasFree = slots.some(s => s.available && israelTimeToUTC(dateStr, s.time) >= minAllowedNS);
-    if (hasFree) out.push(dateStr);
+    if (hasFree) available.push(dateStr);
+    else full.push(dateStr); // would have been a workday but everything's booked
   }
 
-  res.json(out);
+  res.json({ available, full });
 });
 
 export default router;
