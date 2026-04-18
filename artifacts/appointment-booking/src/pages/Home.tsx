@@ -1,98 +1,146 @@
 import { motion } from "framer-motion";
 import { Link } from "wouter";
-import { CalendarCheck, Building2, LayoutDashboard, Bell, Sparkles, Zap, Globe } from "lucide-react";
+import { Sparkles, Building2, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
 import Navbar from "@/components/Navbar";
 import SiteFooter from "@/components/SiteFooter";
 
+// Four stills from the production Lilash booking flow + dashboard, used as
+// visual proof inside the iPhone mockups in the hero. Referenced from
+// /public/hero so the bundler doesn't re-hash them on every build.
+const PHONE_SHOTS: ReadonlyArray<{
+  src: string;
+  title: string;
+  desc: string;
+  anim: "kv-float-a" | "kv-float-b" | "kv-float-c" | "kv-float-d";
+  bump: boolean; // alt-row vertical stagger on desktop so it's not a flat line
+}> = [
+  {
+    src: "/hero/lilash-1.png",
+    title: "עמוד הזמנה מעוצב לעסק",
+    desc:  "לוגו, באנר, שירותים ומחירים — הלקוח קובע תור בשניות, ישר מהפלאפון.",
+    anim:  "kv-float-a",
+    bump:  false,
+  },
+  {
+    src: "/hero/lilash-2.png",
+    title: "יומן וניהול מהנייד",
+    desc:  "יומן שבועי ותפריט מלא — פגישות, שירותים, קבלות, לקוחות, הגדרות, הכל ממקום אחד.",
+    anim:  "kv-float-b",
+    bump:  true,
+  },
+  {
+    src: "/hero/lilash-3.png",
+    title: "מאגר לקוחות חכם",
+    desc:  "כל לקוח עם היסטוריית תורים והכנסות, וקיצורים ל-WhatsApp, חיוג והנפקת קבלה.",
+    anim:  "kv-float-c",
+    bump:  false,
+  },
+  {
+    src: "/hero/lilash-4.png",
+    title: "שעות עבודה גמישות",
+    desc:  "סמנו את הימים והשעות שבהם העסק פעיל — מעודכן אוטומטית בעמוד ההזמנות.",
+    anim:  "kv-float-d",
+    bump:  true,
+  },
+];
+
 export default function Home() {
   return (
-    <div className="min-h-[100dvh] flex flex-col bg-background" dir="rtl">
+    <div className="min-h-[100dvh] flex flex-col" dir="rtl">
       <Navbar />
 
-      <main className="flex-1 flex flex-col items-center px-6 py-20 max-w-4xl mx-auto w-full text-center">
+      <main className="flex-1 kv-hero-bg">
+        <div className="max-w-6xl mx-auto px-6 pt-14 pb-16">
 
-        {/* Hero */}
-        <motion.div
-          initial={{ opacity: 0, y: 30 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6, ease: "easeOut" }}
-          className="space-y-8"
-        >
-          {/* Logo + badge grouped tightly so they read as one unit before the
-              headline. The outer motion.div's space-y-8 still gives breathing
-              room below the badge; this inner wrapper overrides the gap only
-              between these two so the badge sits right under the logo. */}
-          <div className="space-y-3">
-            <div className="flex justify-center pt-16">
-              <img src="/logo.svg" alt="קבעתי" className="h-36 object-contain drop-shadow-lg" />
+          {/* Hero text */}
+          <motion.section
+            initial={{ opacity: 0, y: 16 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.55, ease: "easeOut" }}
+            className="text-center max-w-3xl mx-auto space-y-6"
+          >
+            <div className="inline-flex items-center gap-2 bg-primary/10 text-primary rounded-full px-4 py-1.5 text-sm font-semibold">
+              🎁 14 ימי ניסיון חינם · ללא כרטיס אשראי
             </div>
 
-            <div className="inline-flex items-center gap-2 bg-primary/10 text-primary rounded-full px-4 py-2 text-sm font-medium">
-              <CalendarCheck className="w-4 h-4" />
-              מערכת ניהול תורים חכמה
+            <h1 className="text-5xl md:text-6xl font-extrabold leading-[1.05] tracking-tight text-foreground">
+              תורים שנסגרים <span className="text-primary">לבד</span>.
+              <br />
+              אתה רק עובד.
+            </h1>
+
+            <p className="text-lg text-muted-foreground leading-relaxed max-w-2xl mx-auto">
+              מערכת קביעת תורים מלאה לעסקים בישראל — תזכורות ב-WhatsApp, פורטל ללקוחות,
+              קבלות אוטומטיות, עיצוב מותאם אישית לכל עסק.
+            </p>
+
+            <div className="pt-2 flex flex-col sm:flex-row gap-3 justify-center">
+              <Link href="/register">
+                <Button size="lg" className="w-full sm:w-auto h-14 px-8 text-base rounded-2xl shadow-lg hover:shadow-xl transition-all gap-2">
+                  <Sparkles className="w-5 h-5" />
+                  הצטרפות למסלול הנסיון שלנו
+                </Button>
+              </Link>
+              <Link href="/dashboard">
+                <Button size="lg" variant="outline" className="w-full sm:w-auto h-14 px-8 text-base rounded-2xl gap-2">
+                  <Building2 className="w-5 h-5" />
+                  כניסה לבעלי עסקים
+                </Button>
+              </Link>
             </div>
-          </div>
 
-          <h1 className="text-4xl sm:text-5xl font-extrabold tracking-tight text-foreground leading-tight max-w-2xl mx-auto">
-            פלטפורמת קביעת תורים חכמה לבעלי עסקים
-          </h1>
+            <div className="flex items-center justify-center gap-2 text-sm text-muted-foreground pt-1">
+              <Check className="w-4 h-4 text-emerald-500" />
+              בלי להתקין כלום · שיתוף לינק ללקוחות תוך 3 דקות
+            </div>
+          </motion.section>
 
-          <p className="text-lg text-muted-foreground max-w-2xl mx-auto leading-relaxed">
-            תן ללקוחות שלך את שיא הנוחות והמהירות בקביעת תורים לעסק שלך.
-            <br />
-            תזכורות בווצאפ, הודעות פוש מותאמות אישית בכניסה ללינק קביעת התורים ועוד המון מחכים לך בפנים!
-            <br />
-            <span className="text-primary font-semibold">14 ימי ניסיון חינם עם מנוי פרו מלא — ללא כרטיס אשראי!</span>
-          </p>
+          {/* 4 phones row — mirrors the approved preview at home-preview/index.html */}
+          <motion.section
+            initial={{ opacity: 0, y: 24 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.6, delay: 0.2, ease: "easeOut" }}
+            className="mt-16 grid grid-cols-2 md:grid-cols-4 gap-6 md:gap-4 items-start"
+          >
+            {PHONE_SHOTS.map(p => (
+              <div key={p.src} className={`flex flex-col items-center text-center ${p.bump ? "md:mt-8" : ""}`}>
+                <div className={`w-full max-w-[200px] ${p.anim}`}>
+                  <div className="kv-phone">
+                    <div className="kv-phone-screen">
+                      <img src={p.src} alt={p.title} loading="lazy" />
+                    </div>
+                  </div>
+                </div>
+                <h3 className="font-extrabold text-base mt-5 text-foreground">{p.title}</h3>
+                <p className="text-xs text-muted-foreground leading-relaxed mt-1 px-2">{p.desc}</p>
+              </div>
+            ))}
+          </motion.section>
 
-          <div className="flex flex-col sm:flex-row gap-4 justify-center pt-2">
-            <Link href="/register">
-              <Button size="lg" className="w-full sm:w-auto h-14 px-8 text-base rounded-2xl shadow-lg hover:shadow-xl transition-all gap-2">
-                <Sparkles className="w-5 h-5" />
-                הצטרפות למסלול הנסיון שלנו
-              </Button>
-            </Link>
-            <Link href="/dashboard">
-              <Button size="lg" variant="outline" className="w-full sm:w-auto h-14 px-8 text-base rounded-2xl gap-2">
-                <Building2 className="w-5 h-5" />
-                כניסה לבעלי עסקים
-              </Button>
-            </Link>
-          </div>
-        </motion.div>
+          {/* "איך זה עובד" — 3 steps */}
+          <section className="mt-24">
+            <h2 className="text-center text-3xl md:text-4xl font-extrabold tracking-tight text-foreground">איך זה עובד?</h2>
+            <p className="text-center text-muted-foreground mt-2">3 שלבים. חצי שעה. ואתם באוויר.</p>
 
-        {/* Feature cards */}
-        <motion.div
-          initial={{ opacity: 0, y: 40 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6, delay: 0.3, ease: "easeOut" }}
-          className="grid grid-cols-1 sm:grid-cols-3 gap-6 mt-24 w-full"
-        >
-          {[
-            {
-              icon:  <LayoutDashboard className="w-5 h-5 text-primary" />,
-              title: "פאנל ניהול מתקדם",
-              desc:
-                "הדאשבורד שחיכיתם לו — יומן חכם לפגישות היום והשבוע, מעקב הכנסות ומגמות בגרפים אינטראקטיביים, " +
-                "לקוחות עם היסטוריית תורים וסכום כולל, קבלות אוטומטיות ללקוחות, הודעת פתיחה לעמוד, עיצוב מותאם " +
-                "(צבעים, פונטים, לוגו, באנר), חיבור דומיין מותאם אישית, קבלת תשלום מקדמה דרך טרנזילה, " +
-                "ניהול שעות עבודה והפסקות, הגבלות קביעה, ועוד עשרות פיצ'רים — הכל במקום אחד, עברית מלאה, RTL."
-            },
-            { icon: <Bell className="w-5 h-5 text-primary" />, title: "לקוחות מעודכנים", desc: "אפשרויות רבות להשאיר את הלקוחות שלכם מעודכנים, מהודעה בכניסה לעמוד הקביעת תורים עד להודעות מותאמות אישיות בתזכורות שלפני התור בווצאפ" },
-            { icon: <Globe className="w-5 h-5 text-primary" />, title: "פורטל לקוח + גלה עסקים", desc: "ללקוחות פורטל אישי לניהול התורים שלהם — ובו ספריית עסקים שמחפשים שירות חדש יכולים למצוא אתכם ישירות" },
-          ].map((f, i) => (
-            <Card key={i} className="text-right border-border shadow-sm hover:shadow-md transition-shadow">
-              <CardContent className="pt-6 pb-6 space-y-2">
-                <div className="mb-1">{f.icon}</div>
-                <h3 className="font-bold text-foreground text-lg">{f.title}</h3>
-                <p className="text-muted-foreground text-sm leading-relaxed">{f.desc}</p>
-              </CardContent>
-            </Card>
-          ))}
-        </motion.div>
+            <div className="grid md:grid-cols-3 gap-5 mt-10">
+              {[
+                { n: 1, t: "נרשמים",   d: "חשבון פרו חינם ל-14 יום. בלי כרטיס אשראי." },
+                { n: 2, t: "מעצבים",   d: "צבעים, לוגו, שעות עבודה, שירותים — חמש דקות." },
+                { n: 3, t: "משתפים",   d: "לינק אחד ללקוחות → הם קובעים בלי להתקשר." },
+              ].map(step => (
+                <div key={step.n} className="relative bg-card rounded-2xl border p-6">
+                  <div className="absolute -top-4 right-6 w-10 h-10 rounded-xl bg-primary text-primary-foreground font-extrabold flex items-center justify-center shadow-lg shadow-primary/30">
+                    {step.n}
+                  </div>
+                  <h3 className="font-extrabold text-lg mt-2 text-foreground">{step.t}</h3>
+                  <p className="text-muted-foreground text-sm mt-1">{step.d}</p>
+                </div>
+              ))}
+            </div>
+          </section>
 
+        </div>
       </main>
 
       <SiteFooter />

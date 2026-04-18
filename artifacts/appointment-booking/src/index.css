@@ -252,3 +252,58 @@
     @apply font-sans antialiased bg-background text-foreground;
   }
 }
+
+/* ─── Homepage hero: phone mockups + gentle float animations ─── */
+/* Used by Home.tsx to wrap the 4 Lilash screenshots in iPhone-looking
+   frames. The ::before pseudo element is the dynamic island / notch so
+   we don't have to ship a device PNG with the app. */
+.kv-phone {
+  border-radius: 38px;
+  background: #111;
+  padding: 7px;
+  box-shadow: 0 25px 50px -18px rgba(15, 23, 42, 0.45);
+  position: relative;
+}
+.kv-phone::before {
+  content: "";
+  position: absolute;
+  top: 11px; left: 50%; transform: translateX(-50%);
+  width: 58px; height: 16px;
+  background: #111; border-radius: 10px;
+  z-index: 2;
+}
+.kv-phone-screen {
+  border-radius: 31px;
+  overflow: hidden;
+  background: #fff;
+  aspect-ratio: 390 / 844;
+  width: 100%;
+}
+.kv-phone-screen img {
+  width: 100%; height: 100%;
+  object-fit: cover; display: block;
+}
+
+/* Each phone gets its own tilt so they don't look like a rigid row, and a
+   slow vertical drift to give the hero a bit of life without being noisy. */
+@keyframes kv-float-a { 0%,100% { transform: rotate(-5deg) translateY(0); } 50% { transform: rotate(-5deg) translateY(-6px); } }
+@keyframes kv-float-b { 0%,100% { transform: rotate( 3deg) translateY(0); } 50% { transform: rotate( 3deg) translateY(-6px); } }
+@keyframes kv-float-c { 0%,100% { transform: rotate(-3deg) translateY(0); } 50% { transform: rotate(-3deg) translateY(-6px); } }
+@keyframes kv-float-d { 0%,100% { transform: rotate( 5deg) translateY(0); } 50% { transform: rotate( 5deg) translateY(-6px); } }
+.kv-float-a { animation: kv-float-a 7s   ease-in-out infinite; }
+.kv-float-b { animation: kv-float-b 8s   ease-in-out infinite; }
+.kv-float-c { animation: kv-float-c 9s   ease-in-out infinite; }
+.kv-float-d { animation: kv-float-d 8.5s ease-in-out infinite; }
+
+.kv-hero-bg {
+  background:
+    radial-gradient(ellipse 80% 60% at 50% -10%, rgba(60,146,240,0.18), transparent 60%),
+    radial-gradient(ellipse 40% 40% at 90% 20%, rgba(149,219,244,0.25), transparent 60%),
+    white;
+}
+.dark .kv-hero-bg {
+  background:
+    radial-gradient(ellipse 80% 60% at 50% -10%, rgba(60,146,240,0.22), transparent 60%),
+    radial-gradient(ellipse 40% 40% at 90% 20%, rgba(60,146,240,0.10), transparent 60%),
+    hsl(var(--background));
+}
