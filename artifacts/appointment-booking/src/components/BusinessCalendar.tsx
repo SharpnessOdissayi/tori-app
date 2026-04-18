@@ -1849,7 +1849,10 @@ export function BusinessCalendar({
           label without wrapping. Fixed positioning is safe because the
           calendar tab is unmounted when the owner is on another tab
           (shadcn/Radix Tabs default). z-[45] sits above the bottom nav
-          (z-40) but below the accessibility FABs on the right (z-55+). */}
+          (z-40) but below the accessibility FABs on the right (z-55+).
+          Both buttons use identical dimensions (w-14 h-14, 24px icons)
+          so they read as a paired action set rather than a primary /
+          secondary ranking — owner feedback. */}
       {(onNewAppointment || onNewTimeOff) && (
         <div
           className="md:hidden fixed left-3 z-[45] flex flex-col-reverse gap-2"
@@ -1871,10 +1874,10 @@ export function BusinessCalendar({
               type="button"
               onClick={() => onNewTimeOff()}
               aria-label="אילוץ"
-              className="w-12 h-12 rounded-full shadow-lg flex items-center justify-center text-white transition-transform active:scale-95"
+              className="w-14 h-14 rounded-full shadow-lg flex items-center justify-center text-white transition-transform active:scale-95"
               style={{ background: "linear-gradient(135deg, #dc2626 0%, #991b1b 100%)" }}
             >
-              <Ban className="w-5 h-5" />
+              <Ban className="w-6 h-6" />
             </button>
           )}
         </div>
