@@ -1668,7 +1668,7 @@ export function BusinessCalendar({
           className="absolute left-3 right-3 top-[52px] z-40 px-4 py-3 rounded-2xl shadow-lg border border-primary/30 bg-primary/95 text-primary-foreground text-sm font-semibold flex items-center gap-2 animate-in slide-in-from-top-2 fade-in duration-300"
         >
           <span className="text-base">💡</span>
-          <span>ניתן להזיז תורים ואילוצים ביומן על ידי גרירה שלהם (החזקה של 0.4 שניות)</span>
+          <span>ניתן לגרור תורים ואילוצים ביומן (החזקה של 0.4 שניות)</span>
         </div>
       )}
 
