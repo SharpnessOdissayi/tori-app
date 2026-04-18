@@ -1698,6 +1698,106 @@ function WeeklyCalendar({ appointments }: { appointments: WeeklyAppt[] }) {
   );
 }
 
+// Paginated "פגישות קרובות" card — shows PAGE_SIZE rows at a time with
+// « 1 / N » pager underneath. Owners with long booking windows ended up
+// with a wall of upcoming appointments before this; now the first page
+// is scannable and the rest is one tap away.
+const UPCOMING_PAGE_SIZE = 5;
+function UpcomingAppointmentsCard({
+  items, genderByPhone, onCancel, cancelling,
+}: {
+  items: Array<{
+    id: number;
+    clientName: string;
+    phoneNumber: string;
+    serviceName: string;
+    durationMinutes: number;
+    appointmentDate: string;
+    appointmentTime: string;
+    notes?: string | null;
+  }>;
+  genderByPhone: Map<string, string>;
+  onCancel: (id: number) => void;
+  cancelling: boolean;
+}) {
+  const [page, setPage] = useState(0);
+  const totalPages = Math.max(1, Math.ceil(items.length / UPCOMING_PAGE_SIZE));
+  // Clamp the page if items shrinks (e.g. cancellation on the last page).
+  useEffect(() => {
+    if (page > totalPages - 1) setPage(Math.max(0, totalPages - 1));
+  }, [page, totalPages]);
+  const pageItems = items.slice(page * UPCOMING_PAGE_SIZE, page * UPCOMING_PAGE_SIZE + UPCOMING_PAGE_SIZE);
+
+  return (
+    <Card>
+      <CardHeader className="flex-row items-center justify-between gap-2 space-y-0">
+        <CardTitle>פגישות קרובות</CardTitle>
+        {items.length > 0 && (
+          <span className="text-xs text-muted-foreground font-medium">
+            {items.length} סה״כ
+          </span>
+        )}
+      </CardHeader>
+      <CardContent>
+        {pageItems.length ? (
+          <div className="space-y-3">
+            {pageItems.map(apt => (
+              <div key={apt.id} className="flex flex-col sm:flex-row justify-between items-start sm:items-center p-4 border rounded-xl bg-card gap-3 hover:border-primary/40 transition-colors">
+                <div className="flex-1 min-w-0">
+                  <div className="font-semibold flex items-center gap-2 flex-wrap">
+                    <GenderMark gender={genderByPhone.get(apt.phoneNumber)} />
+                    <span>{apt.clientName}</span>
+                    <span className="text-muted-foreground text-sm font-normal" dir="ltr">{apt.phoneNumber}</span>
+                  </div>
+                  <div className="text-sm text-muted-foreground mt-0.5">{apt.serviceName} • {formatDuration(apt.durationMinutes)}</div>
+                  <div className="text-primary font-medium text-sm mt-1">
+                    {format(parseISO(apt.appointmentDate + "T" + apt.appointmentTime), "EEEE, d בMMMM yyyy", { locale: he })} • {apt.appointmentTime}
+                  </div>
+                  {apt.notes && (
+                    <div className="mt-2 p-2 rounded-lg bg-amber-50 border border-amber-200 text-amber-900 text-xs flex items-start gap-1.5">
+                      <MessageSquare className="w-3.5 h-3.5 shrink-0 mt-0.5" />
+                      <div className="whitespace-pre-wrap break-words">{apt.notes}</div>
+                    </div>
+                  )}
+                </div>
+                <button
+                  onClick={() => onCancel(apt.id)} disabled={cancelling}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-red-50 hover:bg-red-100 text-red-500 border border-red-100 transition-all disabled:opacity-60"
+                >
+                  <X className="w-3.5 h-3.5" /> ביטול
+                </button>
+              </div>
+            ))}
+            {totalPages > 1 && (
+              <div className="flex items-center justify-between gap-2 pt-3 mt-2 border-t">
+                <button
+                  type="button"
+                  onClick={() => setPage(p => Math.max(0, p - 1))}
+                  disabled={page === 0}
+                  className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-sm font-medium text-primary hover:bg-primary/10 disabled:opacity-40 disabled:pointer-events-none transition-colors"
+                >
+                  <ChevronRight className="w-4 h-4" /> הקודם
+                </button>
+                <span className="text-xs text-muted-foreground font-medium">
+                  עמוד {page + 1} מתוך {totalPages}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setPage(p => Math.min(totalPages - 1, p + 1))}
+                  disabled={page >= totalPages - 1}
+                  className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-sm font-medium text-primary hover:bg-primary/10 disabled:opacity-40 disabled:pointer-events-none transition-colors"
+                >
+                  הבא <ChevronLeft className="w-4 h-4" />
+                </button>
+              </div>
+            )}
+          </div>
+        ) : <EmptyState text="אין פגישות קרובות" />}
+      </CardContent>
+    </Card>
+  );
+}
+
 function AppointmentsTab({ mobileFocus }: { mobileFocus?: "calendar" | "approvals" } = {}) {
   const { data: stats } = useGetBusinessStats();
   const { data: appointments } = useListBusinessAppointments();
@@ -1974,42 +2074,12 @@ function AppointmentsTab({ mobileFocus }: { mobileFocus?: "calendar" | "approval
         </Card>
       )}
 
-      <Card>
-        <CardHeader><CardTitle>פגישות קרובות</CardTitle></CardHeader>
-        <CardContent>
-          {upcoming.length ? (
-            <div className="space-y-3">
-              {upcoming.map(apt => (
-                <div key={apt.id} className="flex flex-col sm:flex-row justify-between items-start sm:items-center p-4 border rounded-xl bg-card gap-3 hover:border-primary/40 transition-colors">
-                  <div className="flex-1 min-w-0">
-                    <div className="font-semibold flex items-center gap-2 flex-wrap">
-                      <GenderMark gender={genderByPhone.get(apt.phoneNumber)} />
-                      <span>{apt.clientName}</span>
-                      <span className="text-muted-foreground text-sm font-normal" dir="ltr">{apt.phoneNumber}</span>
-                    </div>
-                    <div className="text-sm text-muted-foreground mt-0.5">{apt.serviceName} • {formatDuration(apt.durationMinutes)}</div>
-                    <div className="text-primary font-medium text-sm mt-1">
-                      {format(parseISO(apt.appointmentDate + "T" + apt.appointmentTime), "EEEE, d בMMMM yyyy", { locale: he })} • {apt.appointmentTime}
-                    </div>
-                    {apt.notes && (
-                      <div className="mt-2 p-2 rounded-lg bg-amber-50 border border-amber-200 text-amber-900 text-xs flex items-start gap-1.5">
-                        <MessageSquare className="w-3.5 h-3.5 shrink-0 mt-0.5" />
-                        <div className="whitespace-pre-wrap break-words">{apt.notes}</div>
-                      </div>
-                    )}
-                  </div>
-                  <button
-                    onClick={() => handleCancel(apt.id)} disabled={cancelMutation.isPending}
-                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-red-50 hover:bg-red-100 text-red-500 border border-red-100 transition-all disabled:opacity-60"
-                  >
-                    <X className="w-3.5 h-3.5" /> ביטול
-                  </button>
-                </div>
-              ))}
-            </div>
-          ) : <EmptyState text="אין פגישות קרובות" />}
-        </CardContent>
-      </Card>
+      <UpcomingAppointmentsCard
+        items={upcoming}
+        genderByPhone={genderByPhone}
+        onCancel={handleCancel}
+        cancelling={cancelMutation.isPending}
+      />
 
       {/* Weekly calendar — 7-day overview with Israeli holidays */}
       {/* New business calendar — month / week / day with drag-to-reschedule.

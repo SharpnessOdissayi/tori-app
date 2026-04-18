@@ -1022,7 +1022,7 @@ function TimeGrid({
                 const wh = workingByDow.get(dow);
                 if (wh == null) {
                   // Day explicitly closed — entire column gray.
-                  return <div className="absolute inset-0 bg-muted/40 pointer-events-none" />;
+                  return <div className="absolute inset-0 bg-foreground/10 pointer-events-none" />;
                 }
                 const beforeTop = 0;
                 const beforeHeight = Math.max(0, (wh.startMin - DAY_START_MINUTES) / SLOT_MINUTES * SLOT_PX);
@@ -1031,11 +1031,11 @@ function TimeGrid({
                 return (
                   <>
                     {beforeHeight > 0 && (
-                      <div className="absolute inset-x-0 bg-muted/40 pointer-events-none"
+                      <div className="absolute inset-x-0 bg-foreground/10 pointer-events-none"
                         style={{ top: beforeTop, height: beforeHeight }} />
                     )}
                     {afterHeight > 0 && (
-                      <div className="absolute inset-x-0 bg-muted/40 pointer-events-none"
+                      <div className="absolute inset-x-0 bg-foreground/10 pointer-events-none"
                         style={{ top: afterTop, height: afterHeight }} />
                     )}
                   </>
