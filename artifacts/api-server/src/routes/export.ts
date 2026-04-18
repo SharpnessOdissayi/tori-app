@@ -102,7 +102,7 @@ router.get("/export/customers.csv", async (req, res): Promise<void> => {
       phoneNumber:     appointmentsTable.phoneNumber,
       appointmentDate: appointmentsTable.appointmentDate,
       status:          appointmentsTable.status,
-      price:           servicesTable.price,
+      priceAgorot:     servicesTable.price,   // agorot — divide by 100 for ILS
     })
     .from(appointmentsTable)
     .leftJoin(servicesTable, eq(servicesTable.id, appointmentsTable.serviceId))
@@ -139,7 +139,8 @@ router.get("/export/customers.csv", async (req, res): Promise<void> => {
     if (r.status === "cancelled" || r.status === "no_show") a.cancelledAppointments += 1;
     else {
       a.completedAppointments += 1;
-      a.totalSpent += r.price ?? 0;
+      // services.price is AGOROT (cents) — divide by 100 for ILS display.
+      a.totalSpent += (r.priceAgorot ?? 0) / 100;
     }
     if (r.appointmentDate < a.firstVisit) a.firstVisit = r.appointmentDate;
     if (r.appointmentDate > a.lastVisit)  a.lastVisit  = r.appointmentDate;
@@ -169,7 +170,7 @@ router.get("/export/appointments.csv", async (req, res): Promise<void> => {
       durationMinutes: appointmentsTable.durationMinutes,
       status:          appointmentsTable.status,
       notes:           appointmentsTable.notes,
-      price:           servicesTable.price,
+      priceAgorot:     servicesTable.price,   // agorot — divide by 100 for ILS
     })
     .from(appointmentsTable)
     .leftJoin(servicesTable, eq(servicesTable.id, appointmentsTable.serviceId))
@@ -199,7 +200,7 @@ router.get("/export/appointments.csv", async (req, res): Promise<void> => {
     r.phoneNumber,
     r.durationMinutes,
     statusLabel(r.status),
-    r.price ?? "",
+    r.priceAgorot != null ? (r.priceAgorot / 100).toFixed(2) : "",
     r.notes ?? "",
   ]);
 
@@ -217,7 +218,7 @@ router.get("/export/revenue.csv", async (req, res): Promise<void> => {
       appointmentDate: appointmentsTable.appointmentDate,
       serviceName:     appointmentsTable.serviceName,
       status:          appointmentsTable.status,
-      price:           servicesTable.price,
+      priceAgorot:     servicesTable.price,   // agorot — divide by 100 for ILS
     })
     .from(appointmentsTable)
     .leftJoin(servicesTable, eq(servicesTable.id, appointmentsTable.serviceId))
@@ -242,9 +243,11 @@ router.get("/export/revenue.csv", async (req, res): Promise<void> => {
     if (r.status === "cancelled" || r.status === "no_show") {
       m.cancelledCount += 1;
     } else {
-      m.revenue += r.price ?? 0;
+      // services.price is AGOROT (cents) — divide by 100 for ILS.
+      const ils = (r.priceAgorot ?? 0) / 100;
+      m.revenue += ils;
       m.appointments += 1;
-      m.byService.set(r.serviceName, (m.byService.get(r.serviceName) ?? 0) + (r.price ?? 0));
+      m.byService.set(r.serviceName, (m.byService.get(r.serviceName) ?? 0) + ils);
     }
   }
   for (const m of byMonth.values()) {

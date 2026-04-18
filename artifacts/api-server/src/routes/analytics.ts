@@ -6,8 +6,11 @@
  * chasing a dozen smaller endpoints. Everything comes out of appointments
  * + services; no new tables needed.
  *
- * All monetary values are in ILS (whole shekels — services.price is the
- * canonical integer-shekel unit used everywhere else in the app).
+ * All monetary values in the response are in ILS (whole shekels).
+ * services.price is stored in AGOROT (the frontend divides by 100 when
+ * rendering — see Book.tsx / ServicesTab), so we divide by 100 here too
+ * before summing. An earlier revision of this file treated agorot as
+ * shekels, which inflated every revenue number by 100×.
  *
  * Route:
  *   GET /api/analytics/overview  → JSON payload (see AnalyticsOverview below)
@@ -65,7 +68,7 @@ router.get("/analytics/overview", async (req, res): Promise<void> => {
     // BEFORE the first visit. We only join services to get the price;
     // we fall back to 0 for orphaned rows (service deleted after
     // booking). Duration + date/time come off the appointments row.
-    const rows = await db
+    const rowsRaw = await db
       .select({
         id:              appointmentsTable.id,
         clientName:      appointmentsTable.clientName,
@@ -76,11 +79,19 @@ router.get("/analytics/overview", async (req, res): Promise<void> => {
         serviceName:     appointmentsTable.serviceName,
         status:          appointmentsTable.status,
         createdAt:       appointmentsTable.createdAt,
-        price:           servicesTable.price, // may be null if service was deleted
+        priceAgorot:     servicesTable.price, // agorot — divide by 100 for ILS
       })
       .from(appointmentsTable)
       .leftJoin(servicesTable, eq(servicesTable.id, appointmentsTable.serviceId))
       .where(eq(appointmentsTable.businessId, businessId));
+
+    // Convert every row's agorot → shekels up front so the rest of the
+    // aggregation code can use `price` as ILS like it reads. Null prices
+    // (service deleted) become 0, not null, so the sum stays numeric.
+    const rows = rowsRaw.map(r => ({
+      ...r,
+      price: (r.priceAgorot ?? 0) / 100,
+    }));
 
     // Counts by status — used for cancel + no-show rate.
     const statusCounts: Record<string, number> = {};
