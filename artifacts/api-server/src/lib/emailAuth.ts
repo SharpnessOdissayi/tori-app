@@ -105,7 +105,8 @@ export async function sendWelcomeEmail(params: {
 
       <!-- Credentials card -->
       <div style="margin: 24px 0; padding: 20px; background: #faf5ff; border: 1px solid #e9d5ff; border-radius: 12px;">
-        <p style="margin: 0 0 12px; font-weight: bold; color: #6b21a8; font-size: 15px;">🔐 פרטי הכניסה שלך</p>
+        <p style="margin: 0 0 6px; font-weight: bold; color: #6b21a8; font-size: 15px;">🔐 פרטי הכניסה שלך</p>
+        <p style="margin: 0 0 12px; font-size: 12px; color: #7c3aed;">אפשר להיכנס לפי שם משתמש, אימייל או מספר טלפון — הסיסמה זהה לכולם.</p>
         <table style="width: 100%; font-size: 14px; border-collapse: collapse;">
           <tr><td style="padding: 6px 0; color: #666; width: 120px;">שם משתמש:</td>
               <td style="padding: 6px 0; font-family: monospace; direction: ltr; text-align: right; font-weight: bold;">${loginHandle}</td></tr>

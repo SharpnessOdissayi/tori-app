@@ -25,7 +25,11 @@ const REPLY_TO       = process.env.EMAIL_REPLY_TO ?? "";
 // header (logo + one-liner) and the footer (signature, "do not reply"
 // disclaimer, support email + phone). Keeps every email on-brand and
 // avoids owners/clients replying into the void of an auto-send inbox.
-const LOGO_URL     = "https://kavati.net/icon-512.png";
+// Must include the `www.` — the apex `kavati.net` 301-redirects HTML
+// but returns 404 for static assets, and most email clients (Gmail in
+// particular) don't follow redirects for <img src>, so the previous
+// https://kavati.net/icon-512.png rendered as a broken image.
+const LOGO_URL     = "https://www.kavati.net/icon-512.png";
 const SUPPORT_MAIL = "kavati.net@gmail.com";
 
 function wrapEmailTemplate(innerHtml: string): string {
