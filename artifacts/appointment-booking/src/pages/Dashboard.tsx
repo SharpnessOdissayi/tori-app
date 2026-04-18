@@ -815,20 +815,23 @@ export default function Dashboard() {
   // True when this session belongs to a NON-owner staff member. Owner
   // is_owner=TRUE staff rows still see the full owner UI.
   const isStaffMode = !!authMe?.staff && !authMe.staff.isOwner;
-  // Active tab persists across reloads — without this, pressing F5
-  // while editing Settings (or any other tab) bounced the owner back
-  // to the default "appointments" tab.
-  // Default tab is "home" so a fresh login / reload lands on the
-  // at-a-glance overview (stats + upcoming card + share-link banner +
-  // pending approvals). Owners asked for this — the calendar is one
-  // tap away on the bottom-nav anyway, but the home tab is what they
-  // want to see first.
+  // Active tab persists across reloads via sessionStorage — F5 or hot
+  // reload keeps the owner on the current tab, but closing the tab /
+  // window / PWA wipes the session so the next launch lands on "home".
+  // Explicit owner request: fully closing the app and reopening it
+  // should always reopen on the home (overview) tab, NOT the last
+  // place they were. One-time migration clears the old localStorage
+  // key so existing users don't stick on their pre-change tab.
   const [activeTab, setActiveTab] = useState(() => {
-    try { return localStorage.getItem("kavati_dash_active_tab") || "home"; }
-    catch { return "home"; }
+    try {
+      if (localStorage.getItem("kavati_dash_active_tab") !== null) {
+        localStorage.removeItem("kavati_dash_active_tab");
+      }
+      return sessionStorage.getItem("kavati_dash_active_tab") || "home";
+    } catch { return "home"; }
   });
   useEffect(() => {
-    try { localStorage.setItem("kavati_dash_active_tab", activeTab); } catch {}
+    try { sessionStorage.setItem("kavati_dash_active_tab", activeTab); } catch {}
   }, [activeTab]);
 
   // Listen for cross-component tab switches. StaffTab fires this when the
@@ -870,7 +873,7 @@ export default function Dashboard() {
     return "menu";
   };
   const [bottomTab, setBottomTab] = useState<BottomTab>(() => activeToBottom(
-    typeof window !== "undefined" ? (localStorage.getItem("kavati_dash_active_tab") ?? "home") : "home"
+    typeof window !== "undefined" ? (sessionStorage.getItem("kavati_dash_active_tab") ?? "home") : "home"
   ));
   // Keep bottomTab aligned with activeTab whenever activeTab changes from
   // anywhere (menu sheet, programmatic jumps, url hash, etc.). Without
@@ -5744,6 +5747,7 @@ function IntegrationsTab() {
 
   const [notificationEnabled, setNotificationEnabled] = useState(true);
   const [sendBookingConfirmation, setSendBookingConfirmation] = useState(true);
+  const [notifyOnCancel, setNotifyOnCancel] = useState(false);
   const [announcementText, setAnnouncementText] = useState("");
   const [announcementValidHours, setAnnouncementValidHours] = useState(24);
   const [sendReminders, setSendReminders] = useState(true);
@@ -5758,7 +5762,7 @@ function IntegrationsTab() {
   // extra render when we reset it after save.
   const baselineRef = useRef<string | null>(null);
   const currentHash = JSON.stringify({
-    notificationEnabled, sendBookingConfirmation, sendReminders,
+    notificationEnabled, sendBookingConfirmation, notifyOnCancel, sendReminders,
     announcementText, announcementValidHours, shabbatMode, reminderTriggers,
   });
   const isDirty = baselineRef.current !== null && baselineRef.current !== currentHash;
@@ -5767,6 +5771,7 @@ function IntegrationsTab() {
     if (profile) {
       const ne = profile.notificationEnabled ?? true;
       const sbc = (profile as any).sendBookingConfirmation ?? true;
+      const noc = (profile as any).notifyOnCancel ?? false;
       const sr = (profile as any).sendReminders ?? true;
       const at = (profile as any).announcementText ?? "";
       const avh = (profile as any).announcementValidHours ?? 24;
@@ -5779,13 +5784,14 @@ function IntegrationsTab() {
       } catch {} }
       setNotificationEnabled(ne);
       setSendBookingConfirmation(sbc);
+      setNotifyOnCancel(noc);
       setSendReminders(sr);
       setAnnouncementText(at);
       setAnnouncementValidHours(avh);
       setShabbatMode(sm);
       setReminderTriggers(rt);
       baselineRef.current = JSON.stringify({
-        notificationEnabled: ne, sendBookingConfirmation: sbc, sendReminders: sr,
+        notificationEnabled: ne, sendBookingConfirmation: sbc, notifyOnCancel: noc, sendReminders: sr,
         announcementText: at, announcementValidHours: avh, shabbatMode: sm, reminderTriggers: rt,
       });
     }
@@ -5799,6 +5805,7 @@ function IntegrationsTab() {
         // clear any stale value in the DB so it doesn't keep appending.
         notificationMessage: null,
         sendBookingConfirmation,
+        notifyOnCancel,
         sendReminders,
         announcementText: announcementText || null,
         announcementValidHours,
@@ -5818,6 +5825,7 @@ function IntegrationsTab() {
         if (updated) {
           const ne = (updated as any).notificationEnabled ?? true;
           const sbc = (updated as any).sendBookingConfirmation ?? true;
+          const noc = (updated as any).notifyOnCancel ?? false;
           const sr = (updated as any).sendReminders ?? true;
           const at = (updated as any).announcementText ?? "";
           const avh = (updated as any).announcementValidHours ?? 24;
@@ -5830,6 +5838,7 @@ function IntegrationsTab() {
           } catch {} }
           setNotificationEnabled(ne);
           setSendBookingConfirmation(sbc);
+          setNotifyOnCancel(noc);
           setSendReminders(sr);
           setAnnouncementText(at);
           setAnnouncementValidHours(avh);
@@ -5837,7 +5846,7 @@ function IntegrationsTab() {
           setReminderTriggers(rt);
           // Save succeeded — reset baseline so the floating bar hides.
           baselineRef.current = JSON.stringify({
-            notificationEnabled: ne, sendBookingConfirmation: sbc, sendReminders: sr,
+            notificationEnabled: ne, sendBookingConfirmation: sbc, notifyOnCancel: noc, sendReminders: sr,
             announcementText: at, announcementValidHours: avh, shabbatMode: sm, reminderTriggers: rt,
           });
         }
@@ -5889,6 +5898,16 @@ function IntegrationsTab() {
               <div className="text-xs text-muted-foreground" dir="rtl">הודעת <span dir="ltr">WhatsApp</span> נשלחת ללקוח מיד עם קביעת התור</div>
             </div>
             <Switch checked={sendBookingConfirmation} onCheckedChange={setSendBookingConfirmation} />
+          </div>
+          <Separator />
+          <div className="flex items-center justify-between">
+            <div>
+              <div className="font-medium text-sm">שלח הודעת ביטול ללקוח</div>
+              <div className="text-xs text-muted-foreground" dir="rtl">
+                כשאת מבטלת תור — נשלחת אוטומטית הודעת <span dir="ltr">WhatsApp</span> ללקוח. כבוי כברירת מחדל, הדלק רק אם תרצי.
+              </div>
+            </div>
+            <Switch checked={notifyOnCancel} onCheckedChange={setNotifyOnCancel} />
           </div>
         </CardContent>
       </Card>
@@ -7158,177 +7177,6 @@ function CustomDomainCard() {
   );
 }
 
-/**
- * Tiny standalone button that POSTs to /api/sms/test-charge and toasts
- * the result. Same endpoint as the "🧪 חיוב ₪1" row in the SMS card,
- * just surfaced in a more discoverable place (Settings → Subscription
- * Status) so the owner can test the one-off-charge pipeline even when
- * they're not inside the SMS tab.
- */
-function TestChargeButton() {
-  const { toast } = useToast();
-  const [testing, setTesting] = useState(false);
-  const token = typeof window !== "undefined"
-    ? (localStorage.getItem("biz_token") ?? sessionStorage.getItem("biz_token") ?? "")
-    : "";
-
-  async function run() {
-    if (!token) return;
-    setTesting(true);
-    try {
-      const res = await fetch("/api/sms/test-charge", {
-        method: "POST",
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      // Don't assume JSON — when the endpoint fails at the edge (Railway
-      // 502, CORS, 404 from stale deploy) the response body can be HTML
-      // or plain text. Try JSON, then fall back to the raw text so we
-      // always have something to show the owner.
-      const contentType = res.headers.get("content-type") ?? "";
-      let json: any = {};
-      let rawText = "";
-      if (contentType.includes("application/json")) {
-        json = await res.json().catch(() => ({}));
-      } else {
-        rawText = (await res.text().catch(() => "")).slice(0, 200);
-      }
-      if (res.ok && json?.ok) {
-        toast({
-          title: "✅ חיוב בדיקה הצליח — ₪1",
-          description: `Transaction ID: ${json.transactionId ?? "?"}, Auth: ${json.authNumber ?? "?"}`,
-        });
-      } else {
-        const code = json?.responseCode ?? String(res.status);
-        const msg  = json?.message ?? json?.error ?? rawText ?? "הבקשה נכשלה ללא הודעה";
-        toast({
-          title: "❌ חיוב בדיקה נכשל",
-          description: `${msg} (HTTP ${res.status}, code: ${code})`,
-          variant: "destructive",
-        });
-        // Dump the full server response to the browser console so the
-        // owner (or I) can copy-paste it when reporting a failed test.
-        // eslint-disable-next-line no-console
-        console.error("[test-charge] failed response", {
-          status: res.status, statusText: res.statusText, json, rawText,
-        });
-      }
-    } catch (err: any) {
-      toast({ title: "שגיאה ברשת", description: err?.message ?? "נסה שוב", variant: "destructive" });
-    } finally {
-      setTesting(false);
-    }
-  }
-
-  return (
-    <Button size="sm" variant="outline" onClick={run} disabled={testing} className="shrink-0">
-      {testing ? "מחייב…" : "בדוק ₪1"}
-    </Button>
-  );
-}
-
-/**
- * Opens a ₪1 Tranzila iframe in a dialog. On successful payment the
- * notify handler (pdesc="בדיקת טוקן קבעתי - {id}") persists the fresh
- * TranzilaTK on the business row — no STO, no plan change. We invalidate
- * the profile query so hasTranzilaToken flips to true and the sibling
- * "בדוק ₪1" button becomes clickable. Owners use this to bootstrap a
- * token before the very first subscription payment, or to re-extract one
- * after card expiry.
- */
-function TestIframeButton({ hasToken }: { hasToken: boolean }) {
-  const { toast } = useToast();
-  const queryClient = useQueryClient();
-  const [loading, setLoading] = useState(false);
-  const [iframeUrl, setIframeUrl] = useState<string | null>(null);
-  const [showDialog, setShowDialog] = useState(false);
-
-  // PaymentSuccess.tsx postMessages up to the parent; we key off the
-  // paymentType field (="test-token" because our iframe URL uses
-  // success_url_address=?type=test-token).
-  useEffect(() => {
-    const handler = (e: MessageEvent) => {
-      if (e.data?.type === "kavati_payment_success" && e.data?.paymentType === "test-token") {
-        setShowDialog(false);
-        setIframeUrl(null);
-        queryClient.invalidateQueries({ queryKey: getGetBusinessProfileQueryKey() });
-        toast({
-          title: "✅ הטוקן נשמר",
-          description: "לחץ 'בדוק ₪1' כדי לאמת חיוב טוקן-בלבד",
-        });
-      }
-      if (e.data?.type === "kavati_payment_fail" && e.data?.paymentType === "test-token") {
-        toast({
-          title: "❌ חיוב ה-₪1 נכשל",
-          description: "בדוק את פרטי הכרטיס ונסה שוב",
-          variant: "destructive",
-        });
-      }
-    };
-    window.addEventListener("message", handler);
-    return () => window.removeEventListener("message", handler);
-  }, [queryClient, toast]);
-
-  async function open() {
-    setLoading(true);
-    try {
-      const token = localStorage.getItem("biz_token") || sessionStorage.getItem("biz_token");
-      const res = await fetch(`${API_BASE_DASH}/tranzila/test-iframe-url`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      const data = await res.json();
-      if (!res.ok || !data.url) throw new Error(data.error ?? "שגיאה");
-      setIframeUrl(data.url);
-      setShowDialog(true);
-    } catch (err: any) {
-      toast({ title: "שגיאה בטעינת iframe", description: err.message, variant: "destructive" });
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  return (
-    <>
-      <Button
-        size="sm"
-        variant={hasToken ? "ghost" : "default"}
-        onClick={open}
-        disabled={loading}
-        className={hasToken
-          ? "shrink-0 text-blue-600 hover:text-blue-700 hover:bg-blue-50"
-          : "bg-blue-500 hover:bg-blue-600 text-white gap-1.5 shrink-0"}
-      >
-        {loading ? "טוען…" : hasToken ? "חידוש טוקן ₪1" : "הוצא טוקן — תשלום ₪1"}
-      </Button>
-
-      <Dialog open={showDialog} onOpenChange={v => { setShowDialog(v); if (!v) setIframeUrl(null); }}>
-        <DialogContent dir="rtl" className="max-w-lg p-0 overflow-hidden">
-          <DialogHeader className="p-5 pb-3 border-b">
-            <DialogTitle className="flex items-center gap-2 text-xl">
-              🧪 בדיקת טוקן — תשלום ₪1
-            </DialogTitle>
-            <DialogDescription>
-              תשלום דמה של ₪1 בכרטיס שלך. הטוקן שיחזור יישמר אוטומטית על העסק, ואז תוכל ללחוץ "בדוק ₪1" כדי לאמת חיוב טוקן-בלבד. ללא STO וללא שינוי מנוי.
-            </DialogDescription>
-          </DialogHeader>
-          {iframeUrl && (
-            <div className="p-3">
-              <iframe
-                src={iframeUrl}
-                allow="payment"
-                style={{ width: "100%", height: 440, border: "none", borderRadius: 8 }}
-                title="תשלום מאובטח — Tranzila (בדיקת טוקן)"
-              />
-            </div>
-          )}
-          <div className="px-5 pb-4 text-center text-xs text-muted-foreground">
-            🔒 מאובטח ע"י Tranzila
-          </div>
-        </DialogContent>
-      </Dialog>
-    </>
-  );
-}
-
 function SubscriptionStatusCard() {
   const { data: profile } = useGetBusinessProfile();
   const queryClient = useQueryClient();
@@ -7482,43 +7330,20 @@ function SubscriptionStatusCard() {
             </p>
           )}
 
-          {/* Test ₪1 charge — diagnostic button. Visible only when the
-              business has a saved Tranzila token (= they've completed
-              their first iframe payment). The profile exposes this as
-              the boolean `hasTranzilaToken` flag (not the raw token
-              value), per routes/business.ts. Earlier version checked
-              the raw-token field which is never in the response, so
-              the button showed up even for tokenless businesses and
-              every click 400'd. Fixed. */}
+          {/* Stored-token indicator. Diagnostic ₪1 charge/iframe buttons
+              were removed once the Tranzila pipeline was verified
+              end-to-end (Transaction ID 14, 2026-04-19). The endpoints
+              still exist server-side for future diagnostics — if
+              something breaks we can curl /api/sms/test-charge or
+              /api/tranzila/test-iframe-url directly without needing a
+              user-facing button. */}
           {isPro && (profile as any)?.hasTranzilaToken ? (
-            <div className="pt-3 border-t space-y-3">
-              <div className="flex items-center justify-between gap-2 flex-wrap">
-                <div className="text-xs text-muted-foreground">
-                  <div className="font-semibold text-foreground">🧪 בדיקת חיוב חד-פעמי (₪1)</div>
-                  <div className="text-[11px] mt-0.5">ללא CVV וללא ת.ז. — לוודא שהטרמינל מקבל טוקן בלבד</div>
-                </div>
-                <TestChargeButton />
-              </div>
-              {/* Re-extract token option: useful when the stored one
-                  expires or the owner swaps card. Charges ₪1 via iframe
-                  and overwrites tranzilaToken without touching STO. */}
-              <div className="flex items-center justify-between gap-2 flex-wrap">
-                <div className="text-xs text-muted-foreground">
-                  <div className="font-semibold text-foreground">🔄 חידוש טוקן מכרטיס חדש</div>
-                  <div className="text-[11px] mt-0.5">פותח iframe של ₪1 ושומר טוקן טרי — בלי לגעת במנוי</div>
-                </div>
-                <TestIframeButton hasToken />
-              </div>
+            <div className="pt-3 border-t text-xs text-muted-foreground">
+              ✅ כרטיס אשראי שמור במערכת — חיובים חודשיים ורכישות חבילות יפעלו אוטומטית.
             </div>
           ) : isPro ? (
-            // Pro/עסקי but no token — offer the iframe as a bootstrap
-            // path so the owner can save a token and unlock the test
-            // button without going through a full subscription flow.
-            <div className="pt-3 border-t space-y-2">
-              <div className="text-xs text-muted-foreground">
-                💳 לא נשמר עדיין טוקן כרטיס אשראי. לחץ כאן לביצוע תשלום של ₪1 שישמור טוקן — אז יופיע כפתור "בדוק ₪1".
-              </div>
-              <TestIframeButton hasToken={false} />
+            <div className="pt-3 border-t text-xs text-muted-foreground">
+              💳 לא נשמר עדיין טוקן כרטיס אשראי. אחרי התשלום הראשון דרך ה-iframe יישמר טוקן אוטומטית.
             </div>
           ) : null}
         </CardContent>
@@ -7656,7 +7481,9 @@ function SmsBulkCard() {
   const [manualRecipients, setManualRecipients] = useState("");
   const [sending, setSending] = useState(false);
   const [purchaseOpen, setPurchaseOpen] = useState(false);
-  const [testing, setTesting] = useState(false);
+  // Which pack size the owner picked — drives the purchase-confirm dialog.
+  const [pendingPack, setPendingPack] = useState<250 | 500 | null>(null);
+  const [confirmingPurchase, setConfirmingPurchase] = useState(false);
 
   const token = typeof window !== "undefined"
     ? (localStorage.getItem("biz_token") ?? sessionStorage.getItem("biz_token") ?? "")
@@ -7765,41 +7592,18 @@ function SmsBulkCard() {
     }
   }
 
-  // Dev helper — fires a ₪1 charge against the owner's saved Tranzila
-  // token and reports back. Temporary button alongside the purchase CTA
-  // so we can verify the one-off-charge pipeline works end-to-end before
-  // relying on it for real pack purchases. Remove when the flow is
-  // confirmed stable in production.
-  async function handleTestCharge() {
-    if (!token) return;
-    setTesting(true);
-    try {
-      const res = await fetch("/api/sms/test-charge", {
-        method: "POST",
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      const json = await res.json().catch(() => ({}));
-      if (json?.ok) {
-        toast({
-          title: "✅ חיוב בדיקה הצליח — ₪1",
-          description: `Transaction ID: ${json.transactionId ?? "?"}, Auth: ${json.authNumber ?? "?"}`,
-        });
-      } else {
-        toast({
-          title: "❌ חיוב בדיקה נכשל",
-          description: `${json?.message ?? "שגיאה לא ידועה"} (code: ${json?.responseCode ?? "?"})`,
-          variant: "destructive",
-        });
-      }
-    } catch (err: any) {
-      toast({ title: "שגיאה", description: err?.message ?? "נסה שוב", variant: "destructive" });
-    } finally {
-      setTesting(false);
-    }
-  }
+  // Pack prices shown in the confirm dialog. Kept in sync with the
+  // server-side pricing in routes/sms.ts — if you change this, update
+  // both in the same commit.
+  const PACK_PRICE_ILS: Record<250 | 500, number> = { 250: 39, 500: 59 };
 
+  // Actually charges the card. Always gated behind the confirmation
+  // dialog (pendingPack → confirmPurchase) so a double-click on a pack
+  // card doesn't silently charge. handlePurchase is only called after
+  // the owner explicitly confirms.
   async function handlePurchase(packSize: 250 | 500) {
     if (!token) return;
+    setConfirmingPurchase(true);
     try {
       const res = await fetch("/api/sms/purchase-pack", {
         method: "POST",
@@ -7827,8 +7631,11 @@ function SmsBulkCard() {
       });
       refreshBalance();
       setPurchaseOpen(false);
+      setPendingPack(null);
     } catch (err: any) {
       toast({ title: "שגיאה", description: err?.message ?? "נסה שוב", variant: "destructive" });
+    } finally {
+      setConfirmingPurchase(false);
     }
   }
 
@@ -7865,33 +7672,9 @@ function SmsBulkCard() {
                 רכוש חבילה נוספת
               </Button>
             </div>
-            {/* Temporary test button — verifies the one-off charge path
-                with a ₪1 transaction. The charge is sent with only the
-                token + expiry: no CVV and no card_holder_id (ת.ז.).
-                Rendered only when the business has a saved token
-                (hasTranzilaToken === true on the profile); otherwise
-                every click 400'd with "no_payment_method" and the
-                error toast said "unknown error" (the message field
-                wasn't populated in earlier deploys). */}
-            {(profile as any)?.hasTranzilaToken ? (
-              <div className="mt-3 pt-3 border-t border-blue-200/60 flex items-center justify-between gap-2 text-xs text-blue-700">
-                <div>
-                  <div>🧪 בדיקת חיוב (₪1) לטוקן השמור שלך</div>
-                  <div className="text-[10px] text-blue-600/80 mt-0.5">ללא CVV וללא ת.ז. — לוודא שהטרמינל מקבל טוקן בלבד</div>
-                </div>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="text-xs h-7 shrink-0"
-                  onClick={handleTestCharge}
-                  disabled={testing}
-                >
-                  {testing ? "מחייב…" : "חיוב ₪1"}
-                </Button>
-              </div>
-            ) : (
+            {!((profile as any)?.hasTranzilaToken) && (
               <div className="mt-3 pt-3 border-t border-blue-200/60 text-[11px] text-blue-600/80">
-                💳 אין טוקן שמור — לא ניתן להריץ בדיקת חיוב. לאחר התשלום הראשון דרך ה-iframe כפתור הבדיקה יופיע כאן.
+                💳 אין טוקן שמור — רכישת חבילה תדרוש תחילה תשלום ראשון דרך ה-iframe של המנוי.
               </div>
             )}
           </div>
@@ -7963,8 +7746,8 @@ function SmsBulkCard() {
         </CardContent>
       </Card>
 
-      {/* Purchase modal */}
-      <Dialog open={purchaseOpen} onOpenChange={setPurchaseOpen}>
+      {/* Purchase modal — picks a pack size */}
+      <Dialog open={purchaseOpen} onOpenChange={v => { setPurchaseOpen(v); if (!v) setPendingPack(null); }}>
         <DialogContent dir="rtl" className="max-w-md">
           <DialogHeader>
             <DialogTitle>רכישת חבילת SMS נוספת</DialogTitle>
@@ -7974,7 +7757,7 @@ function SmsBulkCard() {
           </DialogHeader>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
             <button
-              onClick={() => handlePurchase(250)}
+              onClick={() => setPendingPack(250)}
               className="border-2 rounded-2xl p-5 hover:border-primary hover:bg-primary/5 text-right transition-all"
             >
               <div className="text-sm font-semibold">חבילה קטנה</div>
@@ -7983,7 +7766,7 @@ function SmsBulkCard() {
               <div className="text-xl font-bold text-primary mt-3">₪39</div>
             </button>
             <button
-              onClick={() => handlePurchase(500)}
+              onClick={() => setPendingPack(500)}
               className="border-2 border-blue-400 rounded-2xl p-5 bg-blue-50 hover:bg-blue-100 text-right transition-all"
             >
               <div className="text-sm font-semibold text-blue-700">משתלם יותר</div>
@@ -7991,6 +7774,43 @@ function SmsBulkCard() {
               <div className="text-sm text-blue-600">הודעות</div>
               <div className="text-xl font-bold text-blue-700 mt-3">₪59</div>
             </button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Purchase confirmation — explicit "are you sure?" before the
+          saved card is actually charged. Every auto-charge from a stored
+          token should go through a user-initiated confirmation step. */}
+      <Dialog open={pendingPack !== null} onOpenChange={v => { if (!v && !confirmingPurchase) setPendingPack(null); }}>
+        <DialogContent dir="rtl" className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>אישור רכישה</DialogTitle>
+            <DialogDescription>
+              {pendingPack && (
+                <>
+                  תחויב <span className="font-bold text-foreground">₪{PACK_PRICE_ILS[pendingPack]}</span> בכרטיס האשראי השמור עבור חבילה של <span className="font-bold text-foreground">{pendingPack} הודעות</span>.
+                  <br />
+                  ההודעות יתווספו מיד ליתרת ה״נוספות״ ולא פוקעות.
+                </>
+              )}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex gap-2 pt-2">
+            <Button
+              variant="outline"
+              className="flex-1"
+              onClick={() => setPendingPack(null)}
+              disabled={confirmingPurchase}
+            >
+              ביטול
+            </Button>
+            <Button
+              className="flex-1 bg-blue-600 hover:bg-blue-700 text-white"
+              onClick={() => pendingPack && handlePurchase(pendingPack)}
+              disabled={confirmingPurchase}
+            >
+              {confirmingPurchase ? "מחייב..." : "אשר ותחויב"}
+            </Button>
           </div>
         </DialogContent>
       </Dialog>

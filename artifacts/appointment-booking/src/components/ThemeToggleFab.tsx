@@ -38,10 +38,11 @@ export default function ThemeToggleFab() {
       onClick={toggle}
       aria-label={theme === "dark" ? "מצב בהיר" : "מצב כהה"}
       title={theme === "dark" ? "מצב בהיר" : "מצב כהה"}
-      // Bottom-right corner, stacked directly ABOVE the accessibility FAB
-      // (which sits at bottom: 5rem). 44px button + 12px gap ≈ 8.5rem.
-      className="fixed right-4 z-[56] w-11 h-11 rounded-full shadow-lg flex items-center justify-center transition-all active:scale-95 hover:scale-110 bg-white text-gray-700 border border-gray-200 hover:bg-gray-50 dark:bg-neutral-800 dark:text-gray-100 dark:border-neutral-700 dark:hover:bg-neutral-700"
-      style={{ bottom: "8.5rem" }}
+      // Bottom-right corner, stacked directly ABOVE the accessibility FAB.
+      // Mobile: accessibility at (7rem + safe-area), so theme sits 3.5rem
+      // higher = (10.5rem + safe-area) to keep the same gap. Desktop
+      // preserves the classic 8.5rem offset (no bottom nav to clear).
+      className="fixed right-4 z-[56] w-11 h-11 rounded-full shadow-lg flex items-center justify-center transition-all active:scale-95 hover:scale-110 bg-white text-gray-700 border border-gray-200 hover:bg-gray-50 dark:bg-neutral-800 dark:text-gray-100 dark:border-neutral-700 dark:hover:bg-neutral-700 bottom-[calc(10.5rem+env(safe-area-inset-bottom))] md:bottom-[8.5rem]"
     >
       {theme === "dark" ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
     </button>

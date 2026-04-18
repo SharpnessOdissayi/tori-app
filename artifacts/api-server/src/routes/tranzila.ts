@@ -1,4 +1,5 @@
 import { Router } from "express";
+import crypto from "node:crypto";
 import { db, appointmentsTable, businessesTable } from "@workspace/db";
 import { eq, and } from "drizzle-orm";
 import jwt from "jsonwebtoken";
@@ -15,15 +16,26 @@ const SUPPLIER = process.env.TRANZILA_SUPPLIER ?? "";
 // (Settings → Terminal → Notify → Notify Password). Tranzila echoes this
 // value in the POST body on every /notify call.
 //
-// Soft check: if TRANZILA_NOTIFY_PASSWORD is set on Railway but NOT yet
-// mirrored in the Tranzila dashboard, Tranzila's webhooks won't carry the
-// password field — so we only REJECT when the password is explicitly WRONG
-// (someone trying to forge), and log a warning when it's MISSING (likely
-// a legit webhook before the dashboard config is complete). Flip to strict
-// mode by setting TRANZILA_STRICT_NOTIFY=true once the dashboard is
-// configured on both terminals.
+// Strict by default in production: if TRANZILA_NOTIFY_PASSWORD is set, a
+// webhook without the matching password is rejected. Only in non-prod
+// (or with TRANZILA_STRICT_NOTIFY=false explicitly) do we fall back to
+// accept-with-warning, to ease dashboard bring-up. This closes the
+// account-takeover hole where a forged notify could overwrite a
+// business's tranzilaToken or confirm an unpaid appointment.
 const TRANZILA_NOTIFY_PASSWORD = (process.env.TRANZILA_NOTIFY_PASSWORD ?? "").trim();
-const TRANZILA_STRICT_NOTIFY   = process.env.TRANZILA_STRICT_NOTIFY === "true";
+const IS_PRODUCTION            = process.env.NODE_ENV === "production";
+const TRANZILA_STRICT_NOTIFY   = process.env.TRANZILA_STRICT_NOTIFY === "false"
+  ? false
+  : (process.env.TRANZILA_STRICT_NOTIFY === "true" || IS_PRODUCTION);
+
+// Constant-time equality for the notify_password. Length mismatches are
+// rejected first so timingSafeEqual doesn't throw on unequal buffer lengths.
+function safeEqualStrings(a: string, b: string): boolean {
+  const ab = Buffer.from(a, "utf8");
+  const bb = Buffer.from(b, "utf8");
+  if (ab.length !== bb.length) return false;
+  return crypto.timingSafeEqual(ab, bb);
+}
 
 // Subscription pricing:
 //   First month:  ₪50 (50% opening discount, paid on the iframe at signup)
@@ -133,18 +145,19 @@ router.post("/tranzila/notify", async (req, res): Promise<void> => {
   try {
     const body = req.body ?? {};
 
-    // ── Authenticate webhook (soft by default) ───────────────────────────
+    // ── Authenticate webhook ─────────────────────────────────────────────
     // Tranzila echoes the Notify Password in the POST body (param name
-    // `notify_password` per the DirectNG/My-Billing spec). Any caller that
-    // provides the WRONG password is clearly a forgery attempt and is
-    // rejected. Missing password is only rejected when STRICT_NOTIFY is
-    // explicitly enabled — otherwise we log a warning and accept, so
-    // that legitimate webhooks don't drop while the Tranzila dashboard
-    // config is still pending.
+    // `notify_password` per the DirectNG/My-Billing spec). We require a
+    // valid password in STRICT mode (default in production). The compare
+    // is constant-time to prevent timing oracles on the shared secret.
+    //
+    // In non-prod / explicitly relaxed mode, a missing password is logged
+    // but accepted to ease dashboard bring-up. A WRONG password is
+    // ALWAYS rejected regardless of mode.
     const notifyPassword = String(
       body.notify_password ?? body.notifyPassword ?? ""
     ).trim();
-    if (notifyPassword && TRANZILA_NOTIFY_PASSWORD && notifyPassword !== TRANZILA_NOTIFY_PASSWORD) {
+    if (notifyPassword && TRANZILA_NOTIFY_PASSWORD && !safeEqualStrings(notifyPassword, TRANZILA_NOTIFY_PASSWORD)) {
       console.warn(
         "[Tranzila] Notify REJECTED — wrong notify_password (likely forgery)",
         { ip: req.ip, pdesc: body.pdesc }
@@ -154,6 +167,9 @@ router.post("/tranzila/notify", async (req, res): Promise<void> => {
     }
     if (!notifyPassword) {
       if (TRANZILA_STRICT_NOTIFY) {
+        // Production default. A missing password means either the Tranzila
+        // dashboard isn't configured yet (fix the config) or a forged
+        // request hit us (reject). Either way — drop.
         console.warn(
           "[Tranzila] Notify REJECTED — missing notify_password under STRICT mode",
           { ip: req.ip, pdesc: body.pdesc }
@@ -162,7 +178,7 @@ router.post("/tranzila/notify", async (req, res): Promise<void> => {
         return;
       }
       console.warn(
-        "[Tranzila] Notify accepted WITHOUT password — configure the Tranzila dashboard and set TRANZILA_STRICT_NOTIFY=true to harden",
+        "[Tranzila] Notify accepted WITHOUT password (non-strict mode) — configure the Tranzila dashboard to harden",
         { ip: req.ip, pdesc: body.pdesc }
       );
     }

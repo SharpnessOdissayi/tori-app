@@ -99,6 +99,8 @@ function mapBusiness(b: typeof businessesTable.$inferSelect) {
     sendReminders: b.sendReminders,
     requireArrivalConfirmation: b.requireArrivalConfirmation,
     sendWhatsAppReminders: b.sendWhatsAppReminders,
+    // Owner opt-in for automated WhatsApp cancel message on owner-cancel.
+    notifyOnCancel: (b as any).notifyOnCancel ?? false,
     reminderTriggers: b.reminderTriggers ?? null,
     reminderCustomText: b.reminderCustomText ?? null,
     shabbatMode: b.shabbatMode,
@@ -236,6 +238,7 @@ router.patch("/business/profile", requireBusinessAuth, async (req, res): Promise
   if (d.sendBookingConfirmation !== undefined) updates.sendBookingConfirmation = d.sendBookingConfirmation ?? true;
   if (d.sendReminders !== undefined) updates.sendReminders = d.sendReminders ?? true;
   if (d.requireArrivalConfirmation !== undefined) updates.requireArrivalConfirmation = d.requireArrivalConfirmation ?? false;
+  if (d.notifyOnCancel !== undefined) (updates as any).notifyOnCancel = !!d.notifyOnCancel;
   if (d.sendWhatsAppReminders !== undefined) updates.sendWhatsAppReminders = d.sendWhatsAppReminders ?? true;
   if (d.reminderTriggers !== undefined) updates.reminderTriggers = d.reminderTriggers ?? undefined;
   if (d.reminderCustomText !== undefined) updates.reminderCustomText = d.reminderCustomText ?? undefined;
@@ -770,15 +773,23 @@ router.patch("/business/appointments/:id/approve", requireBusinessAuth, async (r
     .from(businessesTable)
     .where(eq(businessesTable.id, req.business!.businessId));
 
+  let whatsappStatus: "sent" | "skipped_free_plan" | "skipped_no_business" = "skipped_no_business";
   if (business) {
     const [, month, day] = updated.appointmentDate.split("-");
     const formattedDate = `${day}/${month}`;
-    if (await isBusinessPro(req.business!.businessId)) {
-      sendClientConfirmation(updated.phoneNumber, updated.clientName, business.name, updated.serviceName, formattedDate, updated.appointmentTime, business.slug).catch(() => {});
+    const paid = await isBusinessPro(req.business!.businessId);
+    if (paid) {
+      whatsappStatus = "sent";
+      sendClientConfirmation(updated.phoneNumber, updated.clientName, business.name, updated.serviceName, formattedDate, updated.appointmentTime, business.slug)
+        .then(() => console.log(`[approve] WhatsApp confirmation sent for appt ${id} → ${updated.phoneNumber}`))
+        .catch(err => console.error(`[approve] WhatsApp confirmation FAILED for appt ${id} → ${updated.phoneNumber}:`, err?.message ?? err));
+    } else {
+      whatsappStatus = "skipped_free_plan";
+      console.warn(`[approve] Skipping WhatsApp for appt ${id} — business ${req.business!.businessId} not on a paid plan`);
     }
   }
 
-  res.json({ success: true, message: "Appointment approved" });
+  res.json({ success: true, message: "Appointment approved", whatsappStatus });
 });
 
 router.patch("/business/appointments/:id/reschedule", requireBusinessAuth, async (req, res): Promise<void> => {
@@ -928,10 +939,17 @@ router.delete("/business/appointments/:id", requireBusinessAuth, async (req, res
     .set({ status: cancelledStatus, ...(({ cancelledBy: "business", cancelReason }) as any) })
     .where(eq(appointmentsTable.id, appt.id));
 
-  // Notify client via WhatsApp (non-blocking) — Pro only
+  // Notify client via WhatsApp (non-blocking) — Pro only AND owner has
+  // opted in via notifyOnCancel (default off). Some owners prefer to
+  // call the customer themselves rather than send an automated message.
   const [, month, day] = appt.appointmentDate.split("-");
   const formattedDate = `${day}/${month}`;
-  if (await isBusinessPro(req.business!.businessId)) {
+  const [bizCancelPref] = await db
+    .select({ notifyOnCancel: (businessesTable as any).notifyOnCancel })
+    .from(businessesTable)
+    .where(eq(businessesTable.id, req.business!.businessId));
+  const shouldNotify = !!bizCancelPref?.notifyOnCancel;
+  if (shouldNotify && (await isBusinessPro(req.business!.businessId))) {
     sendClientCancellation(appt.phoneNumber, appt.clientName, req.business!.businessName, formattedDate, appt.appointmentTime).catch(() => {});
   }
 

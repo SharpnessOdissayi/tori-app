@@ -64,6 +64,12 @@ export const businessesTable = pgTable("businesses", {
   sendReminders: boolean("send_reminders").notNull().default(true),
   requireArrivalConfirmation: boolean("require_arrival_confirmation").notNull().default(false),
   sendWhatsAppReminders: boolean("send_whatsapp_reminders").notNull().default(true),
+  // Owner-controlled opt-in: when enabled, a WhatsApp message is sent to
+  // the customer whenever the owner cancels their appointment. Default
+  // OFF — historically every owner-cancel auto-notified the client, and
+  // some owners prefer to call the customer themselves rather than send
+  // an impersonal automated message. Reported feedback → fixed.
+  notifyOnCancel: boolean("notify_on_cancel").notNull().default(false),
   reminderTriggers: text("reminder_triggers"),
   reminderCustomText: text("reminder_custom_text"),
   // Shabbat settings: "any" = send any day | "before" = only before Shabbat (Friday) | "after" = only after Shabbat (Sat night)

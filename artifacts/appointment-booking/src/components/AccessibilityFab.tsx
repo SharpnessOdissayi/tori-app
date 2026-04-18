@@ -143,8 +143,11 @@ export default function AccessibilityFab({ primaryColor }: { primaryColor?: stri
         aria-label="פתח תפריט נגישות"
         aria-expanded={open}
         title="נגישות"
-        className="fixed right-4 z-[55] w-11 h-11 rounded-full shadow-lg flex items-center justify-center transition-all hover:scale-110 focus:outline-none focus:ring-2 focus:ring-offset-2"
-        style={{ backgroundColor: primaryColor ?? "#1560BD", bottom: "5rem" }}
+        // Mobile bumps the bottom value so the FAB clears the MobileBottomNav
+        // (h-16 + safe-area) and its top-right "אישור תורים" cell; desktop
+        // has no bottom nav so it stays at the classic 5rem offset.
+        className="fixed right-4 z-[55] w-11 h-11 rounded-full shadow-lg flex items-center justify-center transition-all hover:scale-110 focus:outline-none focus:ring-2 focus:ring-offset-2 bottom-[calc(7rem+env(safe-area-inset-bottom))] md:bottom-20"
+        style={{ backgroundColor: primaryColor ?? "#1560BD" }}
       >
         <FaWheelchair size={22} color="white" aria-hidden="true" />
       </button>

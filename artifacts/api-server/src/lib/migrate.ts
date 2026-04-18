@@ -196,6 +196,9 @@ export async function runMigrations() {
       `ALTER TABLE appointments ADD COLUMN IF NOT EXISTS reminder_morning_sent BOOLEAN NOT NULL DEFAULT FALSE`,
       "ALTER TABLE businesses ADD COLUMN IF NOT EXISTS tranzila_enabled BOOLEAN NOT NULL DEFAULT FALSE",
       "ALTER TABLE businesses ADD COLUMN IF NOT EXISTS deposit_amount_agorot INTEGER",
+      // Default OFF — owners explicitly opt-in if they want automated
+      // WhatsApp cancel messages sent to customers on owner-side cancels.
+      "ALTER TABLE businesses ADD COLUMN IF NOT EXISTS notify_on_cancel BOOLEAN NOT NULL DEFAULT FALSE",
       "ALTER TABLE client_businesses ADD COLUMN IF NOT EXISTS facebook_id TEXT",
       "ALTER TABLE businesses ADD COLUMN IF NOT EXISTS business_categories TEXT",
       "ALTER TABLE businesses ADD COLUMN IF NOT EXISTS city TEXT",
