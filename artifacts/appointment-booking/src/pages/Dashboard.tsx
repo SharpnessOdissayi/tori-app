@@ -43,7 +43,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useImageUpload } from "@/hooks/useImageUpload";
 import {
   Calendar, Clock, Settings, Briefcase, LogOut, Plus, Trash2, Edit,
-  Users, ListOrdered, Palette, Puzzle, Phone, TrendingUp, CheckCircle,
+  Users, ListOrdered, Palette, Puzzle, Phone, TrendingUp, CheckCircle, Sparkles,
   ExternalLink, Info, Upload, Image as ImageIcon, Crown, Zap, X, Copy, Check, Link,
   ChevronLeft, ChevronRight, Eye, EyeOff, Ban, DollarSign,
   MessageSquare, Send, Search, ChevronDown, Instagram, Bell, FileText,
@@ -823,6 +823,10 @@ export default function Dashboard() {
   const isProPlan =
     headerProfile?.subscriptionPlan === "pro" ||
     headerProfile?.subscriptionPlan === "pro-plus";
+  // עסקי-only features (multi-staff, advanced analytics, data export).
+  // Pro users see the tab in the nav but clicking lands them on a
+  // "שדרג לעסקי" upgrade prompt; עסקי users get the real feature.
+  const isProPlusPlan = headerProfile?.subscriptionPlan === "pro-plus";
 
   return (
     // Dashboard font is fixed to Rubik regardless of the business's
@@ -967,7 +971,19 @@ export default function Dashboard() {
                 <Palette className="w-4 h-4" /> עיצוב
               </TabsTrigger>
               <TabsTrigger value="integrations" className="gap-1.5 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground whitespace-nowrap">
-                <Phone className="w-4 h-4" /> הודעות {!isProPlan && <ProShine />}
+                <Phone className="w-4 h-4" /> הודעות ותזכורות {!isProPlan && <ProShine />}
+              </TabsTrigger>
+              {/* עסקי-only tabs — always visible so Pro users know what
+                  they'd unlock by upgrading. Clicking on Pro routes to
+                  the upgrade prompt; on עסקי routes to the real feature. */}
+              <TabsTrigger value="staff" className="gap-1.5 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground whitespace-nowrap">
+                <Users className="w-4 h-4" /> צוות {!isProPlusPlan && <ProShine />}
+              </TabsTrigger>
+              <TabsTrigger value="analytics-pro" className="gap-1.5 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground whitespace-nowrap">
+                <TrendingUp className="w-4 h-4" /> אנליטיקה {!isProPlusPlan && <ProShine />}
+              </TabsTrigger>
+              <TabsTrigger value="data-export" className="gap-1.5 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground whitespace-nowrap">
+                <Download className="w-4 h-4" /> ייצוא {!isProPlusPlan && <ProShine />}
               </TabsTrigger>
               <TabsTrigger value="settings" className="gap-1.5 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground whitespace-nowrap">
                 <Settings className="w-4 h-4" /> הגדרות
@@ -1008,7 +1024,13 @@ export default function Dashboard() {
           <TabsContent value="waitlist" dir="rtl"><WaitlistTab /></TabsContent>
           <TabsContent value="receipts" dir="rtl"><ReceiptsTab /></TabsContent>
           <TabsContent value="branding" dir="rtl"><BrandingTab /></TabsContent>
-          <TabsContent value="integrations" dir="rtl">{isProPlan ? <IntegrationsTab /> : <ProUpgradePrompt title="הודעות — מנוי PRO בלבד" desc="שדרג למנוי PRO כדי לנהל תבניות WhatsApp אישיות, הודעות ברודקאסט ותזכורות מתוזמנות" />}</TabsContent>
+          <TabsContent value="integrations" dir="rtl">{isProPlan ? <IntegrationsTab /> : <ProUpgradePrompt title="הודעות ותזכורות — מנוי PRO בלבד" desc="שדרג למנוי PRO כדי לנהל תבניות WhatsApp אישיות, הודעות ברודקאסט ותזכורות מתוזמנות" />}</TabsContent>
+          {/* עסקי-tier-only tabs. Pro sees a "שדרג לעסקי" upgrade prompt;
+              עסקי sees the real feature. Gate is isProPlusPlan, not
+              isProPlan, so Pro users don't accidentally see these. */}
+          <TabsContent value="staff" dir="rtl">{isProPlusPlan ? <StaffTab /> : <BusinessUpgradePrompt title="ניהול צוות — מנוי עסקי בלבד" desc="שדרג למנוי עסקי כדי לנהל עובדים נפרדים עם יומנים אישיים, שירותים מותאמים ושעות עבודה נפרדות" />}</TabsContent>
+          <TabsContent value="analytics-pro" dir="rtl">{isProPlusPlan ? <AdvancedAnalyticsTab /> : <BusinessUpgradePrompt title="אנליטיקה מתקדמת — מנוי עסקי בלבד" desc="שדרג למנוי עסקי כדי לראות LTV לפי לקוח, נתוני נאמנות, תחזית הכנסות ומגמות עסקיות מעמיקות" />}</TabsContent>
+          <TabsContent value="data-export" dir="rtl">{isProPlusPlan ? <DataExportTab /> : <BusinessUpgradePrompt title="ייצוא נתונים — מנוי עסקי בלבד" desc="שדרג למנוי עסקי כדי להוריד קבצי Excel/CSV של לקוחות, תורים והכנסות לרואה החשבון" />}</TabsContent>
           <TabsContent value="settings" dir="rtl"><SettingsTab /></TabsContent>
         </Tabs>
 
@@ -1047,8 +1069,11 @@ export default function Dashboard() {
               { value: "waitlist",     icon: <ListOrdered className="w-6 h-6" />, label: "המתנה" },
               { value: "receipts",     icon: <FileText className="w-6 h-6" />,  label: "קבלות" },
               { value: "branding",     icon: <Palette className="w-6 h-6" />,   label: "עיצוב" },
-              { value: "integrations", icon: <Phone className="w-6 h-6" />,     label: "תזכורות והודעות" },
-              { value: "settings",     icon: <Settings className="w-6 h-6" />,  label: "הגדרות" },
+              { value: "integrations",   icon: <Phone className="w-6 h-6" />,       label: "הודעות ותזכורות" },
+              { value: "staff",          icon: <Users className="w-6 h-6" />,       label: "צוות" },
+              { value: "analytics-pro",  icon: <TrendingUp className="w-6 h-6" />,  label: "אנליטיקה" },
+              { value: "data-export",    icon: <Download className="w-6 h-6" />,    label: "ייצוא" },
+              { value: "settings",       icon: <Settings className="w-6 h-6" />,    label: "הגדרות" },
             ].map(({ value, icon, label }) => (
               <button
                 key={value}
@@ -1413,9 +1438,12 @@ function Login({ onLogin }: { onLogin: (t: string) => void }) {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!identifier.trim()) return;
-    // Super admin shortcut: username "admin" → redirect to super admin panel
+    // Super admin shortcut: username "admin" → redirect to super admin panel.
+    // Route is /superadmin (no hyphen) per App.tsx — must match or the
+    // redirect lands on a 404 while the real super-admin page sits at
+    // /superadmin.
     if (identifier.trim().toLowerCase() === "admin") {
-      navigate("/super-admin");
+      navigate(import.meta.env.VITE_ADMIN_PATH ?? "/superadmin");
       return;
     }
     if (!password) {
@@ -7358,5 +7386,230 @@ function SmsBulkCard() {
         </DialogContent>
       </Dialog>
     </>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// BusinessUpgradePrompt — עסקי-tier locked state for Pro + Free users
+// ─────────────────────────────────────────────────────────────────────────────
+// Sibling of ProUpgradePrompt but pushes users toward the עסקי tier
+// (not Pro). Used on the staff / analytics / data-export tabs.
+function BusinessUpgradePrompt({ title, desc }: { title: string; desc: string }) {
+  const { toast } = useToast();
+  return (
+    <div className="flex flex-col items-center justify-center py-16 px-6 text-center space-y-4 bg-gradient-to-br from-blue-50 to-sky-50 rounded-2xl border-2 border-blue-200">
+      <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-blue-500 to-sky-600 flex items-center justify-center shadow-lg shadow-blue-500/30">
+        <Sparkles className="w-8 h-8 text-white" />
+      </div>
+      <div>
+        <h3 className="text-xl font-bold text-blue-900">{title}</h3>
+        <p className="text-sm text-blue-700 mt-2 max-w-md">{desc}</p>
+      </div>
+      <Button
+        size="lg"
+        className="gap-2 bg-gradient-to-r from-blue-600 to-sky-600 hover:from-blue-700 hover:to-sky-700 text-white shadow-lg shadow-blue-500/30"
+        onClick={() => toast({ title: "שדרוג למסלול עסקי", description: "פתח את לשונית ההגדרות → סטטוס מנוי → שדרג למסלול עסקי" })}
+      >
+        <Sparkles className="w-4 h-4" /> שדרג למסלול עסקי
+      </Button>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// StaffTab — עסקי-only: manage staff members backed by /api/staff
+// ─────────────────────────────────────────────────────────────────────────────
+// Minimal first version: list + add + delete. Service-link UI
+// ("which services each worker does") and avatar uploads are queued for a
+// follow-up — they can both be added without changing the backend contract.
+function StaffTab() {
+  const { toast } = useToast();
+  const [staff, setStaff] = useState<Array<{
+    id: number; name: string; phone: string | null; email: string | null;
+    color: string | null; isOwner: boolean; isActive: boolean;
+  }>>([]);
+  const [loading, setLoading] = useState(true);
+  const [newName, setNewName] = useState("");
+  const [newPhone, setNewPhone] = useState("");
+  const [adding, setAdding] = useState(false);
+
+  const token = typeof window !== "undefined"
+    ? (localStorage.getItem("biz_token") ?? sessionStorage.getItem("biz_token") ?? "")
+    : "";
+
+  const load = async () => {
+    if (!token) return;
+    setLoading(true);
+    try {
+      const res = await fetch("/api/staff", { headers: { Authorization: `Bearer ${token}` } });
+      if (res.ok) setStaff(await res.json());
+    } finally {
+      setLoading(false);
+    }
+  };
+  useEffect(() => { load(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, []);
+
+  async function handleAdd() {
+    const name = newName.trim();
+    if (!name) return;
+    setAdding(true);
+    try {
+      const res = await fetch("/api/staff", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ name, phone: newPhone.trim() || null }),
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        if (json?.error === "seat_cap_reached") {
+          toast({
+            title: "הגעת למגבלת העובדים",
+            description: `המסלול שלך מוגבל ל-${json.cap} עובדים. צריך להסיר עובד קיים לפני הוספה.`,
+            variant: "destructive",
+          });
+        } else {
+          toast({ title: "שגיאה בהוספה", description: json?.error ?? "נסה שוב", variant: "destructive" });
+        }
+        return;
+      }
+      setNewName("");
+      setNewPhone("");
+      await load();
+      toast({ title: "נוסף בהצלחה" });
+    } finally {
+      setAdding(false);
+    }
+  }
+
+  async function handleRemove(id: number) {
+    if (!confirm("להסיר עובד זה?")) return;
+    const res = await fetch(`/api/staff/${id}`, {
+      method: "DELETE",
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) {
+      const json = await res.json().catch(() => ({}));
+      toast({ title: "שגיאה במחיקה", description: json?.error ?? "נסה שוב", variant: "destructive" });
+      return;
+    }
+    await load();
+    toast({ title: "העובד הוסר" });
+  }
+
+  return (
+    <div className="space-y-6 max-w-2xl">
+      <div>
+        <h2 className="text-xl font-bold">ניהול צוות</h2>
+        <p className="text-sm text-muted-foreground mt-1">
+          כל עובד מקבל יומן משלו, ולקוחות יוכלו לבחור אצל מי הם רוצים לקבוע תור.
+          כלול במסלול עסקי: 2 עובדים. כל עובד נוסף מעל — ₪25/חודש (עד 5 סה״כ).
+        </p>
+      </div>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">הוספת עובד חדש</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <div className="space-y-1.5">
+            <Label>שם</Label>
+            <Input value={newName} onChange={e => setNewName(e.target.value)} placeholder="לדוגמה: דנה כהן" />
+          </div>
+          <div className="space-y-1.5">
+            <Label>טלפון (אופציונלי)</Label>
+            <Input value={newPhone} onChange={e => setNewPhone(e.target.value)} placeholder="0501234567" dir="ltr" />
+          </div>
+          <Button onClick={handleAdd} disabled={adding || !newName.trim()} className="w-full">
+            {adding ? "מוסיף..." : "הוסף עובד"}
+          </Button>
+        </CardContent>
+      </Card>
+
+      <div className="space-y-2">
+        <h3 className="text-sm font-semibold text-muted-foreground">רשימת עובדים ({staff.length})</h3>
+        {loading && <div className="text-sm text-muted-foreground">טוען...</div>}
+        {!loading && staff.length === 0 && (
+          <div className="text-sm text-muted-foreground">עדיין לא נוספו עובדים — הוספת עובד ראשון למעלה.</div>
+        )}
+        {staff.map(s => (
+          <div key={s.id} className={`flex items-center justify-between gap-3 p-3 rounded-xl border ${s.isOwner ? "bg-blue-50 border-blue-200" : "bg-card"}`}>
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2">
+                <div className="font-semibold truncate">{s.name}</div>
+                {s.isOwner && (
+                  <Badge className="bg-blue-600 text-white text-[10px] px-2 py-0">בעלים</Badge>
+                )}
+                {!s.isActive && (
+                  <Badge className="bg-slate-200 text-slate-700 text-[10px] px-2 py-0">לא פעיל</Badge>
+                )}
+              </div>
+              {s.phone && <div className="text-xs text-muted-foreground" dir="ltr">{s.phone}</div>}
+            </div>
+            {!s.isOwner && (
+              <Button variant="ghost" size="sm" className="text-destructive hover:bg-destructive/10"
+                onClick={() => handleRemove(s.id)}>
+                <Trash2 className="w-4 h-4" />
+              </Button>
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// AdvancedAnalyticsTab — coming-soon placeholder for עסקי tier
+// ─────────────────────────────────────────────────────────────────────────────
+// The real analytics (LTV, cohorts, forecasting, heatmap) lands in a
+// follow-up shot. For now we show a clear "בקרוב" card so עסקי users
+// know the feature is intentional but not yet ready.
+function AdvancedAnalyticsTab() {
+  return (
+    <div className="flex flex-col items-center justify-center py-16 px-6 text-center space-y-4 bg-gradient-to-br from-blue-50 to-sky-50 rounded-2xl border-2 border-blue-200 max-w-2xl">
+      <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-blue-500 to-sky-600 flex items-center justify-center shadow-lg">
+        <TrendingUp className="w-8 h-8 text-white" />
+      </div>
+      <div>
+        <h3 className="text-xl font-bold text-blue-900">אנליטיקה מתקדמת — בפיתוח</h3>
+        <p className="text-sm text-blue-700 mt-2 max-w-md leading-relaxed">
+          אנחנו בונים עבורך לוח בקרה מקצועי שיכלול:
+        </p>
+      </div>
+      <ul className="text-sm text-blue-800 space-y-2 text-right max-w-md">
+        <li>• <strong>LTV לפי לקוח</strong> — כמה הכנסה כל לקוח מביא לאורך זמן</li>
+        <li>• <strong>נאמנות לקוחות</strong> — אחוז החוזרים אחרי הביקור הראשון</li>
+        <li>• <strong>שעות ושירותים חזקים</strong> — מפת חום של הזמנות לפי יום/שעה</li>
+        <li>• <strong>תחזית הכנסות</strong> — צפי ל-30 הימים הקרובים</li>
+        <li>• <strong>שיעור אי-הגעה (no-show)</strong> — לפי לקוח, שירות או שעה</li>
+      </ul>
+      <p className="text-xs text-blue-600 pt-2">יעודכן לכאן ברגע שנסיים — אל דאגה, לא נפספס אותך.</p>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// DataExportTab — coming-soon placeholder for עסקי tier
+// ─────────────────────────────────────────────────────────────────────────────
+function DataExportTab() {
+  return (
+    <div className="flex flex-col items-center justify-center py-16 px-6 text-center space-y-4 bg-gradient-to-br from-blue-50 to-sky-50 rounded-2xl border-2 border-blue-200 max-w-2xl">
+      <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-blue-500 to-sky-600 flex items-center justify-center shadow-lg">
+        <Download className="w-8 h-8 text-white" />
+      </div>
+      <div>
+        <h3 className="text-xl font-bold text-blue-900">ייצוא נתונים — בפיתוח</h3>
+        <p className="text-sm text-blue-700 mt-2 max-w-md leading-relaxed">
+          בקרוב תוכל להוריד קבצי Excel / CSV של:
+        </p>
+      </div>
+      <ul className="text-sm text-blue-800 space-y-2 text-right max-w-md">
+        <li>• <strong>לקוחות</strong> — שם, טלפון, אימייל, תאריך ביקור ראשון/אחרון, סכום הכנסה</li>
+        <li>• <strong>תורים</strong> — תאריך, שעה, שירות, לקוח, מחיר, סטטוס</li>
+        <li>• <strong>הכנסות</strong> — פילוח חודשי לרואה החשבון</li>
+        <li>• <strong>ביטולים ואי-הגעות</strong> — לצורכי דוח שנתי</li>
+      </ul>
+      <p className="text-xs text-blue-600 pt-2">כל הקבצים יהיו בפורמט תואם לאקסל, עברית ומע״מ כלול.</p>
+    </div>
   );
 }
