@@ -216,6 +216,7 @@ function StepPlan({ onNext }: { onNext: (plan: Plan) => void }) {
               <li className="flex items-start gap-2"><CheckCircle className="w-4 h-4 text-green-500 shrink-0 mt-0.5" /> לקוחות ללא הגבלה</li>
               <li className="flex items-start gap-2"><CheckCircle className="w-4 h-4 text-green-500 shrink-0 mt-0.5" /> עיצוב מותאם אישית (לוגו, צבעים, באנר)</li>
               <li className="flex items-start gap-2"><CheckCircle className="w-4 h-4 text-green-500 shrink-0 mt-0.5" /> אינטגרציית WhatsApp מלאה</li>
+              <li className="flex items-start gap-2"><CheckCircle className="w-4 h-4 text-green-500 shrink-0 mt-0.5" /> 100 הודעות SMS תפוצה בחודש</li>
               <li className="flex items-start gap-2"><CheckCircle className="w-4 h-4 text-green-500 shrink-0 mt-0.5" /> סטטיסטיקות ונתונים פיננסיים</li>
               <li className="flex items-start gap-2"><CheckCircle className="w-4 h-4 text-green-500 shrink-0 mt-0.5" /> קבלות אוטומטיות</li>
               <li className="flex items-start gap-2"><CheckCircle className="w-4 h-4 text-green-500 shrink-0 mt-0.5" /> גלריית תמונות</li>
