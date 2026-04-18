@@ -10,5 +10,5 @@ export async function isBusinessPro(businessId: number): Promise<boolean> {
     .select({ plan: businessesTable.subscriptionPlan })
     .from(businessesTable)
     .where(eq(businessesTable.id, businessId));
-  return row?.plan === "pro";
+  return row?.plan === "pro" || row?.plan === "pro-plus";
 }

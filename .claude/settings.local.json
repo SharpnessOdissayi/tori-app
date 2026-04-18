@@ -36,7 +36,8 @@
       "Bash(curl -s \"https://workspaceapi-server-production-8255.up.railway.app/api/public/lilash/availability?serviceId=3&date=2026-04-16\")",
       "Bash(curl -s -H \"Origin: https://kavati.net\" -I \"https://workspaceapi-server-production-8255.up.railway.app/api/public/lilash/next-slots?serviceId=3&count=8\")",
       "Bash(npx tsc:*)",
-      "Bash(ls artifacts/appointment-booking/src/pages/Payment*.tsx)"
+      "Bash(ls artifacts/appointment-booking/src/pages/Payment*.tsx)",
+      "Bash(grep -iE \"readme|\\\\.md$\")"
     ]
   }
 }
