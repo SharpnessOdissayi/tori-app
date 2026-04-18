@@ -75,6 +75,46 @@ function buildLoginResponse(business: typeof businessesTable.$inferSelect, token
 }
 
 // POST /auth/business/login — supports email, phone, or username
+// GET /auth/me — who's behind this JWT? Returns the business context +
+// (for staff tokens) the staff-member info so the dashboard can scope
+// views. Used on app boot to rehydrate the staff flag across reloads
+// (JWT isn't decoded on the frontend — this endpoint is the source of
+// truth).
+router.get("/auth/me", async (req, res): Promise<void> => {
+  const authHeader = req.headers.authorization ?? "";
+  const token = authHeader.startsWith("Bearer ") ? authHeader.slice(7) : "";
+  if (!token) { res.status(401).json({ error: "Unauthorized" }); return; }
+  const jwt = await import("jsonwebtoken");
+  const { JWT_SECRET } = await import("../lib/auth");
+  let payload: any;
+  try { payload = jwt.default.verify(token, JWT_SECRET); }
+  catch { res.status(401).json({ error: "Unauthorized" }); return; }
+
+  const businessId = payload.businessId ?? payload.id;
+  if (!businessId) { res.status(401).json({ error: "Unauthorized" }); return; }
+  const [biz] = await db.select().from(businessesTable).where(eq(businessesTable.id, businessId));
+  if (!biz) { res.status(404).json({ error: "Business not found" }); return; }
+
+  let staff: { id: number; name: string; isOwner: boolean; email: string | null; phone: string | null } | null = null;
+  if (payload.staffMemberId) {
+    const { staffMembersTable } = await import("@workspace/db");
+    const [row] = await db.select().from(staffMembersTable).where(eq(staffMembersTable.id, payload.staffMemberId));
+    if (row) {
+      staff = { id: row.id, name: row.name, isOwner: row.isOwner, email: row.email, phone: row.phone };
+    }
+  }
+
+  res.json({
+    businessId:      biz.id,
+    businessName:    biz.name,
+    businessSlug:    biz.slug,
+    ownerEmail:      biz.email,
+    // When staff is set, the frontend should scope views (calendar
+    // filtered to their appointments, settings/billing hidden, etc.)
+    staff,
+  });
+});
+
 router.post("/auth/business/login", async (req, res): Promise<void> => {
   const parsed = BusinessLoginBody.safeParse(req.body);
   if (!parsed.success) {
