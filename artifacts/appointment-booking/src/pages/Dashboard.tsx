@@ -7226,6 +7226,109 @@ function TestChargeButton() {
   );
 }
 
+/**
+ * Opens a ₪1 Tranzila iframe in a dialog. On successful payment the
+ * notify handler (pdesc="בדיקת טוקן קבעתי - {id}") persists the fresh
+ * TranzilaTK on the business row — no STO, no plan change. We invalidate
+ * the profile query so hasTranzilaToken flips to true and the sibling
+ * "בדוק ₪1" button becomes clickable. Owners use this to bootstrap a
+ * token before the very first subscription payment, or to re-extract one
+ * after card expiry.
+ */
+function TestIframeButton({ hasToken }: { hasToken: boolean }) {
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+  const [loading, setLoading] = useState(false);
+  const [iframeUrl, setIframeUrl] = useState<string | null>(null);
+  const [showDialog, setShowDialog] = useState(false);
+
+  // PaymentSuccess.tsx postMessages up to the parent; we key off the
+  // paymentType field (="test-token" because our iframe URL uses
+  // success_url_address=?type=test-token).
+  useEffect(() => {
+    const handler = (e: MessageEvent) => {
+      if (e.data?.type === "kavati_payment_success" && e.data?.paymentType === "test-token") {
+        setShowDialog(false);
+        setIframeUrl(null);
+        queryClient.invalidateQueries({ queryKey: getGetBusinessProfileQueryKey() });
+        toast({
+          title: "✅ הטוקן נשמר",
+          description: "לחץ 'בדוק ₪1' כדי לאמת חיוב טוקן-בלבד",
+        });
+      }
+      if (e.data?.type === "kavati_payment_fail" && e.data?.paymentType === "test-token") {
+        toast({
+          title: "❌ חיוב ה-₪1 נכשל",
+          description: "בדוק את פרטי הכרטיס ונסה שוב",
+          variant: "destructive",
+        });
+      }
+    };
+    window.addEventListener("message", handler);
+    return () => window.removeEventListener("message", handler);
+  }, [queryClient, toast]);
+
+  async function open() {
+    setLoading(true);
+    try {
+      const token = localStorage.getItem("biz_token") || sessionStorage.getItem("biz_token");
+      const res = await fetch(`${API_BASE_DASH}/tranzila/test-iframe-url`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json();
+      if (!res.ok || !data.url) throw new Error(data.error ?? "שגיאה");
+      setIframeUrl(data.url);
+      setShowDialog(true);
+    } catch (err: any) {
+      toast({ title: "שגיאה בטעינת iframe", description: err.message, variant: "destructive" });
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <>
+      <Button
+        size="sm"
+        variant={hasToken ? "ghost" : "default"}
+        onClick={open}
+        disabled={loading}
+        className={hasToken
+          ? "shrink-0 text-blue-600 hover:text-blue-700 hover:bg-blue-50"
+          : "bg-blue-500 hover:bg-blue-600 text-white gap-1.5 shrink-0"}
+      >
+        {loading ? "טוען…" : hasToken ? "חידוש טוקן ₪1" : "הוצא טוקן — תשלום ₪1"}
+      </Button>
+
+      <Dialog open={showDialog} onOpenChange={v => { setShowDialog(v); if (!v) setIframeUrl(null); }}>
+        <DialogContent dir="rtl" className="max-w-lg p-0 overflow-hidden">
+          <DialogHeader className="p-5 pb-3 border-b">
+            <DialogTitle className="flex items-center gap-2 text-xl">
+              🧪 בדיקת טוקן — תשלום ₪1
+            </DialogTitle>
+            <DialogDescription>
+              תשלום דמה של ₪1 בכרטיס שלך. הטוקן שיחזור יישמר אוטומטית על העסק, ואז תוכל ללחוץ "בדוק ₪1" כדי לאמת חיוב טוקן-בלבד. ללא STO וללא שינוי מנוי.
+            </DialogDescription>
+          </DialogHeader>
+          {iframeUrl && (
+            <div className="p-3">
+              <iframe
+                src={iframeUrl}
+                allow="payment"
+                style={{ width: "100%", height: 440, border: "none", borderRadius: 8 }}
+                title="תשלום מאובטח — Tranzila (בדיקת טוקן)"
+              />
+            </div>
+          )}
+          <div className="px-5 pb-4 text-center text-xs text-muted-foreground">
+            🔒 מאובטח ע"י Tranzila
+          </div>
+        </DialogContent>
+      </Dialog>
+    </>
+  );
+}
+
 function SubscriptionStatusCard() {
   const { data: profile } = useGetBusinessProfile();
   const queryClient = useQueryClient();
@@ -7388,7 +7491,7 @@ function SubscriptionStatusCard() {
               the button showed up even for tokenless businesses and
               every click 400'd. Fixed. */}
           {isPro && (profile as any)?.hasTranzilaToken ? (
-            <div className="pt-3 border-t">
+            <div className="pt-3 border-t space-y-3">
               <div className="flex items-center justify-between gap-2 flex-wrap">
                 <div className="text-xs text-muted-foreground">
                   <div className="font-semibold text-foreground">🧪 בדיקת חיוב חד-פעמי (₪1)</div>
@@ -7396,12 +7499,26 @@ function SubscriptionStatusCard() {
                 </div>
                 <TestChargeButton />
               </div>
+              {/* Re-extract token option: useful when the stored one
+                  expires or the owner swaps card. Charges ₪1 via iframe
+                  and overwrites tranzilaToken without touching STO. */}
+              <div className="flex items-center justify-between gap-2 flex-wrap">
+                <div className="text-xs text-muted-foreground">
+                  <div className="font-semibold text-foreground">🔄 חידוש טוקן מכרטיס חדש</div>
+                  <div className="text-[11px] mt-0.5">פותח iframe של ₪1 ושומר טוקן טרי — בלי לגעת במנוי</div>
+                </div>
+                <TestIframeButton hasToken />
+              </div>
             </div>
           ) : isPro ? (
-            // Pro/עסקי but no token — show a hint so the owner knows
-            // why the test button isn't available and how to fix it.
-            <div className="pt-3 border-t text-xs text-muted-foreground">
-              💳 לא נשמר עדיין טוקן כרטיס אשראי. אחרי התשלום הראשון דרך ה-iframe יופיע כאן כפתור בדיקה.
+            // Pro/עסקי but no token — offer the iframe as a bootstrap
+            // path so the owner can save a token and unlock the test
+            // button without going through a full subscription flow.
+            <div className="pt-3 border-t space-y-2">
+              <div className="text-xs text-muted-foreground">
+                💳 לא נשמר עדיין טוקן כרטיס אשראי. לחץ כאן לביצוע תשלום של ₪1 שישמור טוקן — אז יופיע כפתור "בדוק ₪1".
+              </div>
+              <TestIframeButton hasToken={false} />
             </div>
           ) : null}
         </CardContent>
