@@ -20,12 +20,21 @@ export function MobileBottomNav({
   // centre, תפריט on the far left.
   // Owner requested a literal house glyph for "בית" so the label and icon
   // agree — we were using LayoutDashboard which reads as a grid/widget view.
+  //
+  // Owner also asked to surface the pending-approval count right on the
+  // button so it's impossible to miss. We do both now: the red badge on
+  // the icon (quick peripheral glance) AND inline the count into the
+  // label text ("אישור · N"). Label is shortened when a count is shown
+  // so the number actually fits in the narrow tab cell.
+  const approvalsLabel = pendingCount > 0
+    ? `אישור · ${pendingCount > 99 ? "99+" : pendingCount}`
+    : "אישור תורים";
   const items: Array<{ id: BottomTab; label: string; icon: React.ReactNode; badge?: number }> = [
-    { id: "approvals", label: "אישור תורים", icon: <BadgeCheck className="w-5 h-5" />, badge: pendingCount },
-    { id: "calendar",  label: "יומן",        icon: <CalendarClock className="w-5 h-5" /> },
-    { id: "home",      label: "בית",         icon: <Home className="w-5 h-5" /> },
-    { id: "customers", label: "לקוחות",      icon: <UsersRound className="w-5 h-5" /> },
-    { id: "menu",      label: "תפריט",       icon: <LayoutGrid className="w-5 h-5" /> },
+    { id: "approvals", label: approvalsLabel, icon: <BadgeCheck className="w-5 h-5" />, badge: pendingCount },
+    { id: "calendar",  label: "יומן",         icon: <CalendarClock className="w-5 h-5" /> },
+    { id: "home",      label: "בית",          icon: <Home className="w-5 h-5" /> },
+    { id: "customers", label: "לקוחות",       icon: <UsersRound className="w-5 h-5" /> },
+    { id: "menu",      label: "תפריט",        icon: <LayoutGrid className="w-5 h-5" /> },
   ];
 
   return (
@@ -55,8 +64,8 @@ export function MobileBottomNav({
               <span className={`relative flex items-center justify-center transition-all ${isCentre && isActive ? "-mt-3 w-12 h-12 rounded-full bg-primary text-primary-foreground shadow-lg" : ""}`}>
                 {item.icon}
                 {item.badge != null && item.badge > 0 && (
-                  <span className="absolute -top-1.5 -end-2 bg-red-500 text-white text-[9px] font-bold rounded-full min-w-[16px] h-4 px-1 flex items-center justify-center shadow">
-                    {item.badge > 9 ? "9+" : item.badge}
+                  <span className="absolute -top-2 -end-2.5 bg-red-500 text-white text-[10px] font-bold rounded-full min-w-[18px] h-[18px] px-1 flex items-center justify-center shadow ring-2 ring-white">
+                    {item.badge > 99 ? "99+" : item.badge}
                   </span>
                 )}
               </span>
