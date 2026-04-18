@@ -11,6 +11,15 @@ import { Calendar as CalendarIcon, Ban, Clock } from "lucide-react";
 import { format } from "date-fns";
 import { he } from "date-fns/locale";
 import { useToast } from "@/hooks/use-toast";
+import { findScheduleConflicts, type CalAppt, type TimeOffItem } from "./BusinessCalendar";
+
+// "HH:mm" → minutes since midnight. Tolerates empty / malformed input by
+// returning 0 — callers guard against this via an endMin > startMin check.
+function timeStrToMinutes(hhmm: string): number {
+  if (!hhmm) return 0;
+  const [h, m] = hhmm.split(":").map(Number);
+  return (h || 0) * 60 + (m || 0);
+}
 
 function formatDuration(minutes: number): string {
   const h = Math.floor(minutes / 60);
@@ -152,6 +161,8 @@ export function NewAppointmentDialog({
   onOpenChange,
   services,
   customers,
+  existingAppts,
+  existingTimeOffs,
   initialDate,
   initialTime,
   initialTab,
@@ -161,6 +172,11 @@ export function NewAppointmentDialog({
   onOpenChange: (v: boolean) => void;
   services: ServiceLite[];
   customers: CustomerLite[];
+  // Existing bookings + time-offs for the business. Used to flag
+  // overlapping slots with a "*שים לב" warning in the dialog so the
+  // owner doesn't silently double-book.
+  existingAppts?: ReadonlyArray<CalAppt>;
+  existingTimeOffs?: ReadonlyArray<TimeOffItem>;
   initialDate?: string; // "YYYY-MM-DD"
   initialTime?: string; // "HH:mm"
   initialTab?: CalendarEntryTab;
@@ -239,6 +255,43 @@ export function NewAppointmentDialog({
     const exact = customers.find((c) => c.clientName.toLowerCase() === typed);
     if (exact) setPhone(exact.phoneNumber);
   }, [name, customers, phone]);
+
+  // Overlap detection. Computed off the current form state against the
+  // business's full appointment + time-off list. Kept as two separate
+  // lookups so each tab can surface its own "שים לב — יש חפיפה" banner
+  // without showing irrelevant conflicts (e.g. no need to warn about
+  // overlapping appts when the owner is saving an אילוץ).
+  const apptConflicts = useMemo(() => {
+    if (tab !== "appointment") return [];
+    if (!date || !time || !serviceId) return [];
+    const svc = services.find(s => s.id === serviceId);
+    if (!svc) return [];
+    const startMin = timeStrToMinutes(time);
+    const endMin   = startMin + (svc.durationMinutes || 0);
+    if (!(endMin > startMin)) return [];
+    return findScheduleConflicts({
+      date,
+      startMin,
+      endMin,
+      appts: existingAppts ?? [],
+      timeOffs: existingTimeOffs ?? [],
+    });
+  }, [tab, date, time, serviceId, services, existingAppts, existingTimeOffs]);
+
+  const timeOffConflicts = useMemo(() => {
+    if (tab !== "timeoff") return [];
+    if (!toDate) return [];
+    const startMin = toFullDay ? 0    : (toStartTime ? timeStrToMinutes(toStartTime) : -1);
+    const endMin   = toFullDay ? 1440 : (toEndTime   ? timeStrToMinutes(toEndTime)   : -1);
+    if (startMin < 0 || endMin < 0 || !(endMin > startMin)) return [];
+    return findScheduleConflicts({
+      date: toDate,
+      startMin,
+      endMin,
+      appts: existingAppts ?? [],
+      timeOffs: existingTimeOffs ?? [],
+    });
+  }, [tab, toDate, toFullDay, toStartTime, toEndTime, existingAppts, existingTimeOffs]);
 
   const submitAppointment = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -439,6 +492,10 @@ export function NewAppointmentDialog({
               />
             </div>
 
+            {apptConflicts.length > 0 && (
+              <ConflictWarning conflicts={apptConflicts} />
+            )}
+
             <div className="flex gap-2 pt-2">
               <Button type="button" variant="outline" className="flex-1" onClick={() => onOpenChange(false)} disabled={saving}>
                 ביטול
@@ -503,6 +560,10 @@ export function NewAppointmentDialog({
               ℹ️ לקוחות לא יוכלו לקבוע תור בזמן החסום. אם יש תורים קיימים באותו טווח, הם יישארו — רק הזמינות העתידית מושפעת.
             </div>
 
+            {timeOffConflicts.length > 0 && (
+              <ConflictWarning conflicts={timeOffConflicts} />
+            )}
+
             <div className="flex gap-2 pt-2">
               <Button type="button" variant="outline" className="flex-1" onClick={() => onOpenChange(false)} disabled={saving}>
                 ביטול
@@ -535,4 +596,26 @@ function addHourClamp(hhmm: string): string {
     nm = 59;
   }
   return `${String(nh).padStart(2, "0")}:${String(nm).padStart(2, "0")}`;
+}
+
+// Amber warning banner shown when the currently-edited appointment or
+// time-off overlaps with something already on the schedule. Owner can
+// still proceed (intentional double-books happen — e.g. walk-in during
+// an admin block), but the warning makes it impossible to miss.
+export function ConflictWarning({ conflicts }: { conflicts: ReadonlyArray<{ kind: "appt" | "timeoff"; label: string }> }) {
+  return (
+    <div className="rounded-xl border border-amber-300 bg-amber-50 text-amber-900 px-3 py-2.5 text-xs leading-relaxed">
+      <div className="font-bold flex items-center gap-1.5 mb-1">
+        <span className="text-sm">⚠️</span>
+        <span>* שים לב — יש חפיפה עם {conflicts.length === 1 ? "פריט קיים" : "פריטים קיימים"}:</span>
+      </div>
+      <ul className="ms-5 list-disc space-y-0.5">
+        {conflicts.map((c, i) => (
+          <li key={i}>
+            <span className="font-semibold">{c.kind === "appt" ? "תור" : "אילוץ"}:</span> {c.label}
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
 }

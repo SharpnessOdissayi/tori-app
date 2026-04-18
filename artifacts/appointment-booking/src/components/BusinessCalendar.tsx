@@ -67,6 +67,57 @@ function minutesToTime(total: number): string {
   const m = Math.max(0, total % 60);
   return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
 }
+
+// Schedule-conflict detection. Returns every existing appointment + time-
+// off that overlaps the given [startMin, endMin) window on `date`. Used
+// by the manual-create dialog and the drag-reschedule confirm dialog to
+// show a "*שים לב: יש חפיפה" banner — the owner can still proceed, but
+// a double-book never happens silently.
+export type ScheduleConflict = { kind: "appt" | "timeoff"; label: string };
+
+export function findScheduleConflicts({
+  date, startMin, endMin, appts, timeOffs, excludeApptId,
+}: {
+  date: string;
+  startMin: number;
+  endMin: number;
+  appts: ReadonlyArray<CalAppt>;
+  timeOffs: ReadonlyArray<TimeOffItem>;
+  excludeApptId?: number;
+}): ScheduleConflict[] {
+  const out: ScheduleConflict[] = [];
+  for (const a of appts) {
+    if (a.appointmentDate !== date) continue;
+    if (a.id === excludeApptId) continue;
+    if (a.status === "cancelled") continue;
+    const aStart = timeToMinutes(a.appointmentTime);
+    const aEnd   = aStart + a.durationMinutes;
+    // Overlap when the two intervals aren't strictly disjoint.
+    if (startMin < aEnd && endMin > aStart) {
+      out.push({
+        kind: "appt",
+        label: `${a.clientName} · ${a.appointmentTime}–${minutesToTime(aEnd)}`,
+      });
+    }
+  }
+  for (const t of timeOffs) {
+    if (t.date !== date) continue;
+    const label = (t.note && t.note.trim()) || "אילוץ";
+    if (t.fullDay) {
+      out.push({ kind: "timeoff", label: `${label} · כל היום` });
+      continue;
+    }
+    const tStart = timeToMinutes(t.startTime ?? "00:00");
+    const tEnd   = timeToMinutes(t.endTime   ?? "23:59");
+    if (startMin < tEnd && endMin > tStart) {
+      out.push({
+        kind: "timeoff",
+        label: `${label} · ${t.startTime ?? ""}–${t.endTime ?? ""}`,
+      });
+    }
+  }
+  return out;
+}
 function ymd(d: Date): string { return format(d, "yyyy-MM-dd"); }
 function parseYmd(s: string): Date {
   const [y, m, d] = s.split("-").map(Number);
@@ -1256,15 +1307,33 @@ function TimeGrid({
 // the owner's personal WhatsApp with a pre-filled message — NOT the
 // platform's business-WhatsApp template).
 function RescheduleConfirmDialog({
-  appt, newDate, newTime, onCancel, onConfirm,
+  appt, newDate, newTime, allAppts, allTimeOffs, onCancel, onConfirm,
 }: {
   appt: CalAppt | null;
   newDate: string;
   newTime: string;
+  // Full schedule context — used to flag a double-book when the owner
+  // drops the drag onto a slot that already has an appt or sits inside
+  // an אילוץ.
+  allAppts?: ReadonlyArray<CalAppt>;
+  allTimeOffs?: ReadonlyArray<TimeOffItem>;
   onCancel: () => void;
   onConfirm: (sendNotification: boolean) => void;
 }) {
   const [sendNotif, setSendNotif] = useState(true);
+  const conflicts = useMemo(() => {
+    if (!appt || !newDate || !newTime) return [];
+    const startMin = timeToMinutes(newTime);
+    const endMin   = startMin + appt.durationMinutes;
+    return findScheduleConflicts({
+      date: newDate,
+      startMin,
+      endMin,
+      appts: allAppts ?? [],
+      timeOffs: allTimeOffs ?? [],
+      excludeApptId: appt.id,
+    });
+  }, [appt, newDate, newTime, allAppts, allTimeOffs]);
   if (!appt) return null;
   const oldEnd = minutesToTime(timeToMinutes(appt.appointmentTime) + appt.durationMinutes);
   const newEnd = minutesToTime(timeToMinutes(newTime) + appt.durationMinutes);
@@ -1329,6 +1398,22 @@ function RescheduleConfirmDialog({
               </div>
             </div>
           </div>
+
+          {conflicts.length > 0 && (
+            <div className="rounded-2xl border border-amber-300 bg-amber-50 text-amber-900 px-3 py-2.5 text-xs leading-relaxed">
+              <div className="font-bold flex items-center gap-1.5 mb-1">
+                <span className="text-sm">⚠️</span>
+                <span>* שים לב — יש חפיפה ב{fmtDate(newDate)}:</span>
+              </div>
+              <ul className="ms-5 list-disc space-y-0.5">
+                {conflicts.map((c, i) => (
+                  <li key={i}>
+                    <span className="font-semibold">{c.kind === "appt" ? "תור" : "אילוץ"}:</span> {c.label}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
 
           {/* Notification toggle — pill-style with icon. Different from
               the reference's tiny checkbox; easier to hit on mobile. */}
@@ -1581,6 +1666,8 @@ export function BusinessCalendar({
         appt={pendingReschedule?.appt ?? null}
         newDate={pendingReschedule?.newDate ?? ""}
         newTime={pendingReschedule?.newTime ?? ""}
+        allAppts={appointments}
+        allTimeOffs={timeOff ?? []}
         onCancel={() => setPendingReschedule(null)}
         onConfirm={sendNotif => {
           if (pendingReschedule) {

@@ -55,7 +55,7 @@ import { he } from "date-fns/locale";
 import { HebrewCalendar, flags as hebFlags } from "@hebcal/core";
 import Navbar from "@/components/Navbar";
 import { g as g_ } from "@/lib/hebrewGender";
-import { BusinessCalendar, openRescheduleWhatsApp, type CalAppt, type TimeOffItem } from "@/components/BusinessCalendar";
+import { BusinessCalendar, openRescheduleWhatsApp, findScheduleConflicts, type CalAppt, type TimeOffItem } from "@/components/BusinessCalendar";
 import { MobileBottomNav, type BottomTab } from "@/components/MobileBottomNav";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { ServiceSortableList } from "@/components/ServiceSortableList";
@@ -2136,6 +2136,8 @@ function AppointmentsTab({ mobileFocus }: { mobileFocus?: "calendar" | "approval
         customers={(Array.isArray(customers) ? customers : []).map((c: any) => ({
           clientName: c.clientName, phoneNumber: c.phoneNumber,
         }))}
+        existingAppts={aptList as unknown as CalAppt[]}
+        existingTimeOffs={timeOff ?? []}
         initialDate={newApptDialog.date}
         initialTime={newApptDialog.time}
         initialTab={newApptDialog.tab}
@@ -2240,6 +2242,42 @@ function AppointmentsTab({ mobileFocus }: { mobileFocus?: "calendar" | "approval
                       placeholder="הערה פנימית על התור…"
                     />
                   </div>
+                  {(() => {
+                    // Only flag when date+time actually changed AND the new slot
+                    // conflicts with something. Silent when the owner only tweaks
+                    // notes — no need to warn them about their own appointment.
+                    const movedDate = editApptForm.date && editApptForm.date !== editAppt.appointmentDate;
+                    const movedTime = editApptForm.time && editApptForm.time !== editAppt.appointmentTime;
+                    if (!movedDate && !movedTime) return null;
+                    const [h, m] = (editApptForm.time || editAppt.appointmentTime).split(":").map(Number);
+                    const startMin = (h || 0) * 60 + (m || 0);
+                    const endMin   = startMin + (editAppt.durationMinutes || 0);
+                    if (!(endMin > startMin)) return null;
+                    const conflicts = findScheduleConflicts({
+                      date: editApptForm.date || editAppt.appointmentDate,
+                      startMin,
+                      endMin,
+                      appts: aptList as unknown as CalAppt[],
+                      timeOffs: timeOff ?? [],
+                      excludeApptId: editAppt.id,
+                    });
+                    if (conflicts.length === 0) return null;
+                    return (
+                      <div className="rounded-xl border border-amber-300 bg-amber-50 text-amber-900 px-3 py-2.5 text-xs leading-relaxed">
+                        <div className="font-bold flex items-center gap-1.5 mb-1">
+                          <span className="text-sm">⚠️</span>
+                          <span>* שים לב — יש חפיפה ב{editApptForm.date || editAppt.appointmentDate}:</span>
+                        </div>
+                        <ul className="ms-5 list-disc space-y-0.5">
+                          {conflicts.map((c, i) => (
+                            <li key={i}>
+                              <span className="font-semibold">{c.kind === "appt" ? "תור" : "אילוץ"}:</span> {c.label}
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    );
+                  })()}
                   <div className="flex gap-2 pt-2">
                     <Button
                       variant="outline"
