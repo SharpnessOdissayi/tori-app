@@ -465,6 +465,11 @@ function useDragReschedule(
   const [drag, setDrag] = useState<DragState | null>(null);
   const dragRef = useRef<DragState | null>(null);
   dragRef.current = drag;
+  // Reference to the currently-installed touchmove preventDefault
+  // listener. Registered the instant the long-press timer fires (same
+  // tick as setDrag → no React-render gap during which the page could
+  // still scroll) and cleaned up by the useEffect when the drag ends.
+  const blockScrollRef = useRef<((e: TouchEvent) => void) | null>(null);
 
   // Long-press activation: owners were accidentally dragging appointments
   // whenever they tried to scroll the calendar. Drag now only starts after
@@ -514,6 +519,13 @@ function useDragReschedule(
       if (cancelled) return;
       activated = true;
       cleanupPre();
+      // Block scroll AT the exact activation moment — same tick as
+      // setDrag. Previously this lived in the useEffect that runs
+      // AFTER React commits, opening a brief window where the page
+      // could keep scrolling.
+      const blockScroll = (e: TouchEvent) => { e.preventDefault(); };
+      window.addEventListener("touchmove", blockScroll, { passive: false });
+      blockScrollRef.current = blockScroll;
       navigator.vibrate?.(15);
       setDrag({
         appt,
@@ -568,23 +580,20 @@ function useDragReschedule(
       setDrag(null);
     };
 
-    // Block page scroll during an active drag. The card's touch-action
-    // was "pan-y" before activation (so a swipe could scroll normally) —
-    // flipping CSS mid-gesture doesn't help because the browser locks in
-    // the gesture interpretation at touchstart. Registering a non-passive
-    // touchmove listener that calls preventDefault() cancels any ongoing
-    // scroll and keeps the finger's movement pinned to the drag.
-    const blockScroll = (e: TouchEvent) => { e.preventDefault(); };
-
-    window.addEventListener("touchmove", blockScroll, { passive: false });
     window.addEventListener("pointermove", handleMove);
     window.addEventListener("pointerup", handleUp);
     window.addEventListener("pointercancel", handleUp);
     return () => {
-      window.removeEventListener("touchmove", blockScroll);
       window.removeEventListener("pointermove", handleMove);
       window.removeEventListener("pointerup", handleUp);
       window.removeEventListener("pointercancel", handleUp);
+      // The scroll-blocking touchmove listener was installed in the
+      // setTimeout that activated this drag; tear it down here so a
+      // drop re-enables page scroll.
+      if (blockScrollRef.current) {
+        window.removeEventListener("touchmove", blockScrollRef.current);
+        blockScrollRef.current = null;
+      }
     };
   }, [drag?.appt.id, colRefs, onDrop]);
 
@@ -602,6 +611,10 @@ function useDragTimeOff(
   const [drag, setDrag] = useState<TimeOffDragState | null>(null);
   const dragRef = useRef<TimeOffDragState | null>(null);
   dragRef.current = drag;
+  // Installed synchronously when the long-press timer fires (same as
+  // useDragReschedule) so scroll is blocked at the same ms the drag
+  // activates.
+  const blockScrollRef = useRef<((e: TouchEvent) => void) | null>(null);
 
   // Same 400ms long-press gate the appointment drag uses. Prevents a
   // stray scroll gesture from dragging the אילוץ off its slot.
@@ -649,6 +662,10 @@ function useDragTimeOff(
       if (cancelled) return;
       activated = true;
       cleanupPre();
+      // Block scroll AT activation (same tick as setDrag).
+      const blockScroll = (e: TouchEvent) => { e.preventDefault(); };
+      window.addEventListener("touchmove", blockScroll, { passive: false });
+      blockScrollRef.current = blockScroll;
       navigator.vibrate?.(15);
       setDrag({
         item,
@@ -732,18 +749,19 @@ function useDragTimeOff(
       setDrag(null);
     };
 
-    // Same block-scroll-during-drag trick the appointment hook uses.
-    const blockScroll = (e: TouchEvent) => { e.preventDefault(); };
-
-    window.addEventListener("touchmove", blockScroll, { passive: false });
     window.addEventListener("pointermove", handleMove);
     window.addEventListener("pointerup", handleUp);
     window.addEventListener("pointercancel", handleUp);
     return () => {
-      window.removeEventListener("touchmove", blockScroll);
       window.removeEventListener("pointermove", handleMove);
       window.removeEventListener("pointerup", handleUp);
       window.removeEventListener("pointercancel", handleUp);
+      // Scroll-block was installed in the setTimeout that activated
+      // this drag — tear it down so the page scrolls again.
+      if (blockScrollRef.current) {
+        window.removeEventListener("touchmove", blockScrollRef.current);
+        blockScrollRef.current = null;
+      }
     };
   }, [drag?.item.id, colRefs, onDrop]);
 
