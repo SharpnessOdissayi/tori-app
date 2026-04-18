@@ -32,12 +32,7 @@ import {
   refundQuota,
   addExtraBalance,
 } from "../lib/smsQuota";
-// NOTE: no `chargeToken` import — that existing helper creates an STO
-// (recurring), not a one-off. SMS pack purchases should be one-off
-// charges, which require hooking into Tranzila's iframe flow like the
-// initial subscription signup (see tranzila.ts). For now the route below
-// stubs the charge and returns a "payment-not-wired" error so the UI can
-// render a proper CTA; real purchase flow lands in a follow-up.
+import { chargeTokenOneOff } from "../lib/tranzilaCharge";
 
 const router = Router();
 
@@ -296,13 +291,22 @@ router.post("/sms/purchase-pack", async (req, res): Promise<void> => {
   }
   const priceAgorot = pricing[packSize];
 
-  // Record the intent as a pending purchase so we have an audit trail and
-  // so the UI can reflect "waiting for payment". The actual Tranzila
-  // iframe wiring lives in a follow-up — once that ships we'll:
-  //   1. return a Tranzila iframe URL from this endpoint
-  //   2. let the frontend open the iframe in a modal
-  //   3. on Tranzila's /notify webhook, look up the pending row by a ref
-  //      we embed, flip status → completed, addExtraBalance(packSize)
+  // Business must have a saved Tranzila token (= they've completed their
+  // first subscription payment through the iframe). If not, surface a
+  // clear error so the UI can route them to the "add payment method"
+  // flow first.
+  if (!biz.tranzilaToken || !biz.tranzilaTokenExpiry) {
+    res.status(400).json({
+      error: "no_payment_method",
+      message: "עליך להוסיף אמצעי תשלום לפני רכישת חבילה.",
+      purchaseUrl: "/dashboard#payment-method",
+    });
+    return;
+  }
+
+  // 1. Create pending pack row FIRST so failed charges are still visible
+  //    in the audit trail. DCdisable uses this row id so a retry of this
+  //    request within 24h won't double-charge (Tranzila deduplicates).
   const [purchase] = await db
     .insert(smsPackPurchasesTable)
     .values({
@@ -313,17 +317,90 @@ router.post("/sms/purchase-pack", async (req, res): Promise<void> => {
     })
     .returning();
 
-  logger.info(
-    { businessId, packSize, priceAgorot, purchaseId: purchase.id },
-    "[sms] pack purchase intent recorded (Tranzila iframe flow not yet wired)",
+  // 2. Charge the token.
+  const chargeResult = await chargeTokenOneOff(
+    biz.tranzilaToken,
+    biz.tranzilaTokenExpiry,
+    priceAgorot / 100, // Tranzila wants ILS, not agorot
+    `קבעתי — חבילת ${packSize} SMS`,
+    businessId,
+    `sms-pack-${purchase.id}`, // DCdisable unique id
   );
 
-  // Return 501 + pending record so the UI can show "coming soon" messaging
-  // until the real iframe wiring lands.
-  res.status(501).json({
-    error: "payment_not_wired",
-    message: "SMS pack purchase flow is being finalized — coming soon.",
-    purchaseId: purchase.id,
+  if (!chargeResult.success) {
+    await db
+      .update(smsPackPurchasesTable)
+      .set({ status: "failed" })
+      .where(eq(smsPackPurchasesTable.id, purchase.id));
+    res.status(402).json({
+      error: "charge_failed",
+      responseCode: chargeResult.responseCode,
+      message: chargeResult.message ?? "החיוב נדחה. בדוק את כרטיס האשראי או נסה שוב.",
+    });
+    return;
+  }
+
+  // 3. Mark completed + top up the extra balance atomically.
+  await db
+    .update(smsPackPurchasesTable)
+    .set({
+      status: "completed",
+      tranzilaTransactionId: chargeResult.transactionId ? String(chargeResult.transactionId) : null,
+      completedAt: new Date(),
+    })
+    .where(eq(smsPackPurchasesTable.id, purchase.id));
+  await addExtraBalance(businessId, packSize);
+
+  const snap = await getQuotaSnapshot(businessId);
+  res.json({
+    ok: true,
+    purchaseId:     purchase.id,
+    creditsAdded:   packSize,
+    transactionId:  chargeResult.transactionId,
+    authNumber:     chargeResult.authNumber,
+    totalAvailable: snap.totalAvailable,
+    extraBalance:   snap.extraBalance,
+  });
+});
+
+// ─── POST /api/sms/test-charge ────────────────────────────────────────────
+// Dev/diagnostic endpoint — charges ₪1 to the caller's saved Tranzila
+// token and returns the full result. Used by a "🧪 בדיקת חיוב ₪1" button
+// in the dashboard so the owner can verify the one-off charge flow works
+// against THEIR real token before relying on it for SMS pack purchases.
+// Remove the button + this endpoint once we're confident the flow is
+// stable in production.
+router.post("/sms/test-charge", async (req, res): Promise<void> => {
+  const businessId = getBusinessId(req.headers.authorization ?? "");
+  if (!businessId) { res.status(401).json({ error: "Unauthorized" }); return; }
+
+  const biz = await loadBusiness(businessId);
+  if (!biz) { res.status(404).json({ error: "Business not found" }); return; }
+  if (!biz.tranzilaToken || !biz.tranzilaTokenExpiry) {
+    res.status(400).json({ error: "no_payment_method" });
+    return;
+  }
+
+  const result = await chargeTokenOneOff(
+    biz.tranzilaToken,
+    biz.tranzilaTokenExpiry,
+    1, // ₪1 test charge
+    "קבעתי — בדיקת חיוב",
+    businessId,
+    // No DCdisable here — each click should create a new transaction so
+    // we can trigger multiple tests in a session without Tranzila
+    // rejecting for duplication.
+  );
+
+  res.json({
+    ok:             result.success,
+    transactionId:  result.transactionId,
+    authNumber:     result.authNumber,
+    responseCode:   result.responseCode,
+    message:        result.message ?? (result.success ? "חיוב הצליח" : "החיוב נדחה"),
+    // The raw response is useful for debugging during the wiring phase;
+    // we'll remove it from the response once we're confident.
+    rawSnippet:     result.rawResponse.slice(0, 500),
   });
 });
 

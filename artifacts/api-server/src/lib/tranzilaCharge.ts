@@ -189,6 +189,163 @@ export async function chargeToken(
   }
 }
 
+// ─── One-off token charge (POST /v1/transaction/credit_card/create) ────────
+// Distinct from STO creation above. Used for one-time purchases on top of
+// the subscription — SMS packs (₪39 / ₪59), service add-ons, etc. The
+// saved TranzilaTK token is passed in card_number; the TOK terminal
+// (lilash2tok) accepts the token in place of a real PAN.
+//
+// Reuses the same buildAuthHeaders() as every other endpoint in this file
+// per Tranzila's "shared HMAC auth across all v1 APIs" convention.
+//
+// Docs: https://docs.tranzila.com/docs/payments-billing/xsy729b5dsfct-create-a-credit-card-transaction
+
+const ONE_OFF_TXN_URL = "https://api.tranzila.com/v1/transaction/credit_card/create";
+
+export interface OneOffChargeResult {
+  success:        boolean;
+  transactionId?: number;    // Tranzila's internal transaction id on success
+  authNumber?:    string;    // SHVA auth number (useful for refund receipts)
+  responseCode:   string;    // error_code from Tranzila, or HTTP status, or "ERR"
+  message?:       string;    // human-readable reason (error_code → message)
+  rawResponse:    string;    // full body for debugging / receipt issuance
+}
+
+/**
+ * Charge the saved TranzilaTK token for a one-off amount.
+ * @param token        TranzilaTK returned by the iframe on signup (tranmode=AK)
+ * @param expiry       MMYY, e.g. "0928"
+ * @param amountILS    Amount in shekels (not agorot). Tranzila expects decimals.
+ * @param itemName     Appears on the customer's invoice + shva report.
+ * @param businessId   For logging + the remark field on the transaction.
+ * @param dcDisableId  Optional unique id for 24h duplicate-charge prevention.
+ *                     If you set this, we also define a unique value in
+ *                     user_defined_fields.DCdisable. Requires field 20 on
+ *                     the terminal to be configured for DCdisable (see
+ *                     Tranzila → Terminal Settings → Additional Fields).
+ */
+export async function chargeTokenOneOff(
+  token:      string,
+  expiry:     string,
+  amountILS:  number,
+  itemName:   string,
+  businessId: number,
+  dcDisableId?: string,
+): Promise<OneOffChargeResult> {
+  if (!TERMINAL || !PUBLIC_KEY || !SECRET_KEY) {
+    return {
+      success:      false,
+      responseCode: "ENV",
+      rawResponse:  "Tranzila REST env vars missing",
+    };
+  }
+  if (!token) {
+    return {
+      success:      false,
+      responseCode: "NOTOKEN",
+      rawResponse:  "no stored TranzilaTK",
+    };
+  }
+
+  const expireMonth = parseInt(expiry.slice(0, 2), 10);
+  const expireYear  = 2000 + parseInt(expiry.slice(2, 4), 10);
+
+  // Per Tranzila's convention on TOK terminals: pass the token in
+  // card_number. No CVV required (the terminal is pre-configured to accept
+  // token-based charges without cardholder-present checks).
+  const body: Record<string, unknown> = {
+    terminal_name:     TERMINAL,
+    txn_currency_code: "ILS",
+    txn_type:          "debit",
+    expire_month:      expireMonth,
+    expire_year:       expireYear,
+    card_number:       token,
+    payment_plan:      1,
+    response_language: "hebrew",
+    created_by_user:   "kavati-system",
+    remarks:           `business_id=${businessId}`,
+    items: [
+      {
+        name:           itemName,
+        type:           "S",            // service (not a physical product)
+        unit_price:     amountILS,
+        units_number:   1,
+        price_type:     "G",            // gross — VAT included in the price
+        currency_code:  "ILS",
+      },
+    ],
+  };
+
+  // Attach DCdisable if caller wants idempotent charges (prevents a double-
+  // charge if the handler is retried within 24h with the same id).
+  if (dcDisableId) {
+    body.user_defined_fields = [
+      { name: "DCdisable", value: dcDisableId },
+    ];
+  }
+
+  const headers = buildAuthHeaders();
+
+  console.log("[TranzilaCharge] one-off request →", {
+    url:         ONE_OFF_TXN_URL,
+    terminal:    TERMINAL,
+    businessId,
+    amountILS,
+    itemName,
+    requestTime: headers["X-tranzila-api-request-time"],
+  });
+
+  try {
+    const res         = await fetch(ONE_OFF_TXN_URL, {
+      method:  "POST",
+      headers,
+      body:    JSON.stringify(body),
+    });
+    const rawResponse = await res.text();
+
+    let data: {
+      error_code?:         number;
+      message?:            string;
+      transaction_result?: {
+        transaction_id?: number;
+        auth_number?:    string;
+        amount?:         number;
+      };
+    } = {};
+    try { data = JSON.parse(rawResponse); } catch {}
+
+    const success = res.ok && data.error_code === 0 && !!data.transaction_result?.transaction_id;
+
+    console.log("[TranzilaCharge] one-off response ←", {
+      businessId,
+      amountILS,
+      status:        res.status,
+      success,
+      errorCode:     data.error_code,
+      message:       data.message,
+      transactionId: data.transaction_result?.transaction_id,
+      authNumber:    data.transaction_result?.auth_number,
+      rawBody:       rawResponse.slice(0, 500),
+    });
+
+    return {
+      success,
+      transactionId: data.transaction_result?.transaction_id,
+      authNumber:    data.transaction_result?.auth_number,
+      responseCode:  String(data.error_code ?? res.status),
+      message:       data.message,
+      rawResponse,
+    };
+  } catch (err) {
+    logger.error({ err, businessId, amountILS }, "[TranzilaCharge] one-off charge failed");
+    return {
+      success:      false,
+      responseCode: "ERR",
+      rawResponse:  String(err),
+    };
+  }
+}
+
 // ─── STO retrieval (POST /v1/stos/get) ──────────────────────────────────────
 // Same HMAC headers, query-style body. Returns the full STO record
 // including `next_charge_date_time` so we can show the customer when

@@ -7285,6 +7285,7 @@ function SmsBulkCard() {
   const [manualRecipients, setManualRecipients] = useState("");
   const [sending, setSending] = useState(false);
   const [purchaseOpen, setPurchaseOpen] = useState(false);
+  const [testing, setTesting] = useState(false);
 
   const token = typeof window !== "undefined"
     ? (localStorage.getItem("biz_token") ?? sessionStorage.getItem("biz_token") ?? "")
@@ -7393,6 +7394,39 @@ function SmsBulkCard() {
     }
   }
 
+  // Dev helper — fires a ₪1 charge against the owner's saved Tranzila
+  // token and reports back. Temporary button alongside the purchase CTA
+  // so we can verify the one-off-charge pipeline works end-to-end before
+  // relying on it for real pack purchases. Remove when the flow is
+  // confirmed stable in production.
+  async function handleTestCharge() {
+    if (!token) return;
+    setTesting(true);
+    try {
+      const res = await fetch("/api/sms/test-charge", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const json = await res.json().catch(() => ({}));
+      if (json?.ok) {
+        toast({
+          title: "✅ חיוב בדיקה הצליח — ₪1",
+          description: `Transaction ID: ${json.transactionId ?? "?"}, Auth: ${json.authNumber ?? "?"}`,
+        });
+      } else {
+        toast({
+          title: "❌ חיוב בדיקה נכשל",
+          description: `${json?.message ?? "שגיאה לא ידועה"} (code: ${json?.responseCode ?? "?"})`,
+          variant: "destructive",
+        });
+      }
+    } catch (err: any) {
+      toast({ title: "שגיאה", description: err?.message ?? "נסה שוב", variant: "destructive" });
+    } finally {
+      setTesting(false);
+    }
+  }
+
   async function handlePurchase(packSize: 250 | 500) {
     if (!token) return;
     try {
@@ -7402,19 +7436,24 @@ function SmsBulkCard() {
         body: JSON.stringify({ packSize }),
       });
       const json = await res.json().catch(() => ({}));
-      if (res.status === 501) {
-        toast({
-          title: "בקרוב",
-          description: `חבילת ${packSize} SMS — עמוד התשלום בבנייה. צור קשר לרכישה ידנית.`,
-        });
-        setPurchaseOpen(false);
-        return;
-      }
       if (!res.ok) {
-        toast({ title: "הרכישה נכשלה", description: json?.error ?? "נסה שוב", variant: "destructive" });
+        const errMap: Record<string, string> = {
+          no_payment_method: "עליך להוסיף אמצעי תשלום לפני רכישה. פתח הגדרות → סטטוס מנוי.",
+          charge_failed:     json?.message ?? "החיוב נדחה — בדוק את כרטיס האשראי ונסה שוב.",
+          invalid_pack_size: "גודל חבילה לא תקין.",
+          plan_gated:        "רכישת חבילות זמינה רק במסלולי פרו/עסקי.",
+        };
+        toast({
+          title: "הרכישה נכשלה",
+          description: errMap[json?.error] ?? json?.message ?? json?.error ?? "נסה שוב",
+          variant: "destructive",
+        });
         return;
       }
-      toast({ title: `נוספו ${json.creditsAdded} הודעות`, description: `יתרה כוללת: ${json.totalAvailable}` });
+      toast({
+        title: `נוספו ${json.creditsAdded} הודעות`,
+        description: `יתרה כוללת: ${json.totalAvailable} · מספר עסקה: ${json.transactionId ?? "?"}`,
+      });
       refreshBalance();
       setPurchaseOpen(false);
     } catch (err: any) {
@@ -7453,6 +7492,21 @@ function SmsBulkCard() {
               </div>
               <Button variant="outline" onClick={() => setPurchaseOpen(true)}>
                 רכוש חבילה נוספת
+              </Button>
+            </div>
+            {/* Temporary test button — verifies the one-off charge path with
+                a ₪1 transaction. Remove once we're confident the pack
+                purchase flow works in production. */}
+            <div className="mt-3 pt-3 border-t border-blue-200/60 flex items-center justify-between gap-2 text-xs text-blue-700">
+              <span>🧪 בדיקת חיוב (₪1) לטוקן השמור שלך</span>
+              <Button
+                size="sm"
+                variant="outline"
+                className="text-xs h-7"
+                onClick={handleTestCharge}
+                disabled={testing}
+              >
+                {testing ? "מחייב…" : "חיוב ₪1"}
               </Button>
             </div>
           </div>
