@@ -11,72 +11,15 @@ function toE164(phone: string): string {
   return p;
 }
 
-// ── Per-business daily WhatsApp cap ────────────────────────────────────────
-// Caps the worst-case monthly WhatsApp spend per business so a single
-// runaway loop / abusive owner can't blow through the subscription margin.
-// Pro pays ~100₪/mo and gets 50 sends/day (≈30₪/mo at IL utility rates).
-// עסקי pays ~150₪/mo and gets 100 sends/day (≈60₪/mo). Free is gated to 0
-// because the only WhatsApp surfaces (reminders, broadcasts) are paid features
-// already — anything else is OTP, which goes through `sendOtp` and bypasses
-// the per-business counter (no business context in auth flows).
-const WHATSAPP_DAILY_CAP_BY_PLAN: Record<string, number> = {
-  "free":     0,
-  "pro":      50,
-  "pro-plus": 100,
-};
-
-export class WhatsAppDailyQuotaError extends Error {
-  constructor(public readonly cap: number) {
-    super(`WhatsApp daily quota exceeded (${cap} messages/day)`);
-    this.name = "WhatsAppDailyQuotaError";
-  }
-}
-
-// Asia/Jerusalem "YYYY-MM-DD". Matches what owners see in the dashboard
-// (every date picker assumes IL local time), so the daily reset boundary
-// lines up with the owner's mental model of "today vs. yesterday".
-function todayIL(): string {
-  return new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Jerusalem" });
-}
-
-async function assertAndIncrementWhatsAppDailyQuota(businessId: number): Promise<void> {
-  const { db, businessesTable } = await import("@workspace/db");
-  const { eq } = await import("drizzle-orm");
-  const today = todayIL();
-
-  const [biz] = await db
-    .select({
-      plan: businessesTable.subscriptionPlan,
-      sent: businessesTable.whatsappSentToday,
-      date: businessesTable.whatsappSentDate,
-    })
-    .from(businessesTable)
-    .where(eq(businessesTable.id, businessId))
-    .limit(1);
-  if (!biz) return; // business deleted mid-flight — let send proceed
-
-  const cap = WHATSAPP_DAILY_CAP_BY_PLAN[biz.plan] ?? 0;
-  const usedToday = biz.date === today ? (biz.sent ?? 0) : 0;
-  if (usedToday >= cap) {
-    throw new WhatsAppDailyQuotaError(cap);
-  }
-
-  await db
-    .update(businessesTable)
-    .set({
-      whatsappSentToday: usedToday + 1,
-      whatsappSentDate: today,
-    })
-    .where(eq(businessesTable.id, businessId));
-}
-
+// Per-business daily WhatsApp cap is temporarily DISABLED — the schema columns
+// (whatsapp_sent_today / _date) didn't migrate cleanly and were rolled back
+// to keep login working. Wrappers still accept an optional businessId so the
+// guard can be re-introduced without changing callers when the migration
+// path is fixed.
 async function callMetaAPI(
   payload: object,
-  opts?: { businessId?: number }
+  _opts?: { businessId?: number }
 ): Promise<void> {
-  if (opts?.businessId != null) {
-    await assertAndIncrementWhatsAppDailyQuota(opts.businessId);
-  }
   if (!ACCESS_TOKEN || !PHONE_NUMBER_ID) {
     console.log(`[WhatsApp Meta] credentials not set — payload:`, JSON.stringify(payload));
     return;
