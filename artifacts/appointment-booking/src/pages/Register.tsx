@@ -114,9 +114,12 @@ function StepPlan({ onNext }: { onNext: (plan: Plan) => void }) {
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-2">
-        {/* Free Plan — 14-day Pro trial, no credit card. Auto-cancels on day 14.
-            Stripped-down card: just name/price/trial note. The full feature
-            list lives in the comparison grid below to avoid duplication. */}
+        {/* Free Plan — truly free forever, no credit card, no trial clock.
+            Copy reworked away from "ניסיון פרו" (Pro trial) framing because
+            it confused owners who thought the plan would expire — the free
+            tier is permanent, just with feature caps (enforced by
+            maxServicesAllowed + maxAppointmentsPerMonth server-side).
+            Feature details live in the comparison grid below. */}
         <button
           onClick={() => onNext("free")}
           className="text-right border-2 rounded-2xl p-6 hover:border-primary hover:bg-primary/5 transition-all group focus:outline-none focus:ring-2 focus:ring-primary flex flex-col"
@@ -127,7 +130,7 @@ function StepPlan({ onNext }: { onNext: (plan: Plan) => void }) {
           </div>
           <div className="text-3xl font-bold mb-2">חינם</div>
           <div className="text-sm text-muted-foreground flex-1">
-            ניסיון פרו ללא כרטיס אשראי — ביטול אוטומטי בתום 14 ימים
+            חינם לתמיד — ללא כרטיס אשראי וללא מגבלת זמן
           </div>
           <div className="mt-5 w-full py-2.5 rounded-xl bg-slate-900 text-white font-bold text-sm text-center group-hover:bg-slate-800 transition-colors">
             להרשמה ←
