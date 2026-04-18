@@ -4263,7 +4263,11 @@ function AnalyticsTab() {
 
           {/* Stats grid — "תורים שהושלמו" and "תורים שבוטלו" are
               click-to-expand (open rankings below); the other two are
-              passive display tiles. */}
+              passive display tiles. Numbers use a responsive font size
+              so large values (400+ appointments) don't overflow the
+              narrow 2-column grid cell on mobile, and tabular-nums keeps
+              multi-digit values aligned across cards. min-w-0 lets the
+              cell clip instead of pushing neighbours. */}
           <div className="grid grid-cols-2 gap-3">
             {stats.map(s => {
               const isCancelled = s.label === "תורים שבוטלו";
@@ -4281,10 +4285,10 @@ function AnalyticsTab() {
                   type="button"
                   disabled={!isToggle}
                   onClick={onClick}
-                  className={`${s.bg} rounded-2xl p-4 text-center transition-all ${isToggle ? "cursor-pointer hover:brightness-95 active:scale-[0.98]" : "cursor-default"} ${isOpen ? "ring-2 ring-primary/40" : ""}`}
+                  className={`${s.bg} rounded-2xl p-4 text-center transition-all min-w-0 ${isToggle ? "cursor-pointer hover:brightness-95 active:scale-[0.98]" : "cursor-default"} ${isOpen ? "ring-2 ring-primary/40" : ""}`}
                 >
-                  <div className={`text-3xl font-bold ${s.color}`}>{s.value}</div>
-                  <div className="text-xs text-muted-foreground mt-1 flex items-center justify-center gap-1">
+                  <div className={`text-2xl sm:text-3xl font-bold tabular-nums leading-none ${s.color}`}>{s.value}</div>
+                  <div className="text-xs text-muted-foreground mt-1.5 flex items-center justify-center gap-1 flex-wrap">
                     {s.label}
                     {isToggle && <span className="text-[10px] opacity-60">{isOpen ? "▲" : "▼"}</span>}
                   </div>
@@ -4293,8 +4297,13 @@ function AnalyticsTab() {
             })}
           </div>
 
-          <div className="mt-4 pt-4 border-t text-center text-sm text-muted-foreground">
-            ממוצע חודשי: <strong>{data.avg}</strong> תורים
+          {/* Monthly-average footer. flex-wrap + tabular-nums so "ממוצע
+              חודשי: 10 תורים" stays on one row on narrow phones, and
+              multi-digit values stay aligned. */}
+          <div className="mt-4 pt-4 border-t text-center text-sm text-muted-foreground flex items-center justify-center gap-1.5 flex-wrap">
+            <span>ממוצע חודשי:</span>
+            <strong className="tabular-nums">{data.avg}</strong>
+            <span>תורים</span>
           </div>
         </CardContent>
       </Card>
@@ -4441,6 +4450,13 @@ function CustomersTab() {
   const [broadcastMessage, setBroadcastMessage] = useState("");
   const [broadcastLoading, setBroadcastLoading] = useState(false);
   const [quota, setQuota] = useState<{ sent: number; limit: number; remaining: number } | null>(null);
+  // Search + sort + pagination state. Reported by owner — the list was
+  // an infinite scroll of hundreds of rows in visits-desc order, with no
+  // way to find "שירן" without manually scrolling.
+  const [customerSearch, setCustomerSearch] = useState("");
+  const [customerSortBy, setCustomerSortBy] = useState<"visits" | "alpha">("visits");
+  const [customerPage, setCustomerPage] = useState(0);
+  const CUSTOMERS_PAGE_SIZE = 20;
   // Cancellation-breakdown popup — set to a customer record to open, null to close.
   const [cancelBreakdown, setCancelBreakdown] = useState<any | null>(null);
   // "הנפק קבלה" from a customer row. Pre-fills email from the
@@ -4499,6 +4515,33 @@ function CustomersTab() {
   const customerList = Array.isArray(customers) ? customers : [];
   const totalRevenue = customerList.reduce((s, c) => s + c.totalRevenue, 0);
   const totalVisits = customerList.reduce((s, c) => s + c.totalVisits, 0);
+
+  // Search + sort on the client. With ~a few hundred customers max per
+  // business, this is fine to do in-memory without a backend filter.
+  const searchTerm = customerSearch.trim().toLowerCase();
+  const searchDigits = searchTerm.replace(/\D/g, "");
+  const filteredCustomers = customerList.filter(c => {
+    if (!searchTerm) return true;
+    const nameMatch = c.clientName.toLowerCase().includes(searchTerm);
+    const phoneMatch = searchDigits.length > 0 && c.phoneNumber.replace(/\D/g, "").includes(searchDigits);
+    return nameMatch || phoneMatch;
+  });
+  const sortedCustomers = [...filteredCustomers].sort((a, b) => {
+    if (customerSortBy === "alpha") {
+      return a.clientName.localeCompare(b.clientName, "he");
+    }
+    // "visits" — backend already returns visits-desc, but re-sort
+    // defensively in case future backend work changes the default.
+    return b.totalVisits - a.totalVisits;
+  });
+  const totalCustomerPages = Math.max(1, Math.ceil(sortedCustomers.length / CUSTOMERS_PAGE_SIZE));
+  // Clamp page when the filter shrinks the list.
+  useEffect(() => {
+    if (customerPage > totalCustomerPages - 1) setCustomerPage(Math.max(0, totalCustomerPages - 1));
+  }, [customerPage, totalCustomerPages]);
+  // Reset to page 0 whenever the search term changes.
+  useEffect(() => { setCustomerPage(0); }, [customerSearch, customerSortBy]);
+  const pagedCustomers = sortedCustomers.slice(customerPage * CUSTOMERS_PAGE_SIZE, customerPage * CUSTOMERS_PAGE_SIZE + CUSTOMERS_PAGE_SIZE);
 
   return (
     <div className="space-y-6">
@@ -4580,9 +4623,56 @@ function CustomersTab() {
           )}
         </CardHeader>
         <CardContent>
-          {customerList.length ? (
+          {customerList.length > 0 && (
+            <div className="flex flex-col sm:flex-row gap-2 mb-4">
+              {/* Search box — matches on name (substring) or phone (digit
+                  substring). Works across Hebrew names and all phone
+                  formats (0501234567 / +972501234567 / 050-123-4567). */}
+              <div className="flex-1 relative">
+                <Search className="w-4 h-4 absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none" />
+                <Input
+                  value={customerSearch}
+                  onChange={e => setCustomerSearch(e.target.value)}
+                  placeholder="חיפוש לפי שם או טלפון..."
+                  className="pr-9"
+                />
+                {customerSearch && (
+                  <button
+                    type="button"
+                    onClick={() => setCustomerSearch("")}
+                    className="absolute left-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                    aria-label="נקה חיפוש"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                )}
+              </div>
+              {/* Sort toggle — alphabetical (Hebrew collation) or by
+                  visits-descending. Visits is the default because most
+                  owners want to see their best customers first. */}
+              <div className="flex gap-1 shrink-0">
+                <Button
+                  variant={customerSortBy === "visits" ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => setCustomerSortBy("visits")}
+                  className="text-xs"
+                >
+                  לפי ביקורים
+                </Button>
+                <Button
+                  variant={customerSortBy === "alpha" ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => setCustomerSortBy("alpha")}
+                  className="text-xs"
+                >
+                  א-ב
+                </Button>
+              </div>
+            </div>
+          )}
+          {customerList.length && pagedCustomers.length ? (
             <div className="space-y-3">
-              {customerList.map((c, i) => {
+              {pagedCustomers.map((c, i) => {
                 // Top-3 attendees are "favorite customers" — surfaced with a
                 // blue ✓ next to the name. Backend already sorts by
                 // totalVisits desc, so `i < 3` picks the top three.
@@ -4665,6 +4755,40 @@ function CustomersTab() {
                 </div>
                 );
               })}
+              {/* Pagination — « prev | עמוד N מתוך T | next ». Hidden
+                  when the (filtered) list fits on one page so the
+                  controls don't add visual noise for small shops. */}
+              {totalCustomerPages > 1 && (
+                <div className="flex items-center justify-between gap-2 pt-3 mt-2 border-t">
+                  <button
+                    type="button"
+                    onClick={() => setCustomerPage(p => Math.max(0, p - 1))}
+                    disabled={customerPage === 0}
+                    className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-sm font-medium text-primary hover:bg-primary/10 disabled:opacity-40 disabled:pointer-events-none transition-colors"
+                  >
+                    <ChevronRight className="w-4 h-4" /> הקודם
+                  </button>
+                  <span className="text-xs text-muted-foreground font-medium">
+                    עמוד {customerPage + 1} מתוך {totalCustomerPages}
+                    <span className="text-muted-foreground/60 mr-1">
+                      ({sortedCustomers.length} לקוחות)
+                    </span>
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setCustomerPage(p => Math.min(totalCustomerPages - 1, p + 1))}
+                    disabled={customerPage >= totalCustomerPages - 1}
+                    className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-sm font-medium text-primary hover:bg-primary/10 disabled:opacity-40 disabled:pointer-events-none transition-colors"
+                  >
+                    הבא <ChevronLeft className="w-4 h-4" />
+                  </button>
+                </div>
+              )}
+            </div>
+          ) : customerList.length > 0 ? (
+            // List has customers but the current filter returned nothing.
+            <div className="py-12 text-center text-sm text-muted-foreground">
+              לא נמצאו לקוחות שתואמים את החיפוש "{customerSearch}"
             </div>
           ) : <EmptyState text="אין לקוחות עדיין" />}
         </CardContent>

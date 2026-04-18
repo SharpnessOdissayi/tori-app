@@ -1050,7 +1050,8 @@ router.get("/business/customers", requireBusinessAuth, async (req, res): Promise
   const customerMap = new Map<string, {
     clientName: string;
     phoneNumber: string;
-    totalVisits: number;              // attended (confirmed / completed / pending)
+    totalVisits: number;              // attended — completed/done OR past-dated confirmed
+
     totalRevenue: number;              // revenue from attended visits only
     noShowCount: number;               // status='no_show' (cancelReason='ברז')
     cancelledCount: number;            // status='cancelled' (any side)
@@ -1097,7 +1098,23 @@ router.get("/business/customers", requireBusinessAuth, async (req, res): Promise
     } else if (a.status === "no_show") {
       record.noShowCount += 1;
     } else {
-      // Attended (confirmed / completed / pending)
+      // An appointment only counts as "הגיע/ה" (attended) when either:
+      //   · status is explicitly completed/done, OR
+      //   · status is confirmed AND the appointment date is in the past.
+      // Earlier logic counted EVERY non-cancelled/non-no_show row —
+      // including future confirmed bookings and unapproved pending
+      // requests — which made the customer card display "X הגיע/ה" for
+      // clients who hadn't arrived yet. Reported by owner (lilash).
+      const todayIso = new Date().toISOString().slice(0, 10);
+      const isCompleted = a.status === "completed" || a.status === "done";
+      const isPastConfirmed = a.status === "confirmed" && a.appointmentDate < todayIso;
+      if (!isCompleted && !isPastConfirmed) {
+        // Skip — "pending", future-dated "confirmed", or anything else
+        // hasn't happened yet. Don't touch totalVisits / revenue /
+        // first-visit / last-visit. The appointment still exists in the
+        // calendar; this counter just doesn't prematurely promote it.
+        continue;
+      }
       record.totalVisits += 1;
       record.totalRevenue += Number(a.price) || 0;
       if (!record.firstVisitDate || a.appointmentDate < record.firstVisitDate) record.firstVisitDate = a.appointmentDate;
