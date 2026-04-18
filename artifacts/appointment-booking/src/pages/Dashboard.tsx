@@ -4457,13 +4457,13 @@ function CustomersTab() {
   const [broadcastMessage, setBroadcastMessage] = useState("");
   const [broadcastLoading, setBroadcastLoading] = useState(false);
   const [quota, setQuota] = useState<{ sent: number; limit: number; remaining: number } | null>(null);
-  // Search + sort + pagination state. Reported by owner — the list was
-  // an infinite scroll of hundreds of rows in visits-desc order, with no
-  // way to find "שירן" without manually scrolling.
+  // Owner request: the directory used to be visible by default and sorted by
+  // visits — they wanted it hidden behind a "פתח מאגר לקוחות" button, paged
+  // 5-at-a-time, and sorted strictly alphabetically (no sort toggle UI).
+  const [showCustomerList, setShowCustomerList] = useState(false);
   const [customerSearch, setCustomerSearch] = useState("");
-  const [customerSortBy, setCustomerSortBy] = useState<"visits" | "alpha">("visits");
   const [customerPage, setCustomerPage] = useState(0);
-  const CUSTOMERS_PAGE_SIZE = 20;
+  const CUSTOMERS_PAGE_SIZE = 5;
   // Cancellation-breakdown popup — set to a customer record to open, null to close.
   const [cancelBreakdown, setCancelBreakdown] = useState<any | null>(null);
   // "הנפק קבלה" from a customer row. Pre-fills email from the
@@ -4533,21 +4533,26 @@ function CustomersTab() {
     const phoneMatch = searchDigits.length > 0 && c.phoneNumber.replace(/\D/g, "").includes(searchDigits);
     return nameMatch || phoneMatch;
   });
-  const sortedCustomers = [...filteredCustomers].sort((a, b) => {
-    if (customerSortBy === "alpha") {
-      return a.clientName.localeCompare(b.clientName, "he");
-    }
-    // "visits" — backend already returns visits-desc, but re-sort
-    // defensively in case future backend work changes the default.
-    return b.totalVisits - a.totalVisits;
-  });
+  const sortedCustomers = [...filteredCustomers].sort((a, b) =>
+    a.clientName.localeCompare(b.clientName, "he")
+  );
+  // Top-3 by visits, computed once from the unsorted list so the favorite
+  // marker still surfaces best customers even though the directory is now
+  // sorted alphabetically.
+  const topVisitorPhones = new Set(
+    [...customerList]
+      .sort((a, b) => b.totalVisits - a.totalVisits)
+      .slice(0, 3)
+      .filter(c => c.totalVisits > 0)
+      .map(c => c.phoneNumber)
+  );
   const totalCustomerPages = Math.max(1, Math.ceil(sortedCustomers.length / CUSTOMERS_PAGE_SIZE));
   // Clamp page when the filter shrinks the list.
   useEffect(() => {
     if (customerPage > totalCustomerPages - 1) setCustomerPage(Math.max(0, totalCustomerPages - 1));
   }, [customerPage, totalCustomerPages]);
   // Reset to page 0 whenever the search term changes.
-  useEffect(() => { setCustomerPage(0); }, [customerSearch, customerSortBy]);
+  useEffect(() => { setCustomerPage(0); }, [customerSearch]);
   const pagedCustomers = sortedCustomers.slice(customerPage * CUSTOMERS_PAGE_SIZE, customerPage * CUSTOMERS_PAGE_SIZE + CUSTOMERS_PAGE_SIZE);
 
   return (
@@ -4617,7 +4622,7 @@ function CustomersTab() {
         <CardHeader className="flex flex-row items-center justify-between">
           <div>
             <CardTitle>מאגר לקוחות</CardTitle>
-            <CardDescription>כל הלקוחות שהזמינו תורים עם היסטוריית ביקורים והכנסות</CardDescription>
+            <CardDescription>{customerList.length} לקוחות בסך הכל</CardDescription>
           </div>
           {customerList.length > 0 && (
             <Button
@@ -4630,8 +4635,21 @@ function CustomersTab() {
           )}
         </CardHeader>
         <CardContent>
-          {customerList.length > 0 && (
-            <div className="flex flex-col sm:flex-row gap-2 mb-4">
+          {/* Toggle button — owner asked for the directory to be hidden
+              behind an explicit click so the customers tab opens to a
+              clean stat summary instead of a long list. */}
+          {customerList.length > 0 && !showCustomerList && (
+            <Button
+              variant="outline"
+              className="w-full gap-2 h-12"
+              onClick={() => setShowCustomerList(true)}
+            >
+              <Users className="w-4 h-4" />
+              פתח מאגר לקוחות ({customerList.length})
+            </Button>
+          )}
+          {showCustomerList && customerList.length > 0 && (
+            <div className="flex items-center gap-2 mb-4">
               {/* Search box — matches on name (substring) or phone (digit
                   substring). Works across Hebrew names and all phone
                   formats (0501234567 / +972501234567 / 050-123-4567). */}
@@ -4654,36 +4672,25 @@ function CustomersTab() {
                   </button>
                 )}
               </div>
-              {/* Sort toggle — alphabetical (Hebrew collation) or by
-                  visits-descending. Visits is the default because most
-                  owners want to see their best customers first. */}
-              <div className="flex gap-1 shrink-0">
-                <Button
-                  variant={customerSortBy === "visits" ? "default" : "outline"}
-                  size="sm"
-                  onClick={() => setCustomerSortBy("visits")}
-                  className="text-xs"
-                >
-                  לפי ביקורים
-                </Button>
-                <Button
-                  variant={customerSortBy === "alpha" ? "default" : "outline"}
-                  size="sm"
-                  onClick={() => setCustomerSortBy("alpha")}
-                  className="text-xs"
-                >
-                  א-ב
-                </Button>
-              </div>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => { setShowCustomerList(false); setCustomerSearch(""); setCustomerPage(0); }}
+                className="shrink-0 text-muted-foreground"
+                aria-label="סגור מאגר"
+              >
+                <X className="w-4 h-4" />
+              </Button>
             </div>
           )}
-          {customerList.length && pagedCustomers.length ? (
+          {showCustomerList && customerList.length && pagedCustomers.length ? (
             <div className="space-y-3">
               {pagedCustomers.map((c, i) => {
-                // Top-3 attendees are "favorite customers" — surfaced with a
-                // blue ✓ next to the name. Backend already sorts by
-                // totalVisits desc, so `i < 3` picks the top three.
-                const isFavorite = i < 3 && c.totalVisits > 0;
+                // "Favorite customer" = top-3 by visits. Computed off the full
+                // unsorted list above (topVisitorPhones) so the blue ✓ keeps
+                // marking the same three even when the directory is sorted
+                // alphabetically and the top visitors are scattered across pages.
+                const isFavorite = topVisitorPhones.has(c.phoneNumber);
                 const noShowCount = (c as any).noShowCount ?? 0;
                 const cancelledCount = (c as any).cancelledCount ?? 0;
                 return (
@@ -4792,12 +4799,14 @@ function CustomersTab() {
                 </div>
               )}
             </div>
-          ) : customerList.length > 0 ? (
-            // List has customers but the current filter returned nothing.
+          ) : showCustomerList && customerList.length > 0 ? (
+            // Database is open but the search filter returned nothing.
             <div className="py-12 text-center text-sm text-muted-foreground">
               לא נמצאו לקוחות שתואמים את החיפוש "{customerSearch}"
             </div>
-          ) : <EmptyState text="אין לקוחות עדיין" />}
+          ) : customerList.length === 0 ? (
+            <EmptyState text="אין לקוחות עדיין" />
+          ) : null}
         </CardContent>
       </Card>
 
