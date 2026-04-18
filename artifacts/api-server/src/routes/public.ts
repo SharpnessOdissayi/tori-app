@@ -1094,7 +1094,7 @@ router.post("/public/:businessSlug/appointments/:id/cancel", async (req, res): P
   const cancelFormattedDate = `${cancelDay}/${cancelMonth}`;
   const cancelIsPaidPlan = (business as any)?.subscriptionPlan === "pro" || (business as any)?.subscriptionPlan === "pro-plus";
   if (cancelIsPaidPlan) {
-    sendClientCancellation(appt.phoneNumber, appt.clientName, business?.name ?? "העסק", cancelFormattedDate, appt.appointmentTime, business?.id)
+    sendClientCancellation(appt.phoneNumber, appt.clientName, business?.name ?? "העסק", cancelFormattedDate, appt.appointmentTime, appt.businessId)
       .catch((e: any) => console.error("[WhatsApp] sendClientCancellation failed:", e?.response?.data ?? e?.message));
   }
 
