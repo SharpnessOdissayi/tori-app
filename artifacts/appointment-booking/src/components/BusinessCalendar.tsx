@@ -280,14 +280,18 @@ function CalHeader({
         <button onClick={stepForward} className="p-2 rounded-lg hover:bg-muted/60" aria-label="הבא"><ChevronLeft className="w-4 h-4" /></button>
       </div>
 
-      {/* "חזור להיום" + search on the left (reading end). */}
+      {/* "חזור להיום" + search on the left (reading end). On mobile the
+          תור-חדש + אילוץ buttons are hidden here and rendered as floating
+          FABs at the bottom-left of the calendar (see BusinessCalendar
+          root below) — owner feedback: the toolbar was too crowded to
+          fit the week-label comfortably on a phone. */}
       <div className="flex items-center gap-1 shrink-0">
         {onNewAppointment && (
           <button
             onClick={onNewAppointment}
             title="תור חדש"
             aria-label="תור חדש"
-            className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl text-xs font-bold text-white shadow-sm whitespace-nowrap"
+            className="hidden sm:flex items-center gap-1 px-2.5 py-1.5 rounded-xl text-xs font-bold text-white shadow-sm whitespace-nowrap"
             style={{ background: "linear-gradient(135deg, #16a34a 0%, #15803d 100%)" }}
           >
             <Plus className="w-4 h-4" />
@@ -299,7 +303,7 @@ function CalHeader({
             onClick={onNewTimeOff}
             title="אילוץ"
             aria-label="אילוץ"
-            className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl text-xs font-bold text-white shadow-sm whitespace-nowrap"
+            className="hidden sm:flex items-center gap-1 px-2.5 py-1.5 rounded-xl text-xs font-bold text-white shadow-sm whitespace-nowrap"
             style={{ background: "linear-gradient(135deg, #dc2626 0%, #991b1b 100%)" }}
           >
             <Ban className="w-4 h-4" />
@@ -1838,6 +1842,43 @@ export function BusinessCalendar({
           }
         }}
       />
+
+      {/* Floating actions on mobile only — the two buttons that used to
+          sit in the top toolbar (תור חדש / אילוץ) are stacked here at
+          the bottom-left so the toolbar has room for the full week
+          label without wrapping. Fixed positioning is safe because the
+          calendar tab is unmounted when the owner is on another tab
+          (shadcn/Radix Tabs default). z-[45] sits above the bottom nav
+          (z-40) but below the accessibility FABs on the right (z-55+). */}
+      {(onNewAppointment || onNewTimeOff) && (
+        <div
+          className="md:hidden fixed left-3 z-[45] flex flex-col-reverse gap-2"
+          style={{ bottom: "calc(5rem + env(safe-area-inset-bottom))" }}
+        >
+          {onNewAppointment && (
+            <button
+              type="button"
+              onClick={() => onNewAppointment()}
+              aria-label="תור חדש"
+              className="w-14 h-14 rounded-full shadow-lg flex items-center justify-center text-white transition-transform active:scale-95"
+              style={{ background: "linear-gradient(135deg, #16a34a 0%, #15803d 100%)" }}
+            >
+              <Plus className="w-6 h-6" />
+            </button>
+          )}
+          {onNewTimeOff && (
+            <button
+              type="button"
+              onClick={() => onNewTimeOff()}
+              aria-label="אילוץ"
+              className="w-12 h-12 rounded-full shadow-lg flex items-center justify-center text-white transition-transform active:scale-95"
+              style={{ background: "linear-gradient(135deg, #dc2626 0%, #991b1b 100%)" }}
+            >
+              <Ban className="w-5 h-5" />
+            </button>
+          )}
+        </div>
+      )}
     </div>
   );
 }
