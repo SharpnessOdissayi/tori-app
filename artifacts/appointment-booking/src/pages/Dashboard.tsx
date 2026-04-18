@@ -1538,7 +1538,7 @@ function NotificationBell({ token, onNotificationClick }: { token: string; onNot
               <span className="font-bold text-sm text-gray-900">התראות</span>
               <div className="flex items-center gap-3">
                 {unread > 0 && (
-                  <button onClick={markAllRead} className="text-xs text-primary hover:underline">סמן הכל</button>
+                  <button onClick={markAllRead} className="text-xs text-primary hover:underline">סמן הכל כנקרא</button>
                 )}
                 {notifications.length > 0 && (
                   <button onClick={deleteAll} className="text-xs text-red-600 hover:underline">מחק הכל</button>
