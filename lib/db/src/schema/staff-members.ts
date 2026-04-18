@@ -37,6 +37,19 @@ export const staffMembersTable = pgTable("staff_members", {
   isActive:   boolean("is_active").notNull().default(true),
   // Display order in the staff list / calendar tabs. Lower = earlier.
   sortOrder:  integer("sort_order").notNull().default(0),
+  // ─── Staff login (v2) ────────────────────────────────────────────────
+  // Nullable — rows created before logins rolled out have no hash and
+  // can't log in. When the owner adds a new staff with an email, the
+  // backend generates a random password, stores the hash here, and
+  // emails the plaintext to the staff member once (welcome email).
+  //
+  // Staff log in via the standard /auth/business/login endpoint: we
+  // match by email or phone against staff_members and issue a scoped
+  // JWT with staffMemberId so the dashboard knows to filter views.
+  passwordHash:     text("password_hash"),
+  // Timestamp of the last time we sent the welcome email (for "resend
+  // credentials" idempotency + rate-limit on the owner-UI side).
+  credentialsSentAt: timestamp("credentials_sent_at", { withTimezone: true }),
   createdAt:  timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 

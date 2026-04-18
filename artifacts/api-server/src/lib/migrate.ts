@@ -262,6 +262,17 @@ export async function runMigrations() {
       // Staff themselves live in the staff_members table created below.
       "ALTER TABLE appointments   ADD COLUMN IF NOT EXISTS staff_member_id INTEGER",
       "ALTER TABLE working_hours  ADD COLUMN IF NOT EXISTS staff_member_id INTEGER",
+      // ─── Staff logins (v2) ───────────────────────────────────────────
+      // Added to the pre-existing staff_members table. Nullable — legacy
+      // rows + owner-seeded rows keep having no hash and can't log in.
+      // New non-owner rows with an email trigger a welcome-email flow
+      // that stores the bcrypt hash here.
+      "ALTER TABLE staff_members ADD COLUMN IF NOT EXISTS password_hash TEXT",
+      "ALTER TABLE staff_members ADD COLUMN IF NOT EXISTS credentials_sent_at TIMESTAMPTZ",
+      // Unique index on lowercase email per business so a staff can log
+      // in by email without ambiguity. Allows NULL emails.
+      "CREATE UNIQUE INDEX IF NOT EXISTS staff_members_business_email_uniq ON staff_members (business_id, LOWER(email)) WHERE email IS NOT NULL",
+      "CREATE UNIQUE INDEX IF NOT EXISTS staff_members_business_phone_uniq ON staff_members (business_id, phone) WHERE phone IS NOT NULL",
     ];
 
     // Cancellation tracking

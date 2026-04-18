@@ -130,7 +130,7 @@ function StepPlan({ onNext }: { onNext: (plan: Plan) => void }) {
             ניסיון פרו ללא כרטיס אשראי — ביטול אוטומטי בתום 14 ימים
           </div>
           <div className="mt-5 w-full py-2.5 rounded-xl bg-slate-900 text-white font-bold text-sm text-center group-hover:bg-slate-800 transition-colors">
-            התחל 14 ימי ניסיון ←
+            להרשמה ←
           </div>
         </button>
 

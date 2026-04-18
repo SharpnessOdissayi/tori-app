@@ -7455,16 +7455,37 @@ function BusinessUpgradePrompt({ title, desc }: { title: string; desc: string })
 // Minimal first version: list + add + delete. Service-link UI
 // ("which services each worker does") and avatar uploads are queued for a
 // follow-up — they can both be added without changing the backend contract.
+type StaffMember = {
+  id: number; name: string; phone: string | null; email: string | null;
+  color: string | null; isOwner: boolean; isActive: boolean;
+  // credentialsSentAt is returned by the API as an ISO string or null.
+  // Populated once the welcome email with login details has been sent.
+  credentialsSentAt?: string | null;
+};
+
+// עסקי pricing — kept in one place so the copy in the billing dialog
+// and the monthly-total calculation can't drift apart.
+const BUSINESS_BASE_ILS_PER_MONTH = 150; // the עסקי plan base (2 staff included)
+const EXTRA_STAFF_ILS_PER_MONTH   = 25;  // each staff beyond the 2 included
+const INCLUDED_STAFF_COUNT        = 2;   // active staff included in base plan
+const HARD_STAFF_CAP              = 5;   // absolute ceiling before "contact us"
+
 function StaffTab() {
   const { toast } = useToast();
-  const [staff, setStaff] = useState<Array<{
-    id: number; name: string; phone: string | null; email: string | null;
-    color: string | null; isOwner: boolean; isActive: boolean;
-  }>>([]);
+  const { data: profile } = useGetBusinessProfile();
+  const [, navigate] = useLocation();
+  const [staff, setStaff] = useState<StaffMember[]>([]);
   const [loading, setLoading] = useState(true);
   const [newName, setNewName] = useState("");
+  const [newEmail, setNewEmail] = useState("");
   const [newPhone, setNewPhone] = useState("");
   const [adding, setAdding] = useState(false);
+  const [showGuide, setShowGuide] = useState(true);
+  // Two dialogs:
+  //   · billingConfirm — "you're about to add a paid extra, +₪25/mo"
+  //   · selectedStaff  — per-row actions (calendar / WhatsApp / call / delete)
+  const [billingConfirmOpen, setBillingConfirmOpen] = useState(false);
+  const [selectedStaff,      setSelectedStaff]      = useState<StaffMember | null>(null);
 
   const token = typeof window !== "undefined"
     ? (localStorage.getItem("biz_token") ?? sessionStorage.getItem("biz_token") ?? "")
@@ -7482,82 +7503,308 @@ function StaffTab() {
   };
   useEffect(() => { load(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, []);
 
-  async function handleAdd() {
-    const name = newName.trim();
-    if (!name) return;
+  // Derived counts for the summary card + the billing dialog.
+  const activeStaff    = staff.filter(s => s.isActive);
+  const activeCount    = activeStaff.length;
+  const includedActive = Math.min(activeCount, INCLUDED_STAFF_COUNT);
+  const extraActive    = Math.max(0, activeCount - INCLUDED_STAFF_COUNT);
+  const currentMonthly = BUSINESS_BASE_ILS_PER_MONTH + extraActive * EXTRA_STAFF_ILS_PER_MONTH;
+
+  // Proration math for the confirm dialog — how much will actually be
+  // charged right now (on top of the already-paid current month) if the
+  // owner confirms adding one more paid seat. We compute days left in the
+  // cycle from subscriptionRenewDate; if unavailable, we fall back to a
+  // 30-day estimate and note it in the UI.
+  const renewDate: Date | null = (profile as any)?.subscriptionRenewDate
+    ? new Date((profile as any).subscriptionRenewDate)
+    : null;
+  const daysLeftInCycle = renewDate
+    ? Math.max(0, Math.ceil((renewDate.getTime() - Date.now()) / (1000 * 60 * 60 * 24)))
+    : 30;
+  const proratedNowAgorot = Math.round(EXTRA_STAFF_ILS_PER_MONTH * (daysLeftInCycle / 30) * 100);
+  const proratedNowIls    = proratedNowAgorot / 100;
+  const nextMonthlyIls    = currentMonthly + EXTRA_STAFF_ILS_PER_MONTH;
+
+  // Validation: phone must be ~10 digits if provided (optional).
+  // Email is required — checked separately in handleAddClick.
+  const isValidPhone = (p: string) => {
+    if (!p) return true;
+    const digits = p.replace(/\D/g, "");
+    return digits.length >= 9 && digits.length <= 13;
+  };
+  const isValidEmail = (e: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e.trim());
+
+  /**
+   * Add-button click handler. Decides whether to show the billing dialog
+   * OR go straight to POST:
+   *   · activeCount < 2  → free seat, POST immediately
+   *   · activeCount >= 2 and < 5 → show billingConfirm first
+   *   · activeCount >= 5 → hard cap, toast an error
+   */
+  function handleAddClick() {
+    if (!newName.trim()) return;
+    if (!isValidEmail(newEmail)) {
+      toast({
+        title: "אימייל נדרש",
+        description: "האימייל משמש לשליחת פרטי הכניסה של העובד ולהתחברות שלו למערכת.",
+        variant: "destructive",
+      });
+      return;
+    }
+    if (!isValidPhone(newPhone)) {
+      toast({ title: "מספר טלפון לא תקין", description: "הכנס מספר ישראלי תקין (למשל 0501234567).", variant: "destructive" });
+      return;
+    }
+    if (activeCount >= HARD_STAFF_CAP) {
+      toast({
+        title: "מקסימום עובדים פעילים",
+        description: `עסקי מוגבל ל-${HARD_STAFF_CAP} עובדים פעילים. צור קשר לתכנית מותאמת אישית.`,
+        variant: "destructive",
+      });
+      return;
+    }
+    if (activeCount >= INCLUDED_STAFF_COUNT) {
+      setBillingConfirmOpen(true);
+      return;
+    }
+    performAdd();
+  }
+
+  async function performAdd() {
     setAdding(true);
     try {
       const res = await fetch("/api/staff", {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ name, phone: newPhone.trim() || null }),
+        body: JSON.stringify({
+          name:  newName.trim(),
+          email: newEmail.trim().toLowerCase(),
+          phone: newPhone.trim() || null,
+        }),
       });
       const json = await res.json().catch(() => ({}));
       if (!res.ok) {
-        if (json?.error === "seat_cap_reached") {
-          toast({
-            title: "הגעת למגבלת העובדים",
-            description: `המסלול שלך מוגבל ל-${json.cap} עובדים. צריך להסיר עובד קיים לפני הוספה.`,
-            variant: "destructive",
-          });
-        } else {
-          toast({ title: "שגיאה בהוספה", description: json?.error ?? "נסה שוב", variant: "destructive" });
-        }
+        const errMsgs: Record<string, { title: string; desc: string }> = {
+          seat_cap_reached:  { title: "הגעת למגבלת העובדים", desc: `המסלול שלך מוגבל ל-${json.cap} עובדים פעילים.` },
+          email_required:    { title: "אימייל נדרש",          desc: "האימייל משמש לשליחת פרטי הכניסה לעובד." },
+          email_invalid:     { title: "אימייל לא תקין",         desc: "הכנס כתובת אימייל תקינה (למשל name@example.com)." },
+          duplicate_email:   { title: "אימייל תפוס",            desc: "עובד אחר בצוות כבר משתמש באימייל הזה." },
+          duplicate_phone:   { title: "טלפון תפוס",             desc: "עובד אחר בצוות כבר משתמש בטלפון הזה." },
+        };
+        const m = errMsgs[json?.error];
+        toast({
+          title:       m?.title ?? "שגיאה בהוספה",
+          description: m?.desc  ?? json?.error ?? "נסה שוב",
+          variant:     "destructive",
+        });
         return;
       }
       setNewName("");
+      setNewEmail("");
       setNewPhone("");
+      setBillingConfirmOpen(false);
       await load();
-      toast({ title: "נוסף בהצלחה" });
+      toast({
+        title:       "העובד נוסף ונשלחה אליו הזמנה",
+        description: `פרטי הכניסה נשלחו ל-${json.credentialsSentTo ?? "האימייל שלו"}.`,
+      });
     } finally {
       setAdding(false);
     }
   }
 
-  async function handleRemove(id: number) {
-    if (!confirm("להסיר עובד זה?")) return;
-    const res = await fetch(`/api/staff/${id}`, {
-      method: "DELETE",
+  async function handleResendInvite(id: number) {
+    if (!token) return;
+    const res = await fetch(`/api/staff/${id}/resend-invite`, {
+      method: "POST",
       headers: { Authorization: `Bearer ${token}` },
     });
+    const json = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      const errMap: Record<string, string> = {
+        staff_has_no_email:   "לעובד אין אימייל — ערוך את הפרטים והוסף אימייל.",
+        cannot_resend_owner:  "לא ניתן לשלוח שוב לבעל העסק — התחבר רגיל עם האימייל שלך.",
+        email_send_failed:    "השליחה נכשלה. ודא שהאימייל תקין ונסה שוב.",
+      };
+      toast({ title: "שגיאה", description: errMap[json?.error] ?? json?.error ?? "נסה שוב", variant: "destructive" });
+      return;
+    }
+    await load();
+    toast({ title: "הזמנה נשלחה מחדש", description: `נשלחה ל-${json.sentTo ?? "העובד"} עם סיסמה חדשה.` });
+  }
+
+  async function handleRemove(id: number) {
+    const member = staff.find(s => s.id === id);
+    const name = member?.name ?? "עובד";
+    if (!confirm(`להסיר את ${name} מהצוות?\n\nהתורים הקיימים יישארו בהיסטוריה, אבל לא יופיע יותר ביומנים ובאתר ההזמנות.`)) return;
+    const res = await fetch(`/api/staff/${id}`, { method: "DELETE", headers: { Authorization: `Bearer ${token}` } });
     if (!res.ok) {
       const json = await res.json().catch(() => ({}));
       toast({ title: "שגיאה במחיקה", description: json?.error ?? "נסה שוב", variant: "destructive" });
       return;
     }
     await load();
+    setSelectedStaff(null);
     toast({ title: "העובד הוסר" });
+  }
+
+  // ─── per-row action helpers (called from the selectedStaff dialog) ───
+  function openStaffWhatsApp(s: StaffMember) {
+    if (!s.phone) return;
+    const digits = s.phone.replace(/\D/g, "");
+    const normalized = digits.startsWith("0") ? `972${digits.slice(1)}`
+      : digits.startsWith("972") ? digits
+      : digits;
+    const url = `https://wa.me/${normalized}`;
+    window.open(url, "_blank", "noopener,noreferrer");
+  }
+  function callStaff(s: StaffMember) {
+    if (!s.phone) return;
+    window.location.href = `tel:${s.phone}`;
+  }
+  function viewStaffCalendar(s: StaffMember) {
+    // Per-staff calendar filtering inside BusinessCalendar is still
+    // pending. For now: take the owner to the appointments tab and show
+    // a toast so they know filtering will be applied once the week view
+    // gets staff-aware. The staff id is parked in sessionStorage so the
+    // calendar component can pick it up when the filter lands.
+    sessionStorage.setItem("kavati_staff_filter_id", String(s.id));
+    sessionStorage.setItem("kavati_staff_filter_name", s.name);
+    setSelectedStaff(null);
+    // Tab state lives on the <Tabs> component higher up; we flip via a
+    // custom event so this component doesn't need the activeTab setter.
+    window.dispatchEvent(new CustomEvent("kavati:switch-tab", { detail: "appointments" }));
+    toast({
+      title: `יומן של ${s.name}`,
+      description: "פתחנו את טאב הפגישות. סינון לפי עובד ביומן — בפיתוח.",
+    });
+    void navigate; // no-op: kept in scope for a future deep-link.
   }
 
   return (
     <div className="space-y-6 max-w-2xl">
+      {/* ─── Header / summary ───────────────────────────────────────── */}
       <div>
-        <h2 className="text-xl font-bold">ניהול צוות</h2>
-        <p className="text-sm text-muted-foreground mt-1">
-          כל עובד מקבל יומן משלו, ולקוחות יוכלו לבחור אצל מי הם רוצים לקבוע תור.
-          כלול במסלול עסקי: 2 עובדים. כל עובד נוסף מעל — ₪25/חודש (עד 5 סה״כ).
+        <h2 className="text-xl font-bold flex items-center gap-2">
+          <Users className="w-5 h-5 text-blue-600" /> ניהול צוות
+        </h2>
+        <p className="text-sm text-muted-foreground mt-1 leading-relaxed">
+          כל עובד מקבל יומן משלו וחשבון להתחברות אישית, ולקוחות יוכלו לבחור אצל מי הם רוצים לקבוע תור.
         </p>
       </div>
 
+      {/* ─── Guidance card — how staff logins work ──────────────────── */}
+      {showGuide && (
+        <div className="rounded-2xl border-2 border-blue-200 bg-gradient-to-br from-blue-50 to-sky-50 p-5 relative">
+          <button
+            type="button"
+            onClick={() => setShowGuide(false)}
+            className="absolute top-3 left-3 text-blue-600/60 hover:text-blue-800 transition-colors"
+            aria-label="הסתר הדרכה"
+          >
+            <X className="w-4 h-4" />
+          </button>
+          <div className="flex items-start gap-3">
+            <div className="w-10 h-10 rounded-xl bg-blue-600 text-white flex items-center justify-center shrink-0 shadow-md">
+              💡
+            </div>
+            <div className="space-y-3 flex-1 min-w-0">
+              <div>
+                <h3 className="font-bold text-blue-900">איך עובד הצוות?</h3>
+                <p className="text-sm text-blue-800 mt-1 leading-relaxed">
+                  כל עובד שתוסיף יקבל חשבון משלו שדרכו יוכל להיכנס למערכת ולראות רק את היומן שלו.
+                </p>
+              </div>
+              <ol className="text-sm text-blue-900 space-y-2 pr-5 list-decimal marker:text-blue-600 marker:font-bold">
+                <li>מוסיף/ה עובד/ת עם <strong>שם, אימייל וטלפון</strong> בטופס למטה.</li>
+                <li>המערכת יוצרת לו/ה חשבון אוטומטית ושולחת לאימייל פרטי כניסה (שם משתמש + סיסמה זמנית).</li>
+                <li>העובד/ת נכנס/ת ל-<span dir="ltr" className="font-mono text-xs">kavati.net/dashboard</span> עם אותם פרטים.</li>
+                <li>אחרי ההתחברות הראשונה מומלץ שיחליפו סיסמה דרך "הגדרות → שינוי סיסמה".</li>
+              </ol>
+              <p className="text-xs text-blue-700">
+                🔒 רק העובד/ת רואה את הסיסמה שלו/ה. אתה יכול לשלוח הזמנה מחדש בכל עת (לחיצה על העובד ברשימה).
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Plan usage card — shows how many of the 2 included seats are in
+          use + cost of any paid extras. Helps the owner understand the
+          monthly total at a glance before hitting "הוסף". */}
+      <Card>
+        <CardContent className="pt-5 pb-5">
+          <div className="grid grid-cols-3 gap-3 text-center">
+            <div>
+              <div className="text-xs font-medium text-muted-foreground">עובדים פעילים</div>
+              <div className="text-2xl font-bold text-blue-900 mt-1">{activeCount}<span className="text-sm text-muted-foreground">/{HARD_STAFF_CAP}</span></div>
+            </div>
+            <div>
+              <div className="text-xs font-medium text-muted-foreground">כלולים בעסקי</div>
+              <div className="text-2xl font-bold text-emerald-700 mt-1">{includedActive}<span className="text-sm text-muted-foreground">/{INCLUDED_STAFF_COUNT}</span></div>
+              <div className="text-[10px] text-muted-foreground">חינם</div>
+            </div>
+            <div>
+              <div className="text-xs font-medium text-muted-foreground">חיוב חודשי</div>
+              <div className="text-2xl font-bold text-blue-800 mt-1">₪{currentMonthly}</div>
+              <div className="text-[10px] text-muted-foreground">
+                {extraActive > 0 ? `${extraActive} × ₪${EXTRA_STAFF_ILS_PER_MONTH}` : "בסיס עסקי"}
+              </div>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* ─── Add form ───────────────────────────────────────────────── */}
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">הוספת עובד חדש</CardTitle>
+          <CardTitle className="text-base flex items-center gap-2">
+            <Plus className="w-4 h-4" /> הוספת עובד חדש
+          </CardTitle>
+          <CardDescription>
+            {activeCount < INCLUDED_STAFF_COUNT
+              ? `נשאר${INCLUDED_STAFF_COUNT - activeCount === 1 ? "" : "ו"} ${INCLUDED_STAFF_COUNT - activeCount} מקומות חינם במסלול שלך.`
+              : activeCount < HARD_STAFF_CAP
+                ? `כל עובד נוסף — ₪${EXTRA_STAFF_ILS_PER_MONTH}/חודש.`
+                : `הגעת למגבלה העליונה (${HARD_STAFF_CAP} עובדים). צור קשר לתכנית מותאמת אישית.`}
+          </CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">
           <div className="space-y-1.5">
-            <Label>שם</Label>
+            <Label>שם מלא *</Label>
             <Input value={newName} onChange={e => setNewName(e.target.value)} placeholder="לדוגמה: דנה כהן" />
           </div>
           <div className="space-y-1.5">
-            <Label>טלפון (אופציונלי)</Label>
-            <Input value={newPhone} onChange={e => setNewPhone(e.target.value)} placeholder="0501234567" dir="ltr" />
+            <Label>אימייל *</Label>
+            <Input
+              value={newEmail}
+              onChange={e => setNewEmail(e.target.value)}
+              placeholder="name@example.com"
+              dir="ltr"
+              type="email"
+            />
+            <p className="text-[11px] text-muted-foreground">פרטי הכניסה של העובד יישלחו לכתובת הזו.</p>
           </div>
-          <Button onClick={handleAdd} disabled={adding || !newName.trim()} className="w-full">
-            {adding ? "מוסיף..." : "הוסף עובד"}
+          <div className="space-y-1.5">
+            <Label>טלפון *</Label>
+            <Input value={newPhone} onChange={e => setNewPhone(e.target.value)} placeholder="0501234567" dir="ltr" />
+            <p className="text-[11px] text-muted-foreground">משמש להתקשרות מהירה + כאפשרות כניסה נוספת.</p>
+          </div>
+          <Button
+            onClick={handleAddClick}
+            disabled={adding || !newName.trim() || !newEmail.trim() || activeCount >= HARD_STAFF_CAP}
+            className="w-full"
+          >
+            {adding
+              ? "מוסיף ושולח הזמנה..."
+              : activeCount >= INCLUDED_STAFF_COUNT
+                ? `הוסף עובד ושלח הזמנה — +₪${EXTRA_STAFF_ILS_PER_MONTH}/חודש`
+                : "הוסף עובד ושלח הזמנה"}
           </Button>
         </CardContent>
       </Card>
 
+      {/* ─── List ───────────────────────────────────────────────────── */}
       <div className="space-y-2">
         <h3 className="text-sm font-semibold text-muted-foreground">רשימת עובדים ({staff.length})</h3>
         {loading && <div className="text-sm text-muted-foreground">טוען...</div>}
@@ -7565,28 +7812,181 @@ function StaffTab() {
           <div className="text-sm text-muted-foreground">עדיין לא נוספו עובדים — הוספת עובד ראשון למעלה.</div>
         )}
         {staff.map(s => (
-          <div key={s.id} className={`flex items-center justify-between gap-3 p-3 rounded-xl border ${s.isOwner ? "bg-blue-50 border-blue-200" : "bg-card"}`}>
-            <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-2">
-                <div className="font-semibold truncate">{s.name}</div>
-                {s.isOwner && (
-                  <Badge className="bg-blue-600 text-white text-[10px] px-2 py-0">בעלים</Badge>
-                )}
-                {!s.isActive && (
-                  <Badge className="bg-slate-200 text-slate-700 text-[10px] px-2 py-0">לא פעיל</Badge>
-                )}
+          <button
+            key={s.id}
+            onClick={() => setSelectedStaff(s)}
+            className={`w-full flex items-center justify-between gap-3 p-3 rounded-xl border text-right transition-all hover:shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 ${s.isOwner ? "bg-blue-50 border-blue-200 hover:bg-blue-100" : "bg-card hover:bg-muted/40"}`}
+          >
+            <div className="flex items-center gap-3 flex-1 min-w-0">
+              <div
+                className="w-10 h-10 rounded-full flex items-center justify-center font-bold text-white shrink-0"
+                style={{ background: s.color ?? (s.isOwner ? "#2563eb" : "#64748b") }}
+                aria-hidden
+              >
+                {s.name.slice(0, 1)}
               </div>
-              {s.phone && <div className="text-xs text-muted-foreground" dir="ltr">{s.phone}</div>}
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <div className="font-semibold truncate">{s.name}</div>
+                  {s.isOwner && <Badge className="bg-blue-600 text-white text-[10px] px-2 py-0">בעלים</Badge>}
+                  {!s.isActive && <Badge className="bg-slate-200 text-slate-700 text-[10px] px-2 py-0">לא פעיל</Badge>}
+                </div>
+                {s.phone && <div className="text-xs text-muted-foreground mt-0.5" dir="ltr">{s.phone}</div>}
+              </div>
             </div>
-            {!s.isOwner && (
-              <Button variant="ghost" size="sm" className="text-destructive hover:bg-destructive/10"
-                onClick={() => handleRemove(s.id)}>
-                <Trash2 className="w-4 h-4" />
-              </Button>
-            )}
-          </div>
+            <ChevronLeft className="w-4 h-4 text-muted-foreground shrink-0" />
+          </button>
         ))}
       </div>
+
+      {/* ─── Over-2 billing confirm dialog ──────────────────────────── */}
+      <Dialog open={billingConfirmOpen} onOpenChange={setBillingConfirmOpen}>
+        <DialogContent dir="rtl" className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-blue-900">
+              <Sparkles className="w-5 h-5 text-blue-600" /> הוספת עובד נוסף
+            </DialogTitle>
+            <DialogDescription>
+              מסלול עסקי כולל {INCLUDED_STAFF_COUNT} עובדים.
+              כל עובד נוסף = <strong>₪{EXTRA_STAFF_ILS_PER_MONTH}/חודש</strong> נוספים על החיוב הבא.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-3 py-2">
+            <div className="rounded-xl bg-gradient-to-br from-blue-50 to-sky-50 border border-blue-200 p-4 space-y-2">
+              <div className="flex justify-between text-sm">
+                <span className="text-muted-foreground">חיוב חודשי נוכחי</span>
+                <span className="font-semibold">₪{currentMonthly}</span>
+              </div>
+              <div className="flex justify-between text-sm">
+                <span className="text-muted-foreground">+ עובד נוסף</span>
+                <span className="font-semibold text-blue-700">+₪{EXTRA_STAFF_ILS_PER_MONTH}</span>
+              </div>
+              <div className="border-t border-blue-200 pt-2 flex justify-between">
+                <span className="font-bold">חיוב חודשי חדש</span>
+                <span className="font-bold text-blue-800 text-lg">₪{nextMonthlyIls}</span>
+              </div>
+            </div>
+
+            <div className="rounded-xl bg-amber-50 border border-amber-200 p-3 text-sm text-amber-900">
+              <div className="flex justify-between items-baseline">
+                <span className="font-semibold">חיוב יחסי על החודש הנוכחי</span>
+                <span className="font-bold">₪{proratedNowIls.toFixed(2)}</span>
+              </div>
+              <div className="text-xs text-amber-700 mt-1">
+                {renewDate
+                  ? `נשארו ${daysLeftInCycle} ימים עד החיוב הבא (${renewDate.toLocaleDateString("he-IL")}).`
+                  : "מחושב על בסיס 30 ימים מהיום."}
+                {" "}החיוב השלם של ₪{nextMonthlyIls} יתחיל במחזור הבא.
+              </div>
+            </div>
+
+            <p className="text-xs text-muted-foreground leading-relaxed">
+              💡 תמיד תוכל להסיר את העובד מהצוות ולחזור למסלול הבסיסי. אין חוזה ואין קנס ביטול.
+            </p>
+          </div>
+
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={() => setBillingConfirmOpen(false)} disabled={adding} className="flex-1">
+              ביטול
+            </Button>
+            <Button
+              onClick={performAdd}
+              disabled={adding}
+              className="flex-1 bg-gradient-to-r from-blue-600 to-sky-600 hover:from-blue-700 hover:to-sky-700 text-white"
+            >
+              {adding ? "מוסיף..." : "אישור והוספה"}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* ─── Per-staff actions dialog ───────────────────────────────── */}
+      <Dialog open={!!selectedStaff} onOpenChange={(v) => !v && setSelectedStaff(null)}>
+        <DialogContent dir="rtl" className="max-w-sm">
+          {selectedStaff && (
+            <>
+              <DialogHeader>
+                <div className="flex items-center gap-3">
+                  <div
+                    className="w-12 h-12 rounded-full flex items-center justify-center font-bold text-white text-lg shrink-0"
+                    style={{ background: selectedStaff.color ?? (selectedStaff.isOwner ? "#2563eb" : "#64748b") }}
+                  >
+                    {selectedStaff.name.slice(0, 1)}
+                  </div>
+                  <div className="flex-1 min-w-0 text-right">
+                    <DialogTitle className="truncate">{selectedStaff.name}</DialogTitle>
+                    <DialogDescription className="text-xs mt-1">
+                      {selectedStaff.isOwner ? "בעלים / מנהל ראשי" : "עובד"}
+                      {selectedStaff.phone && <> · <span dir="ltr">{selectedStaff.phone}</span></>}
+                    </DialogDescription>
+                  </div>
+                </div>
+              </DialogHeader>
+
+              <div className="grid grid-cols-1 gap-2 pt-2">
+                <Button
+                  variant="outline"
+                  onClick={() => viewStaffCalendar(selectedStaff)}
+                  className="justify-start gap-3 h-12"
+                >
+                  <Calendar className="w-5 h-5 text-blue-600" />
+                  <span className="flex-1 text-right">צפה ביומן של {selectedStaff.name}</span>
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={() => openStaffWhatsApp(selectedStaff)}
+                  disabled={!selectedStaff.phone}
+                  className="justify-start gap-3 h-12"
+                >
+                  <MessageSquare className="w-5 h-5 text-green-600" />
+                  <span className="flex-1 text-right">
+                    {selectedStaff.phone ? "שלח הודעה ב-WhatsApp" : "WhatsApp (אין טלפון)"}
+                  </span>
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={() => callStaff(selectedStaff)}
+                  disabled={!selectedStaff.phone}
+                  className="justify-start gap-3 h-12"
+                >
+                  <Phone className="w-5 h-5 text-blue-600" />
+                  <span className="flex-1 text-right">
+                    {selectedStaff.phone ? "התקשר" : "התקשר (אין טלפון)"}
+                  </span>
+                </Button>
+                {!selectedStaff.isOwner && selectedStaff.email && (
+                  <Button
+                    variant="outline"
+                    onClick={() => handleResendInvite(selectedStaff.id)}
+                    className="justify-start gap-3 h-12 mt-2"
+                  >
+                    <Send className="w-5 h-5 text-blue-600" />
+                    <span className="flex-1 text-right">
+                      {selectedStaff.credentialsSentAt ? "שלח הזמנה מחדש" : "שלח הזמנה"}
+                    </span>
+                    {selectedStaff.credentialsSentAt && (
+                      <span className="text-[10px] text-muted-foreground">
+                        נשלח: {new Date(selectedStaff.credentialsSentAt).toLocaleDateString("he-IL")}
+                      </span>
+                    )}
+                  </Button>
+                )}
+                {!selectedStaff.isOwner && (
+                  <Button
+                    variant="outline"
+                    onClick={() => handleRemove(selectedStaff.id)}
+                    className="justify-start gap-3 h-12 text-red-600 border-red-200 hover:bg-red-50 hover:border-red-300 mt-1"
+                  >
+                    <Trash2 className="w-5 h-5" />
+                    <span className="flex-1 text-right">הסר מהצוות</span>
+                  </Button>
+                )}
+              </div>
+            </>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

@@ -95,28 +95,80 @@ router.post("/auth/business/login", async (req, res): Promise<void> => {
       eq(sql`lower(${(businessesTable as any).username})`, identifierNormalized)
     ));
 
-  if (!business) {
-    res.status(401).json({ error: "Invalid credentials" });
+  if (business) {
+    // Verify password BEFORE disclosing account-status. Otherwise an
+    // attacker can enumerate valid accounts by probing for the
+    // "account_suspended" error message. With this ordering, the
+    // suspended-account message only reaches callers who know the password.
+    const valid = await bcrypt.compare(password, business.passwordHash);
+    if (!valid) {
+      res.status(401).json({ error: "Invalid credentials" });
+      return;
+    }
+
+    if (!business.isActive) {
+      res.status(403).json({ error: "account_suspended", message: "החשבון מושהה. צור קשר עם התמיכה." });
+      return;
+    }
+
+    const token = signBusinessToken({ businessId: business.id, email: business.email });
+    res.json(buildLoginResponse(business, token));
     return;
   }
 
-  // Verify password BEFORE disclosing account-status. Otherwise an attacker
-  // can enumerate valid accounts by probing for the "account_suspended"
-  // error message. With this ordering, the suspended-account message only
-  // reaches callers who actually know the password.
-  const valid = await bcrypt.compare(password, business.passwordHash);
-  if (!valid) {
-    res.status(401).json({ error: "Invalid credentials" });
-    return;
+  // ─── Staff login fallback ─────────────────────────────────────────────
+  // No business matched — try matching a staff_members row. Staff log in
+  // via the same form; the JWT carries businessId + staffMemberId so the
+  // dashboard can scope views. Staff lookup uses case-insensitive email
+  // or exact phone match; we enforce DB-level uniqueness within a business
+  // so the lookup can't be ambiguous.
+  const { staffMembersTable } = await import("@workspace/db");
+  const staffRows = await db
+    .select()
+    .from(staffMembersTable)
+    .where(or(
+      eq(sql`lower(${staffMembersTable.email})`, identifierNormalized),
+      eq(staffMembersTable.phone, identifier.trim()),
+    ));
+  if (staffRows.length > 0) {
+    // Try each matching row's password. Usually only one row matches, but
+    // in edge cases (e.g. same email at two businesses) we let the password
+    // disambiguate.
+    for (const staff of staffRows) {
+      if (!staff.passwordHash || !staff.isActive) continue;
+      const valid = await bcrypt.compare(password, staff.passwordHash);
+      if (!valid) continue;
+
+      const [owningBusiness] = await db.select().from(businessesTable).where(eq(businessesTable.id, staff.businessId));
+      if (!owningBusiness || !owningBusiness.isActive) {
+        res.status(403).json({ error: "account_suspended" });
+        return;
+      }
+
+      // Scoped business token that ALSO carries the staffMemberId. Frontend
+      // dashboard reads this flag and restricts views to the staff's own
+      // calendar + hides billing/settings tabs.
+      const token = signBusinessToken({
+        businessId: owningBusiness.id,
+        email:      owningBusiness.email,
+        // @ts-expect-error extending the payload — consumers that only know
+        // about businessId + email still work; staff-aware consumers pick up
+        // this key.
+        staffMemberId: staff.id,
+      });
+      res.json({
+        ...buildLoginResponse(owningBusiness, token),
+        staff: {
+          id:      staff.id,
+          name:    staff.name,
+          isOwner: staff.isOwner,
+        },
+      });
+      return;
+    }
   }
 
-  if (!business.isActive) {
-    res.status(403).json({ error: "account_suspended", message: "החשבון מושהה. צור קשר עם התמיכה." });
-    return;
-  }
-
-  const token = signBusinessToken({ businessId: business.id, email: business.email });
-  res.json(buildLoginResponse(business, token));
+  res.status(401).json({ error: "Invalid credentials" });
 });
 
 // POST /auth/business/register — self-service registration

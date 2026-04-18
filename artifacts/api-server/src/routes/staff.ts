@@ -25,9 +25,73 @@ import { Router } from "express";
 import { db, staffMembersTable, staffServicesTable, businessesTable } from "@workspace/db";
 import { eq, and } from "drizzle-orm";
 import jwt from "jsonwebtoken";
+import bcrypt from "bcryptjs";
+import crypto from "crypto";
 import { JWT_SECRET } from "../lib/auth";
+import { sendEmail } from "../lib/email";
+import { logger } from "../lib/logger";
 
 const router = Router();
+
+/**
+ * Generate a human-readable temporary password for a new staff invite.
+ * 10 chars, mixed-case alphanumerics; no look-alike symbols (O/0, l/1).
+ * Not cryptographically strong — it's meant to be changed by the staff
+ * on first login.
+ */
+function generateTempPassword(): string {
+  const alphabet = "abcdefghjkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+  const bytes = crypto.randomBytes(10);
+  let out = "";
+  for (let i = 0; i < 10; i++) out += alphabet[bytes[i] % alphabet.length];
+  return out;
+}
+
+/**
+ * Welcome email to a new staff member with their login credentials. The
+ * plaintext password is only ever visible here (and in the welcome email
+ * that goes straight to the staff inbox) — the business owner never sees
+ * it, the DB only stores the bcrypt hash.
+ */
+async function sendStaffWelcomeEmail(args: {
+  to:           string;
+  staffName:    string;
+  businessName: string;
+  loginHandle:  string; // email or phone — whatever we display as primary
+  password:     string;
+}): Promise<void> {
+  const dashboardUrl = "https://www.kavati.net/dashboard";
+  const html = `
+    <div dir="rtl" style="font-family: Arial, sans-serif; max-width: 560px; margin: 0 auto; padding: 24px; color: #111;">
+      <h1 style="margin: 0 0 8px; font-size: 24px;">ברוך/ה הבא/ה לצוות של ${args.businessName}! 👋</h1>
+      <p style="margin: 0 0 16px; color: #555; font-size: 15px;">
+        הצטרפת לצוות ב-Kavati — מערכת זימון התורים של ${args.businessName}.
+        המנהל/ת יצרה עבורך חשבון אישי שדרכו תוכל/י לראות את היומן שלך, לאשר תורים ולהתעדכן על ביטולים.
+      </p>
+
+      <div style="margin: 24px 0; padding: 20px; background: #f0f9ff; border: 1px solid #bae6fd; border-radius: 12px;">
+        <p style="margin: 0 0 12px; font-weight: bold; color: #075985; font-size: 15px;">🔐 פרטי הכניסה שלך</p>
+        <p style="margin: 0 0 10px; font-size: 12px; color: #0369a1;">אפשר להיכנס לפי אימייל, טלפון או שם משתמש — הסיסמה זהה לכולם.</p>
+        <table style="width: 100%; font-size: 14px; border-collapse: collapse;">
+          <tr><td style="padding: 6px 0; color: #666; width: 120px;">שם משתמש:</td>
+              <td style="padding: 6px 0; font-family: monospace; direction: ltr; text-align: right; font-weight: bold;">${args.loginHandle}</td></tr>
+          <tr><td style="padding: 6px 0; color: #666;">סיסמה:</td>
+              <td style="padding: 6px 0; font-family: monospace; direction: ltr; text-align: right; font-weight: bold;">${args.password}</td></tr>
+        </table>
+        <p style="margin: 12px 0 0; font-size: 12px; color: #0369a1;">⚠️ מומלץ להחליף את הסיסמה בכניסה הראשונה שלך מהדאשבורד → הגדרות → שינוי סיסמה.</p>
+      </div>
+
+      <div style="margin: 24px 0; text-align: center;">
+        <a href="${dashboardUrl}" style="display: inline-block; padding: 12px 28px; background: #2563eb; color: white; text-decoration: none; border-radius: 8px; font-weight: bold; font-size: 15px;">כניסה למערכת</a>
+      </div>
+
+      <p style="margin: 24px 0 6px; color: #555; font-size: 14px;">נתקלת בבעיה? פנה/י למנהל/ת של ${args.businessName} ישירות.</p>
+      <p style="margin: 0 0 0; color: #888; font-size: 12px;">באהבה,<br>צוות Kavati</p>
+    </div>`;
+  await sendEmail(args.to, `${args.businessName} — פרטי הכניסה שלך ב-Kavati`, html, {
+    from: "Kavati <welcome@kavati.net>",
+  });
+}
 
 function getBusinessId(authHeader: string): number | null {
   const token = authHeader.startsWith("Bearer ") ? authHeader.slice(7) : "";
@@ -80,22 +144,32 @@ router.get("/staff", async (req, res): Promise<void> => {
   void links; // lint-quiet; linkage is returned via a separate endpoint if needed.
 
   res.json(rows.map(r => ({
-    id:          r.id,
-    name:        r.name,
-    phone:       r.phone,
-    email:       r.email,
-    avatarUrl:   r.avatarUrl,
-    color:       r.color,
-    isOwner:     r.isOwner,
-    isActive:    r.isActive,
-    sortOrder:   r.sortOrder,
-    createdAt:   r.createdAt.toISOString(),
+    id:                r.id,
+    name:              r.name,
+    phone:             r.phone,
+    email:             r.email,
+    avatarUrl:         r.avatarUrl,
+    color:             r.color,
+    isOwner:           r.isOwner,
+    isActive:          r.isActive,
+    sortOrder:         r.sortOrder,
+    credentialsSentAt: r.credentialsSentAt?.toISOString() ?? null,
+    createdAt:         r.createdAt.toISOString(),
   })));
 });
 
 // ─── POST /api/staff ───────────────────────────────────────────────────────
-// Body: { name, phone?, email?, color?, avatarUrl?, sortOrder? }
-// Enforces the plan's seat cap BEFORE inserting.
+// Body: { name, email, phone?, color?, avatarUrl?, sortOrder? }
+// Email is required for new staff because that's the channel we use to
+// send the staff their login credentials. Phone is optional (can be used
+// as a secondary login handle later).
+//
+// Flow on success:
+//   1. Enforce seat cap
+//   2. Generate a temp password, bcrypt-hash it for staff_members
+//   3. Insert the row with the hash
+//   4. Email the plaintext password + login URL to the staff directly
+//   5. Return {id, credentialsSentTo: email}
 router.post("/staff", async (req, res): Promise<void> => {
   const businessId = getBusinessId(req.headers.authorization ?? "");
   if (!businessId) { res.status(401).json({ error: "Unauthorized" }); return; }
@@ -104,10 +178,19 @@ router.post("/staff", async (req, res): Promise<void> => {
   if (!biz) { res.status(404).json({ error: "Business not found" }); return; }
 
   const body = req.body as Record<string, unknown>;
-  const name = String(body?.name ?? "").trim();
-  if (!name) { res.status(400).json({ error: "name is required" }); return; }
+  const name  = String(body?.name  ?? "").trim();
+  const email = String(body?.email ?? "").trim().toLowerCase();
+  const phone = String(body?.phone ?? "").trim();
+  if (!name)  { res.status(400).json({ error: "name is required"  }); return; }
+  // Email is required for login flow. Reject early with a clear error so
+  // the UI can surface it inline on the email field.
+  if (!email) { res.status(400).json({ error: "email_required" }); return; }
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    res.status(400).json({ error: "email_invalid" });
+    return;
+  }
 
-  // Seat cap check — only count ACTIVE staff. Inactive rows are "archived"
+  // Seat cap check — only count ACTIVE staff. Inactive rows are archived
   // and don't chip away at the budget.
   const activeRows = await db
     .select()
@@ -128,22 +211,99 @@ router.post("/staff", async (req, res): Promise<void> => {
     return;
   }
 
+  // Duplicate email guard — friendly error instead of a Postgres unique
+  // constraint violation. Phone is handled by a similar guard below.
+  const emailDup = activeRows.find(r => (r.email ?? "").toLowerCase() === email);
+  if (emailDup) { res.status(409).json({ error: "duplicate_email" }); return; }
+  if (phone) {
+    const phoneDup = activeRows.find(r => r.phone === phone);
+    if (phoneDup) { res.status(409).json({ error: "duplicate_phone" }); return; }
+  }
+
+  // Generate + hash the temp password. We never log the plaintext.
+  const tempPassword = generateTempPassword();
+  const passwordHash = await bcrypt.hash(tempPassword, 10);
+
   const [inserted] = await db
     .insert(staffMembersTable)
     .values({
       businessId,
       name,
-      phone:     (body.phone    as string | undefined) || null,
-      email:     (body.email    as string | undefined) || null,
+      email,
+      phone:     phone || null,
       avatarUrl: (body.avatarUrl as string | undefined) || null,
-      color:     (body.color    as string | undefined) || null,
+      color:     (body.color     as string | undefined) || null,
       isOwner:   false,
       isActive:  true,
       sortOrder: typeof body.sortOrder === "number" ? body.sortOrder : 0,
+      passwordHash,
     } as any)
     .returning();
 
-  res.status(201).json({ id: inserted.id });
+  // Fire-and-forget — if the email fails (e.g. Resend misconfigured) we
+  // still created the staff row. The owner can use the "resend invite"
+  // action later; logs capture the failure.
+  sendStaffWelcomeEmail({
+    to:           email,
+    staffName:    name,
+    businessName: biz.name,
+    loginHandle:  email,
+    password:     tempPassword,
+  })
+    .then(() => db.update(staffMembersTable)
+      .set({ credentialsSentAt: new Date() })
+      .where(eq(staffMembersTable.id, inserted.id)))
+    .catch((err) => logger.error({ err, staffId: inserted.id }, "[staff] welcome email failed"));
+
+  res.status(201).json({
+    id: inserted.id,
+    credentialsSentTo: email,
+  });
+});
+
+// ─── POST /api/staff/:id/resend-invite ────────────────────────────────────
+// Owner-initiated re-send of the welcome email with a freshly-generated
+// password (the old one is overwritten). Useful when a staff never got
+// the first email or forgot their password before logging in once.
+router.post("/staff/:id/resend-invite", async (req, res): Promise<void> => {
+  const businessId = getBusinessId(req.headers.authorization ?? "");
+  if (!businessId) { res.status(401).json({ error: "Unauthorized" }); return; }
+
+  const staffId = Number(req.params.id);
+  if (!staffId) { res.status(400).json({ error: "Invalid id" }); return; }
+
+  const [biz]   = await db.select().from(businessesTable).where(eq(businessesTable.id, businessId));
+  const [staff] = await db
+    .select()
+    .from(staffMembersTable)
+    .where(and(
+      eq(staffMembersTable.id, staffId),
+      eq(staffMembersTable.businessId, businessId),
+    ));
+  if (!biz || !staff) { res.status(404).json({ error: "Staff not found" }); return; }
+  if (staff.isOwner)  { res.status(400).json({ error: "cannot_resend_owner" }); return; }
+  if (!staff.email)   { res.status(400).json({ error: "staff_has_no_email" }); return; }
+
+  const tempPassword = generateTempPassword();
+  const passwordHash = await bcrypt.hash(tempPassword, 10);
+  await db
+    .update(staffMembersTable)
+    .set({ passwordHash, credentialsSentAt: new Date() })
+    .where(eq(staffMembersTable.id, staffId));
+
+  try {
+    await sendStaffWelcomeEmail({
+      to:           staff.email,
+      staffName:    staff.name,
+      businessName: biz.name,
+      loginHandle:  staff.email,
+      password:     tempPassword,
+    });
+    res.json({ ok: true, sentTo: staff.email });
+  } catch (err) {
+    logger.error({ err, staffId }, "[staff] resend welcome email failed");
+    res.status(502).json({ error: "email_send_failed" });
+  }
 });
 
 // ─── PATCH /api/staff/:id ──────────────────────────────────────────────────
