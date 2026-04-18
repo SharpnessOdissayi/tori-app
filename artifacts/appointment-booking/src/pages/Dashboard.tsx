@@ -1,4 +1,10 @@
-import { useState, useEffect, useMemo, useRef } from "react";
+import React, { useState, useEffect, useMemo, useRef } from "react";
+// Recharts is lazy — only the analytics tab pulls it in, but we bundle at
+// the top for readability. Tree-shaker drops unused parts.
+import {
+  LineChart, Line, CartesianGrid, XAxis, YAxis, Tooltip as RechartsTooltip,
+  ResponsiveContainer,
+} from "recharts";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { DESIGN_PRESETS } from "@/lib/designPresets";
 import {
@@ -1139,6 +1145,30 @@ function SubscriptionCrown() {
   if (!profile) return null;
   const isPro = profile.subscriptionPlan !== "free";
   if (!isPro) return null;
+  const isBusiness = profile.subscriptionPlan === "pro-plus";
+
+  // Tier-driven palette so the crown matches the register page + plan cards.
+  //   Pro   → emerald (green = "growth")
+  //   עסקי  → blue (flagship brand color)
+  // Register page uses exactly this split; reuse it so the dashboard crown
+  // and the plan comparison are visually consistent.
+  const theme = isBusiness ? {
+    planLabel:    "עסקי",
+    iconClass:    "text-blue-500",
+    panelBorder:  "border-blue-200",
+    headerBg:     "bg-gradient-to-l from-blue-50 to-blue-50/60",
+    headerBorder: "border-blue-100",
+    titleText:    "text-blue-800",
+    timerDefault: "text-blue-600",
+  } : {
+    planLabel:    "פרו",
+    iconClass:    "text-emerald-600",
+    panelBorder:  "border-emerald-200",
+    headerBg:     "bg-gradient-to-l from-emerald-50 to-emerald-50/60",
+    headerBorder: "border-emerald-100",
+    titleText:    "text-emerald-800",
+    timerDefault: "text-emerald-600",
+  };
 
   const renewDate: Date | null = (profile as any)?.subscriptionRenewDate
     ? new Date((profile as any).subscriptionRenewDate)
@@ -1148,7 +1178,7 @@ function SubscriptionCrown() {
     : null;
 
   let timerText = "ללא הגבלת זמן";
-  let timerColor = "text-blue-600";
+  let timerColor = theme.timerDefault;
   if (renewDate) {
     const daysLeft = Math.ceil((renewDate.getTime() - Date.now()) / (1000 * 60 * 60 * 24));
     if (cancelledAt) {
@@ -1156,7 +1186,7 @@ function SubscriptionCrown() {
       timerColor = daysLeft <= 7 ? "text-red-600" : "text-amber-600";
     } else {
       timerText = daysLeft > 0 ? `מתחדש בעוד ${daysLeft} ימים` : "מתחדש היום";
-      timerColor = daysLeft <= 3 ? "text-amber-600" : "text-blue-600";
+      timerColor = daysLeft <= 3 ? "text-amber-600" : theme.timerDefault;
     }
   }
 
@@ -1164,28 +1194,31 @@ function SubscriptionCrown() {
     ? renewDate.toLocaleDateString("he-IL", { day: "numeric", month: "long", year: "numeric" })
     : null;
 
+  const ariaLabel = `מנוי ${theme.planLabel}`;
+  const CrownIcon = isBusiness ? Sparkles : Crown;
+
   return (
     <div className="relative" ref={ref} dir="rtl">
       <button
         type="button"
         onClick={() => setOpen(v => !v)}
         className="relative flex items-center justify-center p-2 rounded-lg transition-colors hover:bg-black/5"
-        aria-label="מנוי פרו"
-        title="מנוי פרו"
+        aria-label={ariaLabel}
+        title={ariaLabel}
       >
-        <Crown className="w-4 h-4 text-blue-500" />
+        <CrownIcon className={`w-4 h-4 ${theme.iconClass}`} />
       </button>
       {open && (
         <>
           <div onClick={() => setOpen(false)} className="fixed inset-0 bg-black/20 z-[999]" />
           <div
-            className="fixed top-14 inset-x-3 sm:inset-x-auto sm:end-4 sm:w-72 z-[1000] bg-white rounded-2xl shadow-2xl border border-blue-200 overflow-hidden"
+            className={`fixed top-14 inset-x-3 sm:inset-x-auto sm:end-4 sm:w-72 z-[1000] bg-white rounded-2xl shadow-2xl border ${theme.panelBorder} overflow-hidden`}
             dir="rtl"
           >
-            <div className="bg-gradient-to-l from-blue-50 to-blue-50/60 px-4 py-3 border-b border-blue-100 flex items-center gap-2">
-              <Crown className="w-5 h-5 text-blue-500" />
+            <div className={`${theme.headerBg} px-4 py-3 border-b ${theme.headerBorder} flex items-center gap-2`}>
+              <CrownIcon className={`w-5 h-5 ${theme.iconClass}`} />
               <div className="flex-1">
-                <div className="font-bold text-sm text-blue-700">מנוי פרו פעיל</div>
+                <div className={`font-bold text-sm ${theme.titleText}`}>מנוי {theme.planLabel} פעיל</div>
                 <div className={`text-xs font-medium ${timerColor}`}>{timerText}</div>
               </div>
             </div>
@@ -7559,31 +7592,287 @@ function StaffTab() {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// AdvancedAnalyticsTab — coming-soon placeholder for עסקי tier
+// AdvancedAnalyticsTab — עסקי-tier owner dashboard
 // ─────────────────────────────────────────────────────────────────────────────
-// The real analytics (LTV, cohorts, forecasting, heatmap) lands in a
-// follow-up shot. For now we show a clear "בקרוב" card so עסקי users
-// know the feature is intentional but not yet ready.
+// Backed by GET /api/analytics/overview. Loads everything in one request
+// and renders summary cards + line chart + heatmap + top-services + top-
+// customers + retention cohort table. Nothing here assumes a particular
+// row count; the backend already capped topServices at 8 and topCustomers
+// at 10, so we render them whole.
+type AnalyticsOverview = {
+  generatedAt: string;
+  summary: {
+    totalCustomers: number;
+    newCustomersLast30: number;
+    totalAppointments: number;
+    revenueTotal: number;
+    revenueLast30: number;
+    revenueTrendPct: number;
+    ltvPerCustomer: number;
+    cancelRate: number;
+    noShowRate: number;
+    forecastNext30Revenue: number;
+    forecastNext30Appointments: number;
+  };
+  topServices: Array<{ serviceId: number | null; serviceName: string; bookings: number; revenue: number; cancelled: number; avgPrice: number; cancelRate: number }>;
+  topCustomers: Array<{ name: string; phone: string; visits: number; totalSpent: number; firstVisit: string; lastVisit: string }>;
+  heatmap: number[][];           // [day 0..6][hour 0..23]
+  monthlyRevenue: Array<{ month: string; revenue: number; appointments: number }>;
+  cohorts: Array<{ cohortMonth: string; cohortSize: number; retention: number[] }>;
+};
+
 function AdvancedAnalyticsTab() {
+  const [data, setData] = useState<AnalyticsOverview | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const token = typeof window !== "undefined"
+    ? (localStorage.getItem("biz_token") ?? sessionStorage.getItem("biz_token") ?? "")
+    : "";
+
+  useEffect(() => {
+    (async () => {
+      if (!token) return;
+      setLoading(true);
+      setError(null);
+      try {
+        const res = await fetch("/api/analytics/overview", { headers: { Authorization: `Bearer ${token}` } });
+        if (!res.ok) {
+          const j = await res.json().catch(() => ({}));
+          setError(j?.error ?? `HTTP ${res.status}`);
+          return;
+        }
+        setData(await res.json());
+      } catch (e: any) {
+        setError(e?.message ?? "network error");
+      } finally {
+        setLoading(false);
+      }
+    })();
+    /* eslint-disable-next-line react-hooks/exhaustive-deps */
+  }, []);
+
+  if (loading) return <div className="p-8 text-center text-muted-foreground">טוען נתונים…</div>;
+  if (error)   return <div className="p-8 text-center text-red-600">שגיאה בטעינת אנליטיקה: {error}</div>;
+  if (!data)   return null;
+
+  const s = data.summary;
+  const trendColor = s.revenueTrendPct >= 0 ? "text-emerald-600" : "text-red-600";
+  const trendIcon  = s.revenueTrendPct >= 0 ? "↑" : "↓";
+  const fmtIls = (n: number) => `₪${Math.round(n).toLocaleString("he-IL")}`;
+  const fmtPct = (n: number) => `${Math.round(n * 100)}%`;
+
+  const dayLabels = ["א׳", "ב׳", "ג׳", "ד׳", "ה׳", "ו׳", "ש׳"];
+  // Max heatmap value for color scaling.
+  const heatMax = Math.max(1, ...data.heatmap.flat());
+  // Cohort columns — pick the widest retention array among the cohorts.
+  const cohortColCount = data.cohorts.reduce((m, c) => Math.max(m, c.retention.length), 0);
+
   return (
-    <div className="flex flex-col items-center justify-center py-16 px-6 text-center space-y-4 bg-gradient-to-br from-blue-50 to-sky-50 rounded-2xl border-2 border-blue-200 max-w-2xl">
-      <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-blue-500 to-sky-600 flex items-center justify-center shadow-lg">
-        <TrendingUp className="w-8 h-8 text-white" />
+    <div className="space-y-6 max-w-5xl">
+      <div className="flex items-center justify-between flex-wrap gap-2">
+        <div>
+          <h2 className="text-xl font-bold flex items-center gap-2">
+            <TrendingUp className="w-5 h-5 text-blue-600" /> אנליטיקה מתקדמת
+          </h2>
+          <p className="text-sm text-muted-foreground">נתונים חיים מבוססים על כל התורים שלך — לא דגימה.</p>
+        </div>
+        <div className="text-xs text-muted-foreground">עודכן: {new Date(data.generatedAt).toLocaleString("he-IL")}</div>
       </div>
-      <div>
-        <h3 className="text-xl font-bold text-blue-900">אנליטיקה מתקדמת — בפיתוח</h3>
-        <p className="text-sm text-blue-700 mt-2 max-w-md leading-relaxed">
-          אנחנו בונים עבורך לוח בקרה מקצועי שיכלול:
-        </p>
+
+      {/* ─── Summary cards ─────────────────────────────────────────── */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <div className="rounded-2xl border-2 border-blue-200 bg-blue-50/50 p-4">
+          <div className="text-xs font-medium text-blue-700">הכנסה ב-30 הימים האחרונים</div>
+          <div className="text-2xl font-bold text-blue-900 mt-1">{fmtIls(s.revenueLast30)}</div>
+          <div className={`text-xs font-medium mt-1 ${trendColor}`}>
+            {trendIcon} {fmtPct(Math.abs(s.revenueTrendPct))} לעומת 30 הקודמים
+          </div>
+        </div>
+        <div className="rounded-2xl border-2 border-emerald-200 bg-emerald-50/50 p-4">
+          <div className="text-xs font-medium text-emerald-700">תחזית ל-30 הבאים</div>
+          <div className="text-2xl font-bold text-emerald-900 mt-1">{fmtIls(s.forecastNext30Revenue)}</div>
+          <div className="text-xs text-emerald-700 mt-1">{s.forecastNext30Appointments} תורים צפויים</div>
+        </div>
+        <div className="rounded-2xl border-2 border-indigo-200 bg-indigo-50/50 p-4">
+          <div className="text-xs font-medium text-indigo-700">LTV ממוצע ללקוח</div>
+          <div className="text-2xl font-bold text-indigo-900 mt-1">{fmtIls(s.ltvPerCustomer)}</div>
+          <div className="text-xs text-indigo-700 mt-1">{s.totalCustomers} לקוחות סה״כ</div>
+        </div>
+        <div className="rounded-2xl border-2 border-amber-200 bg-amber-50/50 p-4">
+          <div className="text-xs font-medium text-amber-700">שיעורי ביטול/אי-הגעה</div>
+          <div className="text-2xl font-bold text-amber-900 mt-1">{fmtPct(s.cancelRate)} / {fmtPct(s.noShowRate)}</div>
+          <div className="text-xs text-amber-700 mt-1">מתוך {s.totalAppointments} תורים</div>
+        </div>
       </div>
-      <ul className="text-sm text-blue-800 space-y-2 text-right max-w-md">
-        <li>• <strong>LTV לפי לקוח</strong> — כמה הכנסה כל לקוח מביא לאורך זמן</li>
-        <li>• <strong>נאמנות לקוחות</strong> — אחוז החוזרים אחרי הביקור הראשון</li>
-        <li>• <strong>שעות ושירותים חזקים</strong> — מפת חום של הזמנות לפי יום/שעה</li>
-        <li>• <strong>תחזית הכנסות</strong> — צפי ל-30 הימים הקרובים</li>
-        <li>• <strong>שיעור אי-הגעה (no-show)</strong> — לפי לקוח, שירות או שעה</li>
-      </ul>
-      <p className="text-xs text-blue-600 pt-2">יעודכן לכאן ברגע שנסיים — אל דאגה, לא נפספס אותך.</p>
+
+      {/* ─── Monthly revenue line chart ───────────────────────────── */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">הכנסות 12 חודשים אחרונים</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="h-64 w-full">
+            <ResponsiveContainer width="100%" height="100%">
+              <LineChart data={data.monthlyRevenue} margin={{ top: 8, right: 16, left: 0, bottom: 4 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                <XAxis dataKey="month" tick={{ fontSize: 11 }} />
+                <YAxis tick={{ fontSize: 11 }} tickFormatter={v => `₪${v}`} />
+                <RechartsTooltip
+                  formatter={(v: number, key: string) => key === "revenue" ? fmtIls(v) : v}
+                  labelStyle={{ fontWeight: 600 }}
+                />
+                <Line type="monotone" dataKey="revenue"      stroke="#2563eb" strokeWidth={2} dot={{ r: 3 }} name="הכנסה (₪)" />
+                <Line type="monotone" dataKey="appointments" stroke="#10b981" strokeWidth={2} dot={{ r: 3 }} name="תורים"    />
+              </LineChart>
+            </ResponsiveContainer>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* ─── Top services ─────────────────────────────────────────── */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">השירותים המכניסים ביותר</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-2">
+          {data.topServices.length === 0 && <div className="text-sm text-muted-foreground">עדיין אין מספיק נתונים.</div>}
+          {data.topServices.map((svc, i) => {
+            const maxRevenue = data.topServices[0]?.revenue ?? 1;
+            const pct = maxRevenue > 0 ? (svc.revenue / maxRevenue) * 100 : 0;
+            return (
+              <div key={`${svc.serviceId ?? ""}-${i}`} className="space-y-1">
+                <div className="flex justify-between items-baseline text-sm">
+                  <span className="font-medium truncate">{svc.serviceName}</span>
+                  <span className="text-muted-foreground text-xs">{svc.bookings} תורים · ממוצע {fmtIls(svc.avgPrice)}</span>
+                </div>
+                <div className="h-2 rounded-full bg-blue-100 overflow-hidden">
+                  <div className="h-full bg-gradient-to-r from-blue-500 to-sky-600 rounded-full" style={{ width: `${pct}%` }} />
+                </div>
+                <div className="flex justify-between text-xs text-muted-foreground">
+                  <span className="font-semibold text-blue-700">{fmtIls(svc.revenue)}</span>
+                  {svc.cancelRate > 0 && <span>ביטולים: {fmtPct(svc.cancelRate)}</span>}
+                </div>
+              </div>
+            );
+          })}
+        </CardContent>
+      </Card>
+
+      {/* ─── Heatmap — day × hour ─────────────────────────────────── */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">שעות עמוסות (תורים לפי יום ושעה)</CardTitle>
+          <CardDescription>כל תא מציג כמה תורים נקבעו בשעה הזו לאורך כל ההיסטוריה.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="overflow-x-auto">
+            <div className="inline-block">
+              <div className="grid" style={{ gridTemplateColumns: `3rem repeat(24, minmax(1.25rem, 1fr))` }}>
+                <div />
+                {Array.from({ length: 24 }).map((_, h) => (
+                  <div key={h} className="text-[9px] text-center text-muted-foreground pb-1">{h}</div>
+                ))}
+                {data.heatmap.map((row, dow) => (
+                  <React.Fragment key={dow}>
+                    <div className="text-xs text-muted-foreground pe-2 flex items-center">{dayLabels[dow]}</div>
+                    {row.map((count, h) => {
+                      const ratio = count / heatMax;
+                      // Blue → brighter with usage. Alpha keeps zero-cells faint.
+                      const bg = count === 0
+                        ? "rgba(219, 234, 254, 0.35)"
+                        : `rgba(37, 99, 235, ${0.15 + ratio * 0.75})`;
+                      return (
+                        <div
+                          key={`${dow}-${h}`}
+                          className="aspect-square m-[1px] rounded-sm"
+                          style={{ background: bg }}
+                          title={`${dayLabels[dow]} ${String(h).padStart(2, "0")}:00 — ${count} תורים`}
+                        />
+                      );
+                    })}
+                  </React.Fragment>
+                ))}
+              </div>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* ─── Top customers ─────────────────────────────────────────── */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">הלקוחות הגדולים ביותר</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="divide-y">
+            {data.topCustomers.length === 0 && <div className="text-sm text-muted-foreground">עדיין אין מספיק נתונים.</div>}
+            {data.topCustomers.map((c, i) => (
+              <div key={`${c.phone}-${i}`} className="flex items-center justify-between py-2.5">
+                <div className="flex items-center gap-3 min-w-0">
+                  <div className="w-8 h-8 rounded-full bg-blue-100 text-blue-800 text-sm font-bold flex items-center justify-center shrink-0">
+                    {i + 1}
+                  </div>
+                  <div className="min-w-0">
+                    <div className="font-medium truncate">{c.name}</div>
+                    <div className="text-xs text-muted-foreground" dir="ltr">{c.phone}</div>
+                  </div>
+                </div>
+                <div className="text-right shrink-0">
+                  <div className="font-bold text-blue-700">{fmtIls(c.totalSpent)}</div>
+                  <div className="text-xs text-muted-foreground">{c.visits} ביקורים</div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* ─── Cohort retention ──────────────────────────────────────── */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">נאמנות לקוחות לפי חודש הצטרפות</CardTitle>
+          <CardDescription>מתוך הלקוחות שהגיעו לראשונה באותו חודש — כמה חזרו בחודשים שלאחר מכן.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm border-separate border-spacing-0">
+              <thead>
+                <tr className="text-right">
+                  <th className="text-xs font-semibold text-muted-foreground py-2 px-2 border-b">חודש הצטרפות</th>
+                  <th className="text-xs font-semibold text-muted-foreground py-2 px-2 border-b">לקוחות</th>
+                  {Array.from({ length: cohortColCount }).map((_, i) => (
+                    <th key={i} className="text-xs font-semibold text-muted-foreground py-2 px-2 border-b text-center">
+                      {i === 0 ? "חודש 0" : `+${i}`}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {data.cohorts.map(c => (
+                  <tr key={c.cohortMonth} className="hover:bg-muted/30">
+                    <td className="py-2 px-2 font-medium">{c.cohortMonth}</td>
+                    <td className="py-2 px-2 text-muted-foreground">{c.cohortSize}</td>
+                    {Array.from({ length: cohortColCount }).map((_, i) => {
+                      const v = c.retention[i];
+                      if (v == null) return <td key={i} className="py-2 px-2 text-center text-muted-foreground">—</td>;
+                      const bg = v === 0 ? "rgba(219, 234, 254, 0.4)" : `rgba(37, 99, 235, ${0.15 + v * 0.75})`;
+                      const textColor = v > 0.5 ? "text-white" : "text-blue-900";
+                      return (
+                        <td key={i} className="py-2 px-1">
+                          <div className={`rounded-md text-center text-xs font-semibold py-1 ${textColor}`} style={{ background: bg }}>
+                            {fmtPct(v)}
+                          </div>
+                        </td>
+                      );
+                    })}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </CardContent>
+      </Card>
     </div>
   );
 }
