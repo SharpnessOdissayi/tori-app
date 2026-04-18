@@ -709,6 +709,30 @@ router.post("/business/appointments", requireBusinessAuth, async (req, res): Pro
     actorName: req.business!.businessName,
   });
 
+  // Notify the client via WhatsApp (non-blocking) — Pro-only, and only
+  // when a phone number was entered. Uses the same pre-approved
+  // confirmation template the /approve endpoint fires, so owners never
+  // have to remember to "approve" an appointment they themselves created.
+  if (appointment.phoneNumber && await isBusinessPro(businessId)) {
+    const [business] = await db
+      .select({ name: businessesTable.name, slug: businessesTable.slug })
+      .from(businessesTable)
+      .where(eq(businessesTable.id, businessId));
+    if (business) {
+      const [, month, day] = appointment.appointmentDate.split("-");
+      const formattedDate = `${day}/${month}`;
+      sendClientConfirmation(
+        appointment.phoneNumber,
+        appointment.clientName,
+        business.name,
+        appointment.serviceName,
+        formattedDate,
+        appointment.appointmentTime,
+        business.slug,
+      ).catch(() => {});
+    }
+  }
+
   res.status(201).json({ ...appointment, createdAt: appointment.createdAt.toISOString() });
 });
 

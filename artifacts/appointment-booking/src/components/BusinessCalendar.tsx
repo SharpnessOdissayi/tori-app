@@ -6,6 +6,17 @@ import {
 import { he } from "date-fns/locale";
 import { HebrewCalendar, flags as hebFlags } from "@hebcal/core";
 import { ChevronRight, ChevronLeft, RefreshCw, Search, CalendarClock, ArrowDown, MessageSquare, Calendar, CalendarDays, LayoutGrid, X, Plus, Ban } from "lucide-react";
+import { useGetWorkingHours } from "@workspace/api-client-react";
+
+// Shape for a single day-of-week working-hours row. Matches the WorkingHour
+// row returned by the API — kept local so BusinessCalendar doesn't pull
+// the full schema type just to render a gray overlay.
+export type WorkingHourLite = {
+  dayOfWeek: number;  // 0 = Sunday
+  startTime: string;  // HH:mm
+  endTime: string;    // HH:mm
+  isEnabled: boolean;
+};
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 export type CalAppt = {
@@ -823,11 +834,15 @@ function TimeOffBlock({
 }
 
 function TimeGrid({
-  days, appts, timeOff, onApptClick, onReschedule, serviceColors, onPickSlot, onTimeOffClick, onTimeOffReschedule,
+  days, appts, timeOff, workingHours, onApptClick, onReschedule, serviceColors, onPickSlot, onTimeOffClick, onTimeOffReschedule,
 }: {
   days: Date[];
   appts: CalAppt[];
   timeOff?: TimeOffItem[];
+  // Business's weekly working hours — drives the gray background on
+  // slots outside the open window. Undefined = don't gray anything
+  // (server hasn't responded yet).
+  workingHours?: WorkingHourLite[];
   onApptClick: (a: CalAppt) => void;
   onReschedule: (a: CalAppt, newDate: string, newTime: string) => void;
   serviceColors?: ServiceColorMap;
@@ -867,6 +882,21 @@ function TimeGrid({
     }
     return m;
   }, [timeOff]);
+
+  // Working-hours lookup keyed by day-of-week. null = explicitly closed,
+  // a { startMin, endMin } range means open that window. Any weekday not
+  // in the map is treated as closed. Used to paint a gray background on
+  // slots outside the open window so the owner can see at a glance what
+  // they're scheduling into — manual booking outside hours still works
+  // (pointer-events disabled on the overlay).
+  const workingByDow = useMemo(() => {
+    const m = new Map<number, { startMin: number; endMin: number } | null>();
+    for (const wh of workingHours ?? []) {
+      if (wh.isEnabled) m.set(wh.dayOfWeek, { startMin: timeToMinutes(wh.startTime), endMin: timeToMinutes(wh.endTime) });
+      else              m.set(wh.dayOfWeek, null);
+    }
+    return m;
+  }, [workingHours]);
 
   // Shared column refs so both the appointment-drag hook and the
   // time-off-drag hook can hit-test the same day columns.
@@ -979,6 +1009,38 @@ function TimeGrid({
               }}
               className={`relative border-l border-border ${onPickSlot ? "cursor-pointer" : ""} ${isHoliday ? "bg-primary/5" : ""}`}
             >
+              {/* Gray-out overlay for hours outside the business's open
+                  window on THIS weekday. `pointer-events-none` so the
+                  owner can still click-to-book outside hours if they
+                  need to (e.g. a one-off late appointment). */}
+              {(() => {
+                const dow = d.getDay();
+                // workingByDow has an entry only for days the owner has
+                // configured. Missing entry = nothing to highlight yet
+                // (working-hours query still loading) — leave white.
+                if (!workingByDow.has(dow)) return null;
+                const wh = workingByDow.get(dow);
+                if (wh == null) {
+                  // Day explicitly closed — entire column gray.
+                  return <div className="absolute inset-0 bg-muted/40 pointer-events-none" />;
+                }
+                const beforeTop = 0;
+                const beforeHeight = Math.max(0, (wh.startMin - DAY_START_MINUTES) / SLOT_MINUTES * SLOT_PX);
+                const afterTop = Math.min(totalHeight, (wh.endMin - DAY_START_MINUTES) / SLOT_MINUTES * SLOT_PX);
+                const afterHeight = Math.max(0, totalHeight - afterTop);
+                return (
+                  <>
+                    {beforeHeight > 0 && (
+                      <div className="absolute inset-x-0 bg-muted/40 pointer-events-none"
+                        style={{ top: beforeTop, height: beforeHeight }} />
+                    )}
+                    {afterHeight > 0 && (
+                      <div className="absolute inset-x-0 bg-muted/40 pointer-events-none"
+                        style={{ top: afterTop, height: afterHeight }} />
+                    )}
+                  </>
+                );
+              })()}
               {/* Half-hour grid lines (bg every hour lighter, every 30 darker) */}
               {Array.from({ length: totalSlots }).map((_, i) => (
                 <div key={i}
@@ -1249,6 +1311,10 @@ export function BusinessCalendar({
 }) {
   const [view, setView] = useState<View>("week");
   const [cursor, setCursor] = useState<Date>(new Date());
+  // Working-hours for the current business — one row per weekday, each
+  // marked enabled or not. We feed this into <TimeGrid> so slots outside
+  // the open window get a gray background, but stay clickable.
+  const { data: workingHours } = useGetWorkingHours();
   const [pendingReschedule, setPendingReschedule] = useState<{ appt: CalAppt; newDate: string; newTime: string } | null>(null);
   // Client-name search. Magnifying-glass in the header toggles an input;
   // non-empty query surfaces a dropdown of matches. Clicking a match
@@ -1383,6 +1449,7 @@ export function BusinessCalendar({
             days={weekDaysForCursor}
             appts={appointments}
             timeOff={timeOff}
+            workingHours={workingHours as WorkingHourLite[] | undefined}
             serviceColors={serviceColors}
             onApptClick={onApptClick}
             onTimeOffClick={onTimeOffClick}
@@ -1396,6 +1463,7 @@ export function BusinessCalendar({
             days={[cursor]}
             appts={appointments}
             timeOff={timeOff}
+            workingHours={workingHours as WorkingHourLite[] | undefined}
             serviceColors={serviceColors}
             onApptClick={onApptClick}
             onTimeOffClick={onTimeOffClick}
