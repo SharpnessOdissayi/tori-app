@@ -27,8 +27,6 @@ const REPLY_TO       = process.env.EMAIL_REPLY_TO ?? "";
 // avoids owners/clients replying into the void of an auto-send inbox.
 const LOGO_URL     = "https://kavati.net/icon-512.png";
 const SUPPORT_MAIL = "kavati.net@gmail.com";
-const SUPPORT_TEL  = "050-424-1007";
-const SUPPORT_TEL_INTL = "+972504241007";
 
 function wrapEmailTemplate(innerHtml: string): string {
   return `<!DOCTYPE html>
@@ -50,15 +48,12 @@ function wrapEmailTemplate(innerHtml: string): string {
         ${innerHtml}
       </div>
       <div style="padding:18px 24px;background:#f9fafb;border-top:1px solid #e5e7eb;font-size:12px;color:#6b7280;text-align:center;line-height:1.7">
-        <div style="font-weight:600;color:#374151;margin-bottom:4px;">תודה שבחרת בקבעתי ❤️</div>
         <div style="font-size:11px;">
           זוהי הודעה אוטומטית — אין להשיב למייל זה.
         </div>
         <div style="font-size:11px;margin-top:2px;">
           ליצירת קשר:
           <a href="mailto:${SUPPORT_MAIL}" style="color:#3c92f0;text-decoration:none;font-weight:600">${SUPPORT_MAIL}</a>
-          &nbsp;·&nbsp;
-          <a href="tel:${SUPPORT_TEL_INTL}" style="color:#3c92f0;text-decoration:none;font-weight:600">${SUPPORT_TEL}</a>
         </div>
         <div style="margin-top:10px;font-size:10px;color:#9ca3af;">© ${new Date().getFullYear()} Kavati · kavati.net</div>
       </div>

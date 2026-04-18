@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Kavati — Home hero preview</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Rubik:wght@400;500;600;700;800;900&display=swap" rel="stylesheet" />
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: { sans: ['Rubik', 'Assistant', 'system-ui', 'sans-serif'] },
+          colors: {
+            brand: { DEFAULT: '#3c92f0', dark: '#1e6fcf', light: '#95dbf4' },
+          },
+          boxShadow: {
+            glow: '0 20px 50px -12px rgba(60, 146, 240, 0.45)',
+          },
+        },
+      },
+    };
+  </script>
+  <style>
+    body { font-family: 'Rubik', system-ui, sans-serif; }
+
+    @keyframes floatA {
+      0%, 100% { transform: rotate(-6deg) translateY(0); }
+      50%      { transform: rotate(-6deg) translateY(-10px); }
+    }
+    @keyframes floatB {
+      0%, 100% { transform: rotate(5deg) translateY(0); }
+      50%      { transform: rotate(5deg) translateY(-8px); }
+    }
+    @keyframes fadeUp {
+      from { opacity: 0; transform: translateY(12px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+    .float-a   { animation: floatA 7s ease-in-out infinite; }
+    .float-b   { animation: floatB 8s ease-in-out infinite; transform: rotate(5deg); }
+    .tilt-a    { transform: rotate(-6deg); }
+    .fade-up   { animation: fadeUp .7s ease-out both; }
+    .fade-up-1 { animation-delay: .05s; }
+    .fade-up-2 { animation-delay: .15s; }
+    .fade-up-3 { animation-delay: .25s; }
+    .fade-up-4 { animation-delay: .35s; }
+
+    .hero-bg {
+      background:
+        radial-gradient(ellipse 80% 60% at 50% -10%, rgba(60,146,240,0.18), transparent 60%),
+        radial-gradient(ellipse 40% 40% at 90% 20%, rgba(149,219,244,0.25), transparent 60%),
+        white;
+    }
+
+    /* Header shadow that matches the real Navbar */
+    .nav-shadow { box-shadow: 0 1px 0 rgba(0,0,0,0.03), 0 8px 24px -18px rgba(60,146,240,0.35); }
+
+    /* Stylised iPhone frame around the Lilash screenshot */
+    .phone {
+      border-radius: 42px;
+      background: #111;
+      padding: 8px;
+      box-shadow: 0 30px 60px -20px rgba(15, 23, 42, 0.45);
+      position: relative;
+    }
+    .phone::before {
+      content: "";
+      position: absolute;
+      top: 12px; left: 50%; transform: translateX(-50%);
+      width: 70px; height: 18px;
+      background: #111; border-radius: 12px;
+      z-index: 2;
+    }
+    .phone-screen {
+      border-radius: 34px;
+      overflow: hidden;
+      background: #fff;
+      aspect-ratio: 390 / 844;
+      width: 100%;
+    }
+  </style>
+</head>
+<body class="hero-bg text-slate-900">
+
+  <!-- ─── Real Navbar (replicated) ─────────────────────────────────────── -->
+  <header dir="rtl" class="sticky top-0 z-50 w-full backdrop-blur-md bg-white/85 nav-shadow">
+    <div class="relative w-full px-4 sm:px-6 h-16 flex items-center gap-2 sm:gap-3">
+      <!-- Mobile hamburger (decorative in preview) -->
+      <button class="md:hidden p-2 rounded-lg transition-colors hover:bg-black/5 shrink-0" style="color:#3c92f0">
+        <svg class="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+      </button>
+
+      <a href="#">
+        <img src="../artifacts/appointment-booking/public/icon.svg" alt="קבעתי"
+             class="h-12 w-12 sm:h-14 sm:w-14 object-contain cursor-pointer select-none shrink-0" />
+      </a>
+
+      <nav class="hidden md:flex items-center gap-1 mr-2">
+        <a class="px-3 py-2 text-sm font-medium rounded-lg" style="color:#3c92f0;background:rgba(60,146,240,0.10)">ראשי</a>
+        <a class="px-3 py-2 text-sm font-medium rounded-lg" style="color:#475569" href="#">פרטים</a>
+        <a class="px-3 py-2 text-sm font-medium rounded-lg" style="color:#475569" href="#">יצירת קשר</a>
+        <a class="px-3 py-2 text-sm font-medium rounded-lg" style="color:#475569" href="#">כניסה לבעלי עסקים</a>
+        <a class="px-3 py-2 text-sm font-medium rounded-lg" style="color:#475569" href="#">כניסה ללקוחות</a>
+        <a class="mr-2 px-5 py-2.5 rounded-full text-sm font-semibold text-white whitespace-nowrap"
+           style="background: linear-gradient(135deg, #3c92f0 0%, #1e6fcf 100%); box-shadow: 0 6px 16px -6px rgba(60,146,240,0.6)">
+          הצטרפות למערכת קבעתי
+        </a>
+      </nav>
+      <div class="flex-1"></div>
+    </div>
+  </header>
+
+  <!-- ─── HERO ─────────────────────────────────────────────────────────── -->
+  <main class="max-w-6xl mx-auto px-6 pt-16 pb-24">
+    <section class="grid md:grid-cols-2 gap-14 items-center">
+
+      <!-- Text column (right in RTL) -->
+      <div class="space-y-7 text-right">
+        <div class="fade-up fade-up-1 inline-flex items-center gap-2 bg-brand/10 text-brand rounded-full px-4 py-1.5 text-sm font-semibold">
+          <span>🎁</span>
+          14 ימי ניסיון חינם · ללא כרטיס אשראי
+        </div>
+
+        <h1 class="fade-up fade-up-2 text-5xl md:text-6xl font-extrabold leading-[1.05] tracking-tight">
+          תורים שנסגרים <span class="text-brand">לבד</span>.
+          <br />
+          אתה רק עובד.
+        </h1>
+
+        <p class="fade-up fade-up-3 text-lg text-slate-600 leading-relaxed max-w-xl">
+          מערכת קביעת תורים מלאה לעסקים בישראל — תזכורות ב-WhatsApp, פורטל ללקוחות,
+          קבלות אוטומטיות, עיצוב מותאם אישית לכל עסק.
+        </p>
+
+        <div class="fade-up fade-up-4 flex flex-wrap gap-3 pt-1">
+          <a href="#" class="group inline-flex items-center gap-2 text-white font-bold text-base h-14 px-7 rounded-2xl transition-colors"
+             style="background: linear-gradient(135deg, #3c92f0 0%, #1e6fcf 100%); box-shadow: 0 20px 50px -12px rgba(60, 146, 240, 0.45)">
+            צור עסק בחינם
+            <svg class="w-5 h-5 transition-transform group-hover:-translate-x-1" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+          </a>
+        </div>
+
+        <div class="fade-up fade-up-4 flex items-center gap-2 text-sm text-slate-500 pt-2">
+          <svg class="w-4 h-4 text-emerald-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+          בלי להתקין כלום · שיתוף לינק ללקוחות תוך 3 דקות
+        </div>
+      </div>
+
+      <!-- Mockup column — 2 small tilted phones with real Lilash screenshots -->
+      <div class="relative h-[520px]">
+        <!-- Soft glow behind both phones -->
+        <div class="absolute inset-0 bg-gradient-to-tr from-brand/20 via-brand/5 to-brand-light/30 blur-3xl rounded-full"></div>
+
+        <!-- Phone A — booking page landing (tilted left, back) -->
+        <div class="absolute top-2 right-2 md:right-10 w-52 md:w-56 float-a">
+          <div class="phone">
+            <div class="phone-screen">
+              <!-- ▼ REAL IMAGE GOES HERE ▼ -->
+              <div class="w-full h-full flex items-center justify-center bg-slate-100 text-slate-400 text-xs text-center p-4">
+                ממתין לצילום מסך<br/>Lilash / עמוד השירותים
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Phone B — time-slot / booking step (tilted right, front) -->
+        <div class="absolute bottom-0 left-2 md:left-10 w-56 md:w-64 float-b z-10">
+          <div class="phone">
+            <div class="phone-screen">
+              <!-- ▼ REAL IMAGE GOES HERE ▼ -->
+              <div class="w-full h-full flex items-center justify-center bg-slate-100 text-slate-400 text-xs text-center p-4">
+                ממתין לצילום מסך<br/>Lilash / בחירת תאריך ושעה
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- "איך זה עובד" -->
+    <section class="mt-28">
+      <h2 class="text-center text-3xl md:text-4xl font-extrabold tracking-tight">איך זה עובד?</h2>
+      <p class="text-center text-slate-500 mt-2">3 שלבים. חצי שעה. ואתם באוויר.</p>
+
+      <div class="grid md:grid-cols-3 gap-5 mt-10">
+        <div class="relative bg-white rounded-2xl border border-slate-200 p-6">
+          <div class="absolute -top-4 right-6 w-10 h-10 rounded-xl bg-brand text-white font-extrabold flex items-center justify-center shadow-lg shadow-brand/30">1</div>
+          <h3 class="font-extrabold text-lg mt-2">נרשמים</h3>
+          <p class="text-slate-500 text-sm mt-1">חשבון פרו חינם ל-14 יום. בלי כרטיס אשראי.</p>
+        </div>
+        <div class="relative bg-white rounded-2xl border border-slate-200 p-6">
+          <div class="absolute -top-4 right-6 w-10 h-10 rounded-xl bg-brand text-white font-extrabold flex items-center justify-center shadow-lg shadow-brand/30">2</div>
+          <h3 class="font-extrabold text-lg mt-2">מעצבים</h3>
+          <p class="text-slate-500 text-sm mt-1">צבעים, לוגו, שעות עבודה, שירותים — חמש דקות.</p>
+        </div>
+        <div class="relative bg-white rounded-2xl border border-slate-200 p-6">
+          <div class="absolute -top-4 right-6 w-10 h-10 rounded-xl bg-brand text-white font-extrabold flex items-center justify-center shadow-lg shadow-brand/30">3</div>
+          <h3 class="font-extrabold text-lg mt-2">משתפים</h3>
+          <p class="text-slate-500 text-sm mt-1">לינק אחד ללקוחות → הם קובעים בלי להתקשר.</p>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- ─── Real SiteFooter (replicated) ─────────────────────────────────── -->
+  <footer dir="rtl" class="border-t bg-slate-100/50 py-8 px-4 text-sm text-slate-500">
+    <div class="max-w-4xl mx-auto flex flex-col items-center gap-4">
+      <a href="#" aria-label="חזרה לעמוד הראשי של קבעתי" class="transition-opacity hover:opacity-80">
+        <img src="../artifacts/appointment-booking/public/logo.svg" alt="קבעתי" class="h-16 object-contain" />
+      </a>
+      <nav class="flex flex-wrap justify-center gap-x-5 gap-y-1">
+        <a href="#" class="hover:text-slate-900 transition-colors">דף הבית</a>
+        <a href="#" class="hover:text-slate-900 transition-colors">יצירת קשר</a>
+        <a href="#" class="hover:text-slate-900 transition-colors">מדיניות פרטיות</a>
+        <a href="#" class="hover:text-slate-900 transition-colors">תנאי שימוש</a>
+      </nav>
+      <span class="text-xs">© 2026 קבעתי — כל הזכויות שמורות</span>
+    </div>
+  </footer>
+</body>
+</html>
