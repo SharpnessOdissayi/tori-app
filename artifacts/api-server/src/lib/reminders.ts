@@ -124,7 +124,10 @@ export async function sendReminders(): Promise<void> {
   for (const appt of appointments) {
     if (!appt.sendReminders) continue;
     // Free plan: no reminders sent to clients.
-    if (appt.subscriptionPlan !== "pro") continue;
+    // Paid tiers (pro + pro-plus/עסקי) both get the reminder pipeline.
+    // Earlier this was a strict !== "pro" check, which silently excluded
+    // every עסקי customer from reminders even though they pay more.
+    if (appt.subscriptionPlan !== "pro" && appt.subscriptionPlan !== "pro-plus") continue;
 
     const [, month, day] = appt.appointmentDate.split("-");
     const formattedDate = `${day}/${month}`;

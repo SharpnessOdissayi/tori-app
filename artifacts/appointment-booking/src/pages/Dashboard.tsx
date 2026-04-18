@@ -7158,6 +7158,55 @@ function CustomDomainCard() {
   );
 }
 
+/**
+ * Tiny standalone button that POSTs to /api/sms/test-charge and toasts
+ * the result. Same endpoint as the "🧪 חיוב ₪1" row in the SMS card,
+ * just surfaced in a more discoverable place (Settings → Subscription
+ * Status) so the owner can test the one-off-charge pipeline even when
+ * they're not inside the SMS tab.
+ */
+function TestChargeButton() {
+  const { toast } = useToast();
+  const [testing, setTesting] = useState(false);
+  const token = typeof window !== "undefined"
+    ? (localStorage.getItem("biz_token") ?? sessionStorage.getItem("biz_token") ?? "")
+    : "";
+
+  async function run() {
+    if (!token) return;
+    setTesting(true);
+    try {
+      const res = await fetch("/api/sms/test-charge", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const json = await res.json().catch(() => ({}));
+      if (json?.ok) {
+        toast({
+          title: "✅ חיוב בדיקה הצליח — ₪1",
+          description: `Transaction ID: ${json.transactionId ?? "?"}, Auth: ${json.authNumber ?? "?"}`,
+        });
+      } else {
+        toast({
+          title: "❌ חיוב בדיקה נכשל",
+          description: `${json?.message ?? "שגיאה לא ידועה"} (code: ${json?.responseCode ?? "?"})`,
+          variant: "destructive",
+        });
+      }
+    } catch (err: any) {
+      toast({ title: "שגיאה", description: err?.message ?? "נסה שוב", variant: "destructive" });
+    } finally {
+      setTesting(false);
+    }
+  }
+
+  return (
+    <Button size="sm" variant="outline" onClick={run} disabled={testing} className="shrink-0">
+      {testing ? "מחייב…" : "בדוק ₪1"}
+    </Button>
+  );
+}
+
 function SubscriptionStatusCard() {
   const { data: profile } = useGetBusinessProfile();
   const queryClient = useQueryClient();
@@ -7309,6 +7358,25 @@ function SubscriptionStatusCard() {
             <p className="text-xs text-muted-foreground">
               לחידוש המנוי לאחר הפקיעה, פתח שדרוג חדש מהבאנר למעלה.
             </p>
+          )}
+
+          {/* Test ₪1 charge — diagnostic button. Visible only when the
+              business already has a saved Tranzila token (= they've
+              completed their first iframe payment), because without one
+              there's nothing to charge. Fires the same one-off charge
+              path used by SMS pack purchases, so if this works, pack
+              purchases will too. Temporary — remove once production is
+              green. */}
+          {isPro && (profile as any)?.tranzilaToken && (
+            <div className="pt-3 border-t">
+              <div className="flex items-center justify-between gap-2 flex-wrap">
+                <div className="text-xs text-muted-foreground">
+                  <div className="font-semibold text-foreground">🧪 בדיקת חיוב חד-פעמי (₪1)</div>
+                  <div className="text-[11px] mt-0.5">ללא CVV וללא ת.ז. — לוודא שהטרמינל מקבל טוקן בלבד</div>
+                </div>
+                <TestChargeButton />
+              </div>
+            </div>
           )}
         </CardContent>
       </Card>
