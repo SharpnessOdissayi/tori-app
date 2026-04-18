@@ -15,6 +15,7 @@ import categoriesRouter from "./categories";
 import smsRouter from "./sms";
 import staffRouter from "./staff";
 import analyticsRouter from "./analytics";
+import exportRouter from "./export";
 
 const router: IRouter = Router();
 
@@ -34,5 +35,6 @@ router.use(categoriesRouter);
 router.use(smsRouter);
 router.use(staffRouter);
 router.use(analyticsRouter);
+router.use(exportRouter);
 
 export default router;

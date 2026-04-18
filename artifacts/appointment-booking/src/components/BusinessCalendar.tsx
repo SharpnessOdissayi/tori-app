@@ -30,6 +30,10 @@ export type CalAppt = {
   serviceName: string;
   status: string;
   notes?: string | null;
+  // Multi-staff (עסקי) — null for legacy rows and single-staff shops,
+  // interpreted as "assigned to the owner". Set when a specific staff
+  // was picked on booking.
+  staffMemberId?: number | null;
 };
 
 // Optional map of serviceId → hex colour. Owner sets this per service
@@ -1536,6 +1540,37 @@ export function BusinessCalendar({
 }) {
   const [view, setView] = useState<View>("week");
   const [cursor, setCursor] = useState<Date>(new Date());
+  // Optional staff filter — read from sessionStorage when the owner
+  // clicked "צפה ביומן של X" in StaffTab. A filter chip sits above the
+  // calendar header; tapping the × removes it. We reread on mount only
+  // (not on every render) so navigating away + back retains the filter
+  // until the owner explicitly clears it.
+  const [staffFilter, setStaffFilter] = useState<{ id: number; name: string } | null>(() => {
+    if (typeof window === "undefined") return null;
+    const idRaw = sessionStorage.getItem("kavati_staff_filter_id");
+    const name  = sessionStorage.getItem("kavati_staff_filter_name") ?? "";
+    const id    = idRaw ? Number(idRaw) : NaN;
+    return Number.isFinite(id) && name ? { id, name } : null;
+  });
+  function clearStaffFilter() {
+    try {
+      sessionStorage.removeItem("kavati_staff_filter_id");
+      sessionStorage.removeItem("kavati_staff_filter_name");
+    } catch {}
+    setStaffFilter(null);
+  }
+  // Apply the staff filter to the appointments array before it reaches
+  // TimeGrid/MonthView. Appointments with no staffMemberId fall back to
+  // "the owner" — so if the filter selects an owner-row staff id, we
+  // match any appointment where staffMemberId === id OR null.
+  // For non-owner staff, we match only exact id.
+  const filteredAppointments = useMemo(() => {
+    if (!staffFilter) return appointments;
+    return appointments.filter(a => {
+      const aid = a.staffMemberId ?? null;
+      return aid === staffFilter.id;
+    });
+  }, [appointments, staffFilter]);
   // First-visit drag hint — shows for 5s the first time an owner opens
   // the calendar, then never again. The tip is stickier than a toast
   // and lives above the grid so the gesture it describes is right
@@ -1657,6 +1692,29 @@ export function BusinessCalendar({
         onNewTimeOff={onNewTimeOff ? () => onNewTimeOff() : undefined}
       />
 
+      {/* Staff filter chip — shown when the owner clicked "צפה ביומן" on
+          a specific staff member from the Staff tab. Clicking × removes
+          the filter and re-renders with all appointments. */}
+      {staffFilter && (
+        <div className="flex items-center gap-2 px-4 py-2 bg-blue-50 border-b border-blue-200 text-sm">
+          <span className="text-blue-700 font-medium">מסננים לפי עובד:</span>
+          <span className="inline-flex items-center gap-1 rounded-full bg-blue-600 text-white px-3 py-0.5 text-xs font-semibold">
+            {staffFilter.name}
+            <button
+              type="button"
+              onClick={clearStaffFilter}
+              className="hover:bg-blue-700 rounded-full w-4 h-4 flex items-center justify-center"
+              aria-label="בטל סינון"
+            >
+              ✕
+            </button>
+          </span>
+          <span className="text-xs text-muted-foreground mr-auto">
+            {filteredAppointments.length} תורים
+          </span>
+        </div>
+      )}
+
       {/* First-visit drag hint. Sits right below the header, fades after
           5s, and persists the dismissal in localStorage so it never
           re-appears. animate-in slide-in-from-top gives it a soft arrival;
@@ -1721,7 +1779,7 @@ export function BusinessCalendar({
         {view === "month" && (
           <MonthView
             cursor={cursor}
-            appts={appointments}
+            appts={filteredAppointments}
             timeOff={timeOff}
             onPickDay={d => { setCursor(d); setView("day"); }}
           />
@@ -1729,7 +1787,7 @@ export function BusinessCalendar({
         {view === "week" && (
           <TimeGrid
             days={weekDaysForCursor}
-            appts={appointments}
+            appts={filteredAppointments}
             timeOff={timeOff}
             workingHours={workingHours as WorkingHourLite[] | undefined}
             serviceColors={serviceColors}
@@ -1743,7 +1801,7 @@ export function BusinessCalendar({
         {view === "day" && (
           <TimeGrid
             days={[cursor]}
-            appts={appointments}
+            appts={filteredAppointments}
             timeOff={timeOff}
             workingHours={workingHours as WorkingHourLite[] | undefined}
             serviceColors={serviceColors}

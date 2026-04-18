@@ -757,6 +757,18 @@ export default function Dashboard() {
   useEffect(() => {
     try { localStorage.setItem("kavati_dash_active_tab", activeTab); } catch {}
   }, [activeTab]);
+
+  // Listen for cross-component tab switches. StaffTab fires this when the
+  // owner clicks "צפה ביומן של X" so we can jump to the appointments tab
+  // while sessionStorage carries the staff filter over to BusinessCalendar.
+  useEffect(() => {
+    function onSwitch(e: Event) {
+      const target = (e as CustomEvent<string>).detail;
+      if (typeof target === "string") setActiveTab(target);
+    }
+    window.addEventListener("kavati:switch-tab", onSwitch);
+    return () => window.removeEventListener("kavati:switch-tab", onSwitch);
+  }, []);
   // Mobile bottom-nav state. "home" → subscription/revenue overview,
   // "calendar" + "approvals" → appointments tab (different scroll/focus),
   // "customers" → customers, "menu" → open the full-tab drawer.
@@ -8278,27 +8290,126 @@ function AdvancedAnalyticsTab() {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// DataExportTab — coming-soon placeholder for עסקי tier
+// DataExportTab — CSV downloads for customers / appointments / revenue
 // ─────────────────────────────────────────────────────────────────────────────
+// Each card triggers a fetch to /api/export/*.csv with the JWT in the
+// Authorization header (the browser can't attach it to a plain <a href>,
+// so we fetch → blob → object URL → programmatic click). The backend
+// returns UTF-8 BOM-prefixed CSV that opens correctly in Excel with
+// Hebrew columns.
 function DataExportTab() {
+  const { toast } = useToast();
+  const [downloading, setDownloading] = useState<string | null>(null);
+
+  const token = typeof window !== "undefined"
+    ? (localStorage.getItem("biz_token") ?? sessionStorage.getItem("biz_token") ?? "")
+    : "";
+
+  async function handleDownload(kind: "customers" | "appointments" | "revenue", filename: string) {
+    if (!token) return;
+    setDownloading(kind);
+    try {
+      const res = await fetch(`/api/export/${kind}.csv`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) {
+        const j = await res.json().catch(() => ({}));
+        toast({
+          title: "שגיאה בהורדת הקובץ",
+          description: j?.error === "plan_gated" ? "ייצוא נתונים זמין רק במסלול עסקי." : j?.error ?? `HTTP ${res.status}`,
+          variant: "destructive",
+        });
+        return;
+      }
+      // Stream response → Blob → programmatic download.
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      // Revoke the object URL a beat later so Safari has time to start the
+      // actual download. Browsers are inconsistent about how early they
+      // kill the URL — 1 second is plenty.
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+      toast({ title: "הקובץ הורד", description: filename });
+    } catch (err: any) {
+      toast({ title: "שגיאה", description: err?.message ?? "נסה שוב", variant: "destructive" });
+    } finally {
+      setDownloading(null);
+    }
+  }
+
+  const stamp = new Date().toISOString().slice(0, 10);
+
+  const items: Array<{ kind: "customers" | "appointments" | "revenue"; title: string; desc: string; fileStem: string; icon: string; }> = [
+    {
+      kind: "customers",
+      title: "לקוחות",
+      desc: "רשימה של כל הלקוחות — שם, טלפון, ביקור ראשון/אחרון, סה״כ תורים שהושלמו / בוטלו, סך ההכנסה מכל לקוח.",
+      fileStem: "לקוחות",
+      icon: "👥",
+    },
+    {
+      kind: "appointments",
+      title: "תורים",
+      desc: "היסטוריית תורים מלאה — תאריך, שעה, שירות, לקוח, טלפון, משך, סטטוס ומחיר. מסודר לפי סדר כרונולוגי.",
+      fileStem: "תורים",
+      icon: "📅",
+    },
+    {
+      kind: "revenue",
+      title: "הכנסות חודשיות",
+      desc: "פילוח חודשי — הכנסה, כמות תורים שהושלמו, ביטולים, ממוצע לתור, והשירות המכניס ביותר. אידיאלי לרואה החשבון.",
+      fileStem: "הכנסות",
+      icon: "💰",
+    },
+  ];
+
   return (
-    <div className="flex flex-col items-center justify-center py-16 px-6 text-center space-y-4 bg-gradient-to-br from-blue-50 to-sky-50 rounded-2xl border-2 border-blue-200 max-w-2xl">
-      <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-blue-500 to-sky-600 flex items-center justify-center shadow-lg">
-        <Download className="w-8 h-8 text-white" />
-      </div>
+    <div className="space-y-4 max-w-2xl">
       <div>
-        <h3 className="text-xl font-bold text-blue-900">ייצוא נתונים — בפיתוח</h3>
-        <p className="text-sm text-blue-700 mt-2 max-w-md leading-relaxed">
-          בקרוב תוכל להוריד קבצי Excel / CSV של:
+        <h2 className="text-xl font-bold flex items-center gap-2">
+          <Download className="w-5 h-5 text-blue-600" /> ייצוא נתונים
+        </h2>
+        <p className="text-sm text-muted-foreground mt-1">
+          כל הקבצים בפורמט CSV תואם לאקסל / Google Sheets, עם עברית ו-UTF-8. לחיצה על הורדה
+          פותחת את הקובץ מיד ושומרת אותו במחשב.
         </p>
       </div>
-      <ul className="text-sm text-blue-800 space-y-2 text-right max-w-md">
-        <li>• <strong>לקוחות</strong> — שם, טלפון, אימייל, תאריך ביקור ראשון/אחרון, סכום הכנסה</li>
-        <li>• <strong>תורים</strong> — תאריך, שעה, שירות, לקוח, מחיר, סטטוס</li>
-        <li>• <strong>הכנסות</strong> — פילוח חודשי לרואה החשבון</li>
-        <li>• <strong>ביטולים ואי-הגעות</strong> — לצורכי דוח שנתי</li>
-      </ul>
-      <p className="text-xs text-blue-600 pt-2">כל הקבצים יהיו בפורמט תואם לאקסל, עברית ומע״מ כלול.</p>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+        {items.map(item => (
+          <Card key={item.kind} className="border-blue-200">
+            <CardContent className="pt-5 pb-5 space-y-3">
+              <div className="flex items-start gap-3">
+                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-100 to-sky-100 flex items-center justify-center text-xl shrink-0">
+                  {item.icon}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <h3 className="font-bold text-blue-900">{item.title}</h3>
+                  <p className="text-xs text-muted-foreground mt-1 leading-relaxed">{item.desc}</p>
+                </div>
+              </div>
+              <Button
+                onClick={() => handleDownload(item.kind, `${item.fileStem}-${stamp}.csv`)}
+                disabled={downloading === item.kind}
+                className="w-full gap-2 bg-blue-600 hover:bg-blue-700"
+              >
+                <Download className="w-4 h-4" />
+                {downloading === item.kind ? "מוריד..." : "הורד CSV"}
+              </Button>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+
+      <div className="rounded-xl border border-blue-200 bg-blue-50/50 p-4 text-xs text-blue-800 leading-relaxed">
+        💡 <strong>איך לפתוח באקסל:</strong> פתחו את האקסל → חדש → פתח קובץ → בחרו את ה-CSV.
+        אם מופיעים ?????? במקום עברית — פתחו את הקובץ כ-<span dir="ltr" className="font-mono">UTF-8</span> מהתפריט "נתונים → יבוא קובץ טקסט". ב-Google Sheets פשוט גוררים את הקובץ לחלון.
+      </div>
     </div>
   );
 }
