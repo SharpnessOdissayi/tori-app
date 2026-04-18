@@ -385,9 +385,13 @@ export function NewAppointmentDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
+      {/* z-[70] overlay + content so the dialog covers the global
+          accessibility / theme FABs (z-55/56). Otherwise on mobile
+          those two buttons sat on top of the checkbox + submit bar,
+          making it impossible to tell whether "send WhatsApp" was on. */}
       <DialogContent
         dir="rtl"
-        className="sm:max-w-md max-h-[90vh] overflow-y-auto"
+        className="sm:max-w-md max-h-[90vh] overflow-y-auto z-[70]"
         style={{ fontFamily: "'Rubik', sans-serif" }}
       >
         <DialogHeader>
