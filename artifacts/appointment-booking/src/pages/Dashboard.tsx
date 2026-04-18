@@ -1096,9 +1096,13 @@ export default function Dashboard() {
 
         <Tabs value={activeTab} onValueChange={setActiveTab} dir="rtl" className="space-y-6">
 
-          {/* Desktop: horizontal scrollable tabs */}
-          <div className="hidden sm:block overflow-x-auto pb-1">
-            <TabsList className="bg-card border w-max h-auto p-1 gap-1 flex">
+          {/* Desktop: full-width wrapping tab bar. Previously used
+              overflow-x-auto which hid tabs behind a scrollbar; owner
+              asked to drop the horizontal scroll and let the tabs
+              expand across the full width, wrapping to a second row on
+              narrower viewports if needed. */}
+          <div className="hidden sm:block pb-1">
+            <TabsList className="bg-card border w-full h-auto p-1 gap-1 flex flex-wrap">
               <TabsTrigger value="appointments" className="gap-1.5 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground whitespace-nowrap">
                 <Calendar className="w-4 h-4" /> פגישות
               </TabsTrigger>
