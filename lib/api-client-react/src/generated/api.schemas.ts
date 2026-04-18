@@ -37,6 +37,7 @@ export const AdminUpdateBusinessBodySubscriptionPlan = {
   free: "free",
   basic: "basic",
   pro: "pro",
+  "pro-plus": "pro-plus",
 } as const;
 
 export interface AdminUpdateBusinessBody {
@@ -58,6 +59,7 @@ export const CreateBusinessBodySubscriptionPlan = {
   free: "free",
   basic: "basic",
   pro: "pro",
+  "pro-plus": "pro-plus",
 } as const;
 
 export interface CreateBusinessBody {

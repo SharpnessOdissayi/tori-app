@@ -44,7 +44,7 @@ export const SuperAdminCreateBusinessBody = zod.object({
   email: zod.string(),
   password: zod.string(),
   phone: zod.string().optional(),
-  subscriptionPlan: zod.enum(["free", "basic", "pro"]).optional(),
+  subscriptionPlan: zod.enum(["free", "basic", "pro", "pro-plus"]).optional(),
   address: zod.string().optional(),
   city: zod.string().optional(),
   websiteUrl: zod.string().optional(),
@@ -61,7 +61,7 @@ export const SuperAdminUpdateBusinessQueryParams = zod.object({
 
 export const SuperAdminUpdateBusinessBody = zod.object({
   isActive: zod.boolean().optional(),
-  subscriptionPlan: zod.enum(["free", "basic", "pro"]).optional(),
+  subscriptionPlan: zod.enum(["free", "basic", "pro", "pro-plus"]).optional(),
   maxServicesAllowed: zod.number().optional(),
   name: zod.string().optional(),
   slug: zod.string().optional(),

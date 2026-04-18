@@ -12,6 +12,8 @@ import subscriptionRouter from "./subscription";
 import notificationsRouter from "./notifications";
 import receiptsRouter from "./receipts";
 import categoriesRouter from "./categories";
+import smsRouter from "./sms";
+import staffRouter from "./staff";
 
 const router: IRouter = Router();
 
@@ -28,5 +30,7 @@ router.use(subscriptionRouter);
 router.use(notificationsRouter);
 router.use(receiptsRouter);
 router.use(categoriesRouter);
+router.use(smsRouter);
+router.use(staffRouter);
 
 export default router;

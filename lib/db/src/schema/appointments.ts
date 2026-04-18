@@ -17,6 +17,10 @@ export const appointmentsTable = pgTable("appointments", {
   reminder24hSent: boolean("reminder_24h_sent").notNull().default(false),
   reminder1hSent: boolean("reminder_1h_sent").notNull().default(false),
   reminderMorningSent: boolean("reminder_morning_sent").notNull().default(false),
+  // Which staff member this appointment is for (עסקי tier multi-staff).
+  // NULL for pre-migration rows or solo businesses — treated as "the owner".
+  // FK intentionally omitted at the schema level; enforced at the app layer.
+  staffMemberId: integer("staff_member_id"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 

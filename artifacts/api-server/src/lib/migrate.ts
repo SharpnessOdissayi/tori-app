@@ -246,6 +246,22 @@ export async function runMigrations() {
       // Trial-ending notice flag — used by subscriptionCron to fire the
       // "הניסיון שלך עומד להסתיים" email + bell notification exactly once.
       "ALTER TABLE businesses ADD COLUMN IF NOT EXISTS trial_ending_notice_sent BOOLEAN NOT NULL DEFAULT FALSE",
+      // ─── Bulk-SMS (Inforu) quota ─────────────────────────────────────
+      // Pro = 100/month included, עסקי = 500/month. Free = 0. The
+      // subscriptionCron (or on plan upgrade) is responsible for setting
+      // the right quota value when the plan changes. Used-this-period
+      // resets whenever sms_reset_date passes (every 30 days). Extra
+      // balance carries over indefinitely — topped up by pack purchases.
+      "ALTER TABLE businesses ADD COLUMN IF NOT EXISTS sms_monthly_quota INTEGER NOT NULL DEFAULT 0",
+      "ALTER TABLE businesses ADD COLUMN IF NOT EXISTS sms_used_this_period INTEGER NOT NULL DEFAULT 0",
+      "ALTER TABLE businesses ADD COLUMN IF NOT EXISTS sms_extra_balance INTEGER NOT NULL DEFAULT 0",
+      "ALTER TABLE businesses ADD COLUMN IF NOT EXISTS sms_reset_date TIMESTAMPTZ",
+      // ─── Multi-staff (עסקי tier) foreign keys ────────────────────────
+      // Nullable on both tables: NULL on appointments = "assigned to the
+      // owner"; NULL on working_hours = "inherit business defaults".
+      // Staff themselves live in the staff_members table created below.
+      "ALTER TABLE appointments   ADD COLUMN IF NOT EXISTS staff_member_id INTEGER",
+      "ALTER TABLE working_hours  ADD COLUMN IF NOT EXISTS staff_member_id INTEGER",
     ];
 
     // Cancellation tracking
@@ -311,6 +327,91 @@ export async function runMigrations() {
     `));
     await db.execute(sql.raw(`CREATE INDEX IF NOT EXISTS users_role_idx ON users (role)`));
     await db.execute(sql.raw(`CREATE INDEX IF NOT EXISTS users_business_id_idx ON users (business_id)`));
+
+    // ─── Bulk SMS — history + pack purchases ────────────────────────────
+    await db.execute(sql.raw(`
+      CREATE TABLE IF NOT EXISTS sms_messages (
+        id                    SERIAL PRIMARY KEY,
+        business_id           INTEGER NOT NULL,
+        recipient_phone       TEXT NOT NULL,
+        message               TEXT NOT NULL,
+        status                TEXT NOT NULL DEFAULT 'queued',
+        inforu_message_id     TEXT,
+        customer_message_id   TEXT,
+        charged_credits       INTEGER NOT NULL DEFAULT 1,
+        from_source           TEXT NOT NULL DEFAULT 'monthly',
+        status_reason         TEXT,
+        created_at            TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        delivered_at          TIMESTAMPTZ
+      )
+    `));
+    await db.execute(sql.raw(
+      `CREATE INDEX IF NOT EXISTS sms_messages_business_created_idx ON sms_messages (business_id, created_at DESC)`
+    ));
+    await db.execute(sql.raw(
+      `CREATE INDEX IF NOT EXISTS sms_messages_customer_message_id_idx ON sms_messages (customer_message_id) WHERE customer_message_id IS NOT NULL`
+    ));
+
+    await db.execute(sql.raw(`
+      CREATE TABLE IF NOT EXISTS sms_pack_purchases (
+        id                         SERIAL PRIMARY KEY,
+        business_id                INTEGER NOT NULL,
+        pack_size                  INTEGER NOT NULL,
+        price_paid_agorot          INTEGER NOT NULL,
+        tranzila_transaction_id    TEXT,
+        status                     TEXT NOT NULL DEFAULT 'pending',
+        created_at                 TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        completed_at               TIMESTAMPTZ
+      )
+    `));
+    await db.execute(sql.raw(
+      `CREATE INDEX IF NOT EXISTS sms_pack_purchases_business_idx ON sms_pack_purchases (business_id, created_at DESC)`
+    ));
+
+    // ─── Multi-staff (עסקי) ──────────────────────────────────────────────
+    await db.execute(sql.raw(`
+      CREATE TABLE IF NOT EXISTS staff_members (
+        id           SERIAL PRIMARY KEY,
+        business_id  INTEGER NOT NULL,
+        name         TEXT NOT NULL,
+        phone        TEXT,
+        email        TEXT,
+        avatar_url   TEXT,
+        color        TEXT,
+        is_owner     BOOLEAN NOT NULL DEFAULT FALSE,
+        is_active    BOOLEAN NOT NULL DEFAULT TRUE,
+        sort_order   INTEGER NOT NULL DEFAULT 0,
+        created_at   TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      )
+    `));
+    await db.execute(sql.raw(
+      `CREATE INDEX IF NOT EXISTS staff_members_business_idx ON staff_members (business_id)`
+    ));
+    // At most one is_owner row per business. Enforced at DB level so we
+    // can't accidentally create duplicates via the admin routes.
+    await db.execute(sql.raw(
+      `CREATE UNIQUE INDEX IF NOT EXISTS staff_members_owner_uniq ON staff_members (business_id) WHERE is_owner = TRUE`
+    ));
+
+    await db.execute(sql.raw(`
+      CREATE TABLE IF NOT EXISTS staff_services (
+        staff_member_id  INTEGER NOT NULL,
+        service_id       INTEGER NOT NULL,
+        PRIMARY KEY (staff_member_id, service_id)
+      )
+    `));
+
+    // Backfill: every existing business gets an auto-created owner row.
+    // Runs once (ON CONFLICT DO NOTHING via the unique index above) so
+    // redeploys are safe.
+    await db.execute(sql.raw(`
+      INSERT INTO staff_members (business_id, name, phone, email, is_owner, is_active)
+      SELECT b.id, b.owner_name, b.phone, b.email, TRUE, TRUE
+      FROM businesses b
+      WHERE NOT EXISTS (
+        SELECT 1 FROM staff_members s WHERE s.business_id = b.id AND s.is_owner = TRUE
+      )
+    `));
 
     // ─── One-shot seed: import existing businesses + clients ────────────
     // Idempotent via ON CONFLICT DO NOTHING. Safe to run every boot.

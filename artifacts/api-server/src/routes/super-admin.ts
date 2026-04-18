@@ -76,8 +76,19 @@ router.post("/super-admin/businesses", async (req, res): Promise<void> => {
     name, slug, ownerName, email, password,
     phone, subscriptionPlan, address, city, websiteUrl, instagramUrl,
   } = bodyParsed.data;
-  const plan = subscriptionPlan === "pro" ? "pro" : "free";
+  // Accepted values: "free" | "pro" | "pro-plus". Anything else collapses
+  // to "free" so a bad input from the UI can't silently escalate.
+  const plan =
+    subscriptionPlan === "pro-plus" ? "pro-plus"
+    : subscriptionPlan === "pro"    ? "pro"
+    : "free";
   const passwordHash = await bcrypt.hash(password, 10);
+
+  // Paid tiers share the "unlimited" caps; only Free gets hard limits.
+  // עסקי (pro-plus) additionally gets a 500/month bulk-SMS quota; Pro
+  // gets 100. Free has 0 and the bulk-SMS routes refuse to send anyway.
+  const isPaid = plan !== "free";
+  const smsMonthlyQuota = plan === "pro-plus" ? 500 : plan === "pro" ? 100 : 0;
 
   const [business] = await db
     .insert(businessesTable)
@@ -85,12 +96,13 @@ router.post("/super-admin/businesses", async (req, res): Promise<void> => {
       slug, name, ownerName, email, passwordHash,
       phone: phone ?? null,
       subscriptionPlan: plan,
-      maxServicesAllowed: plan === "pro" ? 999 : 3,
-      maxAppointmentsPerMonth: plan === "pro" ? 9999 : 20,
+      maxServicesAllowed: isPaid ? 999 : 3,
+      maxAppointmentsPerMonth: isPaid ? 9999 : 20,
       address: address || null,
       city: city || null,
       websiteUrl: websiteUrl || null,
       instagramUrl: instagramUrl || null,
+      smsMonthlyQuota,
     } as any)
     .returning();
 
@@ -133,10 +145,22 @@ router.patch("/super-admin/businesses/:id", async (req, res): Promise<void> => {
   if (bodyParsed.data.isActive !== undefined) updates.isActive = bodyParsed.data.isActive;
   if (bodyParsed.data.subscriptionPlan !== undefined) {
     updates.subscriptionPlan = bodyParsed.data.subscriptionPlan;
-    // Demoting pro → free: stop the Tranzila STO and clear all billing
-    // state so re-subscription later creates a fresh STO. Otherwise the
-    // old sto_id lingers and the notify handler will skip creating a new
-    // one on next signup.
+    // Realign the SMS quota to the new tier. Doesn't reset the cycle —
+    // an owner on Pro (100/month) upgraded to עסקי mid-cycle should see
+    // the extra 400 credits immediately without waiting for the next
+    // reset. Downgrades keep the overage usable for the rest of the
+    // cycle (standard: don't claw back mid-period).
+    if (bodyParsed.data.subscriptionPlan === "pro-plus") {
+      (updates as any).smsMonthlyQuota = 500;
+    } else if (bodyParsed.data.subscriptionPlan === "pro") {
+      (updates as any).smsMonthlyQuota = 100;
+    } else if (bodyParsed.data.subscriptionPlan === "free") {
+      (updates as any).smsMonthlyQuota = 0;
+    }
+    // Demoting → free: stop the Tranzila STO and clear all billing state
+    // so re-subscription later creates a fresh STO. Otherwise the old
+    // sto_id lingers and the notify handler will skip creating a new one
+    // on next signup.
     if (bodyParsed.data.subscriptionPlan === "free") {
       const [before] = await db
         .select({ stoId: (businessesTable as any).tranzilaStorId })

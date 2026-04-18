@@ -20,8 +20,9 @@ import { Plus, Trash2, Edit, ExternalLink, Shield, Eye, EyeOff, RefreshCw } from
 import Navbar from "@/components/Navbar";
 
 const PLANS = [
-  { value: "free", label: "חינמי", color: "bg-slate-100 text-slate-700" },
-  { value: "pro", label: "פרו", color: "bg-purple-100 text-purple-700" },
+  { value: "free",     label: "חינמי", color: "bg-slate-100 text-slate-700"       },
+  { value: "pro",      label: "פרו",   color: "bg-emerald-100 text-emerald-700"   },
+  { value: "pro-plus", label: "עסקי",  color: "bg-blue-100 text-blue-700"         },
 ];
 
 interface EditFormData {
@@ -134,8 +135,11 @@ export default function SuperAdmin() {
   };
 
   const handleChangePlan = (id: number, plan: string) => {
-    const maxServices = plan === "pro" ? 999 : 3;
-    const maxAppts = plan === "pro" ? 9999 : 20;
+    // All paid tiers (pro, pro-plus) share the "unlimited" caps. Free is the
+    // only tier that keeps the 3-service / 20-appointment limits.
+    const isPaid = plan === "pro" || plan === "pro-plus";
+    const maxServices = isPaid ? 999 : 3;
+    const maxAppts = isPaid ? 9999 : 20;
     updateMutation.mutate({ id, params: { adminPassword: password }, data: { subscriptionPlan: plan as any, maxServicesAllowed: maxServices, maxAppointmentsPerMonth: maxAppts } }, {
       onSuccess: () => { toast({ title: "מנוי עודכן" }); invalidate(); },
       onError: (err: any) => toast({ title: "שגיאה בעדכון מנוי", description: err?.response?.data?.message ?? err?.message ?? "נסה שוב", variant: "destructive" }),
@@ -204,8 +208,10 @@ export default function SuperAdmin() {
     (data as any).businessDescription = editForm.businessDescription || null;
     if (editForm.subscriptionPlan !== editDialogBusiness.subscriptionPlan) {
       data.subscriptionPlan = editForm.subscriptionPlan as any;
-      data.maxServicesAllowed = editForm.subscriptionPlan === "pro" ? 999 : 3;
-      data.maxAppointmentsPerMonth = editForm.subscriptionPlan === "pro" ? 9999 : 20;
+      // Both paid tiers (pro, pro-plus/עסקי) share unlimited caps.
+      const isPaid = editForm.subscriptionPlan === "pro" || editForm.subscriptionPlan === "pro-plus";
+      data.maxServicesAllowed = isPaid ? 999 : 3;
+      data.maxAppointmentsPerMonth = isPaid ? 9999 : 20;
     }
 
     if (Object.keys(data).length === 0) {
@@ -675,7 +681,7 @@ function BusinessCard({ business, onToggleActive, onChangePlan, onDelete, onEdit
         </div>
 
         {/* Subscription details */}
-        {business.subscriptionPlan === "pro" && (
+        {(business.subscriptionPlan === "pro" || business.subscriptionPlan === "pro-plus") && (
           <div className="text-xs text-muted-foreground space-y-0.5 border rounded-lg px-3 py-2 bg-blue-50/50">
             {renewDate && (
               <div>חידוש: <span className="font-medium text-foreground">{renewDate.toLocaleDateString("he-IL")}</span></div>
@@ -697,13 +703,13 @@ function BusinessCard({ business, onToggleActive, onChangePlan, onDelete, onEdit
             onClick={onGrantPro}>
             👑 הענק פרו
           </Button>
-          {business.subscriptionPlan === "pro" && !isCancelled && (
+          {(business.subscriptionPlan === "pro" || business.subscriptionPlan === "pro-plus") && !isCancelled && (
             <Button size="sm" variant="ghost" className="text-xs text-orange-600 hover:bg-orange-50"
               onClick={onCancelSubscription}>
               בטל מנוי
             </Button>
           )}
-          {business.subscriptionPlan === "pro" && (
+          {(business.subscriptionPlan === "pro" || business.subscriptionPlan === "pro-plus") && (
             <Button size="sm" variant="ghost" className="text-xs text-muted-foreground hover:text-red-600 hover:bg-red-50"
               onClick={onRevokePro}>
               הסר פרו
@@ -807,7 +813,7 @@ function DomainReviewPanel({ adminPassword }: { adminPassword: string }) {
                     <div className="flex-1 min-w-0">
                       <div className="font-mono text-sm font-semibold" dir="ltr">{r.customDomain}</div>
                       <div className="text-xs text-muted-foreground">
-                        {r.name} (/{r.slug}) · {r.subscriptionPlan === "pro" ? "פרו" : "חינמי"}
+                        {r.name} (/{r.slug}) · {r.subscriptionPlan === "pro-plus" ? "עסקי" : r.subscriptionPlan === "pro" ? "פרו" : "חינמי"}
                       </div>
                     </div>
                     <Button size="sm" variant="outline" onClick={() => copy(r.customDomain)} className="text-xs">

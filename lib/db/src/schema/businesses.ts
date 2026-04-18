@@ -135,6 +135,16 @@ export const businessesTable = pgTable("businesses", {
   // we keep full precision and don't fight Postgres numeric rounding.
   latitude:  text("latitude"),
   longitude: text("longitude"),
+  // ─── Bulk-SMS (Inforu) quota ─────────────────────────────────────────────
+  // Each paid tier includes a monthly SMS allotment (Pro = 100, עסקי = 500);
+  // Free has 0 but can't send bulk anyway. `smsUsedThisPeriod` increments
+  // on every successful send, resets when `smsResetDate` passes.
+  // `smsExtraBalance` is topped up by pack purchases and carries over
+  // indefinitely — burned down only after the monthly quota is exhausted.
+  smsMonthlyQuota:    integer("sms_monthly_quota").notNull().default(0),
+  smsUsedThisPeriod:  integer("sms_used_this_period").notNull().default(0),
+  smsExtraBalance:    integer("sms_extra_balance").notNull().default(0),
+  smsResetDate:       timestamp("sms_reset_date", { withTimezone: true }),
 });
 
 export const insertBusinessSchema = createInsertSchema(businessesTable).omit({ id: true, createdAt: true });

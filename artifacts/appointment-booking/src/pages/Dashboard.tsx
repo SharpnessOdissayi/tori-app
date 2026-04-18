@@ -33,6 +33,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
@@ -819,7 +820,9 @@ export default function Dashboard() {
   if (!token) return <Login onLogin={handleLogin} />;
 
   const dashFont = (headerProfile as any)?.fontFamily;
-  const isProPlan = headerProfile?.subscriptionPlan === "pro";
+  const isProPlan =
+    headerProfile?.subscriptionPlan === "pro" ||
+    headerProfile?.subscriptionPlan === "pro-plus";
 
   return (
     // Dashboard font is fixed to Rubik regardless of the business's
@@ -4865,7 +4868,10 @@ function BrandingTab() {
     else await bannerUpload.upload(file);
   };
 
-  const isPro = profile?.subscriptionPlan === "pro";
+  // "Pro" here means "any paid tier" — both פרו and עסקי unlock the
+  // same feature gates in the dashboard. The exact tier is resolved
+  // separately where pricing/quota matters (e.g. SMS balance).
+  const isPro = profile?.subscriptionPlan === "pro" || profile?.subscriptionPlan === "pro-plus";
   if (profile && !isPro) {
     return (
       <div className="flex flex-col items-center justify-center py-20 gap-6 text-center">
@@ -5500,6 +5506,11 @@ function IntegrationsTab() {
         </div>
       </div>
 
+      {/* Bulk SMS (Inforu) — Pro gets 100/month, עסקי gets 500/month. Extra
+          packs top up independently. Free tier sees a locked state with an
+          upgrade prompt. */}
+      <SmsBulkCard />
+
       {/* Notification to owner */}
       <Card>
         <CardHeader>
@@ -5980,7 +5991,10 @@ function SettingsTab() {
   const updateMutation = useUpdateBusinessProfile();
   const queryClient = useQueryClient();
   const { toast } = useToast();
-  const isPro = profile?.subscriptionPlan === "pro";
+  // "Pro" here means "any paid tier" — both פרו and עסקי unlock the
+  // same feature gates in the dashboard. The exact tier is resolved
+  // separately where pricing/quota matters (e.g. SMS balance).
+  const isPro = profile?.subscriptionPlan === "pro" || profile?.subscriptionPlan === "pro-plus";
   // Snapshot of the loaded form — drives the floating save bar.
   const baselineFormRef = useRef<any>(null);
   const baselineCategoriesRef = useRef<string[] | null>(null);
@@ -6794,7 +6808,10 @@ function SubscriptionStatusCard() {
   const [showConfirm, setShowConfirm] = useState(false);
   const [loadingUpgrade, setLoadingUpgrade] = useState(false);
 
-  const isPro = profile?.subscriptionPlan === "pro";
+  // "Pro" here means "any paid tier" — both פרו and עסקי unlock the
+  // same feature gates in the dashboard. The exact tier is resolved
+  // separately where pricing/quota matters (e.g. SMS balance).
+  const isPro = profile?.subscriptionPlan === "pro" || profile?.subscriptionPlan === "pro-plus";
   const renewDate: Date | null = (profile as any)?.subscriptionRenewDate
     ? new Date((profile as any).subscriptionRenewDate)
     : null;
@@ -7037,5 +7054,309 @@ function ProUpgradePrompt({ title, desc }: { title: string; desc: string }) {
         <Crown className="w-4 h-4" /> שדרג למנוי PRO
       </Button>
     </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// SmsBulkCard — bulk SMS messaging for Pro / עסקי tiers
+// ─────────────────────────────────────────────────────────────────────────────
+//
+// Three states, depending on the owner's plan:
+//   1. Free   → locked card with upgrade CTA
+//   2. Pro    → 100/month included, show balance + compose + purchase
+//   3. עסקי   → 500/month included, same UI, just bigger budget
+//
+// Purchase flow is stubbed (Tranzila iframe wiring lands in a follow-up) —
+// the purchase-pack endpoint currently returns 501 with a pending-row id
+// in the audit log so we can reconcile later.
+function SmsBulkCard() {
+  const { data: profile } = useGetBusinessProfile();
+  const { toast } = useToast();
+  const [balance, setBalance] = useState<{
+    plan: string;
+    allowed: boolean;
+    monthlyQuota: number;
+    monthlyUsed: number;
+    monthlyRemaining: number;
+    extraBalance: number;
+    totalAvailable: number;
+    resetDate: string | null;
+  } | null>(null);
+  const [messageText, setMessageText] = useState("");
+  const [recipientScope, setRecipientScope] = useState<"all" | "dormant_30" | "manual">("all");
+  const [manualRecipients, setManualRecipients] = useState("");
+  const [sending, setSending] = useState(false);
+  const [purchaseOpen, setPurchaseOpen] = useState(false);
+
+  const token = typeof window !== "undefined"
+    ? (localStorage.getItem("biz_token") ?? sessionStorage.getItem("biz_token") ?? "")
+    : "";
+
+  const refreshBalance = async () => {
+    if (!token) return;
+    try {
+      const res = await fetch("/api/sms/balance", { headers: { Authorization: `Bearer ${token}` } });
+      if (!res.ok) return;
+      const json = await res.json();
+      setBalance(json);
+    } catch { /* network error — keep previous balance */ }
+  };
+
+  useEffect(() => { refreshBalance(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [profile?.id]);
+
+  // Locked state — Free tier. Show a compact upgrade prompt so the tab
+  // still makes sense for them.
+  if (balance && !balance.allowed) {
+    return (
+      <Card className="border-dashed">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <span className="text-xl">📱</span> הודעות SMS תפוצה
+          </CardTitle>
+          <CardDescription>
+            זמין במסלול פרו (100 הודעות/חודש) ועסקי (500 הודעות/חודש).
+            שדרוג כאן ב-הגדרות → מנוי.
+          </CardDescription>
+        </CardHeader>
+      </Card>
+    );
+  }
+
+  const recipientCount = (() => {
+    if (recipientScope === "manual") {
+      return manualRecipients
+        .split(/[,\n;\s]+/)
+        .map(s => s.trim())
+        .filter(s => /\d/.test(s))
+        .length;
+    }
+    // Real counts for "all" and "dormant_30" come from a backend endpoint
+    // we'll wire up with the full campaigns feature. For now show an
+    // approximate placeholder; the send itself goes through the backend
+    // which has the authoritative count.
+    return 0;
+  })();
+
+  const remaining = balance?.totalAvailable ?? 0;
+  const overQuota = recipientCount > 0 && recipientCount > remaining;
+
+  async function handleSend() {
+    if (!token || !balance?.allowed) return;
+    if (!messageText.trim()) return;
+
+    let recipients: string[] = [];
+    if (recipientScope === "manual") {
+      recipients = manualRecipients
+        .split(/[,\n;\s]+/)
+        .map(s => s.trim())
+        .filter(s => /\d/.test(s));
+    } else {
+      // "all" + "dormant_30" are backend-resolved scopes. For the shipping
+      // first version the UI only supports manual lists; richer scopes
+      // land with the campaigns feature.
+      toast({ title: "בקרוב", description: "שליחה לכל הלקוחות / לא פעילים — בפיתוח. בינתיים העתק רשימה ידנית.", variant: "default" });
+      return;
+    }
+
+    if (recipients.length === 0) {
+      toast({ title: "אין נמענים", variant: "destructive" });
+      return;
+    }
+    if (recipients.length > remaining) {
+      toast({ title: "אין מספיק הודעות", description: `נשארו ${remaining}, נבחרו ${recipients.length}.`, variant: "destructive" });
+      return;
+    }
+
+    setSending(true);
+    try {
+      const res = await fetch("/api/sms/send-bulk", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ recipients, message: messageText.trim() }),
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        if (json?.error === "insufficient_sms_credits") {
+          toast({ title: "אין מספיק הודעות", description: `נדרש ${json.required}, זמין ${json.available}.`, variant: "destructive" });
+          setPurchaseOpen(true);
+        } else if (json?.error === "inforu_not_configured") {
+          toast({ title: "שער SMS עדיין לא מחובר", description: "החשבון מול אינפורו יחובר בקרוב.", variant: "default" });
+        } else {
+          toast({ title: "שגיאה בשליחה", description: json?.error ?? "נסה שוב", variant: "destructive" });
+        }
+        return;
+      }
+      toast({ title: `נשלחו ${json.sent ?? recipients.length} הודעות` });
+      setMessageText("");
+      setManualRecipients("");
+      refreshBalance();
+    } finally {
+      setSending(false);
+    }
+  }
+
+  async function handlePurchase(packSize: 250 | 500) {
+    if (!token) return;
+    try {
+      const res = await fetch("/api/sms/purchase-pack", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ packSize }),
+      });
+      const json = await res.json().catch(() => ({}));
+      if (res.status === 501) {
+        toast({
+          title: "בקרוב",
+          description: `חבילת ${packSize} SMS — עמוד התשלום בבנייה. צור קשר לרכישה ידנית.`,
+        });
+        setPurchaseOpen(false);
+        return;
+      }
+      if (!res.ok) {
+        toast({ title: "הרכישה נכשלה", description: json?.error ?? "נסה שוב", variant: "destructive" });
+        return;
+      }
+      toast({ title: `נוספו ${json.creditsAdded} הודעות`, description: `יתרה כוללת: ${json.totalAvailable}` });
+      refreshBalance();
+      setPurchaseOpen(false);
+    } catch (err: any) {
+      toast({ title: "שגיאה", description: err?.message ?? "נסה שוב", variant: "destructive" });
+    }
+  }
+
+  return (
+    <>
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <span className="text-xl">📱</span> הודעות SMS תפוצה
+          </CardTitle>
+          <CardDescription>
+            שלח הודעות שיווקיות ללקוחות. שם השולח = שם העסק שלך.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {/* Balance summary */}
+          <div className="rounded-xl border bg-blue-50/50 border-blue-200 p-4">
+            <div className="flex items-center justify-between gap-3 flex-wrap">
+              <div>
+                <div className="text-xs text-blue-700 font-medium">יתרה החודש</div>
+                <div className="text-2xl font-bold text-blue-800">
+                  {balance ? `${balance.monthlyRemaining}/${balance.monthlyQuota}` : "—"}
+                </div>
+              </div>
+              <div>
+                <div className="text-xs text-blue-700 font-medium">חבילות נוספות</div>
+                <div className="text-2xl font-bold text-blue-800">{balance?.extraBalance ?? 0}</div>
+              </div>
+              <div>
+                <div className="text-xs text-blue-700 font-medium">סה״כ זמין</div>
+                <div className="text-2xl font-bold text-blue-800">{balance?.totalAvailable ?? 0}</div>
+              </div>
+              <Button variant="outline" onClick={() => setPurchaseOpen(true)}>
+                רכוש חבילה נוספת
+              </Button>
+            </div>
+          </div>
+
+          {/* Composer */}
+          <div className="space-y-2">
+            <Label>רשימת נמענים</Label>
+            <div className="flex gap-2 flex-wrap">
+              <Button size="sm" variant={recipientScope === "manual" ? "default" : "outline"}
+                onClick={() => setRecipientScope("manual")}>
+                בחירה ידנית
+              </Button>
+              <Button size="sm" variant={recipientScope === "all" ? "default" : "outline"}
+                onClick={() => setRecipientScope("all")} disabled>
+                כל הלקוחות (בקרוב)
+              </Button>
+              <Button size="sm" variant={recipientScope === "dormant_30" ? "default" : "outline"}
+                onClick={() => setRecipientScope("dormant_30")} disabled>
+                לא הזמינו ב-30 יום (בקרוב)
+              </Button>
+            </div>
+            {recipientScope === "manual" && (
+              <Textarea
+                rows={3}
+                placeholder="0501234567, 0547654321, 0533334444"
+                value={manualRecipients}
+                onChange={e => setManualRecipients(e.target.value)}
+                className="font-mono text-sm"
+                dir="ltr"
+              />
+            )}
+          </div>
+
+          <div className="space-y-2">
+            <Label>הודעה</Label>
+            <Textarea
+              rows={4}
+              maxLength={160}
+              placeholder="הי! יש לנו הטבה חדשה החודש..."
+              value={messageText}
+              onChange={e => setMessageText(e.target.value)}
+            />
+            <div className="text-xs text-muted-foreground flex justify-between">
+              <span>{messageText.length}/160 תווים</span>
+              <span>נמענים: {recipientCount}</span>
+            </div>
+          </div>
+
+          {overQuota && (
+            <div className="rounded-xl border-2 border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">
+              אתה שולח יותר מהכמות שנשארה לך לרכוש, רכוש סמסים נוספים{" "}
+              <button
+                type="button"
+                onClick={() => setPurchaseOpen(true)}
+                className="underline font-semibold text-amber-700 hover:text-amber-900"
+              >
+                לחץ כאן
+              </button>
+            </div>
+          )}
+
+          <Button
+            className="w-full"
+            onClick={handleSend}
+            disabled={sending || overQuota || recipientCount === 0 || !messageText.trim()}
+          >
+            {sending ? "שולח..." : `שלח ל-${recipientCount} נמענים`}
+          </Button>
+        </CardContent>
+      </Card>
+
+      {/* Purchase modal */}
+      <Dialog open={purchaseOpen} onOpenChange={setPurchaseOpen}>
+        <DialogContent dir="rtl" className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>רכישת חבילת SMS נוספת</DialogTitle>
+            <DialogDescription>
+              חבילות מתווספות ליתרת ה״נוספות״ — לא פוקעות ואינן מתאפסות בסוף החודש.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
+            <button
+              onClick={() => handlePurchase(250)}
+              className="border-2 rounded-2xl p-5 hover:border-primary hover:bg-primary/5 text-right transition-all"
+            >
+              <div className="text-sm font-semibold">חבילה קטנה</div>
+              <div className="text-3xl font-bold mt-1">250</div>
+              <div className="text-sm text-muted-foreground">הודעות</div>
+              <div className="text-xl font-bold text-primary mt-3">₪39</div>
+            </button>
+            <button
+              onClick={() => handlePurchase(500)}
+              className="border-2 border-blue-400 rounded-2xl p-5 bg-blue-50 hover:bg-blue-100 text-right transition-all"
+            >
+              <div className="text-sm font-semibold text-blue-700">משתלם יותר</div>
+              <div className="text-3xl font-bold text-blue-800 mt-1">500</div>
+              <div className="text-sm text-blue-600">הודעות</div>
+              <div className="text-xl font-bold text-blue-700 mt-3">₪59</div>
+            </button>
+          </div>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }

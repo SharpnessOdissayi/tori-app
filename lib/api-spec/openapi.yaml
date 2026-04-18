@@ -924,7 +924,7 @@ components:
           type: boolean
         subscriptionPlan:
           type: string
-          enum: [free, basic, pro]
+          enum: [free, basic, pro, pro-plus]
         maxServicesAllowed:
           type: integer
         name:
@@ -963,7 +963,7 @@ components:
           type: string
         subscriptionPlan:
           type: string
-          enum: [free, basic, pro]
+          enum: [free, basic, pro, pro-plus]
         address:
           type: string
         city:

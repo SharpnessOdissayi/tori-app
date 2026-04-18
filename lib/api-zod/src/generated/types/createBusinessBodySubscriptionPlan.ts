@@ -13,4 +13,5 @@ export const CreateBusinessBodySubscriptionPlan = {
   free: "free",
   basic: "basic",
   pro: "pro",
+  "pro-plus": "pro-plus",
 } as const;

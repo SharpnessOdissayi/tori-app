@@ -9,6 +9,10 @@ export const workingHoursTable = pgTable("working_hours", {
   startTime: text("start_time").notNull().default("09:00"),
   endTime: text("end_time").notNull().default("18:00"),
   isEnabled: boolean("is_enabled").notNull().default(false),
+  // Per-staff working hours (עסקי tier multi-staff).
+  // NULL = inherits the business-level hours (current single-calendar
+  // behaviour). Non-null = those hours apply only to that staff member.
+  staffMemberId: integer("staff_member_id"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
