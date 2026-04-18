@@ -43,6 +43,10 @@ export const businessesTable = pgTable("businesses", {
   maxServicesAllowed: integer("max_services_allowed").notNull().default(5),
   maxAppointmentsPerMonth: integer("max_appointments_per_month").notNull().default(20),
   subscriptionStartDate: timestamp("subscription_start_date", { withTimezone: true }),
+  // Flipped to true once the trial-ending-soon email + in-app
+  // notification have been sent (24h before subscriptionRenewDate).
+  // Stops the cron re-firing the same notice every tick.
+  trialEndingNoticeSent: boolean("trial_ending_notice_sent").notNull().default(false),
   isActive: boolean("is_active").notNull().default(true),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   // Booking restrictions

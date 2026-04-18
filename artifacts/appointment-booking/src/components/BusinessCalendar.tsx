@@ -1315,6 +1315,16 @@ export function BusinessCalendar({
   // marked enabled or not. We feed this into <TimeGrid> so slots outside
   // the open window get a gray background, but stay clickable.
   const { data: workingHours } = useGetWorkingHours();
+  // Pending time-off drag — gates the PATCH behind a confirm dialog so
+  // an accidental slip doesn't quietly move the owner's day-off block
+  // to a wrong slot. Mirrors the pendingReschedule pattern used for
+  // appointments.
+  const [pendingTimeOffReschedule, setPendingTimeOffReschedule] = useState<{
+    item: TimeOffItem;
+    newDate: string;
+    newStartTime: string | null;
+    newEndTime: string | null;
+  } | null>(null);
   const [pendingReschedule, setPendingReschedule] = useState<{ appt: CalAppt; newDate: string; newTime: string } | null>(null);
   // Client-name search. Magnifying-glass in the header toggles an input;
   // non-empty query surfaces a dropdown of matches. Clicking a match
@@ -1453,7 +1463,7 @@ export function BusinessCalendar({
             serviceColors={serviceColors}
             onApptClick={onApptClick}
             onTimeOffClick={onTimeOffClick}
-            onTimeOffReschedule={onTimeOffReschedule}
+            onTimeOffReschedule={onTimeOffReschedule ? (item, nd, nst, net) => setPendingTimeOffReschedule({ item, newDate: nd, newStartTime: nst, newEndTime: net }) : undefined}
             onReschedule={(a, nd, nt) => setPendingReschedule({ appt: a, newDate: nd, newTime: nt })}
             onPickSlot={onNewAppointment ? (date, time) => onNewAppointment({ date, time }) : undefined}
           />
@@ -1467,7 +1477,7 @@ export function BusinessCalendar({
             serviceColors={serviceColors}
             onApptClick={onApptClick}
             onTimeOffClick={onTimeOffClick}
-            onTimeOffReschedule={onTimeOffReschedule}
+            onTimeOffReschedule={onTimeOffReschedule ? (item, nd, nst, net) => setPendingTimeOffReschedule({ item, newDate: nd, newStartTime: nst, newEndTime: net }) : undefined}
             onReschedule={(a, nd, nt) => setPendingReschedule({ appt: a, newDate: nd, newTime: nt })}
             onPickSlot={onNewAppointment ? (date, time) => onNewAppointment({ date, time }) : undefined}
           />
@@ -1485,6 +1495,99 @@ export function BusinessCalendar({
           setPendingReschedule(null);
         }}
       />
+      <TimeOffConfirmDialog
+        pending={pendingTimeOffReschedule}
+        onCancel={() => setPendingTimeOffReschedule(null)}
+        onConfirm={() => {
+          const p = pendingTimeOffReschedule;
+          setPendingTimeOffReschedule(null);
+          if (p && onTimeOffReschedule) {
+            onTimeOffReschedule(p.item, p.newDate, p.newStartTime, p.newEndTime);
+          }
+        }}
+      />
+    </div>
+  );
+}
+
+// Compact confirm dialog for dragging an אילוץ to a new slot. Same
+// gradient-header style as RescheduleConfirmDialog but simpler — no
+// WhatsApp-notification checkbox (clients don't get notified about
+// owner time-offs). Rendered by BusinessCalendar when a drag drops.
+function TimeOffConfirmDialog({
+  pending, onCancel, onConfirm,
+}: {
+  pending: {
+    item: TimeOffItem;
+    newDate: string;
+    newStartTime: string | null;
+    newEndTime: string | null;
+  } | null;
+  onCancel: () => void;
+  onConfirm: () => void;
+}) {
+  if (!pending) return null;
+  const { item, newDate, newStartTime, newEndTime } = pending;
+  const fmtDate = (s: string) => {
+    const [y, m, d] = s.split("-");
+    return `${d}/${m}/${y}`;
+  };
+  const oldRange = item.fullDay
+    ? "כל היום"
+    : `${item.startTime ?? "—"}–${item.endTime ?? "—"}`;
+  const newRange = item.fullDay
+    ? "כל היום"
+    : `${newStartTime ?? item.startTime ?? "—"}–${newEndTime ?? item.endTime ?? "—"}`;
+  const label = (item.note && item.note.trim()) || "אילוץ";
+  const sameDate = item.date === newDate;
+  const sameRange = oldRange === newRange;
+  if (sameDate && sameRange) {
+    // No-op drop — close quietly.
+    onCancel();
+    return null;
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/50 p-3 backdrop-blur-sm animate-in fade-in duration-150" onClick={onCancel}>
+      <div
+        dir="rtl"
+        className="w-full max-w-sm bg-background rounded-3xl shadow-2xl overflow-hidden animate-in slide-in-from-bottom-4 duration-200"
+        onClick={e => e.stopPropagation()}
+        style={{ fontFamily: "'Rubik', sans-serif" }}
+      >
+        <div className="px-5 py-4 text-white flex items-center gap-3"
+             style={{ background: "linear-gradient(135deg, #ef4444 0%, #fb923c 100%)" }}>
+          <div className="w-10 h-10 rounded-2xl bg-white/25 backdrop-blur-sm flex items-center justify-center shrink-0">
+            <Ban className="w-5 h-5" />
+          </div>
+          <div className="flex-1">
+            <div className="text-[11px] font-medium opacity-90">העברת אילוץ</div>
+            <div className="text-base font-bold leading-tight">{label}</div>
+          </div>
+        </div>
+
+        <div className="p-5 space-y-3">
+          <div className="rounded-2xl border border-border bg-muted/40 px-4 py-3">
+            <div className="text-[11px] font-semibold text-muted-foreground mb-1">מ־</div>
+            <div className="text-sm" dir="ltr">{fmtDate(item.date)} · {oldRange}</div>
+          </div>
+          <div className="rounded-2xl border-2 border-red-300 bg-red-50/60 px-4 py-3">
+            <div className="text-[11px] font-semibold text-red-700 mb-1">ל־</div>
+            <div className="text-sm text-red-900" dir="ltr">{fmtDate(newDate)} · {newRange}</div>
+          </div>
+
+          <div className="flex gap-2 pt-2">
+            <button type="button" onClick={onCancel}
+                    className="flex-1 h-11 rounded-xl border border-border font-semibold hover:bg-muted/50 transition-colors">
+              ביטול
+            </button>
+            <button type="button" onClick={onConfirm}
+                    className="flex-1 h-11 rounded-xl bg-red-500 text-white font-semibold hover:bg-red-600 transition-colors">
+              העבר אילוץ
+            </button>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }

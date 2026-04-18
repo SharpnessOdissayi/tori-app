@@ -157,7 +157,7 @@ function StepPlan({ onNext }: { onNext: (plan: Plan) => void }) {
             <li className="flex items-center gap-2"><CheckCircle className="w-4 h-4 text-green-500 shrink-0" /> אינטגרציית WhatsApp</li>
             <li className="flex items-center gap-2"><CheckCircle className="w-4 h-4 text-green-500 shrink-0" /> תמיכה מועדפת</li>
           </ul>
-          <div className="mt-5 w-full py-2 rounded-xl bg-blue-500 text-white font-semibold text-sm group-hover:bg-blue-600 transition-colors">
+          <div className="mt-5 w-full py-2 rounded-xl bg-blue-500 text-white font-semibold text-sm group-hover:bg-blue-600 transition-colors text-center">
             בחר תוכנית פרו
           </div>
         </button>

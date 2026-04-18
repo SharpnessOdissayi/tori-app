@@ -243,6 +243,9 @@ export async function runMigrations() {
       // owner_name for legacy rows.
       "ALTER TABLE businesses ADD COLUMN IF NOT EXISTS owner_first_name TEXT",
       "ALTER TABLE businesses ADD COLUMN IF NOT EXISTS owner_last_name TEXT",
+      // Trial-ending notice flag — used by subscriptionCron to fire the
+      // "הניסיון שלך עומד להסתיים" email + bell notification exactly once.
+      "ALTER TABLE businesses ADD COLUMN IF NOT EXISTS trial_ending_notice_sent BOOLEAN NOT NULL DEFAULT FALSE",
     ];
 
     // Cancellation tracking
