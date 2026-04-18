@@ -93,32 +93,22 @@ export default function Navbar({
             );
           })}
 
-          {/* CTAs — visible when no page-specific leftContent is injected */}
+          {/* CTAs — visible when no page-specific leftContent is injected.
+              The "הצטרפות למערכת קבעתי" CTA moved to the Hero section of the
+              homepage (as "הצטרפות למסלול הנסיון שלנו") so the navbar stays
+              clean and clients-only paths are the only top-right shortcut. */}
           {!leftContent && (
-            <>
-              <Link href="/portal">
-                <span
-                  className="px-3 py-2 text-sm font-medium cursor-pointer rounded-lg transition-colors whitespace-nowrap"
-                  style={{
-                    color: location === "/portal" ? brand : "#475569",
-                    background: location === "/portal" ? "rgba(60,146,240,0.10)" : "transparent",
-                  }}
-                >
-                  כניסה ללקוחות
-                </span>
-              </Link>
-              <Link href="/register">
-                <span
-                  className="mr-2 px-5 py-2.5 rounded-full text-sm font-semibold cursor-pointer transition-all whitespace-nowrap text-white"
-                  style={{
-                    background: "linear-gradient(135deg, #3c92f0 0%, #1e6fcf 100%)",
-                    boxShadow: "0 6px 16px -6px rgba(60,146,240,0.6)",
-                  }}
-                >
-                  הצטרפות למערכת קבעתי
-                </span>
-              </Link>
-            </>
+            <Link href="/portal">
+              <span
+                className="px-3 py-2 text-sm font-medium cursor-pointer rounded-lg transition-colors whitespace-nowrap"
+                style={{
+                  color: location === "/portal" ? brand : "#475569",
+                  background: location === "/portal" ? "rgba(60,146,240,0.10)" : "transparent",
+                }}
+              >
+                כניסה ללקוחות
+              </span>
+            </Link>
           )}
         </nav>
 
@@ -154,15 +144,6 @@ export default function Navbar({
                 onClick={() => setMenuOpen(false)}
               >
                 כניסה ללקוחות
-              </span>
-            </Link>
-            <Link href="/register">
-              <span
-                className="block px-4 py-3 rounded-xl text-sm font-bold cursor-pointer text-white text-center mt-1"
-                style={{ background: "linear-gradient(135deg, #3c92f0 0%, #1e6fcf 100%)", boxShadow: "0 6px 16px -6px rgba(60,146,240,0.6)" }}
-                onClick={() => setMenuOpen(false)}
-              >
-                הצטרפות למערכת קבעתי
               </span>
             </Link>
           </nav>

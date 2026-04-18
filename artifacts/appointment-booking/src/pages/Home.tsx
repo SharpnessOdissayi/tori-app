@@ -48,10 +48,10 @@ export default function Home() {
           </p>
 
           <div className="flex flex-col sm:flex-row gap-4 justify-center pt-2">
-            <Link href="/book/demo">
+            <Link href="/register">
               <Button size="lg" className="w-full sm:w-auto h-14 px-8 text-base rounded-2xl shadow-lg hover:shadow-xl transition-all gap-2">
                 <Sparkles className="w-5 h-5" />
-                איך זה נראה באמת?
+                הצטרפות למסלול הנסיון שלנו
               </Button>
             </Link>
             <Link href="/dashboard">

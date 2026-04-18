@@ -1015,9 +1015,11 @@ export default function Dashboard() {
           <a href="/contact" className="font-semibold text-primary underline">אשמח שתשאיר לי הודעה על כך</a>
         </div>
 
-        {/* Bottom safe-area padding so the fixed mobile nav doesn't cover
-            the last card on the page. Desktop (md+) ignores this. */}
-        <div className="md:hidden h-20" aria-hidden />
+        {/* Bottom safe-area padding so the fixed mobile nav + the floating
+            save bar don't cover the last card (the suggestion banner) on
+            the page. 8rem = 64px nav + 48px save button + 16px buffer.
+            Desktop (md+) ignores this. */}
+        <div className="md:hidden h-32" aria-hidden />
       </main>
 
       {/* Mobile bottom nav — fixed, always-visible on phones. */}
@@ -3269,36 +3271,8 @@ function WorkingHoursTab() {
       </CardContent>
     </Card>
 
-    {/* Save / cancel at the bottom of the tab — adjacent, not split. */}
-    <div className="flex items-center justify-end gap-2 pt-6 mt-4 border-t">
-      <Button
-        type="button"
-        variant="outline"
-        size="lg"
-        onClick={() => {
-          if (hours) {
-            setLocalHours(DAYS.map((_, i) => {
-              const ex = hours.find(h => h.dayOfWeek === i);
-              return ex ? { ...ex } : { dayOfWeek: i, startTime: "09:00", endTime: "18:00", isEnabled: false };
-            }));
-          }
-          if (profile) {
-            setBufferMinutes((profile.bufferMinutes ?? 0).toString());
-          }
-          toast({ title: "השינויים בוטלו" });
-        }}
-      >
-        בטל עריכה
-      </Button>
-      <Button
-        type="button"
-        size="lg"
-        onClick={handleSave}
-        disabled={updateMutation.isPending || updateProfileMutation.isPending}
-      >
-        {updateMutation.isPending || updateProfileMutation.isPending ? "שומר..." : "שמור הכל"}
-      </Button>
-    </div>
+    {/* Save is exposed only via the floating save bar — no inline bottom row,
+        no "בטל עריכה". The bar appears when the form is dirty. */}
     <FloatingSaveBar visible={isDirty} onClick={handleSave} saving={isSaving} />
     </>
   );
@@ -5206,10 +5180,8 @@ function BrandingTab() {
           </div>
 
         </CardContent>
-        <div className="px-6 pb-6 flex justify-end">
-          <Button onClick={handleSave} disabled={updateBranding.isPending} size="lg">שמור עיצוב</Button>
-        </div>
       </Card>
+      {/* Save exposed only via the floating bar — no inline card-footer button. */}
       <FloatingSaveBar visible={isDirty} onClick={handleSave} saving={updateBranding.isPending} />
     </div>
   );
@@ -5231,22 +5203,42 @@ function IntegrationsTab() {
     { amount: "24", unit: "hours" }
   ]);
 
+  // Baseline snapshot of the loaded profile — drives the floating save bar.
+  // We stringify the seven state slices and compare to the ref; whenever the
+  // hash diverges the bar pops up. Ref instead of state so we don't cause an
+  // extra render when we reset it after save.
+  const baselineRef = useRef<string | null>(null);
+  const currentHash = JSON.stringify({
+    notificationEnabled, sendBookingConfirmation, sendReminders,
+    announcementText, announcementValidHours, shabbatMode, reminderTriggers,
+  });
+  const isDirty = baselineRef.current !== null && baselineRef.current !== currentHash;
+
   useEffect(() => {
     if (profile) {
-      setNotificationEnabled(profile.notificationEnabled ?? true);
-      setSendBookingConfirmation((profile as any).sendBookingConfirmation ?? true);
-      setSendReminders((profile as any).sendReminders ?? true);
-      setAnnouncementText((profile as any).announcementText ?? "");
-      setAnnouncementValidHours((profile as any).announcementValidHours ?? 24);
-      setShabbatMode(((profile as any).shabbatMode ?? "any") as "any" | "shabbat");
+      const ne = profile.notificationEnabled ?? true;
+      const sbc = (profile as any).sendBookingConfirmation ?? true;
+      const sr = (profile as any).sendReminders ?? true;
+      const at = (profile as any).announcementText ?? "";
+      const avh = (profile as any).announcementValidHours ?? 24;
+      const sm = (((profile as any).shabbatMode ?? "any") as "any" | "shabbat");
       const saved = (profile as any).reminderTriggers;
+      let rt: Array<{ amount: string; unit: string }> = [{ amount: "24", unit: "hours" }];
       if (saved) { try {
         const arr = JSON.parse(saved);
-        // Cap at 2 — older data may have up to 3 entries from before the
-        // limit was tightened; drop the extras so the UI doesn't allow
-        // the owner to stay out-of-policy.
-        setReminderTriggers(Array.isArray(arr) ? arr.slice(0, 2) : []);
+        if (Array.isArray(arr)) rt = arr.slice(0, 2);
       } catch {} }
+      setNotificationEnabled(ne);
+      setSendBookingConfirmation(sbc);
+      setSendReminders(sr);
+      setAnnouncementText(at);
+      setAnnouncementValidHours(avh);
+      setShabbatMode(sm);
+      setReminderTriggers(rt);
+      baselineRef.current = JSON.stringify({
+        notificationEnabled: ne, sendBookingConfirmation: sbc, sendReminders: sr,
+        announcementText: at, announcementValidHours: avh, shabbatMode: sm, reminderTriggers: rt,
+      });
     }
   }, [profile]);
 
@@ -5275,14 +5267,30 @@ function IntegrationsTab() {
         // scenario where the toggle flips back because the local state
         // didn't re-sync from the invalidated query.
         if (updated) {
-          setNotificationEnabled((updated as any).notificationEnabled ?? true);
-          setSendBookingConfirmation((updated as any).sendBookingConfirmation ?? true);
-          setSendReminders((updated as any).sendReminders ?? true);
-          setAnnouncementText((updated as any).announcementText ?? "");
-          setAnnouncementValidHours((updated as any).announcementValidHours ?? 24);
-          setShabbatMode(((updated as any).shabbatMode ?? "any") as "any" | "shabbat");
+          const ne = (updated as any).notificationEnabled ?? true;
+          const sbc = (updated as any).sendBookingConfirmation ?? true;
+          const sr = (updated as any).sendReminders ?? true;
+          const at = (updated as any).announcementText ?? "";
+          const avh = (updated as any).announcementValidHours ?? 24;
+          const sm = (((updated as any).shabbatMode ?? "any") as "any" | "shabbat");
           const saved = (updated as any).reminderTriggers;
-          if (saved) { try { setReminderTriggers(JSON.parse(saved)); } catch {} }
+          let rt: Array<{ amount: string; unit: string }> = reminderTriggers;
+          if (saved) { try {
+            const arr = JSON.parse(saved);
+            if (Array.isArray(arr)) rt = arr;
+          } catch {} }
+          setNotificationEnabled(ne);
+          setSendBookingConfirmation(sbc);
+          setSendReminders(sr);
+          setAnnouncementText(at);
+          setAnnouncementValidHours(avh);
+          setShabbatMode(sm);
+          setReminderTriggers(rt);
+          // Save succeeded — reset baseline so the floating bar hides.
+          baselineRef.current = JSON.stringify({
+            notificationEnabled: ne, sendBookingConfirmation: sbc, sendReminders: sr,
+            announcementText: at, announcementValidHours: avh, shabbatMode: sm, reminderTriggers: rt,
+          });
         }
       },
       onError: (err: any) => {
@@ -5546,39 +5554,8 @@ function IntegrationsTab() {
         </CardContent>
       </Card>
 
-      {/* Save / cancel at the bottom of the tab — normal flow. */}
-      <div className="flex items-center justify-between gap-3 pt-6 mt-4 border-t">
-        <Button
-          type="button"
-          variant="outline"
-          size="lg"
-          onClick={() => {
-            if (profile) {
-              setNotificationEnabled(profile.notificationEnabled ?? true);
-              setSendBookingConfirmation((profile as any).sendBookingConfirmation ?? true);
-              setSendReminders((profile as any).sendReminders ?? true);
-              setAnnouncementText((profile as any).announcementText ?? "");
-              setAnnouncementValidHours((profile as any).announcementValidHours ?? 24);
-              setShabbatMode(((profile as any).shabbatMode ?? "any") as "any" | "shabbat");
-              const saved = (profile as any).reminderTriggers;
-              setReminderTriggers(saved ? (() => { try { return JSON.parse(saved); } catch { return [{ amount: "24", unit: "hours" }]; } })() : [{ amount: "24", unit: "hours" }]);
-              toast({ title: "השינויים בוטלו" });
-            }
-          }}
-          className="flex-1 sm:flex-none"
-        >
-          בטל עריכה
-        </Button>
-        <Button
-          type="button"
-          size="lg"
-          onClick={handleSave}
-          disabled={updateProfile.isPending}
-          className="flex-1 sm:flex-none"
-        >
-          {updateProfile.isPending ? "שומר..." : "שמור הכל"}
-        </Button>
-      </div>
+      {/* Save exposed only via the floating bar — appears when isDirty flips. */}
+      <FloatingSaveBar visible={isDirty} onClick={handleSave} saving={updateProfile.isPending} />
     </div>
   );
 }
@@ -6401,83 +6378,10 @@ function SettingsTab() {
       {/* Subscription status card — shown for both free and pro */}
       {profile && <SubscriptionStatusCard />}
 
-      {/* Save / cancel at the bottom of the tab — one button for the
-          entire Settings form (profile, receipts, booking restrictions,
-          slug). Password change has its own submit button inside the
-          card because it needs currentPassword + newPassword. */}
-      <div className="flex items-center justify-between gap-3 pt-6 mt-4 border-t">
-          <Button
-            type="button"
-            variant="outline"
-            size="lg"
-            onClick={() => {
-              // Revert all form fields from the last-loaded profile.
-              if (profile) {
-                const storedFirst = (profile as any).ownerFirstName as string | null | undefined;
-                const storedLast  = (profile as any).ownerLastName  as string | null | undefined;
-                let revertFirst = "";
-                let revertLast  = "";
-                if (storedFirst != null || storedLast != null) {
-                  revertFirst = storedFirst ?? "";
-                  revertLast  = storedLast  ?? "";
-                } else {
-                  const parts = (profile.ownerName || "").trim().split(/\s+/).filter(Boolean);
-                  revertFirst = parts.length > 1 ? parts.slice(0, -1).join(" ") : (parts[0] ?? "");
-                  revertLast  = parts.length > 1 ? parts[parts.length - 1] : "";
-                }
-                setForm({
-                  name: profile.name,
-                  ownerName: profile.ownerName,
-                  ownerFirstName: revertFirst,
-                  ownerLastName: revertLast,
-                  phone: (profile as any).phone ?? "",
-                  email: (profile as any).email ?? "",
-                  requireAppointmentApproval: (profile as any).requireAppointmentApproval ?? false,
-                  requirePhoneVerification: (profile as any).requirePhoneVerification ?? false,
-                  tranzilaEnabled: (profile as any).tranzilaEnabled ?? false,
-                  depositAmount: (((profile as any).depositAmountAgorot ?? 0) / 100).toString(),
-                  minLeadHours: ((profile as any).minLeadHours ?? 0).toString(),
-                  cancellationHours: ((profile as any).cancellationHours ?? 0).toString(),
-                  maxFutureWeeks: ((profile as any).maxFutureWeeks ?? 15).toString(),
-                  futureBookingMode: (profile as any).futureBookingMode ?? "weeks",
-                  maxFutureDate: (profile as any).maxFutureDate ?? "",
-                  maxAppointmentsPerCustomer: ((profile as any).maxAppointmentsPerCustomer ?? "").toString(),
-                  requireActiveSubscription: (profile as any).requireActiveSubscription ?? false,
-                  maxAppointmentsPerDay: ((profile as any).maxAppointmentsPerDay ?? 3).toString(),
-                  businessDescription: (profile as any).businessDescription ?? "",
-                  contactPhone: (profile as any).contactPhone ?? "",
-                  address: (profile as any).address ?? "",
-                  city: (profile as any).city ?? "",
-                  websiteUrl: (profile as any).websiteUrl ?? "",
-                  instagramHandle: ((profile as any).instagramUrl ?? "").replace(/^https?:\/\/(www\.)?instagram\.com\//, "").replace(/\/$/, ""),
-                  wazeUrl: (profile as any).wazeUrl ?? "",
-                  businessTaxId: (profile as any).businessTaxId ?? "",
-                  businessLegalType: ((profile as any).businessLegalType ?? "exempt") as "exempt" | "authorized" | "company",
-                  businessLegalName: (profile as any).businessLegalName ?? "",
-                  invoiceAddress: (profile as any).invoiceAddress ?? "",
-                  slug: profile.slug ?? "",
-                });
-                try {
-                  const cats = (profile as any).businessCategories;
-                  setSelectedCategories(cats ? JSON.parse(cats) : []);
-                } catch { setSelectedCategories([]); }
-                toast({ title: "השינויים בוטלו" });
-              }
-            }}
-            className="flex-1 sm:flex-none"
-          >
-            בטל עריכה
-          </Button>
-          <Button
-            type="button"
-            size="lg"
-            onClick={e => handleSave(e as any)}
-            disabled={updateMutation.isPending}
-            className="flex-1 sm:flex-none"
-          >
-            {updateMutation.isPending ? "שומר..." : "שמור הכל"}
-          </Button>
-      </div>
+      {/* Save exposed only via the floating bar — no inline footer row,
+          no "בטל עריכה". The bar appears when the form is dirty.
+          Password change has its own submit button inside the card because
+          it needs currentPassword + newPassword. */}
       <FloatingSaveBar
         visible={isDirty}
         onClick={() => handleSave({ preventDefault: () => {} } as any)}
