@@ -60,14 +60,20 @@ export default function Home() {
             transition={{ duration: 0.55, ease: "easeOut" }}
             className="text-center max-w-3xl mx-auto space-y-6"
           >
+            {/* Big centered brand logo — first thing visitors see above the
+                fold. h-28 on mobile, h-40 on desktop keeps it prominent
+                without pushing the h1 below the first viewport on short
+                laptops. */}
+            <div className="flex justify-center">
+              <img src="/logo.svg" alt="קבעתי" className="h-28 md:h-40 w-auto select-none" />
+            </div>
+
             <div className="inline-flex items-center gap-2 bg-primary/10 text-primary rounded-full px-4 py-1.5 text-sm font-semibold">
               🎁 14 ימי ניסיון חינם · ללא כרטיס אשראי
             </div>
 
             <h1 className="text-5xl md:text-6xl font-extrabold leading-[1.05] tracking-tight text-foreground">
-              תורים שנסגרים <span className="text-primary">לבד</span>.
-              <br />
-              אתה רק עובד.
+              מערכת ש<span className="text-primary">עובדת</span> בשבילך.
             </h1>
 
             <p className="text-lg text-muted-foreground leading-relaxed max-w-2xl mx-auto">
