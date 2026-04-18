@@ -1569,19 +1569,20 @@ export function BusinessCalendar({
   // the left) — newer periods extend off the LEFT edge of the view.
   // So sweeping the finger LEFT→RIGHT drags the visible period toward
   // the right and advances forward (next period), and RIGHT→LEFT goes
-  // back. Touches that start inside an appointment card or time-off
-  // block are ignored — those own the drag-to-reschedule handler.
-  const swipeStart = useRef<{ x: number; y: number } | null>(null);
+  // back. The 400ms long-press gate on cards + time-offs means a quick
+  // swipe starting on a card can't accidentally activate a drag, so
+  // here we accept those swipes too — as long as the total gesture
+  // lasted < LONG_PRESS_MS it's a navigation, not a drag.
+  const SWIPE_MAX_MS = 400;
+  const swipeStart = useRef<{ x: number; y: number; t: number } | null>(null);
   const stepByGesture = (dir: 1 | -1) => {
     if (view === "day") setCursor(addDays(cursor, dir));
     else if (view === "week") setCursor(addDays(cursor, dir * 7));
     else setCursor(addMonths(cursor, dir));
   };
   const onSwipeStart = (e: React.TouchEvent) => {
-    const target = e.target as HTMLElement | null;
-    if (target?.closest("[data-cal-drag]")) { swipeStart.current = null; return; }
     const t = e.touches[0];
-    swipeStart.current = t ? { x: t.clientX, y: t.clientY } : null;
+    swipeStart.current = t ? { x: t.clientX, y: t.clientY, t: Date.now() } : null;
   };
   const onSwipeEnd = (e: React.TouchEvent) => {
     const start = swipeStart.current;
@@ -1589,6 +1590,10 @@ export function BusinessCalendar({
     if (!start) return;
     const end = e.changedTouches[0];
     if (!end) return;
+    // Too slow? Treat as a drag / hold, not a swipe — the card's own
+    // long-press handler will have fired already, or the finger was
+    // just resting. Either way, don't page the calendar.
+    if (Date.now() - start.t > SWIPE_MAX_MS) return;
     const dx = end.clientX - start.x;
     const dy = end.clientY - start.y;
     // Require a decent horizontal distance AND a horizontal-dominant
