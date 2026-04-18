@@ -1608,7 +1608,7 @@ export default function Book({ slugOverride }: { slugOverride?: string } = {}) {
         </div>
 
         {/* Content */}
-        <div className={`pb-28 px-4 max-w-2xl mx-auto ${showLogo && logoUrl ? "pt-14" : "pt-6"}`}>
+        <div className={`pb-8 px-4 max-w-2xl mx-auto ${showLogo && logoUrl ? "pt-14" : "pt-6"}`}>
           {/* Business name */}
           {showBusinessName && (
             <>
@@ -2107,7 +2107,6 @@ export default function Book({ slugOverride }: { slugOverride?: string } = {}) {
             )
           )}
 
-          {/* Footer — inside pb-28 content area so floating button never covers it */}
           <footer className="pt-8 pb-4 text-xs text-muted-foreground border-t mt-8 text-center space-y-2">
             <div className="flex flex-wrap justify-center gap-x-4 gap-y-1">
               <a href="/privacy" className="hover:text-foreground transition-colors">מדיניות פרטיות</a>
@@ -2120,17 +2119,6 @@ export default function Book({ slugOverride }: { slugOverride?: string } = {}) {
             </a>
           </footer>
         </div>
-
-      {/* Floating book button */}
-      <div className="fixed bottom-0 left-0 right-0 p-4 bg-white/90 dark:bg-black/90 backdrop-blur border-t z-40">
-        <button
-          onClick={() => setStep(2)}
-          className="w-full h-12 rounded-2xl text-white font-bold text-base shadow-lg"
-          style={{ backgroundColor: primaryColor }}
-        >
-          לקביעת תור ←
-        </button>
-      </div>
 
       {/* Accessibility floating button (IS 5568 / WCAG 2.1) */}
       {/* AccessibilityFab + ThemeToggleFab are mounted globally in App.tsx */}
