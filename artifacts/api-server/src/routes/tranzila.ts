@@ -283,14 +283,35 @@ router.post("/tranzila/notify", async (req, res): Promise<void> => {
 
     if (apptId) {
       if (responsecode === "000") {
+        // Look up whether this business requires manual approval. If yes,
+        // the appointment should go deposit-paid → "pending" (waiting for
+        // owner to approve), NOT directly to "confirmed". Earlier every
+        // successful deposit auto-confirmed, which silently bypassed the
+        // manual-approval toggle. Bug reported end-to-end.
+        const [apptRow] = await db
+          .select({ businessId: appointmentsTable.businessId })
+          .from(appointmentsTable)
+          .where(eq(appointmentsTable.id, apptId));
+        let approvalActive = false;
+        if (apptRow) {
+          const [apptBiz] = await db
+            .select({
+              subscriptionPlan:           businessesTable.subscriptionPlan,
+              requireAppointmentApproval: businessesTable.requireAppointmentApproval,
+            })
+            .from(businessesTable)
+            .where(eq(businessesTable.id, apptRow.businessId));
+          const isPaidPlan = apptBiz?.subscriptionPlan === "pro" || apptBiz?.subscriptionPlan === "pro-plus";
+          approvalActive = !!(isPaidPlan && apptBiz?.requireAppointmentApproval);
+        }
         await db
           .update(appointmentsTable)
-          .set({ status: "confirmed" })
+          .set({ status: approvalActive ? "pending" : "confirmed" })
           .where(and(
             eq(appointmentsTable.id, apptId),
             eq(appointmentsTable.status, "pending_payment")
           ));
-        console.log(`[Tranzila] Appointment ${apptId} confirmed`);
+        console.log(`[Tranzila] Appointment ${apptId} deposit paid → ${approvalActive ? "pending (awaiting manual approval)" : "confirmed"}`);
       } else {
         await db
           .update(appointmentsTable)

@@ -100,10 +100,22 @@ router.get("/analytics/overview", async (req, res): Promise<void> => {
     const cancelRate = totalAppointments > 0 ? (statusCounts.cancelled ?? 0) / totalAppointments : 0;
     const noShowRate = totalAppointments > 0 ? (statusCounts.no_show ?? 0) / totalAppointments : 0;
 
-    // ─── "Active" appointments = confirmed + completed. These are what
-    //     we count for revenue + customer LTV. Cancelled/no-show stay
-    //     out of revenue but contribute to the separate rate metrics.
-    const active = rows.filter(a => a.status === "confirmed" || a.status === "completed" || a.status === "done");
+    // ─── "Active" appointments = appointments that HAVE ACTUALLY
+    //     HAPPENED — so they count toward revenue + customer LTV +
+    //     monthly aggregates. An earlier version treated every
+    //     "confirmed" row as active, which rolled future bookings
+    //     (e.g. next week) into total revenue and claimed them as
+    //     "הושלמו". Bug report: "lilash doesn't have 19 appointments
+    //     that were completed — they're future/upcoming."
+    //     Fix: only completed/done OR past-dated confirmed count.
+    //     Cancelled/no-show stay out entirely (counted separately
+    //     for the rate metrics).
+    const todayIso = new Date().toISOString().slice(0, 10);
+    const active = rows.filter(a => {
+      if (a.status === "completed" || a.status === "done") return true;
+      if (a.status === "confirmed" && a.appointmentDate < todayIso) return true;
+      return false;
+    });
     const revenueTotal = active.reduce((sum, a) => sum + (a.price ?? 0), 0);
 
     // ─── Last 30 days window ─────────────────────────────────────────

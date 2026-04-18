@@ -129,6 +129,16 @@ router.get("/public/:businessSlug", async (req, res): Promise<void> => {
     return;
   }
 
+  // Manual-approval mode is a paid-tier feature (Pro + עסקי). Expose the
+  // EFFECTIVE flag here — true only when both the business is on a paid
+  // plan AND the toggle is on — so the /book page can match whatever
+  // status the backend ends up writing to the new appointment. Earlier
+  // the field was never in the response; Book.tsx fell back to `false`
+  // and showed "התור נקבע!" even when the backend actually created a
+  // pending row waiting for manual approval.
+  const isPaidPlan = business.subscriptionPlan === "pro" || business.subscriptionPlan === "pro-plus";
+  const requireAppointmentApproval = isPaidPlan && !!business.requireAppointmentApproval;
+
   res.json({
     id: business.id,
     slug: business.slug,
@@ -146,6 +156,7 @@ router.get("/public/:businessSlug", async (req, res): Promise<void> => {
     stripeEnabled: business.stripeEnabled,
     depositAmountAgorot: null,
     requirePhoneVerification: business.requirePhoneVerification,
+    requireAppointmentApproval,
     phone: business.phone ?? null,
     websiteUrl: (business as any).websiteUrl ?? null,
     instagramUrl: (business as any).instagramUrl ?? null,
@@ -505,9 +516,14 @@ router.post("/public/:businessSlug/appointments", async (req, res): Promise<void
   const tranzilaEnabled = (business as any).tranzilaEnabled ?? false;
   const depositAmountAgorot = (business as any).depositAmountAgorot ?? null;
   const requiresPayment = tranzilaEnabled && depositAmountAgorot && depositAmountAgorot > 0;
-  // Manual approval mode is Pro-only. For free businesses, appointments confirm immediately.
-  const isPro = business.subscriptionPlan === "pro";
-  const approvalActive = isPro && business.requireAppointmentApproval;
+  // Manual-approval mode is a paid-tier feature. For free businesses,
+  // appointments always confirm immediately regardless of the toggle.
+  // Earlier: `subscriptionPlan === "pro"` — which excluded עסקי entirely,
+  // so עסקי businesses with the toggle ON still got their appointments
+  // auto-approved instead of waiting for manual approval. Bug reported
+  // end-to-end; fixed here + in the public-business-info response above.
+  const isPaidPlan = business.subscriptionPlan === "pro" || business.subscriptionPlan === "pro-plus";
+  const approvalActive = isPaidPlan && business.requireAppointmentApproval;
   const appointmentStatus = requiresPayment ? "pending_payment" : approvalActive ? "pending" : "confirmed";
 
   // Transaction + per-business advisory lock → prevents two clients from
@@ -984,10 +1000,11 @@ router.post("/public/:businessSlug/appointments/:id/cancel", async (req, res): P
 
   await db.update(appointmentsTable).set({ status: "cancelled" }).where(eq(appointmentsTable.id, appt.id));
 
-  // Notify client of cancellation via WhatsApp (non-blocking) — Pro only
+  // Notify client of cancellation via WhatsApp (non-blocking) — paid tiers only
   const [, cancelMonth, cancelDay] = appt.appointmentDate.split("-");
   const cancelFormattedDate = `${cancelDay}/${cancelMonth}`;
-  if ((business as any)?.subscriptionPlan === "pro") {
+  const cancelIsPaidPlan = (business as any)?.subscriptionPlan === "pro" || (business as any)?.subscriptionPlan === "pro-plus";
+  if (cancelIsPaidPlan) {
     sendClientCancellation(appt.phoneNumber, appt.clientName, business?.name ?? "העסק", cancelFormattedDate, appt.appointmentTime)
       .catch((e: any) => console.error("[WhatsApp] sendClientCancellation failed:", e?.response?.data ?? e?.message));
   }

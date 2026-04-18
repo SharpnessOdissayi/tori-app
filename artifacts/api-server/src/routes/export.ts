@@ -136,11 +136,21 @@ router.get("/export/customers.csv", async (req, res): Promise<void> => {
       byPhone.set(key, a);
     }
     a.totalAppointments += 1;
-    if (r.status === "cancelled" || r.status === "no_show") a.cancelledAppointments += 1;
-    else {
-      a.completedAppointments += 1;
-      // services.price is AGOROT (cents) — divide by 100 for ILS display.
-      a.totalSpent += (r.priceAgorot ?? 0) / 100;
+    if (r.status === "cancelled" || r.status === "no_show") {
+      a.cancelledAppointments += 1;
+    } else {
+      // Only count as attended/revenue when the appointment ACTUALLY
+      // happened — completed/done, or past-dated confirmed. Future
+      // confirmed bookings shouldn't show as "הושלמו" or inflate the
+      // customer's totalSpent. Matches the analytics aggregator fix.
+      const todayIso = new Date().toISOString().slice(0, 10);
+      const isCompleted = r.status === "completed" || r.status === "done";
+      const isPastConfirmed = r.status === "confirmed" && r.appointmentDate < todayIso;
+      if (isCompleted || isPastConfirmed) {
+        a.completedAppointments += 1;
+        // services.price is AGOROT (cents) — divide by 100 for ILS display.
+        a.totalSpent += (r.priceAgorot ?? 0) / 100;
+      }
     }
     if (r.appointmentDate < a.firstVisit) a.firstVisit = r.appointmentDate;
     if (r.appointmentDate > a.lastVisit)  a.lastVisit  = r.appointmentDate;
@@ -243,11 +253,19 @@ router.get("/export/revenue.csv", async (req, res): Promise<void> => {
     if (r.status === "cancelled" || r.status === "no_show") {
       m.cancelledCount += 1;
     } else {
-      // services.price is AGOROT (cents) — divide by 100 for ILS.
-      const ils = (r.priceAgorot ?? 0) / 100;
-      m.revenue += ils;
-      m.appointments += 1;
-      m.byService.set(r.serviceName, (m.byService.get(r.serviceName) ?? 0) + ils);
+      // Only count as attended/revenue when the appointment actually
+      // happened — completed/done OR past-dated confirmed. Future
+      // confirmed bookings don't belong in the revenue column.
+      const todayIso = new Date().toISOString().slice(0, 10);
+      const isCompleted = r.status === "completed" || r.status === "done";
+      const isPastConfirmed = r.status === "confirmed" && r.appointmentDate < todayIso;
+      if (isCompleted || isPastConfirmed) {
+        // services.price is AGOROT (cents) — divide by 100 for ILS.
+        const ils = (r.priceAgorot ?? 0) / 100;
+        m.revenue += ils;
+        m.appointments += 1;
+        m.byService.set(r.serviceName, (m.byService.get(r.serviceName) ?? 0) + ils);
+      }
     }
   }
   for (const m of byMonth.values()) {
