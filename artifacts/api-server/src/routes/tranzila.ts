@@ -66,6 +66,39 @@ export function buildTranzilaUrl(params: {
   return `${IFRAME_BASE}?${p.toString()}`;
 }
 
+// ─── Test iframe (₪1 charge + tokenize, no STO) ─────────────────────────────
+// Diagnostic flow for owners who want to verify the tokenization pipeline
+// end-to-end against THEIR real card. Charges ₪1 via iframe (tranmode=AK),
+// the notify handler recognizes the pdesc prefix "בדיקת טוקן קבעתי - {id}"
+// and saves the returned TranzilaTK as the business's tranzilaToken —
+// WITHOUT touching subscription state or creating an STO. The owner can
+// then click "בדיקת חיוב ₪1" (the token-only REST charge) to confirm the
+// token works for recurring/one-off charges. Separate from the full
+// subscription iframe so this doesn't accidentally activate a monthly STO.
+
+function buildTestTokenIframeUrl(params: {
+  businessId: number;
+  ownerName:  string;
+  email:      string;
+}): string {
+  const p = new URLSearchParams({
+    sum:                 "1.00",
+    currency:            "1",
+    cred_type:           "1",
+    tranmode:            "AK",                           // charge + tokenize
+    lang:                "il",
+    buttonLabel:         "חייב ₪1 ושמור טוקן",
+    contact:             params.ownerName,
+    email:               params.email,
+    pdesc:               `בדיקת טוקן קבעתי - ${params.businessId}`,
+    success_url_address: `https://www.kavati.net/payment/success?type=test-token`,
+    fail_url_address:    `https://www.kavati.net/payment/fail?type=test-token`,
+    notify_url_address:  `https://www.kavati.net/api/tranzila/notify`,
+    nologo:              "1",
+  });
+  return `${IFRAME_BASE}?${p.toString()}`;
+}
+
 // ─── Subscription iframe URL (first charge + tokenize) ──────────────────────
 // tranmode=AK → standard charge + tokenize. Token is delivered to our
 // notify endpoint as TranzilaTK. We then call /v1/sto/create to set up
@@ -138,6 +171,43 @@ router.post("/tranzila/notify", async (req, res): Promise<void> => {
     const pdesc        = String(body.pdesc ?? "");
 
     console.log("[Tranzila] Notify received:", { responsecode, pdesc, body });
+
+    // ── Test-token iframe (owner-driven tokenization check, ₪1 AK) ──────
+    // No STO, no plan change — just capture a fresh TranzilaTK on the
+    // business so the owner can run /api/sms/test-charge against it.
+    // Runs BEFORE the subscription branch so a test-token pdesc doesn't
+    // accidentally match the subscription regex.
+    const testTokenMatch = pdesc.match(/בדיקת טוקן קבעתי - (\d+)/);
+    if (testTokenMatch) {
+      const businessId = parseInt(testTokenMatch[1]);
+      if (!businessId || isNaN(businessId)) {
+        console.error(`[Tranzila] test-token webhook: invalid businessId in pdesc: ${pdesc}`);
+        res.status(200).send("OK");
+        return;
+      }
+      if (responsecode === "000") {
+        const token   = String(body.TranzilaTK ?? body.tranzilatk ?? body.token ?? "").trim();
+        const mm      = String(body.expmonth ?? "").padStart(2, "0").slice(0, 2);
+        const yy      = String(body.expyear  ?? "").padStart(2, "0").slice(-2);
+        const expdate = mm && yy ? `${mm}${yy}` : String(body.expdate ?? "").trim();
+        if (token) {
+          await db
+            .update(businessesTable)
+            .set({
+              tranzilaToken:       token,
+              tranzilaTokenExpiry: expdate || null,
+            } as any)
+            .where(eq(businessesTable.id, businessId));
+          console.log(`[Tranzila] test-token: business ${businessId} token saved (₪1 iframe, no STO)`);
+        } else {
+          console.warn(`[Tranzila] test-token: no TranzilaTK in body for business ${businessId}`);
+        }
+      } else {
+        console.log(`[Tranzila] test-token: business ${businessId} iframe FAILED (responsecode ${responsecode})`);
+      }
+      res.status(200).send("OK");
+      return;
+    }
 
     // ── Subscription payment (initial iframe charge, tranmode=AK) ────────
     // Monthly renewals are driven by subscriptionCron.ts using the stored
@@ -398,6 +468,38 @@ router.get("/tranzila/subscription-url", async (req, res): Promise<void> => {
 
   const url = buildSubscriptionUrl({ businessId: biz.id, ownerName: biz.ownerName, email: biz.email });
   res.json({ url, firstCharge: SUBSCRIPTION_FIRST_ILS, monthlyCharge: SUBSCRIPTION_MONTHLY_ILS });
+});
+
+// ─── GET /api/tranzila/test-iframe-url (authenticated) ──────────────────────
+// Returns a Tranzila iframe URL that charges the owner ₪1 and tokenizes
+// their card. On successful payment, /api/tranzila/notify sees a pdesc
+// matching "בדיקת טוקן קבעתי - {id}" and saves the TranzilaTK as the
+// business's tranzilaToken — without creating an STO or touching plan
+// state. After that completes the owner can click "בדיקת חיוב ₪1" to
+// run /api/sms/test-charge against the fresh token.
+router.get("/tranzila/test-iframe-url", async (req, res): Promise<void> => {
+  const authHeader = req.headers.authorization ?? "";
+  const rawToken   = authHeader.startsWith("Bearer ") ? authHeader.slice(7) : "";
+  if (!rawToken) { res.status(401).json({ error: "Unauthorized" }); return; }
+
+  let businessId: number;
+  try {
+    const payload = jwt.verify(rawToken, JWT_SECRET) as { businessId?: number; id?: number };
+    businessId = payload.businessId ?? payload.id ?? 0;
+    if (!businessId) throw new Error("No businessId");
+  } catch {
+    res.status(401).json({ error: "Unauthorized" }); return;
+  }
+
+  const [biz] = await db
+    .select({ id: businessesTable.id, ownerName: businessesTable.ownerName, email: businessesTable.email })
+    .from(businessesTable)
+    .where(eq(businessesTable.id, businessId));
+
+  if (!biz) { res.status(404).json({ error: "Business not found" }); return; }
+
+  const url = buildTestTokenIframeUrl({ businessId: biz.id, ownerName: biz.ownerName, email: biz.email });
+  res.json({ url, sum: 1 });
 });
 
 // ─── Helper: require a valid business token on the request ──────────────────
