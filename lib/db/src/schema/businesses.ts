@@ -95,6 +95,12 @@ export const businessesTable = pgTable("businesses", {
   // Broadcast messaging quota ($10/month cap, ~150 messages @ $0.06 each)
   broadcastSentThisMonth: integer("broadcast_sent_this_month").notNull().default(0),
   broadcastMonthKey: text("broadcast_month_key"), // "YYYY-MM"
+  // Daily WhatsApp send cap. Pro = 50/day, עסקי (pro-plus) = 100/day.
+  // Counter resets when whatsappSentDate ≠ today's "YYYY-MM-DD" (Asia/Jerusalem).
+  // Caps the worst-case monthly WhatsApp spend per business so a single
+  // runaway loop / abusive owner can't blow through the subscription margin.
+  whatsappSentToday: integer("whatsapp_sent_today").notNull().default(0),
+  whatsappSentDate:  text("whatsapp_sent_date"), // "YYYY-MM-DD" Asia/Jerusalem
   businessCategories: text("business_categories"), // JSON array of category strings
   city: text("city"), // populated separately for directory filtering
   // Profile page announcement popup

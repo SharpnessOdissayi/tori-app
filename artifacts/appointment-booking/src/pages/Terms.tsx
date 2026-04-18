@@ -9,7 +9,7 @@ export default function Terms() {
       <main className="flex-1">
         <div className="max-w-3xl mx-auto px-4 py-12">
           <h1 className="text-3xl font-bold mb-2">תנאי שימוש</h1>
-          <p className="text-muted-foreground text-sm mb-8">עדכון אחרון: ינואר 2025</p>
+          <p className="text-muted-foreground text-sm mb-8">עדכון אחרון: אפריל 2026</p>
 
           <section className="space-y-6 text-sm leading-relaxed">
             <div>
@@ -42,14 +42,34 @@ export default function Terms() {
             <div>
               <h2 className="text-lg font-semibold mb-2">4. מנויים ותשלומים</h2>
               <p>
-                השירות מוצע במספר תוכניות: חינמי ו-PRO. תשלומים מתבצעים מראש ואינם
+                השירות מוצע בשלוש תוכניות: חינמי, PRO ועסקי. תשלומים מתבצעים מראש ואינם
                 ניתנים להחזר, אלא במקרים המפורטים במדיניות ההחזרים. המחירים נתונים
                 לשינוי עם הודעה מוקדמת של 30 יום.
               </p>
             </div>
 
             <div>
-              <h2 className="text-lg font-semibold mb-2">5. התנהגות מותרת ואסורה</h2>
+              <h2 className="text-lg font-semibold mb-2">5. מגבלות שליחת הודעות WhatsApp</h2>
+              <p className="mb-2">
+                כל מנוי כולל מכסה יומית מקסימלית של הודעות WhatsApp יוצאות
+                (תזכורות, אישורים, ביטולים, תפוצה ושאר התראות שהמערכת שולחת
+                ללקוחות בשם העסק):
+              </p>
+              <ul className="list-disc list-inside space-y-1 text-muted-foreground mb-2">
+                <li>מנוי חינמי: שליחת WhatsApp דרך המערכת אינה כלולה</li>
+                <li>מנוי PRO: עד 50 הודעות WhatsApp ביום</li>
+                <li>מנוי עסקי: עד 100 הודעות WhatsApp ביום</li>
+              </ul>
+              <p>
+                כאשר נעשה שימוש מלא במכסה היומית, שליחת הודעות WhatsApp נוספות
+                תיחסם עד למחרת. המכסה מתאפסת אוטומטית בתחילת כל יום (שעון ישראל).
+                המגבלה נועדה למנוע עלויות חריגות ולשמור על יציבות השירות לכלל
+                המשתמשים. הודעות OTP לאימות זהות אינן נספרות במכסה.
+              </p>
+            </div>
+
+            <div>
+              <h2 className="text-lg font-semibold mb-2">6. התנהגות מותרת ואסורה</h2>
               <p className="mb-2 font-medium">מותר:</p>
               <ul className="list-disc list-inside space-y-1 text-muted-foreground mb-3">
                 <li>שימוש לניהול עסק חוקי</li>
@@ -66,7 +86,7 @@ export default function Terms() {
             </div>
 
             <div>
-              <h2 className="text-lg font-semibold mb-2">6. קניין רוחני</h2>
+              <h2 className="text-lg font-semibold mb-2">7. קניין רוחני</h2>
               <p>
                 התוכן שיוצרי השירות (לוגו, ממשק, קוד) הינו קניינה הבלעדי של קבעתי.
                 המשתמש שומר על בעלות התוכן שהוא מעלה (לוגו, תמונות, תיאורים).
@@ -75,7 +95,7 @@ export default function Terms() {
             </div>
 
             <div>
-              <h2 className="text-lg font-semibold mb-2">7. הגבלת אחריות</h2>
+              <h2 className="text-lg font-semibold mb-2">8. הגבלת אחריות</h2>
               <p>
                 השירות מסופק "AS IS". אנו לא אחראים לנזקים עקיפים, אובדן הכנסה,
                 או אובדן נתונים הנובעים מתקלות טכניות. אחריותנו המרבית לא תעלה
@@ -84,7 +104,7 @@ export default function Terms() {
             </div>
 
             <div>
-              <h2 className="text-lg font-semibold mb-2">8. סיום שירות וביטול מנוי</h2>
+              <h2 className="text-lg font-semibold mb-2">9. סיום שירות וביטול מנוי</h2>
               <p>
                 ניתן לסיים את השירות בכל עת דרך לוח הבקרה. אנו שומרים את הזכות
                 להשעות או לסגור חשבונות המפרים תנאים אלה.
@@ -96,7 +116,7 @@ export default function Terms() {
             </div>
 
             <div>
-              <h2 className="text-lg font-semibold mb-2">9. דין חל וסמכות שיפוט</h2>
+              <h2 className="text-lg font-semibold mb-2">10. דין חל וסמכות שיפוט</h2>
               <p>
                 תנאים אלה כפופים לדיני מדינת ישראל. כל סכסוך הנובע מהסכם זה או
                 מהשימוש בשירות יתברר בבית המשפט המוסמך באשדוד בלבד, וכל צד מוותר
@@ -105,7 +125,7 @@ export default function Terms() {
             </div>
 
             <div>
-              <h2 className="text-lg font-semibold mb-2">10. יצירת קשר</h2>
+              <h2 className="text-lg font-semibold mb-2">11. יצירת קשר</h2>
               <p>
                 לכל שאלה:{" "}
                 <a href="mailto:support@kavati.net" className="text-primary underline">

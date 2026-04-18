@@ -703,7 +703,7 @@ router.post("/public/:businessSlug/appointments", async (req, res): Promise<void
   // Respects the "קבלי התראה על כל תור חדש" toggle in Integrations tab —
   // when off, the owner still sees the in-app notification logged above.
   if (business.phone && business.notificationEnabled) {
-    notifyBusinessOwner(business.phone, clientName, business.name, service.name, formattedDate, appointmentTime, business.slug)
+    notifyBusinessOwner(business.phone, clientName, business.name, service.name, formattedDate, appointmentTime, business.slug, business.id)
       .catch((e: any) => console.error("[WhatsApp] notifyBusinessOwner failed:", e?.response?.data ?? e?.message));
   }
 
@@ -1094,7 +1094,7 @@ router.post("/public/:businessSlug/appointments/:id/cancel", async (req, res): P
   const cancelFormattedDate = `${cancelDay}/${cancelMonth}`;
   const cancelIsPaidPlan = (business as any)?.subscriptionPlan === "pro" || (business as any)?.subscriptionPlan === "pro-plus";
   if (cancelIsPaidPlan) {
-    sendClientCancellation(appt.phoneNumber, appt.clientName, business?.name ?? "העסק", cancelFormattedDate, appt.appointmentTime)
+    sendClientCancellation(appt.phoneNumber, appt.clientName, business?.name ?? "העסק", cancelFormattedDate, appt.appointmentTime, business?.id)
       .catch((e: any) => console.error("[WhatsApp] sendClientCancellation failed:", e?.response?.data ?? e?.message));
   }
 
@@ -1195,7 +1195,7 @@ router.patch("/public/:businessSlug/appointments/:id/reschedule", async (req, re
     appt.clientName,
     formattedDate,
     newTime,
-  ]).catch((e: any) => console.error("[WhatsApp] appointment_rescheduled failed:", e?.response?.data ?? e?.message));
+  ], undefined, appt.businessId).catch((e: any) => console.error("[WhatsApp] appointment_rescheduled failed:", e?.response?.data ?? e?.message));
 
   res.json({ success: true, newDate, newTime });
 });

@@ -65,6 +65,16 @@ const FEATURES = [
     desc: "ראה את כל הלקוחות שלך, ההיסטוריה שלהם, ורשימת המתנה לתורים שמתמלאים.",
   },
   {
+    icon: <Briefcase className="w-7 h-7" style={{ color: "#8b5cf6" }} />,
+    title: "ניהול צוות (עסקי)",
+    desc: "נהל מספר עובדים בעסק אחד — כל עובד עם יומן, שירותים, שעות עבודה ואפילו פרופיל ותמונה משלו. הלקוח בוחר עם מי לקבוע.",
+  },
+  {
+    icon: <BarChart2 className="w-7 h-7" style={{ color: "#8b5cf6" }} />,
+    title: "אנליטיקה מתקדמת (עסקי)",
+    desc: "LTV ללקוח, תחזית הכנסות, ניתוחי נאמנות, סיווג לקוחות בסיכון, ייצוא נתונים ל-CSV — הכל ממקום אחד.",
+  },
+  {
     icon: <Shield className="w-7 h-7" style={{ color: "#3c92f0" }} />,
     title: "אימות מספר טלפון",
     desc: "מנע הזמנות ספאם עם אימות SMS — רק לקוחות אמיתיים עם מספר תקין יוכלו לקבוע תור.",
@@ -175,19 +185,19 @@ const PLANS = [
   },
   {
     name: "פרו",
-    price: "חינם",
-    sub: "14 ימי ניסיון • לאחר מכן ₪100/חודש",
+    price: "₪100",
+    sub: "לחודש • 14 ימי ניסיון חינם",
     icon: <Crown className="w-6 h-6 text-blue-500" />,
     color: "border-blue-400",
     badge: "מומלץ — 14 ימי ניסיון חינם",
     items: [
-      "שירותים ללא הגבלה",
-      "לקוחות ללא הגבלה",
-      "תזכורות וואטסאפ אוטומטיות",
+      "שירותים ולקוחות ללא הגבלה",
+      "תזכורות WhatsApp אוטומטיות (עד 50 ביום)",
+      "100 הודעות SMS בחודש",
       "הודעת פתיחה לפרופיל עם תוקף מותאם",
-      "פרסום בספריית 'גלה עסקים' בפורטל הלקוח",
-      "גלריה עם תצוגה מוגדלת (lightbox)",
-      "ניווט אוטומטי לווייז לפי כתובת",
+      "פרסום בספריית 'גלה עסקים'",
+      "גלריה עם תצוגה מוגדלת",
+      "ניווט אוטומטי לווייז",
       "עיצוב מלא — צבע, פונט, לוגו, באנר",
       "רשימת המתנה",
       "אישור תורים ידני",
@@ -197,6 +207,30 @@ const PLANS = [
     cta: "הצטרף לפרו",
     href: "/register",
     ctaStyle: { background: "linear-gradient(135deg, #3c92f0 0%, #1e6fcf 100%)", color: "white" },
+  },
+  {
+    name: "עסקי",
+    price: "₪150",
+    sub: "לחודש • לעסקים עם צוות",
+    icon: <Briefcase className="w-6 h-6 text-purple-600" />,
+    color: "border-purple-400",
+    badge: "חדש — לצוות שלם",
+    items: [
+      "כל מה שיש בפרו ועוד:",
+      "ניהול צוות — עובדים מרובים בעסק",
+      "יומן נפרד לכל איש צוות",
+      "שירותים ושעות עבודה לכל עובד",
+      "WhatsApp עד 100 הודעות ביום",
+      "500 הודעות SMS בחודש",
+      "דומיין מותאם אישית (white-label)",
+      "אנליטיקה מתקדמת והכנסות",
+      "מודול קבלות וחשבוניות",
+      "ייצוא נתונים ל-CSV",
+      "תמיכה בעדיפות גבוהה",
+    ],
+    cta: "הצטרף לעסקי",
+    href: "/register",
+    ctaStyle: { background: "linear-gradient(135deg, #8b5cf6 0%, #6d28d9 100%)", color: "white" },
   },
 ];
 
@@ -281,12 +315,12 @@ export default function Details() {
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5, delay: 0.25 }}>
           <h2 className="text-3xl font-bold text-center mb-4">תוכניות מחיר</h2>
           <p className="text-center text-muted-foreground mb-12">ניתן לשדרג בכל עת מלוח הבקרה</p>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             {PLANS.map((plan, i) => (
-              <div key={i} className={`rounded-2xl border-2 p-8 space-y-6 relative ${plan.color} ${i === 1 ? "bg-blue-50/50 dark:bg-blue-950/20" : ""}`}>
+              <div key={i} className={`rounded-2xl border-2 p-8 space-y-6 relative ${plan.color} ${i === 1 ? "bg-blue-50/50 dark:bg-blue-950/20" : i === 2 ? "bg-purple-50/50 dark:bg-purple-950/20" : ""}`}>
                 {plan.badge && (
                   <div className="absolute -top-3 right-6">
-                    <Badge className="bg-blue-500 text-white px-3 py-1 text-xs">{plan.badge}</Badge>
+                    <Badge className={`${i === 2 ? "bg-purple-500" : "bg-blue-500"} text-white px-3 py-1 text-xs`}>{plan.badge}</Badge>
                   </div>
                 )}
                 <div className="flex items-center gap-2">

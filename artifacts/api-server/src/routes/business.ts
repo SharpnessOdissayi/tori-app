@@ -754,6 +754,7 @@ router.post("/business/appointments", requireBusinessAuth, async (req, res): Pro
         formattedDate,
         appointment.appointmentTime,
         business.slug,
+        businessId,
       ).catch(() => {});
     }
   }
@@ -793,7 +794,7 @@ router.patch("/business/appointments/:id/approve", requireBusinessAuth, async (r
     const paid = await isBusinessPro(req.business!.businessId);
     if (paid) {
       whatsappStatus = "sent";
-      sendClientConfirmation(updated.phoneNumber, updated.clientName, business.name, updated.serviceName, formattedDate, updated.appointmentTime, business.slug)
+      sendClientConfirmation(updated.phoneNumber, updated.clientName, business.name, updated.serviceName, formattedDate, updated.appointmentTime, business.slug, req.business!.businessId)
         .then(() => console.log(`[approve] WhatsApp confirmation sent for appt ${id} → ${updated.phoneNumber}`))
         .catch(err => console.error(`[approve] WhatsApp confirmation FAILED for appt ${id} → ${updated.phoneNumber}:`, err?.message ?? err));
     } else {
@@ -846,7 +847,7 @@ router.patch("/business/appointments/:id/reschedule", requireBusinessAuth, async
   const [, month, day] = newDate.split("-");
   const formattedDate = `${day}/${month}`;
   if (sendNotification === true && await isBusinessPro(req.business!.businessId)) {
-    sendClientReschedule(appt.phoneNumber, appt.clientName, formattedDate, newTime).catch(() => {});
+    sendClientReschedule(appt.phoneNumber, appt.clientName, formattedDate, newTime, req.business!.businessId).catch(() => {});
   }
 
   // Log notification for business + client
@@ -969,7 +970,7 @@ router.delete("/business/appointments/:id", requireBusinessAuth, async (req, res
   const shouldNotify = isRejection || !!bizCancelPref?.notifyOnCancel;
   const paid = await isBusinessPro(req.business!.businessId);
   if (shouldNotify && paid) {
-    sendClientCancellation(appt.phoneNumber, appt.clientName, req.business!.businessName, formattedDate, appt.appointmentTime)
+    sendClientCancellation(appt.phoneNumber, appt.clientName, req.business!.businessName, formattedDate, appt.appointmentTime, req.business!.businessId)
       .then(() => console.log(`[cancel${isRejection ? "/reject" : ""}] WhatsApp sent for appt ${appt.id} → ${appt.phoneNumber}`))
       .catch(err => console.error(`[cancel${isRejection ? "/reject" : ""}] WhatsApp FAILED for appt ${appt.id} → ${appt.phoneNumber}:`, err?.message ?? err));
   } else if (!paid) {
@@ -1239,7 +1240,7 @@ router.post("/business/broadcast", requireBusinessAuth, async (req, res): Promis
 
   for (const phone of batch) {
     try {
-      await sendWhatsApp(phone, message.trim());
+      await sendWhatsApp(phone, message.trim(), req.business!.businessId);
       successCount++;
     } catch {
       failCount++;

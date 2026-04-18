@@ -11,7 +11,72 @@ function toE164(phone: string): string {
   return p;
 }
 
-async function callMetaAPI(payload: object): Promise<void> {
+// ── Per-business daily WhatsApp cap ────────────────────────────────────────
+// Caps the worst-case monthly WhatsApp spend per business so a single
+// runaway loop / abusive owner can't blow through the subscription margin.
+// Pro pays ~100₪/mo and gets 50 sends/day (≈30₪/mo at IL utility rates).
+// עסקי pays ~150₪/mo and gets 100 sends/day (≈60₪/mo). Free is gated to 0
+// because the only WhatsApp surfaces (reminders, broadcasts) are paid features
+// already — anything else is OTP, which goes through `sendOtp` and bypasses
+// the per-business counter (no business context in auth flows).
+const WHATSAPP_DAILY_CAP_BY_PLAN: Record<string, number> = {
+  "free":     0,
+  "pro":      50,
+  "pro-plus": 100,
+};
+
+export class WhatsAppDailyQuotaError extends Error {
+  constructor(public readonly cap: number) {
+    super(`WhatsApp daily quota exceeded (${cap} messages/day)`);
+    this.name = "WhatsAppDailyQuotaError";
+  }
+}
+
+// Asia/Jerusalem "YYYY-MM-DD". Matches what owners see in the dashboard
+// (every date picker assumes IL local time), so the daily reset boundary
+// lines up with the owner's mental model of "today vs. yesterday".
+function todayIL(): string {
+  return new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Jerusalem" });
+}
+
+async function assertAndIncrementWhatsAppDailyQuota(businessId: number): Promise<void> {
+  const { db, businessesTable } = await import("@workspace/db");
+  const { eq } = await import("drizzle-orm");
+  const today = todayIL();
+
+  const [biz] = await db
+    .select({
+      plan: businessesTable.subscriptionPlan,
+      sent: businessesTable.whatsappSentToday,
+      date: businessesTable.whatsappSentDate,
+    })
+    .from(businessesTable)
+    .where(eq(businessesTable.id, businessId))
+    .limit(1);
+  if (!biz) return; // business deleted mid-flight — let send proceed
+
+  const cap = WHATSAPP_DAILY_CAP_BY_PLAN[biz.plan] ?? 0;
+  const usedToday = biz.date === today ? (biz.sent ?? 0) : 0;
+  if (usedToday >= cap) {
+    throw new WhatsAppDailyQuotaError(cap);
+  }
+
+  await db
+    .update(businessesTable)
+    .set({
+      whatsappSentToday: usedToday + 1,
+      whatsappSentDate: today,
+    })
+    .where(eq(businessesTable.id, businessId));
+}
+
+async function callMetaAPI(
+  payload: object,
+  opts?: { businessId?: number }
+): Promise<void> {
+  if (opts?.businessId != null) {
+    await assertAndIncrementWhatsAppDailyQuota(opts.businessId);
+  }
   if (!ACCESS_TOKEN || !PHONE_NUMBER_ID) {
     console.log(`[WhatsApp Meta] credentials not set — payload:`, JSON.stringify(payload));
     return;
@@ -35,11 +100,13 @@ async function callMetaAPI(payload: object): Promise<void> {
 
 // Send an approved template message
 // Pass buttonUrlSuffix to include a dynamic URL button component (index 0)
+// Pass businessId to enforce the per-business daily WhatsApp cap.
 export async function sendTemplate(
   phone: string,
   templateName: string,
   parameters: string[],
-  buttonUrlSuffix?: string
+  buttonUrlSuffix?: string,
+  businessId?: number
 ): Promise<void> {
   const components: object[] = [];
 
@@ -68,7 +135,7 @@ export async function sendTemplate(
       language: { code: "he" },
       components,
     },
-  });
+  }, { businessId });
 }
 
 // Send an AUTHENTICATION template (requires code in both body and copy-code button)
@@ -102,13 +169,14 @@ export async function sendAuthTemplate(
 }
 
 // Send a free-form text message (only within 24h customer-initiated window)
-export async function sendWhatsApp(phone: string, message: string): Promise<void> {
+// Pass businessId to enforce the per-business daily WhatsApp cap.
+export async function sendWhatsApp(phone: string, message: string, businessId?: number): Promise<void> {
   await callMetaAPI({
     messaging_product: "whatsapp",
     to: toE164(phone),
     type: "text",
     text: { body: message },
-  });
+  }, { businessId });
 }
 
 // ── OTP (in-memory, 5 minutes) ──────────────────────────────────────────────
@@ -200,7 +268,8 @@ export async function notifyBusinessOwner(
   serviceName: string,
   date: string,
   time: string,
-  businessSlug: string
+  businessSlug: string,
+  businessId?: number
 ): Promise<void> {
   await sendTemplate(phone, "appointment_confirmation_12", [
     clientName,
@@ -208,7 +277,7 @@ export async function notifyBusinessOwner(
     serviceName,
     date,
     time,
-  ], businessSlug);
+  ], businessSlug, businessId);
 }
 
 // ── Client opt-out check ────────────────────────────────────────────────────
@@ -243,7 +312,8 @@ export async function sendClientConfirmation(
   serviceName: string,
   date: string,
   time: string,
-  businessSlug: string
+  businessSlug: string,
+  businessId?: number
 ): Promise<void> {
   if (!(await clientWantsNotifications(phone))) return;
   await sendTemplate(phone, "appointment_confirmation_12", [
@@ -252,7 +322,7 @@ export async function sendClientConfirmation(
     serviceName,
     date,
     time,
-  ], businessSlug);
+  ], businessSlug, businessId);
 }
 
 // ── Reschedule notification to client ──────────────────────────────────────
@@ -262,10 +332,11 @@ export async function sendClientReschedule(
   phone: string,
   clientName: string,
   date: string,
-  time: string
+  time: string,
+  businessId?: number
 ): Promise<void> {
   if (!(await clientWantsNotifications(phone))) return;
-  await sendTemplate(phone, "appointment_rescheduled", [clientName, date, time]);
+  await sendTemplate(phone, "appointment_rescheduled", [clientName, date, time], undefined, businessId);
 }
 
 // ── Cancellation notification to client ────────────────────────────────────
@@ -276,7 +347,8 @@ export async function sendClientCancellation(
   clientName: string,
   businessName: string,
   date: string,
-  time: string
+  time: string,
+  businessId?: number
 ): Promise<void> {
   if (!(await clientWantsNotifications(phone))) return;
   await sendTemplate(phone, "appointment_cancelled", [
@@ -284,7 +356,7 @@ export async function sendClientCancellation(
     businessName,
     date,
     time,
-  ]);
+  ], undefined, businessId);
 }
 
 // ── Reminders ───────────────────────────────────────────────────────────────
@@ -301,10 +373,11 @@ export async function sendReminder24h(
   businessName: string,
   date: string,
   time: string,
-  businessSlug: string
+  businessSlug: string,
+  businessId?: number
 ): Promise<void> {
   if (!(await clientWantsNotifications(phone))) return;
-  await sendTemplate(phone, "appointment_reminder_2", [clientName, businessName, date, time], businessSlug);
+  await sendTemplate(phone, "appointment_reminder_2", [clientName, businessName, date, time], businessSlug, businessId);
 }
 
 export async function sendReminder1h(
@@ -313,10 +386,11 @@ export async function sendReminder1h(
   businessName: string,
   date: string,
   time: string,
-  businessSlug: string
+  businessSlug: string,
+  businessId?: number
 ): Promise<void> {
   if (!(await clientWantsNotifications(phone))) return;
-  await sendTemplate(phone, "appointment_reminder_2", [clientName, businessName, date, time], businessSlug);
+  await sendTemplate(phone, "appointment_reminder_2", [clientName, businessName, date, time], businessSlug, businessId);
 }
 
 export async function sendReminderMorning(
@@ -325,8 +399,9 @@ export async function sendReminderMorning(
   businessName: string,
   date: string,
   time: string,
-  businessSlug: string
+  businessSlug: string,
+  businessId?: number
 ): Promise<void> {
   if (!(await clientWantsNotifications(phone))) return;
-  await sendTemplate(phone, "appointment_reminder_2", [clientName, businessName, date, time], businessSlug);
+  await sendTemplate(phone, "appointment_reminder_2", [clientName, businessName, date, time], businessSlug, businessId);
 }

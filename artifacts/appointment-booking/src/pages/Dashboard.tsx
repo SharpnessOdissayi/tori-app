@@ -7858,6 +7858,9 @@ function BusinessUpgradePrompt({ title, desc }: { title: string; desc: string })
 type StaffMember = {
   id: number; name: string; phone: string | null; email: string | null;
   color: string | null; isOwner: boolean; isActive: boolean;
+  // Cloudinary URL of the staff's profile photo. Shown on the booking
+  // page's "with whom?" picker and inside the dashboard staff sheet.
+  avatarUrl: string | null;
   // credentialsSentAt is returned by the API as an ISO string or null.
   // Populated once the welcome email with login details has been sent.
   credentialsSentAt?: string | null;
@@ -7886,6 +7889,11 @@ function StaffTab() {
   //   · selectedStaff  — per-row actions (calendar / WhatsApp / call / delete)
   const [billingConfirmOpen, setBillingConfirmOpen] = useState(false);
   const [selectedStaff,      setSelectedStaff]      = useState<StaffMember | null>(null);
+  // Per-staff avatar upload — bound to the dialog so we can set the photo
+  // without leaving the per-staff actions sheet. The `useImageUpload` hook
+  // POSTs to Cloudinary and surfaces the URL via .url; we then PATCH staff.
+  const avatarUpload = useImageUpload();
+  const [savingAvatar, setSavingAvatar] = useState(false);
 
   const token = typeof window !== "undefined"
     ? (localStorage.getItem("biz_token") ?? sessionStorage.getItem("biz_token") ?? "")
@@ -8012,6 +8020,38 @@ function StaffTab() {
       setAdding(false);
     }
   }
+
+  async function saveAvatarUrl(staffId: number, avatarUrl: string | null) {
+    if (!token) return;
+    setSavingAvatar(true);
+    try {
+      const res = await fetch(`/api/staff/${staffId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ avatarUrl }),
+      });
+      if (!res.ok) {
+        toast({ title: "שמירת התמונה נכשלה", variant: "destructive" });
+        return;
+      }
+      await load();
+      // Re-anchor selectedStaff to the freshly-loaded row so the dialog
+      // header re-renders with the new avatarUrl without flicker.
+      setSelectedStaff(prev => prev ? { ...prev, avatarUrl } : prev);
+      toast({ title: avatarUrl ? "התמונה עודכנה" : "התמונה הוסרה" });
+    } finally {
+      setSavingAvatar(false);
+      avatarUpload.reset();
+    }
+  }
+
+  // When the upload finishes (Cloudinary returns a URL) auto-save it onto
+  // the currently-selected staff row. Avoids a separate "Save" button.
+  useEffect(() => {
+    if (!avatarUpload.url || !selectedStaff) return;
+    saveAvatarUrl(selectedStaff.id, avatarUpload.url);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [avatarUpload.url]);
 
   async function handleResendInvite(id: number) {
     if (!token) return;
@@ -8218,13 +8258,21 @@ function StaffTab() {
             className={`w-full flex items-center justify-between gap-3 p-3 rounded-xl border text-right transition-all hover:shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 ${s.isOwner ? "bg-blue-50 border-blue-200 hover:bg-blue-100" : "bg-card hover:bg-muted/40"}`}
           >
             <div className="flex items-center gap-3 flex-1 min-w-0">
-              <div
-                className="w-10 h-10 rounded-full flex items-center justify-center font-bold text-white shrink-0"
-                style={{ background: s.color ?? (s.isOwner ? "#2563eb" : "#64748b") }}
-                aria-hidden
-              >
-                {s.name.slice(0, 1)}
-              </div>
+              {s.avatarUrl ? (
+                <img
+                  src={s.avatarUrl}
+                  alt={s.name}
+                  className="w-10 h-10 rounded-full object-cover shrink-0"
+                />
+              ) : (
+                <div
+                  className="w-10 h-10 rounded-full flex items-center justify-center font-bold text-white shrink-0"
+                  style={{ background: s.color ?? (s.isOwner ? "#2563eb" : "#64748b") }}
+                  aria-hidden
+                >
+                  {s.name.slice(0, 1)}
+                </div>
+              )}
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 flex-wrap">
                   <div className="font-semibold truncate">{s.name}</div>
@@ -8308,11 +8356,42 @@ function StaffTab() {
             <>
               <DialogHeader>
                 <div className="flex items-center gap-3">
-                  <div
-                    className="w-12 h-12 rounded-full flex items-center justify-center font-bold text-white text-lg shrink-0"
-                    style={{ background: selectedStaff.color ?? (selectedStaff.isOwner ? "#2563eb" : "#64748b") }}
-                  >
-                    {selectedStaff.name.slice(0, 1)}
+                  <div className="relative shrink-0">
+                    {selectedStaff.avatarUrl ? (
+                      <img
+                        src={selectedStaff.avatarUrl}
+                        alt={selectedStaff.name}
+                        className="w-14 h-14 rounded-full object-cover"
+                      />
+                    ) : (
+                      <div
+                        className="w-14 h-14 rounded-full flex items-center justify-center font-bold text-white text-lg"
+                        style={{ background: selectedStaff.color ?? (selectedStaff.isOwner ? "#2563eb" : "#64748b") }}
+                      >
+                        {selectedStaff.name.slice(0, 1)}
+                      </div>
+                    )}
+                    {/* Camera-style upload overlay — clicking the small badge
+                        opens the file picker. Disabled while a save is in
+                        flight so a double-click can't fire two PATCHes. */}
+                    <label
+                      className={`absolute -bottom-1 -left-1 w-7 h-7 rounded-full bg-white border shadow flex items-center justify-center cursor-pointer hover:bg-blue-50 transition-colors ${(avatarUpload.isUploading || savingAvatar) ? "opacity-60 pointer-events-none" : ""}`}
+                      title="שנה תמונת פרופיל"
+                    >
+                      {avatarUpload.isUploading || savingAvatar
+                        ? <RotateCw className="w-3.5 h-3.5 text-blue-600 animate-spin" />
+                        : <Upload className="w-3.5 h-3.5 text-blue-600" />}
+                      <input
+                        type="file"
+                        accept="image/*"
+                        className="hidden"
+                        onChange={e => {
+                          const f = e.target.files?.[0];
+                          if (f) avatarUpload.upload(f);
+                          e.target.value = "";
+                        }}
+                      />
+                    </label>
                   </div>
                   <div className="flex-1 min-w-0 text-right">
                     <DialogTitle className="truncate">{selectedStaff.name}</DialogTitle>

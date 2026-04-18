@@ -372,7 +372,6 @@ export default function Book({ slugOverride }: { slugOverride?: string } = {}) {
   const API_BASE = (import.meta.env.VITE_API_BASE_URL && import.meta.env.VITE_API_BASE_URL.trim()) || "/api";
   // step 0 = profile page, 1-5 = booking wizard
   const [step, setStep] = useState(0);
-  const [showNotification, setShowNotification] = useState(true);
   const [showAnnouncement, setShowAnnouncement] = useState(false);
   const [paymentIframeUrl, setPaymentIframeUrl] = useState<string | null>(null);
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
@@ -510,13 +509,6 @@ export default function Book({ slugOverride }: { slugOverride?: string } = {}) {
       method: "POST", headers: { "x-client-token": clientToken },
     }).catch(() => {});
   }, [clientToken, businessSlug, business?.id]);
-
-  // Dismiss notification permanently if already seen for this exact message
-  useEffect(() => {
-    if (!business?.notificationMessage || !businessSlug) return;
-    const seen = localStorage.getItem(`notif_seen_${businessSlug}`);
-    if (seen === business.notificationMessage) setShowNotification(false);
-  }, [business?.notificationMessage, businessSlug]);
 
   // Listen for payment postMessages from Tranzila iframe
   useEffect(() => {
@@ -1500,28 +1492,6 @@ export default function Book({ slugOverride }: { slugOverride?: string } = {}) {
           </button>
         )}
 
-        {/* Notification popup — dismissable permanently via localStorage */}
-        {business.notificationEnabled && business.notificationMessage && (
-          <Dialog open={showNotification} onOpenChange={setShowNotification}>
-            <DialogContent className="sm:max-w-md text-center" dir="rtl">
-              <DialogHeader>
-                <DialogTitle className="text-xl">הודעה מבית העסק</DialogTitle>
-              </DialogHeader>
-              <DialogDescription className="text-base py-4 whitespace-pre-wrap text-foreground">
-                {business.notificationMessage}
-              </DialogDescription>
-              <Button
-                onClick={() => {
-                  localStorage.setItem(`notif_seen_${businessSlug}`, business.notificationMessage!);
-                  setShowNotification(false);
-                }}
-                style={{ backgroundColor: primaryColor }}
-              >
-                הבנתי, לא להציג שוב ✓
-              </Button>
-            </DialogContent>
-          </Dialog>
-        )}
 
         {/* Announcement popup — dismiss-forever checkbox means the client
              won't see this particular message again (tied to the message's
@@ -2427,28 +2397,6 @@ export default function Book({ slugOverride }: { slugOverride?: string } = {}) {
   return (
     <div className="kavati-biz-scope min-h-[100dvh] flex flex-col relative bg-white dark:bg-neutral-950 text-neutral-900 dark:text-neutral-100" dir="rtl" style={{ fontFamily: `'${fontFamily}', 'Rubik', 'Heebo', sans-serif` }}>
       <div className="absolute top-0 w-full h-52 -z-10 rounded-b-[40px]" style={{ backgroundColor: primaryColor + "18" }} />
-
-      {business.notificationEnabled && business.notificationMessage && (
-        <Dialog open={showNotification} onOpenChange={setShowNotification}>
-          <DialogContent className="sm:max-w-md text-center" dir="rtl">
-            <DialogHeader>
-              <DialogTitle className="text-xl">הודעה מבית העסק</DialogTitle>
-            </DialogHeader>
-            <DialogDescription className="text-base py-4 whitespace-pre-wrap text-foreground">
-              {business.notificationMessage}
-            </DialogDescription>
-            <Button
-              onClick={() => {
-                localStorage.setItem(`notif_seen_${businessSlug}`, business.notificationMessage!);
-                setShowNotification(false);
-              }}
-              style={{ backgroundColor: primaryColor }}
-            >
-              הבנתי, לא להציג שוב ✓
-            </Button>
-          </DialogContent>
-        </Dialog>
-      )}
 
       {/* Payment iframe modal */}
       <Dialog open={!!paymentIframeUrl} onOpenChange={(open) => { if (!open) setPaymentIframeUrl(null); }}>

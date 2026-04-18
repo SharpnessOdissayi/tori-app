@@ -15,8 +15,9 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
-import { Plus, Trash2, Edit, ExternalLink, Shield, Eye, EyeOff, RefreshCw } from "lucide-react";
+import { Plus, Trash2, Edit, ExternalLink, Shield, Eye, EyeOff, RefreshCw, BarChart3, Users, Globe, FolderTree, FileDown, TrendingUp, TrendingDown, AlertTriangle, DollarSign } from "lucide-react";
 import Navbar from "@/components/Navbar";
 
 const PLANS = [
@@ -64,6 +65,16 @@ export default function SuperAdmin() {
   const [grantProLoading, setGrantProLoading] = useState(false);
 
   const [loginAttempted, setLoginAttempted] = useState(false);
+
+  // Top-level tab in the super-admin workspace. Persisted across reloads so
+  // a refresh during analytics work doesn't bounce back to "עסקים".
+  const [activeTab, setActiveTab] = useState<string>(() => {
+    try { return localStorage.getItem("kavati_admin_tab") ?? "businesses"; }
+    catch { return "businesses"; }
+  });
+  useEffect(() => {
+    try { localStorage.setItem("kavati_admin_tab", activeTab); } catch {}
+  }, [activeTab]);
 
   const { data: businesses, isLoading, isError } = useSuperAdminListBusinesses(
     { adminPassword: password },
@@ -434,37 +445,66 @@ export default function SuperAdmin() {
           </Dialog>
         </div>
 
-        {/* Custom-domain review panel — businesses that asked for a
-            white-label hostname. Super admin adds them to Railway, then
-            clicks verify here. */}
-        <DomainReviewPanel adminPassword={password} />
+        <Tabs value={activeTab} onValueChange={setActiveTab} dir="rtl" className="w-full">
+          <TabsList className="grid grid-cols-5 w-full h-auto p-1">
+            <TabsTrigger value="overview" className="flex flex-col sm:flex-row gap-1.5 text-xs sm:text-sm py-2.5">
+              <BarChart3 className="w-4 h-4" /> סקירה
+            </TabsTrigger>
+            <TabsTrigger value="businesses" className="flex flex-col sm:flex-row gap-1.5 text-xs sm:text-sm py-2.5">
+              <Users className="w-4 h-4" /> עסקים
+            </TabsTrigger>
+            <TabsTrigger value="analytics" className="flex flex-col sm:flex-row gap-1.5 text-xs sm:text-sm py-2.5">
+              <TrendingUp className="w-4 h-4" /> אנליטיקה
+            </TabsTrigger>
+            <TabsTrigger value="domains" className="flex flex-col sm:flex-row gap-1.5 text-xs sm:text-sm py-2.5">
+              <Globe className="w-4 h-4" /> דומיינים
+            </TabsTrigger>
+            <TabsTrigger value="categories" className="flex flex-col sm:flex-row gap-1.5 text-xs sm:text-sm py-2.5">
+              <FolderTree className="w-4 h-4" /> קטגוריות
+            </TabsTrigger>
+          </TabsList>
 
-        {/* Business category catalog — edit the list that fills the
-            registration form's "סוג עסק" picker. */}
-        <CategoryManagementPanel adminPassword={password} />
+          <TabsContent value="overview" className="mt-6">
+            <OverviewKPIs adminPassword={password} />
+          </TabsContent>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-          {isLoading ? (
-            <div className="col-span-full p-12 text-center text-muted-foreground">טוען...</div>
-          ) : bizList.length ? bizList.map(b => (
-            <BusinessCard
-              key={b.id}
-              business={b}
-              onToggleActive={() => handleToggleActive(b.id, b.isActive)}
-              onChangePlan={(plan) => handleChangePlan(b.id, plan)}
-              onDelete={() => handleDelete(b.id)}
-              onEdit={() => openEditDialog(b)}
-              onGrantPro={() => { setGrantProBusiness(b); setGrantProDays(30); }}
-              onRevokePro={() => handleRevokePro(b)}
-              onCancelSubscription={() => handleCancelSubscription(b)}
-              isPending={updateMutation.isPending || deleteMutation.isPending}
-            />
-          )) : (
-            <div className="col-span-full text-center py-12 text-muted-foreground">
-              אין עסקים עדיין. הוסף את הראשון!
+          <TabsContent value="businesses" className="mt-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+              {isLoading ? (
+                <div className="col-span-full p-12 text-center text-muted-foreground">טוען...</div>
+              ) : bizList.length ? bizList.map(b => (
+                <BusinessCard
+                  key={b.id}
+                  business={b}
+                  onToggleActive={() => handleToggleActive(b.id, b.isActive)}
+                  onChangePlan={(plan) => handleChangePlan(b.id, plan)}
+                  onDelete={() => handleDelete(b.id)}
+                  onEdit={() => openEditDialog(b)}
+                  onGrantPro={() => { setGrantProBusiness(b); setGrantProDays(30); }}
+                  onRevokePro={() => handleRevokePro(b)}
+                  onCancelSubscription={() => handleCancelSubscription(b)}
+                  isPending={updateMutation.isPending || deleteMutation.isPending}
+                />
+              )) : (
+                <div className="col-span-full text-center py-12 text-muted-foreground">
+                  אין עסקים עדיין. הוסף את הראשון!
+                </div>
+              )}
             </div>
-          )}
-        </div>
+          </TabsContent>
+
+          <TabsContent value="analytics" className="mt-6">
+            <AnalyticsTable adminPassword={password} />
+          </TabsContent>
+
+          <TabsContent value="domains" className="mt-6">
+            <DomainReviewPanel adminPassword={password} />
+          </TabsContent>
+
+          <TabsContent value="categories" className="mt-6">
+            <CategoryManagementPanel adminPassword={password} />
+          </TabsContent>
+        </Tabs>
       </div>
 
       <Dialog open={!!editDialogBusiness} onOpenChange={(open) => { if (!open) setEditDialogBusiness(null); }}>
@@ -1015,5 +1055,330 @@ function CategoryManagementPanel({ adminPassword }: { adminPassword: string }) {
         </CardContent>
       )}
     </Card>
+  );
+}
+
+// ─── Analytics types & shared fetcher ──────────────────────────────────────
+
+interface AnalyticsAggregate {
+  totalBusinesses: number;
+  activeBusinesses: number;
+  paidBusinesses: number;
+  freeBusinesses: number;
+  newThisMonth: number;
+  churnedLast30: number;
+  churnRatePct: number;
+  mrrIls: number;
+  arrIls: number;
+  arpuIls: number;
+  forecast30Ils: number;
+  forecast60Ils: number;
+  forecast90Ils: number;
+  totalWhatsappCostMonthIls: number;
+  totalPackRevenueIls: number;
+  totalAppointmentsAllTime: number;
+  totalAppointmentsLast30: number;
+  totalReviews: number;
+  grossMarginIls: number;
+}
+
+interface BusinessAnalytics {
+  id: number;
+  name: string;
+  slug: string;
+  ownerName: string;
+  email: string;
+  phone: string | null;
+  plan: string;
+  isActive: boolean;
+  signedUpAt: string;
+  monthsActive: number;
+  cancelledAt: string | null;
+  renewDate: string | null;
+  monthlyFeeIls: number;
+  ltvHistoricIls: number;
+  ltvProjectedIls: number;
+  packRevenueIls: number;
+  appointmentsAllTime: number;
+  appointmentsLast30: number;
+  lastAppointmentAt: string | null;
+  reviewsCount: number;
+  avgRating: number | null;
+  whatsappSentToday: number;
+  whatsappEstMonthlyCostIls: number;
+  smsUsedThisPeriod: number;
+  smsExtraBalance: number;
+  marginIls: number;
+  riskLevel: "low" | "medium" | "high";
+}
+
+interface AnalyticsResponse {
+  aggregate: AnalyticsAggregate;
+  loyaltyBuckets: Array<{ bucket: string; total: number; paid: number }>;
+  perBusiness: BusinessAnalytics[];
+}
+
+function useAnalytics(adminPassword: string) {
+  const [data, setData] = useState<AnalyticsResponse | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    fetch("/api/super-admin/analytics", { headers: { "X-Admin-Password": adminPassword } })
+      .then(r => r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`)))
+      .then(d => { if (!cancelled) { setData(d); setError(null); } })
+      .catch(e => { if (!cancelled) setError(e?.message ?? "שגיאה"); })
+      .finally(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
+  }, [adminPassword]);
+  return { data, loading, error };
+}
+
+function ils(n: number): string {
+  return n.toLocaleString("he-IL", { style: "currency", currency: "ILS", maximumFractionDigits: 0 });
+}
+
+// ─── Overview KPIs (top-of-page dashboard) ─────────────────────────────────
+
+function OverviewKPIs({ adminPassword }: { adminPassword: string }) {
+  const { data, loading, error } = useAnalytics(adminPassword);
+
+  if (loading) return <div className="p-12 text-center text-muted-foreground">טוען נתונים...</div>;
+  if (error || !data) return <div className="p-12 text-center text-destructive">שגיאה בטעינת אנליטיקה: {error}</div>;
+  const a = data.aggregate;
+
+  type KpiTone = "default" | "success" | "warning" | "danger";
+  const Kpi = ({ icon, label, value, hint, tone = "default" }: {
+    icon: React.ReactNode; label: string; value: string; hint?: string; tone?: KpiTone;
+  }) => {
+    const toneClass = {
+      default: "bg-card",
+      success: "bg-emerald-50 border-emerald-200",
+      warning: "bg-amber-50 border-amber-200",
+      danger:  "bg-rose-50 border-rose-200",
+    }[tone];
+    return (
+      <Card className={toneClass}>
+        <CardHeader className="pb-2">
+          <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+            {icon} {label}
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="text-2xl font-bold">{value}</div>
+          {hint && <div className="text-xs text-muted-foreground mt-1">{hint}</div>}
+        </CardContent>
+      </Card>
+    );
+  };
+
+  return (
+    <div className="space-y-6">
+      {/* Headline KPIs */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <Kpi icon={<DollarSign className="w-4 h-4" />} label="MRR" value={ils(a.mrrIls)} hint={`ARR ${ils(a.arrIls)}`} tone="success" />
+        <Kpi icon={<Users className="w-4 h-4" />} label="עסקים בתשלום" value={String(a.paidBusinesses)} hint={`מתוך ${a.totalBusinesses} סה"כ`} />
+        <Kpi icon={<TrendingUp className="w-4 h-4" />} label="ARPU" value={ils(a.arpuIls)} hint="הכנסה ממוצעת ללקוח" />
+        <Kpi icon={<TrendingDown className="w-4 h-4" />} label="Churn (30 יום)" value={`${a.churnRatePct}%`}
+          hint={`${a.churnedLast30} ביטולים`}
+          tone={a.churnRatePct > 5 ? "danger" : a.churnRatePct > 2 ? "warning" : "success"} />
+      </div>
+
+      {/* Forecast */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">תחזית MRR (בהנחה ש-churn נשאר {a.churnRatePct}%)</CardTitle>
+          <CardDescription>בלי לקוחות חדשים — רצפה פסימית.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-3 gap-3">
+            <div className="text-center p-4 rounded-lg border">
+              <div className="text-xs text-muted-foreground">בעוד 30 יום</div>
+              <div className="text-xl font-bold mt-1">{ils(a.forecast30Ils)}</div>
+            </div>
+            <div className="text-center p-4 rounded-lg border">
+              <div className="text-xs text-muted-foreground">בעוד 60 יום</div>
+              <div className="text-xl font-bold mt-1">{ils(a.forecast60Ils)}</div>
+            </div>
+            <div className="text-center p-4 rounded-lg border">
+              <div className="text-xs text-muted-foreground">בעוד 90 יום</div>
+              <div className="text-xl font-bold mt-1">{ils(a.forecast90Ils)}</div>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Activity & costs */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <Kpi icon={<Plus className="w-4 h-4" />} label="חדשים החודש" value={String(a.newThisMonth)} />
+        <Kpi icon={<TrendingUp className="w-4 h-4" />} label="תורים (30 יום)" value={a.totalAppointmentsLast30.toLocaleString("he-IL")}
+          hint={`${a.totalAppointmentsAllTime.toLocaleString("he-IL")} סה"כ`} />
+        <Kpi icon={<DollarSign className="w-4 h-4" />} label="עלות WhatsApp צפויה" value={ils(a.totalWhatsappCostMonthIls)}
+          hint="הערכת חודש נוכחי" tone={a.totalWhatsappCostMonthIls > a.mrrIls * 0.3 ? "warning" : "default"} />
+        <Kpi icon={<DollarSign className="w-4 h-4" />} label="רווח גולמי משוער" value={ils(a.grossMarginIls)}
+          hint="MRR פחות עלות הודעות" tone={a.grossMarginIls > 0 ? "success" : "danger"} />
+      </div>
+
+      {/* Loyalty buckets */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">נאמנות — לפי ותק במערכת</CardTitle>
+          <CardDescription>כמה לקוחות נשארו איתנו בכל טווח גיל מנוי.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+            {data.loyaltyBuckets.map(b => (
+              <div key={b.bucket} className="p-3 rounded-lg border text-center">
+                <div className="text-xs text-muted-foreground">{b.bucket}</div>
+                <div className="text-2xl font-bold mt-1">{b.total}</div>
+                <div className="text-xs text-muted-foreground mt-0.5">{b.paid} בתשלום</div>
+              </div>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+// ─── Analytics table (per-business breakdown + CSV export) ─────────────────
+
+function AnalyticsTable({ adminPassword }: { adminPassword: string }) {
+  const { data, loading, error } = useAnalytics(adminPassword);
+  const [sortBy, setSortBy] = useState<"ltv" | "appts" | "risk" | "name" | "joined">("ltv");
+  const [filterPlan, setFilterPlan] = useState<string>("all");
+
+  if (loading) return <div className="p-12 text-center text-muted-foreground">טוען...</div>;
+  if (error || !data) return <div className="p-12 text-center text-destructive">שגיאה: {error}</div>;
+
+  const filtered = filterPlan === "all"
+    ? data.perBusiness
+    : data.perBusiness.filter(b => b.plan === filterPlan);
+
+  const sorted = [...filtered].sort((a, b) => {
+    if (sortBy === "ltv")    return b.ltvHistoricIls - a.ltvHistoricIls;
+    if (sortBy === "appts")  return b.appointmentsLast30 - a.appointmentsLast30;
+    if (sortBy === "name")   return a.name.localeCompare(b.name, "he");
+    if (sortBy === "joined") return new Date(a.signedUpAt).getTime() - new Date(b.signedUpAt).getTime();
+    if (sortBy === "risk") {
+      const w = { high: 3, medium: 2, low: 1 };
+      return w[b.riskLevel] - w[a.riskLevel];
+    }
+    return 0;
+  });
+
+  const downloadCsv = () => {
+    // Open as full URL so the browser handles the file download via the
+    // server's Content-Disposition header.
+    const url = `/api/super-admin/analytics/export.csv`;
+    fetch(url, { headers: { "X-Admin-Password": adminPassword } })
+      .then(r => r.blob())
+      .then(blob => {
+        const link = document.createElement("a");
+        link.href = URL.createObjectURL(blob);
+        link.download = `kavati-analytics-${new Date().toISOString().slice(0, 10)}.csv`;
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+        URL.revokeObjectURL(link.href);
+      });
+  };
+
+  const riskBadge = (r: BusinessAnalytics["riskLevel"]) => {
+    const cls = r === "high" ? "bg-rose-100 text-rose-700 border-rose-200"
+              : r === "medium" ? "bg-amber-100 text-amber-700 border-amber-200"
+              : "bg-emerald-100 text-emerald-700 border-emerald-200";
+    const label = r === "high" ? "סיכון גבוה" : r === "medium" ? "סיכון בינוני" : "תקין";
+    return <Badge variant="outline" className={cls}>{label}</Badge>;
+  };
+
+  return (
+    <div className="space-y-4">
+      {/* Toolbar */}
+      <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center justify-between">
+        <div className="flex flex-wrap gap-2 items-center">
+          <Label className="text-xs">מסלול:</Label>
+          {(["all", "free", "pro", "pro-plus"] as const).map(p => (
+            <Button key={p} size="sm" variant={filterPlan === p ? "default" : "outline"}
+              onClick={() => setFilterPlan(p)}>
+              {p === "all" ? "הכל" : p === "free" ? "חינמי" : p === "pro" ? "פרו" : "עסקי"}
+            </Button>
+          ))}
+          <Label className="text-xs mr-3">מיון:</Label>
+          {([
+            ["ltv", "LTV"], ["appts", "תורים"], ["risk", "סיכון"], ["joined", "תאריך"], ["name", "שם"],
+          ] as const).map(([v, label]) => (
+            <Button key={v} size="sm" variant={sortBy === v ? "default" : "outline"}
+              onClick={() => setSortBy(v)}>
+              {label}
+            </Button>
+          ))}
+        </div>
+        <Button onClick={downloadCsv} className="gap-2">
+          <FileDown className="w-4 h-4" /> ייצא CSV
+        </Button>
+      </div>
+
+      {/* Table */}
+      <div className="overflow-x-auto rounded-lg border">
+        <table className="w-full text-sm">
+          <thead className="bg-muted/50">
+            <tr>
+              <th className="text-right p-3 font-semibold">עסק</th>
+              <th className="text-right p-3 font-semibold">מסלול</th>
+              <th className="text-right p-3 font-semibold">חודשים</th>
+              <th className="text-right p-3 font-semibold">LTV עד היום</th>
+              <th className="text-right p-3 font-semibold">LTV צפוי</th>
+              <th className="text-right p-3 font-semibold">תורים (30 יום)</th>
+              <th className="text-right p-3 font-semibold">WA היום</th>
+              <th className="text-right p-3 font-semibold">עלות WA חודש</th>
+              <th className="text-right p-3 font-semibold">רווח גולמי</th>
+              <th className="text-right p-3 font-semibold">סיכון</th>
+            </tr>
+          </thead>
+          <tbody>
+            {sorted.map(b => (
+              <tr key={b.id} className="border-t hover:bg-muted/20">
+                <td className="p-3">
+                  <div className="font-medium">{b.name}</div>
+                  <div className="text-xs text-muted-foreground">{b.ownerName} · /{b.slug}</div>
+                </td>
+                <td className="p-3">
+                  <Badge variant="outline" className="text-xs">
+                    {b.plan === "pro-plus" ? "עסקי" : b.plan === "pro" ? "פרו" : "חינמי"}
+                  </Badge>
+                </td>
+                <td className="p-3 text-muted-foreground">{b.monthsActive}</td>
+                <td className="p-3 font-semibold">{ils(b.ltvHistoricIls)}</td>
+                <td className="p-3 text-muted-foreground">{ils(b.ltvProjectedIls)}</td>
+                <td className="p-3">{b.appointmentsLast30}</td>
+                <td className="p-3">{b.whatsappSentToday}</td>
+                <td className="p-3 text-muted-foreground">{ils(b.whatsappEstMonthlyCostIls)}</td>
+                <td className={`p-3 font-medium ${b.marginIls > 0 ? "text-emerald-700" : "text-rose-700"}`}>{ils(b.marginIls)}</td>
+                <td className="p-3">{riskBadge(b.riskLevel)}</td>
+              </tr>
+            ))}
+            {sorted.length === 0 && (
+              <tr><td colSpan={10} className="p-12 text-center text-muted-foreground">אין עסקים בסינון הנוכחי</td></tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+
+      {/* High-risk callout */}
+      {sorted.filter(b => b.riskLevel === "high").length > 0 && (
+        <Card className="border-rose-200 bg-rose-50/50">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm flex items-center gap-2 text-rose-700">
+              <AlertTriangle className="w-4 h-4" /> {sorted.filter(b => b.riskLevel === "high").length} עסקים בסיכון גבוה
+            </CardTitle>
+            <CardDescription className="text-xs">
+              לקוחות בתשלום ללא תורים ב-30 יום אחרונים, או עם מנוי שכבר בוטל. שווה ליצור קשר.
+            </CardDescription>
+          </CardHeader>
+        </Card>
+      )}
+    </div>
   );
 }

@@ -18,19 +18,8 @@ export function MobileBottomNav({
   // Order in RTL grid: items[0] renders rightmost, items[4] leftmost.
   // Owner preference: approvals (w/ badge) on the right, בית in the
   // centre, תפריט on the far left.
-  // Owner requested a literal house glyph for "בית" so the label and icon
-  // agree — we were using LayoutDashboard which reads as a grid/widget view.
-  //
-  // Owner also asked to surface the pending-approval count right on the
-  // button so it's impossible to miss. We do both now: the red badge on
-  // the icon (quick peripheral glance) AND inline the count into the
-  // label text ("אישור · N"). Label is shortened when a count is shown
-  // so the number actually fits in the narrow tab cell.
-  const approvalsLabel = pendingCount > 0
-    ? `אישור · ${pendingCount > 99 ? "99+" : pendingCount}`
-    : "אישור תורים";
   const items: Array<{ id: BottomTab; label: string; icon: React.ReactNode; badge?: number }> = [
-    { id: "approvals", label: approvalsLabel, icon: <BadgeCheck className="w-5 h-5" />, badge: pendingCount },
+    { id: "approvals", label: "אישור תורים", icon: <BadgeCheck className="w-5 h-5" />, badge: pendingCount },
     { id: "calendar",  label: "יומן",         icon: <CalendarClock className="w-5 h-5" /> },
     { id: "home",      label: "בית",          icon: <Home className="w-5 h-5" /> },
     { id: "customers", label: "לקוחות",       icon: <UsersRound className="w-5 h-5" /> },
