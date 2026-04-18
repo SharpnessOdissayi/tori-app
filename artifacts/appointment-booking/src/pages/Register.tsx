@@ -8,7 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import {
-  Calendar, Crown, Zap, CheckCircle, ArrowRight, ArrowLeft,
+  Calendar, Crown, Zap, Sparkles, CheckCircle, ArrowRight, ArrowLeft,
   Building2, User, Phone, Mail, Lock, Globe, PartyPopper, Search, X, ChevronDown, MapPin, Instagram,
   Eye, EyeOff
 } from "lucide-react";
@@ -80,7 +80,7 @@ const BUSINESS_CATEGORIES_FALLBACK = [
   "העסק שלי לא נמצא ברשימה",
 ];
 
-type Plan = "free" | "pro";
+type Plan = "free" | "pro" | "pro-plus";
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL ?? "/api";
 
@@ -113,55 +113,82 @@ function StepPlan({ onNext }: { onNext: (plan: Plan) => void }) {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-2">
         {/* Free Plan — 14-day Pro trial, no credit card. Auto-cancels on day 14.
-            Stripped-down card: just name/price/trial note/CTA. The full feature
+            Stripped-down card: just name/price/trial note. The full feature
             list lives in the comparison grid below to avoid duplication. */}
         <button
           onClick={() => onNext("free")}
-          className="text-right border-2 rounded-2xl p-6 hover:border-primary hover:bg-primary/5 transition-all group focus:outline-none focus:ring-2 focus:ring-primary"
+          className="text-right border-2 rounded-2xl p-6 hover:border-primary hover:bg-primary/5 transition-all group focus:outline-none focus:ring-2 focus:ring-primary flex flex-col"
         >
           <div className="flex items-center gap-2 mb-3">
             <Zap className="w-5 h-5 text-slate-500" />
             <span className="font-bold text-lg">חינמי</span>
           </div>
-          <div className="flex items-baseline gap-2 mb-2">
-            <span className="text-3xl font-bold">חינם</span>
-            <span className="text-[10px] font-bold text-amber-700 bg-amber-100 px-1.5 py-0.5 rounded">🎉 14 ימי פרו</span>
-          </div>
-          <div className="text-sm text-muted-foreground">
+          <div className="text-3xl font-bold mb-2">חינם</div>
+          <div className="text-sm text-muted-foreground flex-1">
             ניסיון פרו ללא כרטיס אשראי — ביטול אוטומטי בתום 14 ימים
+          </div>
+          <div className="mt-5 w-full py-2.5 rounded-xl bg-slate-900 text-white font-bold text-sm text-center group-hover:bg-slate-800 transition-colors">
+            התחל 14 ימי ניסיון ←
           </div>
         </button>
 
         {/* Pro Plan — 14-day trial, credit card required, auto-billed after.
-            Same stripped-down structure as Free; full features are listed in
-            the comparison grid below. */}
+            Solo tier: 1 calendar, no extra-worker option.
+            Emerald palette so it's visually distinct from עסקי (blue). */}
         <button
           onClick={() => onNext("pro")}
-          className="text-right border-2 border-blue-400 rounded-2xl p-6 bg-blue-50 hover:bg-blue-100 hover:border-blue-500 transition-all group relative focus:outline-none focus:ring-2 focus:ring-blue-500"
+          className="text-right border-2 border-emerald-400 rounded-2xl p-6 bg-emerald-50 hover:bg-emerald-100 hover:border-emerald-500 transition-all group relative focus:outline-none focus:ring-2 focus:ring-emerald-500 flex flex-col"
         >
           <div className="flex items-center gap-2 mb-3">
-            <Crown className="w-5 h-5 text-blue-500" />
-            <span className="font-bold text-lg text-blue-700">פרו</span>
+            <Crown className="w-5 h-5 text-emerald-600" />
+            <span className="font-bold text-lg text-emerald-800">פרו</span>
           </div>
           <div className="flex items-baseline gap-2 mb-2 flex-wrap">
-            <span className="text-3xl font-bold text-blue-700">₪100</span>
-            <span className="text-sm text-blue-700">/חודש</span>
-            <span className="text-[10px] font-bold text-amber-700 bg-amber-100 px-1.5 py-0.5 rounded">🎉 14 ימים חינם</span>
+            <span className="text-3xl font-bold text-emerald-800">₪100</span>
+            <span className="text-sm text-emerald-700">/חודש</span>
           </div>
-          <div className="text-sm text-blue-600">
+          <div className="text-sm text-emerald-700 flex-1">
             14 ימי ניסיון חינם — חיוב אוטומטי אחרי ימי הניסיון, ביטול בכל עת
+          </div>
+          <div className="mt-5 w-full py-2.5 rounded-xl bg-emerald-600 text-white font-bold text-sm text-center group-hover:bg-emerald-700 transition-colors shadow-sm">
+            התחל 14 ימי ניסיון ←
+          </div>
+        </button>
+
+        {/* עסקי Plan — the team tier. Flagship blue = Kavati brand color.
+            Multi-staff (2 included, +₪25/extra up to 5 total) + 500 SMS +
+            advanced analytics. */}
+        <button
+          onClick={() => onNext("pro-plus")}
+          className="text-right border-2 border-blue-500 rounded-2xl p-6 bg-gradient-to-br from-blue-50 to-sky-50 hover:from-blue-100 hover:to-sky-100 hover:border-blue-600 transition-all group relative focus:outline-none focus:ring-2 focus:ring-blue-500 flex flex-col"
+        >
+          <div className="absolute -top-3 left-4">
+            <Badge className="bg-blue-600 text-white px-3 py-1 shadow-md">מומלץ לצוותים</Badge>
+          </div>
+          <div className="flex items-center gap-2 mb-3">
+            <Sparkles className="w-5 h-5 text-blue-600" />
+            <span className="font-bold text-lg text-blue-800">עסקי</span>
+          </div>
+          <div className="flex items-baseline gap-2 mb-2 flex-wrap">
+            <span className="text-3xl font-bold text-blue-800">₪150</span>
+            <span className="text-sm text-blue-700">/חודש</span>
+          </div>
+          <div className="text-sm text-blue-700 flex-1">
+            כולל 2 עובדים · +₪25 לעובד נוסף (עד 5 סה״כ)
+          </div>
+          <div className="mt-5 w-full py-2.5 rounded-xl bg-gradient-to-r from-blue-600 to-sky-600 text-white font-bold text-sm text-center group-hover:from-blue-700 group-hover:to-sky-700 transition-colors shadow-sm">
+            התחל 14 ימי ניסיון ←
           </div>
         </button>
       </div>
 
-      {/* Full feature comparison — same two columns as the plan cards above,
-          but with the complete list for each tier so visitors can see exactly
-          what they get. Pro column shows *additions* on top of Free. */}
+      {/* Full feature comparison — 3 columns, one per plan, listing additions
+          on top of the previous tier (חינמי / פרו adds … / עסקי adds …). */}
       <div className="pt-6 mt-2 border-t">
         <h3 className="text-center font-semibold text-base mb-5">מה כלול בכל מסלול?</h3>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           {/* Free column */}
           <div className="rounded-2xl border p-5 bg-white">
             <div className="flex items-center gap-2 mb-3 pb-3 border-b">
@@ -175,18 +202,16 @@ function StepPlan({ onNext }: { onNext: (plan: Plan) => void }) {
               <li className="flex items-start gap-2"><CheckCircle className="w-4 h-4 text-green-500 shrink-0 mt-0.5" /> יומן שבועי ויומי</li>
               <li className="flex items-start gap-2"><CheckCircle className="w-4 h-4 text-green-500 shrink-0 mt-0.5" /> ניהול שעות עבודה</li>
               <li className="flex items-start gap-2"><CheckCircle className="w-4 h-4 text-green-500 shrink-0 mt-0.5" /> פורטל לקוחות</li>
-              <li className="flex items-start gap-2"><CheckCircle className="w-4 h-4 text-green-500 shrink-0 mt-0.5" /> תזכורות WhatsApp בסיסיות</li>
-              <li className="flex items-start gap-2 pt-1 text-amber-700 font-medium"><span>🎉</span> 14 ימי פרו חינם בהתחלה</li>
             </ul>
           </div>
-          {/* Pro column */}
-          <div className="rounded-2xl border-2 border-blue-400 p-5 bg-blue-50">
-            <div className="flex items-center gap-2 mb-3 pb-3 border-b border-blue-200">
-              <Crown className="w-5 h-5 text-blue-500" />
-              <span className="font-bold text-blue-700">פרו</span>
-              <span className="text-xs text-blue-600 font-normal mr-1">(כל מה שבחינמי ועוד:)</span>
+          {/* Pro column — emerald to match the Pro card */}
+          <div className="rounded-2xl border-2 border-emerald-400 p-5 bg-emerald-50">
+            <div className="flex items-center gap-2 mb-3 pb-3 border-b border-emerald-200">
+              <Crown className="w-5 h-5 text-emerald-600" />
+              <span className="font-bold text-emerald-800">פרו</span>
             </div>
-            <ul className="space-y-2 text-sm text-blue-900">
+            <p className="text-xs text-emerald-700 -mt-2 mb-2">כל מה שבחינמי, ובנוסף:</p>
+            <ul className="space-y-2 text-sm text-emerald-900">
               <li className="flex items-start gap-2"><CheckCircle className="w-4 h-4 text-green-500 shrink-0 mt-0.5" /> שירותים ללא הגבלה</li>
               <li className="flex items-start gap-2"><CheckCircle className="w-4 h-4 text-green-500 shrink-0 mt-0.5" /> לקוחות ללא הגבלה</li>
               <li className="flex items-start gap-2"><CheckCircle className="w-4 h-4 text-green-500 shrink-0 mt-0.5" /> עיצוב מותאם אישית (לוגו, צבעים, באנר)</li>
@@ -195,6 +220,20 @@ function StepPlan({ onNext }: { onNext: (plan: Plan) => void }) {
               <li className="flex items-start gap-2"><CheckCircle className="w-4 h-4 text-green-500 shrink-0 mt-0.5" /> קבלות אוטומטיות</li>
               <li className="flex items-start gap-2"><CheckCircle className="w-4 h-4 text-green-500 shrink-0 mt-0.5" /> גלריית תמונות</li>
               <li className="flex items-start gap-2"><CheckCircle className="w-4 h-4 text-green-500 shrink-0 mt-0.5" /> תמיכה מועדפת</li>
+            </ul>
+          </div>
+          {/* עסקי column — flagship blue, matches the עסקי card */}
+          <div className="rounded-2xl border-2 border-blue-500 p-5 bg-gradient-to-br from-blue-50 to-sky-50">
+            <div className="flex items-center gap-2 mb-3 pb-3 border-b border-blue-200">
+              <Sparkles className="w-5 h-5 text-blue-600" />
+              <span className="font-bold text-blue-800">עסקי</span>
+            </div>
+            <p className="text-xs text-blue-700 -mt-2 mb-2">כל מה שבפרו, ובנוסף:</p>
+            <ul className="space-y-2 text-sm text-blue-900">
+              <li className="flex items-start gap-2"><CheckCircle className="w-4 h-4 text-green-500 shrink-0 mt-0.5" /> 2 יומנים לעובדים (+₪25 לכל נוסף, עד 5)</li>
+              <li className="flex items-start gap-2"><CheckCircle className="w-4 h-4 text-green-500 shrink-0 mt-0.5" /> 500 SMS תפוצה בחודש</li>
+              <li className="flex items-start gap-2"><CheckCircle className="w-4 h-4 text-green-500 shrink-0 mt-0.5" /> אנליטיקה מתקדמת — LTV, נאמנות, תחזית</li>
+              <li className="flex items-start gap-2"><CheckCircle className="w-4 h-4 text-green-500 shrink-0 mt-0.5" /> ייצוא נתונים לאקסל / CSV</li>
             </ul>
           </div>
         </div>
@@ -441,7 +480,10 @@ function StepDetails({
           phone: form.phone,
           email: form.email,
           password: form.password,
-          subscriptionPlan: plan,
+          // Backend enum is still "free"|"pro" — "pro-plus" (מושלם) rides on the
+          // Pro track for now; the dedicated tier + per-worker billing land in
+          // a follow-up backend change.
+          subscriptionPlan: plan === "pro-plus" ? "pro" : plan,
           businessCategories: selectedCategories.length > 0 ? selectedCategories : undefined,
           address: form.address.trim() || undefined,
           websiteUrl: form.websiteUrl.trim() || undefined,
@@ -481,8 +523,8 @@ function StepDetails({
           <h2 className="text-xl font-bold">פרטי העסק</h2>
           <p className="text-sm text-muted-foreground">
             תוכנית{" "}
-            <span className={plan === "pro" ? "text-blue-500 font-semibold" : "text-blue-600 font-semibold"}>
-              {plan === "pro" ? "פרו" : "חינמי"}
+            <span className={plan === "free" ? "text-blue-600 font-semibold" : "text-blue-500 font-semibold"}>
+              {plan === "pro-plus" ? "עסקי" : plan === "pro" ? "פרו" : "חינמי"}
             </span>{" "}
             נבחרה
           </p>
@@ -818,7 +860,9 @@ export default function Register() {
 
   const handlePlanSelect = (selected: Plan) => {
     setPlan(selected);
-    if (selected === "pro") {
+    // Any paid tier (pro or pro-plus) goes through the payment step first.
+    // Free skips straight to business-details.
+    if (selected === "pro" || selected === "pro-plus") {
       setStep("payment");
     } else {
       setStep("details");
@@ -839,7 +883,10 @@ export default function Register() {
     <div className="min-h-screen bg-muted/30 flex flex-col" dir="rtl">
       <Navbar />
       <div className="flex-1 flex items-start justify-center py-12 px-4">
-      <div className="w-full max-w-lg">
+      {/* Widen only the plan step — 3 plan cards + feature comparison don't
+          fit in max-w-lg. Other steps (payment/details/success) stay narrow
+          so forms don't sprawl on desktop. */}
+      <div className={`w-full ${step === "plan" ? "max-w-3xl" : "max-w-lg"}`}>
         {/* Progress indicator */}
         {step !== "success" && (
           <div className="flex items-center gap-2 mb-8 justify-center">
@@ -865,7 +912,7 @@ export default function Register() {
             {step === "details" && (
               <StepDetails
                 plan={plan}
-                onBack={() => plan === "pro" ? setStep("payment") : setStep("plan")}
+                onBack={() => (plan === "pro" || plan === "pro-plus") ? setStep("payment") : setStep("plan")}
                 onSuccess={handleRegisterSuccess}
               />
             )}
