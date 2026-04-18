@@ -814,7 +814,7 @@ function TimeOffBlock({
         }
         onClick();
       } : undefined}
-      className={`absolute z-0 border-y border-red-400/60 overflow-hidden ${interactive ? "cursor-grab active:cursor-grabbing hover:brightness-95" : "pointer-events-none"} ${isDragging ? "ring-2 ring-red-500 opacity-80" : ""}`}
+      className={`absolute z-0 border-y border-red-400/60 overflow-hidden select-none ${interactive ? "cursor-grab active:cursor-grabbing hover:brightness-95" : "pointer-events-none"} ${isDragging ? "ring-2 ring-red-500 opacity-80" : ""}`}
       // touch-action:none pins the browser so our pointer handler can
       // capture the drag — otherwise a finger on the block would be
       // consumed as a page scroll before we see the first pointermove.

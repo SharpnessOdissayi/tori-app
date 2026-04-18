@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -116,11 +116,16 @@ export function TimePickerField({
 
   return (
     <div className="flex items-center gap-2" dir="ltr">
+      {/* position="item-aligned" drops shadcn's quirky popper-mode viewport
+          clamp (which caps the dropdown at the trigger's height and only
+          exposes scroll via the up/down arrow buttons) — on mobile that
+          made it impossible to reach 15:00+. Item-aligned lets Radix open
+          a full-height scrollable list that swipes natively. */}
       <Select value={h} onValueChange={onHourChange}>
         <SelectTrigger className="w-20 text-center justify-center">
           <SelectValue placeholder="שעה" />
         </SelectTrigger>
-        <SelectContent>
+        <SelectContent position="item-aligned" className="max-h-[60vh]">
           {hours.map((hh) => (
             <SelectItem key={hh} value={hh}>{hh}</SelectItem>
           ))}
@@ -131,7 +136,7 @@ export function TimePickerField({
         <SelectTrigger className="w-20 text-center justify-center">
           <SelectValue placeholder="דקה" />
         </SelectTrigger>
-        <SelectContent>
+        <SelectContent position="item-aligned" className="max-h-[60vh]">
           {minutes.map((mm) => (
             <SelectItem key={mm} value={mm}>{mm}</SelectItem>
           ))}
@@ -182,9 +187,17 @@ export function NewAppointmentDialog({
 
   const [saving, setSaving] = useState(false);
 
-  // Reset form whenever the dialog opens with (possibly new) defaults.
+  // Reset form ONLY when the dialog transitions from closed → open. The
+  // previous effect also fired whenever `services` / `initialDate` changed
+  // identity, which on mobile happens on every re-focus (React Query
+  // refetches, services array gets a new reference) — that wiped the
+  // owner's half-typed name + phone the moment they backgrounded the PWA.
+  const prevOpenRef = useRef(false);
   useEffect(() => {
-    if (!open) return;
+    const justOpened = open && !prevOpenRef.current;
+    prevOpenRef.current = open;
+    if (!justOpened) return;
+
     setTab(initialTab ?? "appointment");
     const today = new Date().toISOString().slice(0, 10);
 
