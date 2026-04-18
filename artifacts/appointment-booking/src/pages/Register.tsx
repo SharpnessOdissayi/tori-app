@@ -132,9 +132,6 @@ function StepPlan({ onNext }: { onNext: (plan: Plan) => void }) {
           <div className="text-sm text-muted-foreground">
             ניסיון פרו ללא כרטיס אשראי — ביטול אוטומטי בתום 14 ימים
           </div>
-          <div className="mt-5 w-full py-2.5 rounded-xl border-2 border-slate-400 text-slate-600 font-semibold text-sm group-hover:bg-slate-500 group-hover:text-white transition-colors text-center">
-            התחל חינם
-          </div>
         </button>
 
         {/* Pro Plan — 14-day trial, credit card required, auto-billed after.
@@ -155,9 +152,6 @@ function StepPlan({ onNext }: { onNext: (plan: Plan) => void }) {
           </div>
           <div className="text-sm text-blue-600">
             14 ימי ניסיון חינם — חיוב אוטומטי אחרי ימי הניסיון, ביטול בכל עת
-          </div>
-          <div className="mt-5 w-full py-2.5 rounded-xl bg-blue-500 text-white font-semibold text-sm group-hover:bg-blue-600 transition-colors text-center">
-            בחר פרו
           </div>
         </button>
       </div>
