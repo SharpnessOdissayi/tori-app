@@ -1702,7 +1702,7 @@ function WeeklyCalendar({ appointments }: { appointments: WeeklyAppt[] }) {
 // « 1 / N » pager underneath. Owners with long booking windows ended up
 // with a wall of upcoming appointments before this; now the first page
 // is scannable and the rest is one tap away.
-const UPCOMING_PAGE_SIZE = 5;
+const UPCOMING_PAGE_SIZE = 3;
 function UpcomingAppointmentsCard({
   items, genderByPhone, onCancel, cancelling,
 }: {

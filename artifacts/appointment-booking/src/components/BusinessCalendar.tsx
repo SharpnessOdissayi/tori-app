@@ -799,20 +799,23 @@ function ApptCard({
         : "bg-rose-600 text-white border-rose-700"
       }`;
 
-  // touch-action:none is required on the card itself so the browser
-  // lets our pointer handler capture the gesture — otherwise the
-  // first finger-move is hijacked as a page scroll and drag-to-
-  // reschedule never fires on mobile. Vertical scrolling still works
-  // anywhere the finger lands OUTSIDE a card (empty grid / gridlines).
+  // touch-action flips based on drag state. Before the 400ms long-press
+  // has activated (isDragging = false) we use `pan-y` so a finger that
+  // starts on a card but then scrolls the day view doesn't get stuck —
+  // the browser handles vertical scroll normally and fires a
+  // pointercancel that tears down our pre-activation watcher. Once the
+  // long-press activates (isDragging = true) we switch to `none` so the
+  // actual drag isn't hijacked by the scroller.
   const laneStyle = laneRect(lane, laneCount);
+  const touchActionValue = isDragging ? ("none" as const) : ("pan-y" as const);
   const customStyle = useCustomColour
     ? {
-        top, height, touchAction: "none" as const, ...laneStyle,
+        top, height, touchAction: touchActionValue, ...laneStyle,
         background: serviceColor!,
         color: readableOn(serviceColor!),
         borderColor: serviceColor!,
       }
-    : { top, height, touchAction: "none" as const, ...laneStyle };
+    : { top, height, touchAction: touchActionValue, ...laneStyle };
 
   return (
     <div
@@ -957,11 +960,12 @@ function TimeOffBlock({
         onClick();
       } : undefined}
       className={`absolute z-0 border-y border-red-400/60 overflow-hidden select-none ${interactive ? "cursor-grab active:cursor-grabbing hover:brightness-95" : "pointer-events-none"} ${isDragging ? "ring-2 ring-red-500 opacity-80" : ""}`}
-      // touch-action:none pins the browser so our pointer handler can
-      // capture the drag — otherwise a finger on the block would be
-      // consumed as a page scroll before we see the first pointermove.
-      // Scrolling the calendar still works anywhere outside a block.
-      style={{ top, height, ...laneStyle, background: TIME_OFF_STRIPES, touchAction: interactive ? "none" : undefined }}
+      // touch-action flips with the drag state (same trick as ApptCard):
+      // `pan-y` pre-activation so normal day-view scrolling works even
+      // when the finger starts on the block, `none` once the 400ms
+      // long-press has activated so the drag isn't hijacked by the
+      // scroller.
+      style={{ top, height, ...laneStyle, background: TIME_OFF_STRIPES, touchAction: interactive ? (isDragging ? "none" : "pan-y") : undefined }}
       title={label}
     >
       {/* Owner preference: drop the Ban icon — the striped red pattern
