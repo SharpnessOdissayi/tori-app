@@ -818,9 +818,14 @@ export default function Dashboard() {
   // Active tab persists across reloads — without this, pressing F5
   // while editing Settings (or any other tab) bounced the owner back
   // to the default "appointments" tab.
+  // Default tab is "home" so a fresh login / reload lands on the
+  // at-a-glance overview (stats + upcoming card + share-link banner +
+  // pending approvals). Owners asked for this — the calendar is one
+  // tap away on the bottom-nav anyway, but the home tab is what they
+  // want to see first.
   const [activeTab, setActiveTab] = useState(() => {
-    try { return localStorage.getItem("kavati_dash_active_tab") || "appointments"; }
-    catch { return "appointments"; }
+    try { return localStorage.getItem("kavati_dash_active_tab") || "home"; }
+    catch { return "home"; }
   });
   useEffect(() => {
     try { localStorage.setItem("kavati_dash_active_tab", activeTab); } catch {}
@@ -865,7 +870,7 @@ export default function Dashboard() {
     return "menu";
   };
   const [bottomTab, setBottomTab] = useState<BottomTab>(() => activeToBottom(
-    typeof window !== "undefined" ? (localStorage.getItem("kavati_dash_active_tab") ?? "appointments") : "appointments"
+    typeof window !== "undefined" ? (localStorage.getItem("kavati_dash_active_tab") ?? "home") : "home"
   ));
   // Keep bottomTab aligned with activeTab whenever activeTab changes from
   // anywhere (menu sheet, programmatic jumps, url hash, etc.). Without
@@ -1186,11 +1191,14 @@ export default function Dashboard() {
           <TabsContent value="settings" dir="rtl"><SettingsTab /></TabsContent>
         </Tabs>
 
-        {/* Suggestion banner */}
-        <div className="mt-6 p-4 rounded-2xl bg-muted/40 border text-center text-sm text-muted-foreground">
-          💡 יש לך הצעה לשיפור או מצאת באג בלוח הניהול?{" "}
-          <a href="/contact" className="font-semibold text-primary underline">אשמח שתשאיר לי הודעה על כך</a>
-        </div>
+        {/* Suggestion banner — hidden on the calendar tab so the יומן
+            surface is a pure calendar. Shows on every other tab. */}
+        {activeTab !== "appointments" && (
+          <div className="mt-6 p-4 rounded-2xl bg-muted/40 border text-center text-sm text-muted-foreground">
+            💡 יש לך הצעה לשיפור או מצאת באג בלוח הניהול?{" "}
+            <a href="/contact" className="font-semibold text-primary underline">אשמח שתשאיר לי הודעה על כך</a>
+          </div>
+        )}
 
         {/* Bottom safe-area padding so the fixed mobile nav + the floating
             save bar don't cover the last card (the suggestion banner) on

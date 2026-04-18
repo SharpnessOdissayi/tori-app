@@ -481,10 +481,11 @@ function StepDetails({
           phone: form.phone,
           email: form.email,
           password: form.password,
-          // Backend enum is still "free"|"pro" — "pro-plus" (מושלם) rides on the
-          // Pro track for now; the dedicated tier + per-worker billing land in
-          // a follow-up backend change.
-          subscriptionPlan: plan === "pro-plus" ? "pro" : plan,
+          // Backend accepts all three tiers now (auth.ts allow-list +
+          // businesses.subscriptionPlan column). The Tranzila notify
+          // webhook will apply the right SMS quota on trial → paid
+          // conversion based on this value.
+          subscriptionPlan: plan,
           businessCategories: selectedCategories.length > 0 ? selectedCategories : undefined,
           address: form.address.trim() || undefined,
           websiteUrl: form.websiteUrl.trim() || undefined,

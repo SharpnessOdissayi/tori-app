@@ -81,7 +81,7 @@ export async function verifyEmailCode(
 export async function sendWelcomeEmail(params: {
   email:      string;
   ownerName:  string;
-  plan:       "free" | "pro";
+  plan:       "free" | "pro" | "pro-plus";
   slug:       string;
   username?:  string | null;   // what the owner logs in with (if picked one)
   password:   string;           // plaintext, still in memory at registration
@@ -93,9 +93,11 @@ export async function sendWelcomeEmail(params: {
   // if one was chosen, otherwise fall back to the email address.
   const loginHandle  = username && username.trim() ? username.trim() : email;
 
-  const planCopy = plan === "pro"
+  const planCopy = plan === "pro-plus"
+    ? `<p style="margin: 0 0 16px; color: #444;">תודה שהצטרפת למסלול <b>עסקי</b>. קבלה על התשלום תישלח בנפרד. תוכל להוסיף עובדים ולשלוח הודעות תפוצה מהדאשבורד.</p>`
+    : plan === "pro"
     ? `<p style="margin: 0 0 16px; color: #444;">תודה שהצטרפת למנוי <b>פרו</b>. קבלה על התשלום תישלח בנפרד.</p>`
-    : `<p style="margin: 0 0 16px; color: #444;">החשבון שלך פעיל במסלול <b>חינמי</b>. בכל עת אפשר לשדרג למנוי פרו מתוך הדאשבורד.</p>`;
+    : `<p style="margin: 0 0 16px; color: #444;">החשבון שלך פעיל במסלול <b>חינמי</b>. בכל עת אפשר לשדרג למנוי פרו/עסקי מתוך הדאשבורד.</p>`;
 
   const html = `
     <div dir="rtl" style="font-family: Arial, sans-serif; max-width: 560px; margin: 0 auto; padding: 24px; color: #111;">

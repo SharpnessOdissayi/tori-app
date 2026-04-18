@@ -24,7 +24,7 @@ function parseBusinessRegisterBody(raw: any) {
   const isString = (v: unknown) => typeof v === "string";
   if (
     !isString(name) || !isString(slug) || !isString(ownerName) || !isString(phone) ||
-    !isString(email) || !isString(password) || !["free", "pro"].includes(subscriptionPlan)
+    !isString(email) || !isString(password) || !["free", "pro", "pro-plus"].includes(subscriptionPlan)
   ) {
     return { success: false as const };
   }
@@ -269,9 +269,15 @@ router.post("/auth/business/register", async (req, res): Promise<void> => {
       phone,
       email,
       passwordHash,
-      // Always start as Pro for the trial window — pricing copy promises
-      // 14 days of full Pro at signup regardless of the plan they picked.
-      subscriptionPlan: "pro",
+      // Record the tier the owner actually picked so the Tranzila notify
+      // webhook (when trial → paid) knows whether to bump SMS quota to
+      // 100 (פרו) or 500 (עסקי). Earlier every signup was hard-coded
+      // "pro" regardless of choice, which collapsed עסקי registrations
+      // down to Pro silently.
+      subscriptionPlan:
+        subscriptionPlan === "pro-plus" ? "pro-plus"
+        : subscriptionPlan === "pro"    ? "pro"
+        : "pro", // free plan also gets a 14-day trial of Pro
       maxServicesAllowed: 999,
       maxAppointmentsPerMonth: 9999,
       subscriptionStartDate: new Date(),
@@ -329,7 +335,7 @@ router.post("/auth/business/register", async (req, res): Promise<void> => {
     await sendWelcomeEmail({
       email,
       ownerName,
-      plan: subscriptionPlan as "free" | "pro",
+      plan: (subscriptionPlan === "pro-plus" ? "pro-plus" : subscriptionPlan === "pro" ? "pro" : "free") as "free" | "pro" | "pro-plus",
       slug,
       username: username ?? null,
       password,
