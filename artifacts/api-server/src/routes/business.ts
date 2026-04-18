@@ -847,10 +847,27 @@ router.patch("/business/appointments/:id", requireBusinessAuth, async (req, res)
   const id = Number(rawId);
   if (!id || isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
 
-  const body = (req.body ?? {}) as { notes?: string | null };
+  const body = (req.body ?? {}) as { notes?: string | null; serviceId?: number };
   const updates: any = {};
   if (body.notes !== undefined) {
     updates.notes = body.notes === null ? null : String(body.notes).slice(0, 1000);
+  }
+  // Allow the owner to swap the service on an existing appointment from
+  // the edit dialog. Pulls the service row so we also refresh the
+  // denormalised serviceName + durationMinutes that downstream views read.
+  if (body.serviceId !== undefined) {
+    const svcId = Number(body.serviceId);
+    if (!svcId || isNaN(svcId)) {
+      res.status(400).json({ error: "invalid_service" }); return;
+    }
+    const [svc] = await db
+      .select()
+      .from(servicesTable)
+      .where(and(eq(servicesTable.id, svcId), eq(servicesTable.businessId, req.business!.businessId)));
+    if (!svc) { res.status(404).json({ error: "service_not_found" }); return; }
+    updates.serviceId       = svc.id;
+    updates.serviceName     = svc.name;
+    updates.durationMinutes = svc.durationMinutes;
   }
   if (Object.keys(updates).length === 0) {
     res.status(400).json({ error: "No editable fields" }); return;

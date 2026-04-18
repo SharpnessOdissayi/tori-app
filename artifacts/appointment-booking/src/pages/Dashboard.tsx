@@ -1861,7 +1861,7 @@ function AppointmentsTab({ mobileFocus }: { mobileFocus?: "calendar" | "approval
   // the new-entry dialog uses. Kept separate from `editAppt` so tapping
   // a card always opens the details view first.
   const [editApptMode, setEditApptMode] = useState(false);
-  const [editApptForm, setEditApptForm] = useState({ date: "", time: "", notes: "" });
+  const [editApptForm, setEditApptForm] = useState({ date: "", time: "", notes: "", serviceId: 0 });
   const [editApptSaving, setEditApptSaving] = useState(false);
   // Opt-in WhatsApp on inline edit (off by default) — same rule as the
   // drag-confirm dialog.
@@ -2203,12 +2203,20 @@ function AppointmentsTab({ mobileFocus }: { mobileFocus?: "calendar" | "approval
                     });
                     if (!rs.ok) throw new Error();
                   }
-                  // 2) Patch notes if changed.
-                  if ((editApptForm.notes ?? "") !== originalNotes) {
+                  // 2) Patch notes + serviceId if either changed. Batched
+                  //    into one PATCH so the backend swaps duration/name
+                  //    and notes atomically.
+                  const originalServiceId = (editAppt as any).serviceId ?? 0;
+                  const notesChanged   = (editApptForm.notes ?? "") !== originalNotes;
+                  const serviceChanged = editApptForm.serviceId && editApptForm.serviceId !== originalServiceId;
+                  if (notesChanged || serviceChanged) {
+                    const body: any = {};
+                    if (notesChanged)   body.notes     = editApptForm.notes || null;
+                    if (serviceChanged) body.serviceId = editApptForm.serviceId;
                     const pr = await fetch(`/api/business/appointments/${editAppt.id}`, {
                       method: "PATCH",
                       headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-                      body: JSON.stringify({ notes: editApptForm.notes || null }),
+                      body: JSON.stringify(body),
                     });
                     if (!pr.ok) throw new Error();
                   }
@@ -2232,6 +2240,22 @@ function AppointmentsTab({ mobileFocus }: { mobileFocus?: "calendar" | "approval
                     </div>
                     <div className="text-muted-foreground" dir="ltr">{editAppt.phoneNumber}</div>
                     <div className="text-xs text-muted-foreground">{editAppt.serviceName} · {formatDuration(editAppt.durationMinutes)}</div>
+                  </div>
+                  <div className="space-y-1">
+                    <Label>סוג השירות</Label>
+                    {/* Lets the owner swap service on an existing booking —
+                        the backend also refreshes the stored serviceName
+                        and durationMinutes, so calendar cards + stats pick
+                        up the new duration without a re-book. */}
+                    <select
+                      className="w-full h-10 rounded-md border border-input bg-background px-3 text-sm"
+                      value={editApptForm.serviceId || (editAppt as any).serviceId || 0}
+                      onChange={e => setEditApptForm(p => ({ ...p, serviceId: Number(e.target.value) }))}
+                    >
+                      {(Array.isArray(servicesForColors) ? servicesForColors : []).map((s: any) => (
+                        <option key={s.id} value={s.id}>{s.name} · {formatDuration(s.durationMinutes)}</option>
+                      ))}
+                    </select>
                   </div>
                   <div className="space-y-1">
                     <Label>תאריך</Label>
@@ -2396,7 +2420,12 @@ function AppointmentsTab({ mobileFocus }: { mobileFocus?: "calendar" | "approval
                     variant="outline"
                     className="gap-1.5"
                     onClick={() => {
-                      setEditApptForm({ date: editAppt.appointmentDate, time: editAppt.appointmentTime, notes: editAppt.notes ?? "" });
+                      setEditApptForm({
+                        date: editAppt.appointmentDate,
+                        time: editAppt.appointmentTime,
+                        notes: editAppt.notes ?? "",
+                        serviceId: (editAppt as any).serviceId ?? 0,
+                      });
                       setEditApptMode(true);
                     }}
                   >

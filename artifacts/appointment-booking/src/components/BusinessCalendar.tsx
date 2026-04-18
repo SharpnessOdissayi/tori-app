@@ -1097,9 +1097,15 @@ function TimeGrid({
   return (
     <div dir="rtl" className="flex flex-col">
       {/* Column headers — time/"כל היום" column on the RIGHT (start in RTL),
-          then day columns flowing right-to-left. Owner preference: the
-          hours ruler should sit where reading starts, not on the far left. */}
-      <div className="grid border-b border-border text-xs" style={{ gridTemplateColumns: `56px repeat(${days.length}, minmax(0, 1fr))` }}>
+          then day columns flowing right-to-left. sticky top-16 pins the
+          weekday/date row just below the 64px Navbar so owners don't lose
+          track of which day they're looking at when they scroll down the
+          hours column. bg-background + z-30 keep it from blending with
+          the appointments rendered below. */}
+      <div
+        className="grid border-b border-border text-xs sticky top-16 z-30 bg-background"
+        style={{ gridTemplateColumns: `56px repeat(${days.length}, minmax(0, 1fr))` }}
+      >
         <div className="py-1.5 px-1 text-[11px] font-semibold text-muted-foreground text-center border-l border-border">כל היום</div>
         {days.map(d => {
           const k = ymd(d);
@@ -1665,8 +1671,13 @@ export function BusinessCalendar({
         </div>
       )}
 
+      {/* One scroll container only — the inner overflow-auto was
+          creating a double-scroll feel (page + calendar each moved
+          independently). Let the TimeGrid expand to its natural
+          height and use the page scroll; the day-header row inside
+          the grid is sticky, so the weekday labels stay visible as
+          the owner scrolls time slots into view. */}
       <div
-        className="overflow-auto max-h-[calc(100vh-220px)]"
         onTouchStart={onSwipeStart}
         onTouchEnd={onSwipeEnd}
       >
