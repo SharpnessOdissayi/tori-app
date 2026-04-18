@@ -968,6 +968,8 @@ router.get("/business/customers", requireBusinessAuth, async (req, res): Promise
       appointmentDate: appointmentsTable.appointmentDate,
       status: appointmentsTable.status,
       cancelledBy: sql<string | null>`appointments.cancelled_by`,
+      serviceId: appointmentsTable.serviceId,
+      serviceName: servicesTable.name,
       price: sql<number>`COALESCE(${servicesTable.price}, 0)`.as("price"),
     })
     .from(appointmentsTable)
@@ -1003,6 +1005,12 @@ router.get("/business/customers", requireBusinessAuth, async (req, res): Promise
     cancelledByBusinessCount: number;  // subset: cancelled_by='business'
     lastVisitDate: string;
     firstVisitDate: string;
+    // The service on the customer's most recent attended appointment —
+    // used by the IssueReceiptDialog on the Customers tab to auto-fill
+    // amount + description when the owner issues a receipt from the row.
+    lastServiceId: number | null;
+    lastServiceName: string | null;
+    lastServicePriceAgorot: number;
   }>();
 
   for (const a of appointments) {
@@ -1022,6 +1030,9 @@ router.get("/business/customers", requireBusinessAuth, async (req, res): Promise
         cancelledByBusinessCount: 0,
         firstVisitDate: "",
         lastVisitDate: "",
+        lastServiceId: null,
+        lastServiceName: null,
+        lastServicePriceAgorot: 0,
       });
     }
     const record = customerMap.get(key)!;
@@ -1037,7 +1048,12 @@ router.get("/business/customers", requireBusinessAuth, async (req, res): Promise
       record.totalVisits += 1;
       record.totalRevenue += Number(a.price) || 0;
       if (!record.firstVisitDate || a.appointmentDate < record.firstVisitDate) record.firstVisitDate = a.appointmentDate;
-      if (!record.lastVisitDate  || a.appointmentDate > record.lastVisitDate)  record.lastVisitDate  = a.appointmentDate;
+      if (!record.lastVisitDate  || a.appointmentDate > record.lastVisitDate) {
+        record.lastVisitDate           = a.appointmentDate;
+        record.lastServiceId           = a.serviceId ?? null;
+        record.lastServiceName         = a.serviceName ?? null;
+        record.lastServicePriceAgorot  = Number(a.price) || 0;
+      }
     }
   }
 

@@ -183,7 +183,13 @@ function IssueReceiptDialog({
   appt, customer, services, defaultEmail, onClose,
 }: {
   appt?: CalAppt;
-  customer?: { clientName: string; phoneNumber: string };
+  customer?: {
+    clientName: string;
+    phoneNumber: string;
+    lastServiceId?: number | null;
+    lastServiceName?: string | null;
+    lastServicePriceAgorot?: number;
+  };
   services?: Array<{ id: number; price: number; name: string }>;
   defaultEmail?: string | null;
   onClose: () => void;
@@ -192,8 +198,15 @@ function IssueReceiptDialog({
   const service = appt && services ? services.find(s => s.id === appt.serviceId) : undefined;
   const clientName = appt?.clientName ?? customer?.clientName ?? "";
   const clientPhone = appt?.phoneNumber ?? customer?.phoneNumber ?? "";
-  const defaultAmount = service ? (service.price / 100).toFixed(2) : "";
-  const defaultDescription = service?.name ?? appt?.serviceName ?? "";
+  // Default amount + description pulls from either (a) the appointment we
+  // were opened on, or (b) the customer's most-recent attended service so
+  // the Customers-tab flow doesn't leave the owner staring at empty fields.
+  const defaultAmount =
+    service ? (service.price / 100).toFixed(2)
+    : customer?.lastServicePriceAgorot ? (customer.lastServicePriceAgorot / 100).toFixed(2)
+    : "";
+  const defaultDescription =
+    service?.name ?? appt?.serviceName ?? customer?.lastServiceName ?? "";
   const initialEmail = (defaultEmail ?? "").trim();
   const [email, setEmail] = useState(initialEmail);
   const [amount, setAmount] = useState(defaultAmount);
@@ -297,7 +310,14 @@ function IssueReceiptDialog({
                     setDescription(s.name);
                   }
                 }}
-                defaultValue=""
+                // Preselect the customer's most-recent service when we have
+                // one in the services list — matches the auto-filled amount
+                // + description that defaultAmount/defaultDescription seeded.
+                defaultValue={
+                  customer?.lastServiceId && services.some(s => s.id === customer.lastServiceId)
+                    ? String(customer.lastServiceId)
+                    : ""
+                }
               >
                 <option value="" disabled>בחר/י טיפול (או הקלד/י ידנית למטה)</option>
                 {services.map(s => (
@@ -4030,7 +4050,14 @@ function CustomersTab() {
   // "הנפק קבלה" from a customer row. Pre-fills email from the
   // customer session (null if they never logged in to the portal,
   // which the dialog flags as "not registered").
-  const [issueReceiptFor, setIssueReceiptFor] = useState<{ clientName: string; phoneNumber: string; email: string | null } | null>(null);
+  const [issueReceiptFor, setIssueReceiptFor] = useState<{
+    clientName: string;
+    phoneNumber: string;
+    email: string | null;
+    lastServiceId: number | null;
+    lastServiceName: string | null;
+    lastServicePriceAgorot: number;
+  } | null>(null);
 
   useEffect(() => {
     if (!token) return;
@@ -4226,6 +4253,9 @@ function CustomersTab() {
                         clientName: c.clientName,
                         phoneNumber: c.phoneNumber,
                         email: (c as any).email ?? null,
+                        lastServiceId:          (c as any).lastServiceId          ?? null,
+                        lastServiceName:        (c as any).lastServiceName        ?? null,
+                        lastServicePriceAgorot: (c as any).lastServicePriceAgorot ?? 0,
                       })}
                     >
                       <FileText className="w-3.5 h-3.5" /> הנפק קבלה
@@ -4281,11 +4311,17 @@ function CustomersTab() {
       </Dialog>
 
       {/* Customer-level receipt issuance (no appointment context). Pass the
-          service list so the owner can pick a treatment and auto-fill the
-          amount + description. */}
+          service list so the owner can pick a treatment, and the customer's
+          most-recent service so amount + description auto-fill on open. */}
       {issueReceiptFor && (
         <IssueReceiptDialog
-          customer={{ clientName: issueReceiptFor.clientName, phoneNumber: issueReceiptFor.phoneNumber }}
+          customer={{
+            clientName: issueReceiptFor.clientName,
+            phoneNumber: issueReceiptFor.phoneNumber,
+            lastServiceId:          issueReceiptFor.lastServiceId,
+            lastServiceName:        issueReceiptFor.lastServiceName,
+            lastServicePriceAgorot: issueReceiptFor.lastServicePriceAgorot,
+          }}
           services={services as any}
           defaultEmail={issueReceiptFor.email}
           onClose={() => setIssueReceiptFor(null)}
