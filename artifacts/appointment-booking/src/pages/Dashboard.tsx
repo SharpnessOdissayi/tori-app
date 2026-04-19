@@ -8925,16 +8925,24 @@ function StaffTab() {
   const [adding, setAdding] = useState(false);
   const [showGuide, setShowGuide] = useState(true);
 
-  // Staff-mode flag — when true, the caller is a non-owner staff member
-  // logged in with their own account. We hide the add-staff form, disable
-  // remove/invite-resend on other rows, and lock avatar upload to their own
-  // row only. Read from sessionStorage where Dashboard parks the staff id
-  // from /auth/me on every login.
-  const myStaffId = (() => {
-    try { const v = sessionStorage.getItem("kavati_staff_filter_id"); return v ? Number(v) : null; }
-    catch { return null; }
-  })();
-  const isStaffMode = myStaffId !== null;
+  // StaffTab is rendered ONLY for owners — the parent Dashboard routes
+  // non-owner staff sessions to <StaffSelfPanel /> instead (see the
+  // `isStaffMode ? <StaffSelfPanel /> : <StaffTab />` split).
+  //
+  // We used to derive isStaffMode here by reading
+  // sessionStorage.kavati_staff_filter_id, but that key has dual semantics:
+  //   · set on login when the caller IS a staff user; AND
+  //   · set by viewStaffCalendar() when an OWNER clicks "צפה ביומן של X"
+  //     to filter their calendar to a specific staff member.
+  // After the owner clicked the calendar-filter button once, StaffTab
+  // would misread the key and think it was in staff mode — hiding the
+  // "צפה ביומן של X" button on the next dialog open until logout.
+  //
+  // Since StaffTab is owner-only by caller contract, hardcode both
+  // values. If we ever reuse this component for staff sessions again,
+  // the caller should pass isStaffMode as a prop.
+  const myStaffId: number | null = null;
+  const isStaffMode = false;
   // Two dialogs:
   //   · billingConfirm — "you're about to add a paid extra, +₪25/mo"
   //   · selectedStaff  — per-row actions (calendar / WhatsApp / call / delete)
