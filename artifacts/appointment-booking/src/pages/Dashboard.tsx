@@ -8802,6 +8802,15 @@ function StaffTab() {
   const avatarUpload = useImageUpload();
   const [savingAvatar, setSavingAvatar] = useState(false);
 
+  // Service-assignment state — owner only. When the staff dialog opens
+  // for a non-owner row, we load the full business service catalogue +
+  // the subset currently linked to this staff, render a checkbox list,
+  // and POST /api/staff/:id/services on save to replace the link set.
+  const [allBizServices, setAllBizServices] = useState<Array<{ id: number; name: string; isActive: boolean }>>([]);
+  const [assignedServiceIds, setAssignedServiceIds] = useState<Set<number>>(new Set());
+  const [loadingAssignments, setLoadingAssignments] = useState(false);
+  const [savingAssignments,  setSavingAssignments]  = useState(false);
+
   const token = typeof window !== "undefined"
     ? (localStorage.getItem("biz_token") ?? sessionStorage.getItem("biz_token") ?? "")
     : "";
@@ -8959,6 +8968,60 @@ function StaffTab() {
     saveAvatarUrl(selectedStaff.id, avatarUpload.url);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [avatarUpload.url]);
+
+  // Load the service catalogue + this staff's current assignments the
+  // moment the dialog opens for a non-owner row. Owners pick everything
+  // implicitly so we don't offer the picker for them.
+  useEffect(() => {
+    if (!selectedStaff || selectedStaff.isOwner || isStaffMode) return;
+    if (!token) return;
+    let cancelled = false;
+    setLoadingAssignments(true);
+    Promise.all([
+      fetch("/api/business/services", { headers: { Authorization: `Bearer ${token}` } }).then(r => r.ok ? r.json() : []),
+      fetch(`/api/staff/${selectedStaff.id}/services`, { headers: { Authorization: `Bearer ${token}` } }).then(r => r.ok ? r.json() : { serviceIds: [] }),
+    ])
+      .then(([services, assigned]) => {
+        if (cancelled) return;
+        setAllBizServices(Array.isArray(services) ? services : []);
+        const ids = Array.isArray(assigned?.serviceIds) ? assigned.serviceIds : [];
+        setAssignedServiceIds(new Set(ids));
+      })
+      .catch(() => { /* render empty, owner can still save */ })
+      .finally(() => { if (!cancelled) setLoadingAssignments(false); });
+    return () => { cancelled = true; };
+  }, [selectedStaff, token, isStaffMode]);
+
+  const toggleServiceAssignment = (serviceId: number) => {
+    setAssignedServiceIds(prev => {
+      const next = new Set(prev);
+      if (next.has(serviceId)) next.delete(serviceId);
+      else next.add(serviceId);
+      return next;
+    });
+  };
+
+  const saveStaffServices = async () => {
+    if (!selectedStaff || !token) return;
+    setSavingAssignments(true);
+    try {
+      const res = await fetch(`/api/staff/${selectedStaff.id}/services`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ serviceIds: Array.from(assignedServiceIds) }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        toast({ title: data?.message ?? "שגיאה בשמירה", variant: "destructive" });
+        return;
+      }
+      toast({ title: "שיוך השירותים עודכן" });
+    } catch {
+      toast({ title: "שגיאת רשת", variant: "destructive" });
+    } finally {
+      setSavingAssignments(false);
+    }
+  };
 
   async function handleResendInvite(id: number) {
     if (!token) return;
@@ -9313,6 +9376,53 @@ function StaffTab() {
                   </div>
                 </div>
               </DialogHeader>
+
+              {/* Services-assignment picker — owner only, hidden for
+                  the owner row itself (owners implicitly do everything).
+                  Check each service the staff should perform. Empty set
+                  (= nothing checked) means "this staff performs every
+                  service" per the backend fallback in GET /services. */}
+              {!isStaffMode && !selectedStaff.isOwner && (
+                <div className="mt-4 border rounded-xl p-3 bg-muted/20">
+                  <div className="flex items-center justify-between mb-2">
+                    <div>
+                      <div className="text-sm font-semibold">שירותים שהעובד/ת מבצע/ת</div>
+                      <div className="text-[11px] text-muted-foreground">סמנ/י רק את השירותים הרלוונטיים. ללא סימון = ברירת מחדל "כל השירותים".</div>
+                    </div>
+                    <Button
+                      type="button"
+                      size="sm"
+                      onClick={saveStaffServices}
+                      disabled={savingAssignments || loadingAssignments}
+                      className="shrink-0"
+                    >
+                      {savingAssignments ? "שומר..." : "שמור"}
+                    </Button>
+                  </div>
+                  {loadingAssignments ? (
+                    <div className="text-xs text-muted-foreground text-center py-4">טוען...</div>
+                  ) : allBizServices.length === 0 ? (
+                    <div className="text-xs text-muted-foreground text-center py-4">אין שירותים פעילים עדיין — הגדר שירותים בטאב "שירותים" ואז חזור/י לכאן.</div>
+                  ) : (
+                    <div className="max-h-48 overflow-y-auto space-y-1">
+                      {allBizServices.filter(s => s.isActive).map(s => (
+                        <label
+                          key={s.id}
+                          className="flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-muted/40 cursor-pointer"
+                        >
+                          <input
+                            type="checkbox"
+                            checked={assignedServiceIds.has(s.id)}
+                            onChange={() => toggleServiceAssignment(s.id)}
+                            className="w-4 h-4 accent-primary cursor-pointer"
+                          />
+                          <span className="text-sm flex-1 truncate" dir="auto">{s.name}</span>
+                        </label>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
 
               <div className="grid grid-cols-1 gap-2 pt-2">
                 {!isStaffMode && (

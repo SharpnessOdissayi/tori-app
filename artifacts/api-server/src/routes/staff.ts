@@ -442,6 +442,33 @@ router.delete("/staff/:id", async (req, res): Promise<void> => {
   res.json({ ok: true });
 });
 
+// ─── GET /api/staff/:id/services ───────────────────────────────────────────
+// Returns the list of service IDs currently linked to this staff member.
+// Scoped by the caller's businessId so a leaked staff token can't peek
+// at another business's assignments.
+router.get("/staff/:id/services", async (req, res): Promise<void> => {
+  const businessId = getBusinessId(req.headers.authorization ?? "");
+  if (!businessId) { res.status(401).json({ error: "Unauthorized" }); return; }
+
+  const staffId = Number(req.params.id);
+  if (!staffId) { res.status(400).json({ error: "Invalid id" }); return; }
+
+  const [row] = await db
+    .select({ id: staffMembersTable.id })
+    .from(staffMembersTable)
+    .where(and(
+      eq(staffMembersTable.id, staffId),
+      eq(staffMembersTable.businessId, businessId),
+    ));
+  if (!row) { res.status(404).json({ error: "Staff not found" }); return; }
+
+  const links = await db
+    .select({ serviceId: staffServicesTable.serviceId })
+    .from(staffServicesTable)
+    .where(eq(staffServicesTable.staffMemberId, staffId));
+  res.json({ serviceIds: links.map(l => l.serviceId) });
+});
+
 // ─── POST /api/staff/:id/services ──────────────────────────────────────────
 // Body: { serviceIds: number[] }
 // Replaces all existing links with the provided set. Empty array means
@@ -449,6 +476,14 @@ router.delete("/staff/:id", async (req, res): Promise<void> => {
 router.post("/staff/:id/services", async (req, res): Promise<void> => {
   const businessId = getBusinessId(req.headers.authorization ?? "");
   if (!businessId) { res.status(401).json({ error: "Unauthorized" }); return; }
+
+  // Owner-only: the staff themselves can't decide which services they
+  // perform — the business owner assigns. Staff tokens carry staffMemberId
+  // in the JWT; absence of that claim marks an owner caller.
+  if (getStaffMemberId(req.headers.authorization ?? "")) {
+    res.status(403).json({ error: "owner_only", message: "רק בעל/ת העסק יכול/ה לקבוע אילו שירותים כל עובד/ת מבצע/ת." });
+    return;
+  }
 
   const staffId = Number(req.params.id);
   if (!staffId) { res.status(400).json({ error: "Invalid id" }); return; }
