@@ -2706,7 +2706,10 @@ function AppointmentsTab({ mobileFocus }: { mobileFocus?: "calendar" | "approval
             <div className="space-y-2">
               {past.slice(-10).reverse().map(apt => (
                 <div key={apt.id} className="flex justify-between items-center p-3 border rounded-lg opacity-60 text-sm">
-                  <span>{apt.clientName} • {apt.serviceName}</span>
+                  <span className="flex items-center gap-1.5 min-w-0">
+                    <GenderMark gender={genderByPhone.get(apt.phoneNumber)} />
+                    <span className="truncate">{apt.clientName} • {apt.serviceName}</span>
+                  </span>
                   <span className="text-muted-foreground">{apt.appointmentDate} {apt.appointmentTime}</span>
                 </div>
               ))}
@@ -2979,12 +2982,25 @@ function HomeTab({ onJump }: { onJump: (tab: string) => void }) {
 // puts triage in one tight card.
 function PendingApprovalsTab() {
   const { data: appointments } = useListBusinessAppointments();
+  const { data: customers } = useListBusinessCustomers();
   const queryClient = useQueryClient();
   const { toast } = useToast();
   const [approvingId, setApprovingId] = useState<number | null>(null);
   const [rejectingId, setRejectingId] = useState<number | null>(null);
 
   const pending = (Array.isArray(appointments) ? appointments : []).filter(a => a.status === "pending");
+
+  // Phone→gender map for the ♂︎/♀︎ pill next to each pending request.
+  // Customers list already includes a `gender` column populated from the
+  // client portal sign-up; missing entries (walk-ins) render no badge.
+  const genderByPhone = useMemo(() => {
+    const m = new Map<string, string>();
+    for (const c of (Array.isArray(customers) ? customers : [])) {
+      const g = (c as any).gender;
+      if (g && c.phoneNumber) m.set(c.phoneNumber, g);
+    }
+    return m;
+  }, [customers]);
 
   const token = () => localStorage.getItem("biz_token") || sessionStorage.getItem("biz_token");
 
@@ -3049,7 +3065,10 @@ function PendingApprovalsTab() {
                 return (
                   <div key={apt.id} className="p-4 rounded-2xl border border-yellow-200 bg-yellow-50/40 space-y-3">
                     <div>
-                      <div className="font-bold">{apt.clientName}</div>
+                      <div className="font-bold flex items-center gap-2">
+                        <GenderMark gender={genderByPhone.get(apt.phoneNumber)} />
+                        <span>{apt.clientName}</span>
+                      </div>
                       <div className="text-xs text-muted-foreground" dir="ltr">{apt.phoneNumber}</div>
                       <div className="text-sm text-muted-foreground mt-1">
                         {apt.serviceName} • {formatDuration(apt.durationMinutes)}
@@ -4869,9 +4888,23 @@ function CustomersTab() {
 
 function WaitlistTab() {
   const { data: waitlist, isLoading } = useListBusinessWaitlist();
+  const { data: customers } = useListBusinessCustomers();
   const removeMutation = useRemoveFromWaitlist();
   const queryClient = useQueryClient();
   const { toast } = useToast();
+
+  // Phone→gender map for the ♂︎/♀︎ badge next to each waitlist entry,
+  // mirroring the customers + pending-approvals tabs so a returning
+  // customer is always identifiable at a glance regardless of which list
+  // they're surfaced in.
+  const genderByPhone = useMemo(() => {
+    const m = new Map<string, string>();
+    for (const c of (Array.isArray(customers) ? customers : [])) {
+      const g = (c as any).gender;
+      if (g && c.phoneNumber) m.set(c.phoneNumber, g);
+    }
+    return m;
+  }, [customers]);
 
   const handleRemove = (id: number) => {
     removeMutation.mutate({ id }, {
@@ -4896,7 +4929,10 @@ function WaitlistTab() {
             {waitlistItems.map(w => (
               <div key={w.id} className="flex flex-col sm:flex-row justify-between items-start sm:items-center p-4 border rounded-xl hover:border-primary/40 transition-colors gap-3">
                 <div>
-                  <div className="font-semibold">{w.clientName}</div>
+                  <div className="font-semibold flex items-center gap-2">
+                    <GenderMark gender={genderByPhone.get(w.phoneNumber)} />
+                    <span>{w.clientName}</span>
+                  </div>
                   <div className="text-sm text-muted-foreground" dir="ltr">{w.phoneNumber}</div>
                   {w.serviceName && <div className="text-sm text-muted-foreground mt-0.5">שירות: {w.serviceName}</div>}
                   {w.preferredDate && <div className="text-sm text-primary mt-0.5">תאריך מבוקש: {w.preferredDate}</div>}
