@@ -8299,7 +8299,7 @@ function SmsBulkCard() {
             <span className="text-xl">📱</span> הודעות SMS תפוצה
           </CardTitle>
           <CardDescription>
-            זמין במסלול פרו (100 הודעות/חודש) ועסקי (500 הודעות/חודש).
+            זמין במסלול פרו (100 הודעות/חודש) ועסקי (300 הודעות/חודש).
             שדרוג כאן ב-הגדרות → מנוי.
           </CardDescription>
         </CardHeader>

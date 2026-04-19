@@ -1224,9 +1224,20 @@ router.get("/business/customers", requireBusinessAuth, async (req, res): Promise
   res.json(enriched);
 });
 
-// POST /business/broadcast — send WhatsApp message to all customers
-// Monthly cap: 150 messages (~$10 at ~$0.06/msg)
-const BROADCAST_MONTHLY_LIMIT = 150;
+// POST /business/broadcast — send SMS broadcast to all customers.
+// Per-plan monthly caps — עסקי (pro-plus) = 300, פרו (pro) = 100,
+// free = 0 (also blocked by isBusinessPro). Kept in sync with
+// smsMonthlyQuota across super-admin.ts, auth.ts, lib/smsQuota.ts and
+// the Dashboard card copy so owners see one consistent number.
+const BROADCAST_LIMIT_BY_PLAN: Record<string, number> = {
+  "pro-plus": 300,
+  "pro":      100,
+  "basic":    100, // legacy plan-name alias for pro
+  "free":       0,
+};
+function broadcastLimitFor(plan: string | undefined | null): number {
+  return BROADCAST_LIMIT_BY_PLAN[(plan ?? "").toLowerCase()] ?? 0;
+}
 
 router.post("/business/broadcast", requireBusinessAuth, async (req, res): Promise<void> => {
   const businessId = req.business!.businessId;
@@ -1249,23 +1260,28 @@ router.post("/business/broadcast", requireBusinessAuth, async (req, res): Promis
     return;
   }
 
-  // Check / reset monthly quota
+  // Check / reset monthly quota — limit depends on the owner's plan.
   const [biz] = await db
-    .select({ broadcastSentThisMonth: businessesTable.broadcastSentThisMonth, broadcastMonthKey: businessesTable.broadcastMonthKey })
+    .select({
+      broadcastSentThisMonth: businessesTable.broadcastSentThisMonth,
+      broadcastMonthKey:      businessesTable.broadcastMonthKey,
+      subscriptionPlan:       businessesTable.subscriptionPlan,
+    })
     .from(businessesTable)
     .where(eq(businessesTable.id, businessId));
 
   if (!biz) { res.status(404).json({ error: "עסק לא נמצא" }); return; }
 
+  const monthlyLimit = broadcastLimitFor(biz.subscriptionPlan);
   const currentMonth = new Date().toISOString().slice(0, 7); // "YYYY-MM"
   const sentThisMonth = biz.broadcastMonthKey === currentMonth ? (biz.broadcastSentThisMonth ?? 0) : 0;
 
-  if (sentThisMonth >= BROADCAST_MONTHLY_LIMIT) {
+  if (sentThisMonth >= monthlyLimit) {
     res.status(429).json({
       error: "quota_exceeded",
-      message: `הגעת למגבלת ההודעות החודשית (${BROADCAST_MONTHLY_LIMIT} הודעות). תוכל לשלוח שוב בחודש הבא.`,
+      message: `הגעת למגבלת ההודעות החודשית (${monthlyLimit} הודעות). תוכל לשלוח שוב בחודש הבא.`,
       sent: sentThisMonth,
-      limit: BROADCAST_MONTHLY_LIMIT,
+      limit: monthlyLimit,
     });
     return;
   }
@@ -1316,24 +1332,20 @@ router.post("/business/broadcast", requireBusinessAuth, async (req, res): Promis
     phones = [...new Set(rows.map(r => r.phoneNumber).filter(Boolean))];
   }
 
-  // Block ONLY phones that explicitly opted out in broadcast_subscribers:
-  //   · 'unsubscribed' → skip (owner manually removed OR replied 'הסר'
-  //                              OR clicked the Inforu opt-out link)
-  //   · 'active' / missing → send (customer relationship = legal basis
-  //                                 under תיקון 40 for transactional /
-  //                                 relationship marketing)
-  //
-  // Normalisation handles 050 / 972 / +972 variants — the subscriber
-  // table stores whatever form the booking endpoint originally saved.
+  // Block ONLY phones that explicitly opted out — audit lives in
+  // broadcast_unsubscribes (rows survive even after the subscriber row is
+  // hard-deleted). A phone that's missing from both tables is treated as
+  // implicitly allowed under the existing customer-relationship basis of
+  // תיקון 40. Normalisation handles 050 / 972 / +972 variants.
   if (phones.length > 0) {
     const normalize = (p: string) => p.replace(/\D/g, "").replace(/^972/, "0");
     const normalizedInputs = phones.map(normalize);
-    const subRows = await db.execute(sql`
-      SELECT phone_number FROM broadcast_subscribers
-      WHERE business_id = ${businessId} AND status = 'unsubscribed'
+    const unsubRows = await db.execute(sql`
+      SELECT phone_number FROM broadcast_unsubscribes
+      WHERE business_id = ${businessId}
     `);
     const unsubSet = new Set<string>();
-    for (const r of (subRows as any).rows ?? []) {
+    for (const r of (unsubRows as any).rows ?? []) {
       const norm = normalize(String(r.phone_number ?? ""));
       if (norm) unsubSet.add(norm);
     }
@@ -1341,7 +1353,7 @@ router.post("/business/broadcast", requireBusinessAuth, async (req, res): Promis
   }
 
   // Cap at remaining quota
-  const remaining = BROADCAST_MONTHLY_LIMIT - sentThisMonth;
+  const remaining = monthlyLimit - sentThisMonth;
   const batch = phones.slice(0, remaining);
 
   let successCount = 0;
@@ -1424,14 +1436,18 @@ router.post("/business/broadcast", requireBusinessAuth, async (req, res): Promis
     sent: successCount,
     failed: failCount,
     total: batch.length,
-    remainingThisMonth: BROADCAST_MONTHLY_LIMIT - sentThisMonth - successCount,
+    remainingThisMonth: monthlyLimit - sentThisMonth - successCount,
   });
 });
 
 router.get("/business/broadcast/quota", requireBusinessAuth, async (req, res): Promise<void> => {
   const businessId = req.business!.businessId;
   const [biz] = await db
-    .select({ broadcastSentThisMonth: businessesTable.broadcastSentThisMonth, broadcastMonthKey: businessesTable.broadcastMonthKey })
+    .select({
+      broadcastSentThisMonth: businessesTable.broadcastSentThisMonth,
+      broadcastMonthKey:      businessesTable.broadcastMonthKey,
+      subscriptionPlan:       businessesTable.subscriptionPlan,
+    })
     .from(businessesTable)
     .where(eq(businessesTable.id, businessId));
 
@@ -1439,7 +1455,8 @@ router.get("/business/broadcast/quota", requireBusinessAuth, async (req, res): P
 
   const currentMonth = new Date().toISOString().slice(0, 7);
   const sent = biz.broadcastMonthKey === currentMonth ? (biz.broadcastSentThisMonth ?? 0) : 0;
-  res.json({ sent, limit: BROADCAST_MONTHLY_LIMIT, remaining: BROADCAST_MONTHLY_LIMIT - sent });
+  const limit = broadcastLimitFor(biz.subscriptionPlan);
+  res.json({ sent, limit, remaining: limit - sent });
 });
 
 router.get("/business/waitlist", requireBusinessAuth, async (req, res): Promise<void> => {
@@ -1895,12 +1912,18 @@ router.delete("/business/broadcast-subscribers/:phone", requireBusinessAuth, asy
   const raw = Array.isArray(req.params.phone) ? req.params.phone[0] : req.params.phone;
   const phone = decodeURIComponent(String(raw ?? "")).trim();
   if (!phone) { res.status(400).json({ error: "מספר טלפון נדרש" }); return; }
-  // Soft remove — flip to 'unsubscribed' so the row stays in the table
-  // (history for the owner to re-activate later). Hard delete would
-  // lose the "why were they removed" context.
+  // Hard remove from broadcast_subscribers so the owner's UI stops
+  // showing the row altogether. We still want an audit trail for תיקון 40
+  // compliance, so we record the opt-out in broadcast_unsubscribes before
+  // deleting — that table is checked by the send filters alongside the
+  // subscriber status column.
+  await db.execute(sql`
+    INSERT INTO broadcast_unsubscribes (business_id, phone_number, source)
+    VALUES (${businessId}, ${phone}, 'manual_remove')
+    ON CONFLICT (business_id, phone_number) DO NOTHING
+  `);
   const result = await db.execute(sql`
-    UPDATE broadcast_subscribers
-    SET status = 'unsubscribed', source = 'manual_remove', updated_at = NOW()
+    DELETE FROM broadcast_subscribers
     WHERE business_id = ${businessId} AND phone_number = ${phone}
   `);
   if ((result as any).rowCount === 0) {

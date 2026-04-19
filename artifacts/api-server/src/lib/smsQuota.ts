@@ -192,7 +192,7 @@ export async function syncQuotaToPlan(
   businessId: number,
   plan: "free" | "pro" | "pro-plus" | "basic",
 ): Promise<void> {
-  const monthly = plan === "pro-plus" ? 500 : plan === "pro" ? 100 : 0;
+  const monthly = plan === "pro-plus" ? 300 : plan === "pro" ? 100 : 0;
   await db.execute(sql`
     UPDATE businesses
     SET sms_monthly_quota   = ${monthly},

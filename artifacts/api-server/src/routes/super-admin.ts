@@ -102,10 +102,10 @@ router.post("/super-admin/businesses", async (req, res): Promise<void> => {
   const passwordHash = await bcrypt.hash(password, 10);
 
   // Paid tiers share the "unlimited" caps; only Free gets hard limits.
-  // עסקי (pro-plus) additionally gets a 500/month bulk-SMS quota; Pro
+  // עסקי (pro-plus) additionally gets a 300/month bulk-SMS quota; Pro
   // gets 100. Free has 0 and the bulk-SMS routes refuse to send anyway.
   const isPaid = plan !== "free";
-  const smsMonthlyQuota = plan === "pro-plus" ? 500 : plan === "pro" ? 100 : 0;
+  const smsMonthlyQuota = plan === "pro-plus" ? 300 : plan === "pro" ? 100 : 0;
 
   const [business] = await db
     .insert(businessesTable)
@@ -168,7 +168,7 @@ router.patch("/super-admin/businesses/:id", async (req, res): Promise<void> => {
     // reset. Downgrades keep the overage usable for the rest of the
     // cycle (standard: don't claw back mid-period).
     if (bodyParsed.data.subscriptionPlan === "pro-plus") {
-      (updates as any).smsMonthlyQuota = 500;
+      (updates as any).smsMonthlyQuota = 300;
     } else if (bodyParsed.data.subscriptionPlan === "pro") {
       (updates as any).smsMonthlyQuota = 100;
     } else if (bodyParsed.data.subscriptionPlan === "free") {

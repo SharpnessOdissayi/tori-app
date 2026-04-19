@@ -256,7 +256,7 @@ router.post("/tranzila/notify", async (req, res): Promise<void> => {
           .from(businessesTable)
           .where(eq(businessesTable.id, businessId));
         const isFirstPayment = !bizBefore?.hadToken;
-        const paidQuota = bizBefore?.plan === "pro-plus" ? 500 : 100;
+        const paidQuota = bizBefore?.plan === "pro-plus" ? 300 : 100;
 
         await db
           .update(businessesTable)

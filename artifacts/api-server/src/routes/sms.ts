@@ -153,19 +153,18 @@ router.post("/sms/send-bulk", async (req, res): Promise<void> => {
 
   // Block ONLY recipients who explicitly unsubscribed (replied 'הסר',
   // clicked Inforu's opt-out link, or were removed manually by the owner).
-  // Missing rows are treated as implicitly allowed — the existing customer
-  // relationship provides legal basis under Israeli spam law (תיקון 40)
-  // for transactional / relationship marketing. Previously we required
-  // an explicit 'active' row and silently dropped everyone else, which
-  // meant sends to customers who booked before the subscriber table
-  // existed came back "sent to 0" even though the UI said "sending to N".
+  // The opt-out audit lives in broadcast_unsubscribes (rows persist even
+  // after we hard-delete the subscriber row, so recent opt-outs still
+  // block sends). Missing rows → implicitly allowed — existing customer
+  // relationship provides legal basis under תיקון 40 for relationship
+  // marketing.
   const normalizeForSub = (p: string) => p.replace(/\D/g, "").replace(/^972/, "0");
-  const subRows = await db.execute(sql`
-    SELECT phone_number, status FROM broadcast_subscribers
-    WHERE business_id = ${businessId} AND status = 'unsubscribed'
+  const unsubRows = await db.execute(sql`
+    SELECT phone_number FROM broadcast_unsubscribes
+    WHERE business_id = ${businessId}
   `);
   const unsubSet = new Set<string>();
-  for (const r of ((subRows as any).rows ?? [])) {
+  for (const r of ((unsubRows as any).rows ?? [])) {
     const norm = normalizeForSub(String((r as any).phone_number ?? ""));
     if (norm) unsubSet.add(norm);
   }
@@ -325,10 +324,13 @@ router.post("/sms/send-bulk", async (req, res): Promise<void> => {
       const normPhone = normalizeForSync(r.phone);
       if (!normPhone) continue;
       await db.execute(sql`
-        INSERT INTO broadcast_subscribers (business_id, phone_number, status, source)
-        VALUES (${businessId}, ${normPhone}, 'unsubscribed', 'inforu_self_link')
-        ON CONFLICT (business_id, phone_number)
-        DO UPDATE SET status = 'unsubscribed', source = 'inforu_self_link', updated_at = NOW()
+        INSERT INTO broadcast_unsubscribes (business_id, phone_number, source)
+        VALUES (${businessId}, ${normPhone}, 'inforu_self_link')
+        ON CONFLICT (business_id, phone_number) DO NOTHING
+      `);
+      await db.execute(sql`
+        DELETE FROM broadcast_subscribers
+        WHERE business_id = ${businessId} AND phone_number = ${normPhone}
       `);
       logger.info({ businessId, phone: normPhone }, "[send-bulk] synced Inforu-side opt-out to local list");
     }
@@ -684,20 +686,18 @@ router.post("/sms/inforu-webhook/reply", async (req, res): Promise<void> => {
     // Normalise to Israeli local form to match what we store elsewhere.
     const normalizedPhone = rawPhone.replace(/\D/g, "").replace(/^972/, "0");
 
-    // Flip the subscriber row to 'unsubscribed' — this is the new source
-    // of truth for marketing permission. Legacy broadcast_unsubscribes
-    // table is also updated below for historical compatibility; once
-    // all callers have migrated we can drop it.
-    await db.execute(sql`
-      INSERT INTO broadcast_subscribers (business_id, phone_number, status, source)
-      VALUES (${businessId}, ${normalizedPhone}, 'unsubscribed', 'reply')
-      ON CONFLICT (business_id, phone_number)
-      DO UPDATE SET status = 'unsubscribed', source = 'reply', updated_at = NOW()
-    `);
+    // Audit the opt-out in broadcast_unsubscribes first (checked by send
+    // filters), then hard-delete the subscriber row so the owner's UI
+    // stops showing the number. Per owner's request: "תסיר את מי שעשה
+    // unsubscribe מהרשימת תפוצה שלנו".
     await db.execute(sql`
       INSERT INTO broadcast_unsubscribes (business_id, phone_number, source)
       VALUES (${businessId}, ${normalizedPhone}, 'reply')
       ON CONFLICT (business_id, phone_number) DO NOTHING
+    `);
+    await db.execute(sql`
+      DELETE FROM broadcast_subscribers
+      WHERE business_id = ${businessId} AND phone_number = ${normalizedPhone}
     `);
     logger.info({ businessId, phone: normalizedPhone }, "[inforu-reply] opt-out recorded");
 

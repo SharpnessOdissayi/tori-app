@@ -689,17 +689,26 @@ router.post("/public/:businessSlug/appointments", async (req, res): Promise<void
 
   if (business.requirePhoneVerification) consumeVerification(phoneNumber);
 
-  // Auto-subscribe this phone to the business's broadcast list. First-
-  // time customers land with status='active' so the owner can reach
-  // them with future campaigns. Returning customers whose row already
-  // says 'unsubscribed' stay unsubscribed (ON CONFLICT DO NOTHING)
-  // — booking again doesn't re-opt them back in behind their back.
+  // Auto-subscribe this phone to the business's broadcast list — unless
+  // they previously opted out (recorded in broadcast_unsubscribes). The
+  // opt-out audit row persists forever, so even after hard-delete of the
+  // subscriber row, a returning customer who once replied 'הסר' won't
+  // be re-added behind their back.
   try {
-    await db.execute(sql`
-      INSERT INTO broadcast_subscribers (business_id, phone_number, status, source)
-      VALUES (${business.id}, ${phoneNumber}, 'active', 'booking')
-      ON CONFLICT (business_id, phone_number) DO NOTHING
+    const normalized = String(phoneNumber).replace(/\D/g, "").replace(/^972/, "0");
+    const optedOut = await db.execute(sql`
+      SELECT 1 FROM broadcast_unsubscribes
+      WHERE business_id = ${business.id} AND phone_number = ${normalized}
+      LIMIT 1
     `);
+    const hasOptOut = ((optedOut as any).rows ?? []).length > 0;
+    if (!hasOptOut) {
+      await db.execute(sql`
+        INSERT INTO broadcast_subscribers (business_id, phone_number, status, source)
+        VALUES (${business.id}, ${phoneNumber}, 'active', 'booking')
+        ON CONFLICT (business_id, phone_number) DO NOTHING
+      `);
+    }
   } catch (e) {
     // Never let a subscriber-list write break booking confirmation.
     console.warn("[broadcast_subscribers] auto-add failed:", (e as any)?.message ?? e);

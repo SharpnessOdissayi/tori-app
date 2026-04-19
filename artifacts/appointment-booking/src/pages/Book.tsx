@@ -1056,6 +1056,17 @@ export default function Book({ slugOverride }: { slugOverride?: string } = {}) {
     document.head.appendChild(s);
   }, []);
 
+  // Android Chrome WebOTP autofill for the public-booking phone verification.
+  // MUST be called before any early returns — if placed after, the loading
+  // path renders zero hooks here and the post-load render adds one, which
+  // crashes React with error #310 ("rendered more hooks than before").
+  // `requirePhoneVerification` + `otpSent` come from state/derived state
+  // above, so the gate is just on whether we're actively awaiting an SMS.
+  useWebOtp(requirePhoneVerification && otpSent && !phoneVerified, (smsCode) => {
+    setOtpCode(smsCode);
+    void handleVerifyOtp(smsCode);
+  });
+
   if (businessLoading) return (
     <div className="min-h-screen flex items-center justify-center" style={{ background: "#ffffff" }}>
       <div className="text-center space-y-3">
@@ -1351,14 +1362,6 @@ export default function Book({ slugOverride }: { slugOverride?: string } = {}) {
       setOtpLoading(false);
     }
   };
-
-  // Android Chrome WebOTP autofill for the public-booking phone verification.
-  // Only live once the code was requested and hasn't been verified yet, so
-  // we don't eat an unrelated SMS that may land on the page.
-  useWebOtp(requirePhoneVerification && otpSent && !phoneVerified, (smsCode) => {
-    setOtpCode(smsCode);
-    void handleVerifyOtp(smsCode);
-  });
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();

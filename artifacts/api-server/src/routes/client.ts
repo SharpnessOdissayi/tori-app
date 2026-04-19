@@ -58,14 +58,19 @@ async function requireClientAuth(req: Request, res: Response, next: NextFunction
 }
 
 // Find the most recent prior session belonging to the same client so we can
-// carry their phone number + preferences forward when they log in via a new
-// auth method. Matches on whichever identifier we have (googleId, facebookId,
-// or email). The caller should pass only truthy identifiers.
-async function findPriorSession(ids: { googleId?: string; facebookId?: string; email?: string }): Promise<typeof clientSessionsTable.$inferSelect | undefined> {
+// carry their name + preferences forward when they log in via a new
+// device / channel. Matches on whichever identifier we have (googleId,
+// facebookId, email, or phoneNumber). The caller should pass only truthy
+// identifiers. Previously this function silently ignored `phoneNumber`,
+// which meant every SMS re-login landed with an empty profile and the
+// welcome modal reopened — even though the client had a saved name from
+// a previous session on another device.
+async function findPriorSession(ids: { googleId?: string; facebookId?: string; email?: string; phoneNumber?: string }): Promise<typeof clientSessionsTable.$inferSelect | undefined> {
   const conds = [] as any[];
-  if (ids.googleId)   conds.push(eq(clientSessionsTable.googleId,   ids.googleId));
-  if (ids.facebookId) conds.push(eq(clientSessionsTable.facebookId, ids.facebookId));
-  if (ids.email)      conds.push(eq(clientSessionsTable.email,      ids.email));
+  if (ids.googleId)    conds.push(eq(clientSessionsTable.googleId,    ids.googleId));
+  if (ids.facebookId)  conds.push(eq(clientSessionsTable.facebookId,  ids.facebookId));
+  if (ids.email)       conds.push(eq(clientSessionsTable.email,       ids.email));
+  if (ids.phoneNumber) conds.push(eq(clientSessionsTable.phoneNumber, ids.phoneNumber));
   if (conds.length === 0) return undefined;
   const [row] = await db
     .select()
