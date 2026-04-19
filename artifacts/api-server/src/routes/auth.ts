@@ -22,10 +22,17 @@ function parseBusinessRegisterBody(raw: any) {
     businessCategories, address, websiteUrl, instagramHandle,
   } = raw;
   const isString = (v: unknown) => typeof v === "string";
+  // Email is now optional — the register form dropped the email field in
+  // favour of SMS phone-verification. Everything downstream that needs to
+  // know an email address (welcome email, Kavati receipts) falls back to
+  // a placeholder generated from the slug when the caller omits it.
   if (
     !isString(name) || !isString(slug) || !isString(ownerName) || !isString(phone) ||
-    !isString(email) || !isString(password) || !["free", "pro", "pro-plus"].includes(subscriptionPlan)
+    !isString(password) || !["free", "pro", "pro-plus"].includes(subscriptionPlan)
   ) {
+    return { success: false as const };
+  }
+  if (email !== undefined && email !== null && email !== "" && !isString(email)) {
     return { success: false as const };
   }
   if (username !== undefined && !isString(username)) return { success: false as const };
@@ -35,10 +42,14 @@ function parseBusinessRegisterBody(raw: any) {
   if (businessCategories !== undefined && (!Array.isArray(businessCategories) || businessCategories.some((c) => !isString(c)))) {
     return { success: false as const };
   }
+  // Normalise email to undefined when blank so we don't collide with existing
+  // unique() DB constraint on empty strings.
+  const cleanEmail = typeof email === "string" && email.trim() ? email.trim().toLowerCase() : undefined;
   return {
     success: true as const,
     data: {
-      name, slug, username, ownerName, phone, email, password, subscriptionPlan,
+      name, slug, username, ownerName, phone, password, subscriptionPlan,
+      email: cleanEmail,
       businessCategories, address, websiteUrl, instagramHandle,
     },
   };
@@ -251,11 +262,13 @@ router.post("/auth/business/register", async (req, res): Promise<void> => {
     return;
   }
 
-  // Check uniqueness
-  const [existingEmail] = await db.select({ id: businessesTable.id }).from(businessesTable).where(eq(businessesTable.email, email));
-  if (existingEmail) {
-    res.status(409).json({ error: "email_taken", message: "כתובת האימייל כבר רשומה במערכת" });
-    return;
+  // Check uniqueness. Email is optional now — only check if provided.
+  if (email) {
+    const [existingEmail] = await db.select({ id: businessesTable.id }).from(businessesTable).where(eq(businessesTable.email, email));
+    if (existingEmail) {
+      res.status(409).json({ error: "email_taken", message: "כתובת האימייל כבר רשומה במערכת" });
+      return;
+    }
   }
 
   const [existingPhone] = await db.select({ id: businessesTable.id }).from(businessesTable).where(eq(businessesTable.phone, phone));
@@ -290,6 +303,11 @@ router.post("/auth/business/register", async (req, res): Promise<void> => {
   const trialEndsAt = new Date();
   trialEndsAt.setDate(trialEndsAt.getDate() + 14);
 
+  // When no email was supplied, synthesise a unique placeholder from the
+  // slug so the businesses.email NOT NULL + UNIQUE constraint still
+  // passes. Owners can attach a real email later from Settings → Profile.
+  const emailForInsert = email ?? `${slug}@noemail.kavati.net`;
+
   const [business] = await db
     .insert(businessesTable)
     .values({
@@ -297,7 +315,7 @@ router.post("/auth/business/register", async (req, res): Promise<void> => {
       name,
       ownerName,
       phone,
-      email,
+      email: emailForInsert,
       passwordHash,
       // Record the tier the owner actually picked so the Tranzila notify
       // webhook (when trial → paid) knows whether to bump SMS quota to

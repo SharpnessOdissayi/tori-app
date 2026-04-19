@@ -498,7 +498,9 @@ function StepDetails({
           username: form.username.trim() || undefined,
           ownerName: form.ownerName,
           phone: form.phone,
-          email: form.email,
+          // email intentionally omitted — the register form no longer
+          // collects one. Backend generates a placeholder from the slug
+          // to satisfy the NOT NULL constraint on businesses.email.
           password: form.password,
           // Backend accepts all three tiers now (auth.ts allow-list +
           // businesses.subscriptionPlan column). The Tranzila notify
@@ -666,38 +668,22 @@ function StepDetails({
           <Input required value={form.ownerName} onChange={set("ownerName")} />
         </div>
 
-        {/* Phone */}
+        {/* Phone + SMS verification */}
         <div className="space-y-2">
           <Label className="flex items-center gap-1.5">
             <Phone className="w-4 h-4 text-muted-foreground" /> מספר טלפון
-          </Label>
-          <Input
-            required
-            type="tel"
-            dir="ltr"
-            placeholder=""
-            value={form.phone}
-            onChange={set("phone")}
-          />
-          <p className="text-xs text-muted-foreground">ישמש גם להתחברות לחשבון</p>
-        </div>
-
-        {/* Email + verification */}
-        <div className="space-y-2">
-          <Label className="flex items-center gap-1.5">
-            <Mail className="w-4 h-4 text-muted-foreground" /> אימייל
             {emailIsVerified && <span className="text-green-600 text-xs font-medium">✓ מאומת</span>}
           </Label>
           <div className="flex gap-2">
             <Input
               required
-              type="email"
+              type="tel"
               dir="ltr"
-              placeholder="you@example.com"
-              value={form.email}
+              placeholder=""
+              value={form.phone}
               onChange={e => {
-                set("email")(e);
-                // Changing the email resets verification — must re-verify new address
+                set("phone")(e);
+                // Changing the phone resets verification — must re-verify
                 if (codeSent || verifiedEmail) { setCodeSent(false); setVerifiedEmail(""); setVerificationCode(""); }
               }}
               className="flex-1"
@@ -712,10 +698,11 @@ function StepDetails({
               {emailIsVerified ? "מאומת ✓" : sendingCode ? "שולח..." : codeSent ? "שלח שוב" : "שלח קוד"}
             </Button>
           </div>
+          <p className="text-xs text-muted-foreground">ישמש להתחברות לחשבון — תקבלו קוד אימות ב-SMS</p>
 
           {codeSent && !emailIsVerified && (
             <div className="pt-2">
-              <Label className="text-sm text-muted-foreground">קוד אימות מהמייל</Label>
+              <Label className="text-sm text-muted-foreground">קוד אימות מה-SMS</Label>
               <div className="flex gap-2 mt-1">
                 <Input
                   dir="ltr"
@@ -736,7 +723,7 @@ function StepDetails({
                 </Button>
               </div>
               <p className="text-xs text-muted-foreground mt-1">
-                קוד בן 6 ספרות נשלח ל-{form.email}. תקף ל-15 דקות.
+                קוד בן 6 ספרות נשלח ב-SMS ל-{form.phone}. תקף ל-5 דקות.
               </p>
             </div>
           )}
