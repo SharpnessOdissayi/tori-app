@@ -2,6 +2,7 @@
 import { useLocation, useSearch } from "wouter";
 import { Home, CalendarDays, Plus, LogOut, Trash2, Edit2, X, ChevronLeft, Settings, Search, MapPin, Tag, Bell, Sun, Moon } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { useWebOtp } from "@/lib/useWebOtp";
 
 const API = import.meta.env.VITE_API_BASE_URL ?? "/api";
 const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID ?? "";
@@ -182,14 +183,15 @@ function LoginScreen({ onLogin }: { onLogin: (token: string, name: string) => vo
     finally { setLoading(false); }
   };
 
-  const verifyOtp = async () => {
-    if (!code.trim()) return;
+  const verifyOtp = async (codeOverride?: string) => {
+    const codeToUse = (codeOverride ?? code).trim();
+    if (!codeToUse) return;
     setLoading(true);
     try {
       const url  = authMethod === "sms" ? `${API}/client/verify-otp` : `${API}/client/verify-email-otp`;
       const body = authMethod === "sms"
-        ? { phone: phone.trim(), code: code.trim() }
-        : { email: email.trim().toLowerCase(), code: code.trim() };
+        ? { phone: phone.trim(), code: codeToUse }
+        : { email: email.trim().toLowerCase(), code: codeToUse };
       const res = await fetch(url, {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
@@ -202,6 +204,14 @@ function LoginScreen({ onLogin }: { onLogin: (token: string, name: string) => vo
     } catch (e: any) { toast({ title: e?.message ?? "קוד שגוי", variant: "destructive" }); }
     finally { setLoading(false); }
   };
+
+  // Android Chrome WebOTP autofill — only live when the SMS channel is on
+  // and we're on the OTP step. iOS Safari handles this automatically via
+  // QuickType (autocomplete="one-time-code") without JS.
+  useWebOtp(step === "otp" && authMethod === "sms", (smsCode) => {
+    setCode(smsCode);
+    void verifyOtp(smsCode);
+  });
 
   // Load Facebook SDK
   useEffect(() => {
@@ -290,7 +300,13 @@ function LoginScreen({ onLogin }: { onLogin: (token: string, name: string) => vo
         </div>
 
         {step === "phone" ? (
-          <div className="space-y-4">
+          // <form> wrapping makes Chrome/Safari/1Password/iCloud Keychain
+              // recognise this as a login form and offer saved contacts.
+          <form
+            className="space-y-4"
+            onSubmit={e => { e.preventDefault(); void sendOtp(); }}
+            noValidate
+          >
             {/* Auth method toggle — SMS by default, email as alternative.
                 Owner asked for clear visual separation; the active option
                 gets the brand-blue background, the other one stays neutral. */}
@@ -313,28 +329,35 @@ function LoginScreen({ onLogin }: { onLogin: (token: string, name: string) => vo
 
             {authMethod === "sms" ? (
               <div className="space-y-2">
-                <label className="text-sm font-medium text-gray-700">מספר טלפון</label>
+                <label htmlFor="kavati-client-phone" className="text-sm font-medium text-gray-700">מספר טלפון</label>
                 <input
+                  id="kavati-client-phone"
+                  name="kavati-client-phone"
                   type="tel" dir="ltr" value={phone}
                   onChange={e => setPhone(e.target.value)}
-                  onKeyDown={e => e.key === "Enter" && sendOtp()}
+                  inputMode="tel"
+                  autoComplete="tel"
+                  required
                   placeholder=""
                   className="w-full rounded-xl border border-gray-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 text-gray-900 dark:text-gray-100 px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 text-center"
                 />
               </div>
             ) : (
               <div className="space-y-2">
-                <label className="text-sm font-medium text-gray-700">אימייל</label>
+                <label htmlFor="kavati-client-email" className="text-sm font-medium text-gray-700">אימייל</label>
                 <input
+                  id="kavati-client-email"
+                  name="kavati-client-email"
                   type="email" dir="ltr" value={email}
                   onChange={e => setEmail(e.target.value)}
-                  onKeyDown={e => e.key === "Enter" && sendOtp()}
+                  autoComplete="email"
+                  required
                   placeholder="name@example.com"
                   className="w-full rounded-xl border border-gray-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 text-gray-900 dark:text-gray-100 px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 text-center"
                 />
               </div>
             )}
-            <button onClick={sendOtp} disabled={loading}
+            <button type="submit" disabled={loading}
               className="w-full py-3 rounded-xl bg-blue-500 text-white font-semibold text-sm hover:bg-blue-600 disabled:opacity-50 transition-all">
               {loading ? "שולח..." : "המשך"}
             </button>
@@ -360,23 +383,30 @@ function LoginScreen({ onLogin }: { onLogin: (token: string, name: string) => vo
                 המשך ללא התחברות
               </a>
             </div>
-          </div>
+          </form>
         ) : (
-          <div className="space-y-4">
+          <form
+            className="space-y-4"
+            onSubmit={e => { e.preventDefault(); void verifyOtp(); }}
+            noValidate
+          >
             <div className="p-3 bg-blue-50 rounded-xl text-center text-sm text-blue-600">
               {authMethod === "sms"
                 ? <>קוד נשלח ב-SMS לטלפון <span dir="ltr">{phone}</span></>
                 : <>קוד נשלח למייל <span dir="ltr">{email}</span></>}
             </div>
             <div className="space-y-2">
-              <label className="text-sm font-medium text-gray-700">קוד אימות</label>
+              <label htmlFor="kavati-client-otp" className="text-sm font-medium text-gray-700">קוד אימות</label>
               <input
+                id="kavati-client-otp"
+                name="kavati-client-otp"
                 type="text" dir="ltr" inputMode="numeric" maxLength={6} value={code}
                 onChange={e => setCode(e.target.value.replace(/\D/g, ""))}
-                onKeyDown={e => e.key === "Enter" && verifyOtp()}
+                autoComplete="one-time-code"
                 placeholder="123456"
                 className="w-full rounded-xl border border-gray-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 text-gray-900 dark:text-gray-100 px-4 py-3 text-xl font-mono text-center tracking-widest focus:outline-none focus:ring-2 focus:ring-blue-500"
                 autoFocus
+                required
               />
               {authMethod === "email" && (
                 <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 mt-1">
@@ -384,15 +414,15 @@ function LoginScreen({ onLogin }: { onLogin: (token: string, name: string) => vo
                 </p>
               )}
             </div>
-            <button onClick={verifyOtp} disabled={loading}
+            <button type="submit" disabled={loading}
               className="w-full py-3 rounded-xl bg-blue-500 text-white font-semibold text-sm hover:bg-blue-600 disabled:opacity-50 transition-all">
               {loading ? "מאמת..." : "כניסה"}
             </button>
-            <button onClick={() => { setStep("phone"); setCode(""); }}
+            <button type="button" onClick={() => { setStep("phone"); setCode(""); }}
               className="w-full text-sm text-gray-500 hover:text-gray-700 underline">
               חזור
             </button>
-          </div>
+          </form>
         )}
 
         <div className="relative flex items-center">

@@ -13,6 +13,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { DayPicker, type DayButtonProps } from "react-day-picker";
+import { useWebOtp } from "@/lib/useWebOtp";
 
 // ── Jewish holidays ───────────────────────────────────────────────────────────
 const JEWISH_HOLIDAYS: Record<string, string> = {
@@ -1173,9 +1174,14 @@ export default function Book({ slugOverride }: { slugOverride?: string } = {}) {
             {portalLoginStep === "phone" ? (
               <div className="space-y-3">
                 <div>
-                  <Label className="text-sm mb-1.5 block">מספר טלפון</Label>
+                  <Label htmlFor="kavati-gate-phone" className="text-sm mb-1.5 block">מספר טלפון</Label>
                   <Input
-                    type="tel" dir="ltr" placeholder=""
+                    id="kavati-gate-phone"
+                    name="kavati-gate-phone"
+                    type="tel"
+                    inputMode="tel"
+                    autoComplete="tel"
+                    dir="ltr" placeholder=""
                     value={portalPhone}
                     onChange={e => setPortalPhone(e.target.value)}
                     onKeyDown={e => e.key === "Enter" && handlePortalSendOtp()}
@@ -1183,9 +1189,13 @@ export default function Book({ slugOverride }: { slugOverride?: string } = {}) {
                   />
                 </div>
                 <div>
-                  <Label className="text-sm mb-1.5 block">אימייל</Label>
+                  <Label htmlFor="kavati-gate-email" className="text-sm mb-1.5 block">אימייל</Label>
                   <Input
-                    type="email" dir="ltr" placeholder="name@example.com"
+                    id="kavati-gate-email"
+                    name="kavati-gate-email"
+                    type="email"
+                    autoComplete="email"
+                    dir="ltr" placeholder="name@example.com"
                     value={portalEmail}
                     onChange={e => setPortalEmail(e.target.value)}
                     onKeyDown={e => e.key === "Enter" && handlePortalSendOtp()}
@@ -1224,11 +1234,15 @@ export default function Book({ slugOverride }: { slugOverride?: string } = {}) {
             ) : (
               <div className="space-y-3">
                 <div>
-                  <Label className="text-sm mb-1.5 block">קוד אימות</Label>
+                  <Label htmlFor="kavati-gate-otp" className="text-sm mb-1.5 block">קוד אימות</Label>
                   <Input
+                    id="kavati-gate-otp"
+                    name="kavati-gate-otp"
                     dir="ltr" placeholder="123456" maxLength={6}
+                    inputMode="numeric"
+                    autoComplete="one-time-code"
                     value={portalOtpCode}
-                    onChange={e => setPortalOtpCode(e.target.value)}
+                    onChange={e => setPortalOtpCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
                     onKeyDown={e => e.key === "Enter" && handlePortalVerifyOtp(rememberMe)}
                     className="h-11 text-center tracking-[0.4em] font-bold text-xl"
                   />
@@ -1311,14 +1325,15 @@ export default function Book({ slugOverride }: { slugOverride?: string } = {}) {
     }
   };
 
-  const handleVerifyOtp = async () => {
-    if (!otpCode) return;
+  const handleVerifyOtp = async (codeOverride?: string) => {
+    const codeToUse = (codeOverride ?? otpCode).trim();
+    if (!codeToUse) return;
     setOtpLoading(true);
     try {
       const res = await fetch(`${API_BASE}/public/${businessSlug}/otp/verify`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ phone: clientData.phone, code: otpCode }),
+        body: JSON.stringify({ phone: clientData.phone, code: codeToUse }),
       });
       const verifyData = await res.json().catch(() => ({}));
       if (!res.ok) {
@@ -1336,6 +1351,14 @@ export default function Book({ slugOverride }: { slugOverride?: string } = {}) {
       setOtpLoading(false);
     }
   };
+
+  // Android Chrome WebOTP autofill for the public-booking phone verification.
+  // Only live once the code was requested and hasn't been verified yet, so
+  // we don't eat an unrelated SMS that may land on the page.
+  useWebOtp(requirePhoneVerification && otpSent && !phoneVerified, (smsCode) => {
+    setOtpCode(smsCode);
+    void handleVerifyOtp(smsCode);
+  });
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -2489,46 +2512,62 @@ export default function Book({ slugOverride }: { slugOverride?: string } = {}) {
             <DialogDescription>נהל/י את כל התורים שלך במקום אחד</DialogDescription>
           </DialogHeader>
           {portalLoginStep === "phone" ? (
-            <div className="space-y-4 pt-2">
+            <form
+              className="space-y-4 pt-2"
+              onSubmit={e => { e.preventDefault(); void handlePortalSendOtp(); }}
+              noValidate
+            >
               <div className="space-y-2">
-                <Label>מספר טלפון</Label>
+                <Label htmlFor="kavati-portal-phone">מספר טלפון</Label>
                 <Input
+                  id="kavati-portal-phone"
+                  name="kavati-portal-phone"
                   type="tel"
+                  inputMode="tel"
+                  autoComplete="tel"
                   dir="ltr"
                   placeholder=""
                   value={portalPhone}
                   onChange={e => setPortalPhone(e.target.value)}
-                  onKeyDown={e => e.key === "Enter" && handlePortalSendOtp()}
+                  required
                 />
               </div>
-              <Button className="w-full" style={{ backgroundColor: primaryColor }} onClick={handlePortalSendOtp} disabled={portalLoading || !portalPhone.trim()}>
+              <Button type="submit" className="w-full" style={{ backgroundColor: primaryColor }} disabled={portalLoading || !portalPhone.trim()}>
                 {portalLoading ? "שולח..." : "שלח קוד לווצאפ"}
               </Button>
-              <Button variant="ghost" className="w-full text-muted-foreground" onClick={() => setShowPortalLogin(false)}>
+              <Button type="button" variant="ghost" className="w-full text-muted-foreground" onClick={() => setShowPortalLogin(false)}>
                 המשך ללא כניסה
               </Button>
-            </div>
+            </form>
           ) : (
-            <div className="space-y-4 pt-2">
+            <form
+              className="space-y-4 pt-2"
+              onSubmit={e => { e.preventDefault(); void handlePortalVerifyOtp(); }}
+              noValidate
+            >
               <div className="space-y-2">
-                <Label>קוד אימות</Label>
+                <Label htmlFor="kavati-portal-otp">קוד אימות</Label>
                 <Input
+                  id="kavati-portal-otp"
+                  name="kavati-portal-otp"
                   dir="ltr"
                   placeholder="123456"
                   maxLength={6}
+                  inputMode="numeric"
+                  autoComplete="one-time-code"
                   value={portalOtpCode}
-                  onChange={e => setPortalOtpCode(e.target.value)}
-                  onKeyDown={e => e.key === "Enter" && handlePortalVerifyOtp()}
+                  onChange={e => setPortalOtpCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
                   className="text-center tracking-widest font-bold text-lg"
+                  required
                 />
               </div>
-              <Button className="w-full" style={{ backgroundColor: primaryColor }} onClick={handlePortalVerifyOtp} disabled={portalLoading || portalOtpCode.length < 6}>
+              <Button type="submit" className="w-full" style={{ backgroundColor: primaryColor }} disabled={portalLoading || portalOtpCode.length < 6}>
                 {portalLoading ? "מאמת..." : "אמת קוד"}
               </Button>
-              <Button variant="ghost" size="sm" className="w-full text-muted-foreground" onClick={() => { setPortalLoginStep("phone"); setPortalOtpCode(""); }}>
+              <Button type="button" variant="ghost" size="sm" className="w-full text-muted-foreground" onClick={() => { setPortalLoginStep("phone"); setPortalOtpCode(""); }}>
                 חזור לשינוי מספר
               </Button>
-            </div>
+            </form>
           )}
         </DialogContent>
       </Dialog>
@@ -2743,12 +2782,15 @@ export default function Book({ slugOverride }: { slugOverride?: string } = {}) {
                       <Input required value={clientData.name} onChange={e => setClientData(p => ({ ...p, name: e.target.value }))} className="h-12 text-base" />
                     </div>
                     <div className="space-y-2">
-                      <Label>מספר טלפון *</Label>
+                      <Label htmlFor="kavati-booking-phone">מספר טלפון *</Label>
                       <div className="flex gap-2">
                         <Input
+                          id="kavati-booking-phone"
+                          name="kavati-booking-phone"
                           required
                           type="tel"
                           inputMode="tel"
+                          autoComplete="tel"
                           pattern="^(\+?972|0)?-?5\d-?\d{3}-?\d{4}$"
                           placeholder="05X-XXX-XXXX"
                           title="מספר טלפון ישראלי (למשל 052-1234567)"
@@ -2779,19 +2821,23 @@ export default function Book({ slugOverride }: { slugOverride?: string } = {}) {
 
                     {requirePhoneVerification && otpSent && !phoneVerified && (
                       <div className="space-y-2">
-                        <Label>קוד אימות *</Label>
+                        <Label htmlFor="kavati-booking-otp">קוד אימות *</Label>
                         <div className="flex gap-2">
                           <Input
+                            id="kavati-booking-otp"
+                            name="kavati-booking-otp"
                             value={otpCode}
-                            onChange={e => setOtpCode(e.target.value)}
+                            onChange={e => setOtpCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
                             className="h-12 text-base text-center tracking-widest font-bold flex-1"
                             dir="ltr"
                             placeholder="123456"
                             maxLength={6}
+                            inputMode="numeric"
+                            autoComplete="one-time-code"
                           />
                           <button
                             type="button"
-                            onClick={handleVerifyOtp}
+                            onClick={() => handleVerifyOtp()}
                             disabled={otpLoading || otpCode.length < 6}
                             className="h-12 px-4 rounded-lg text-sm font-medium text-white transition-all disabled:opacity-50"
                             style={{ backgroundColor: primaryColor }}

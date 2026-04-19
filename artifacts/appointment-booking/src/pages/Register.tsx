@@ -7,6 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
+import { useWebOtp } from "@/lib/useWebOtp";
 import {
   Calendar, Crown, Zap, Sparkles, CheckCircle, ArrowRight, ArrowLeft,
   Building2, User, Phone, Mail, Lock, Globe, PartyPopper, Search, X, ChevronDown, MapPin, Instagram,
@@ -415,9 +416,10 @@ function StepDetails({
     }
   };
 
-  const verifyEmailCode = async () => {
+  const verifyEmailCode = async (codeOverride?: string) => {
     const phone = form.phone.trim();
-    if (!verificationCode.trim()) {
+    const codeToUse = (codeOverride ?? verificationCode).trim();
+    if (!codeToUse) {
       toast({ title: "הזן את הקוד שהגיע ב-SMS", variant: "destructive" });
       return;
     }
@@ -426,7 +428,7 @@ function StepDetails({
       const res = await fetch(`${API_BASE}/auth/phone/verify`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ phone, code: verificationCode.trim() }),
+        body: JSON.stringify({ phone, code: codeToUse }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "verify_failed");
@@ -438,6 +440,14 @@ function StepDetails({
       setVerifyingCode(false);
     }
   };
+
+  // Android Chrome WebOTP autofill — fires only while the code panel is
+  // visible (code requested, phone not yet verified) so we don't eat an
+  // unrelated SMS or auto-submit while the user is still typing their phone.
+  useWebOtp(codeSent && !emailIsVerified, (smsCode) => {
+    setVerificationCode(smsCode);
+    void verifyEmailCode(smsCode);
+  });
 
   // Case-insensitive match so "מספר" matches "מספרה" regardless of casing
   // differences. For Hebrew this rarely matters, but toLowerCase also
@@ -676,8 +686,12 @@ function StepDetails({
           </Label>
           <div className="flex gap-2">
             <Input
+              id="kavati-register-phone"
+              name="kavati-register-phone"
               required
               type="tel"
+              inputMode="tel"
+              autoComplete="tel"
               dir="ltr"
               placeholder=""
               value={form.phone}
@@ -702,11 +716,14 @@ function StepDetails({
 
           {codeSent && !emailIsVerified && (
             <div className="pt-2">
-              <Label className="text-sm text-muted-foreground">קוד אימות מה-SMS</Label>
+              <Label htmlFor="kavati-register-otp" className="text-sm text-muted-foreground">קוד אימות מה-SMS</Label>
               <div className="flex gap-2 mt-1">
                 <Input
+                  id="kavati-register-otp"
+                  name="kavati-register-otp"
                   dir="ltr"
                   inputMode="numeric"
+                  autoComplete="one-time-code"
                   maxLength={6}
                   placeholder="000000"
                   value={verificationCode}
@@ -715,7 +732,7 @@ function StepDetails({
                 />
                 <Button
                   type="button"
-                  onClick={verifyEmailCode}
+                  onClick={() => verifyEmailCode()}
                   disabled={verifyingCode || verificationCode.length !== 6}
                   className="shrink-0"
                 >
