@@ -91,3 +91,22 @@ export function switchToSavedAccount(token: string): void {
   } catch {}
   window.location.reload();
 }
+
+// "הוסף חשבון נוסף" / add-another-account flow. Unlike a full logout,
+// this does NOT remove the current account from the saved list —
+// it just drops the active biz_token so the dashboard renders the
+// login card. The user signs in with different credentials; their
+// new session is saved alongside the previous one, and both appear
+// in the switcher afterwards. Callers should hard-reload after this
+// so the router repaints the login page.
+export function addAnotherAccount(): void {
+  if (typeof window === "undefined") return;
+  try {
+    localStorage.removeItem("biz_token");
+    sessionStorage.removeItem("biz_token");
+    // Clear the staff filter too — see switchToSavedAccount for why.
+    sessionStorage.removeItem("kavati_staff_filter_id");
+    sessionStorage.removeItem("kavati_staff_filter_name");
+  } catch {}
+  window.location.reload();
+}

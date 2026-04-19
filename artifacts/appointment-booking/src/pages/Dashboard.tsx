@@ -72,6 +72,7 @@ import {
   listSavedAccounts,
   removeSavedAccount,
   switchToSavedAccount,
+  addAnotherAccount,
 } from "@/lib/savedAccounts";
 
 const DAYS = ["ראשון", "שני", "שלישי", "רביעי", "חמישי", "שישי", "שבת"];
@@ -1449,62 +1450,83 @@ function AccountSwitcher({ currentToken }: { currentToken: string | null }) {
   // the re-render without routing through react state.
   const [tick, setTick] = useState(0);
   const accounts = useMemo(() => listSavedAccounts(), [tick, currentToken]);
-  if (accounts.length === 0) return null;
 
-  // If the current session isn't saved (shouldn't happen after the
-  // /auth/me effect fires, but guards against the race before it
-  // resolves), hide the switcher too — no sensible "current" to pin.
+  // Filter out the currently-active account — switching to yourself is
+  // a no-op. The section still renders even when this list is empty,
+  // because the "+ הוסף חשבון נוסף" button needs to be reachable so
+  // a returning owner can sign in as a second account (their staff
+  // seat, another business, etc.) without first tapping Logout.
   const otherAccounts = accounts.filter(a => a.token !== currentToken);
-  if (otherAccounts.length === 0) return null;
 
   return (
     <div className="mt-4 pt-4 border-t">
       <div className="text-xs font-semibold text-muted-foreground px-1 mb-2">חשבונות נוספים</div>
-      <div className="space-y-2">
-        {otherAccounts.map((a) => (
-          <div
-            key={a.token}
-            className="flex items-center gap-3 p-3 rounded-2xl border border-border bg-card hover:bg-muted/40 transition-colors"
-          >
-            <button
-              type="button"
-              onClick={() => switchToSavedAccount(a.token)}
-              className="flex items-center gap-3 flex-1 min-w-0 text-right"
+      {otherAccounts.length > 0 && (
+        <div className="space-y-2">
+          {otherAccounts.map((a) => (
+            <div
+              key={a.token}
+              className="flex items-center gap-3 p-3 rounded-2xl border border-border bg-card hover:bg-muted/40 transition-colors"
             >
-              {a.avatarUrl ? (
-                <img src={a.avatarUrl} alt="" className="w-11 h-11 rounded-full object-cover shrink-0" />
-              ) : (
-                <div className="w-11 h-11 rounded-full bg-primary/10 text-primary flex items-center justify-center font-bold shrink-0">
-                  {(a.displayName || a.businessName || "?").slice(0, 1)}
+              <button
+                type="button"
+                onClick={() => switchToSavedAccount(a.token)}
+                className="flex items-center gap-3 flex-1 min-w-0 text-right"
+              >
+                {a.avatarUrl ? (
+                  <img src={a.avatarUrl} alt="" className="w-11 h-11 rounded-full object-cover shrink-0" />
+                ) : (
+                  <div className="w-11 h-11 rounded-full bg-primary/10 text-primary flex items-center justify-center font-bold shrink-0">
+                    {(a.displayName || a.businessName || "?").slice(0, 1)}
+                  </div>
+                )}
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-1.5">
+                    <span className="font-semibold text-sm truncate">{a.displayName || a.businessName}</span>
+                    {a.role === "staff" && (
+                      <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-blue-100 text-blue-700 shrink-0">איש צוות</span>
+                    )}
+                  </div>
+                  <div className="text-xs text-muted-foreground truncate">
+                    {a.role === "staff" ? a.businessName : (a.phone ?? "")}
+                  </div>
                 </div>
-              )}
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-1.5">
-                  <span className="font-semibold text-sm truncate">{a.displayName || a.businessName}</span>
-                  {a.role === "staff" && (
-                    <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-blue-100 text-blue-700 shrink-0">איש צוות</span>
-                  )}
-                </div>
-                <div className="text-xs text-muted-foreground truncate">
-                  {a.role === "staff" ? a.businessName : (a.phone ?? "")}
-                </div>
-              </div>
-            </button>
-            <button
-              type="button"
-              title="הסר חשבון"
-              onClick={(e) => {
-                e.stopPropagation();
-                removeSavedAccount(a.token);
-                setTick(t => t + 1);
-              }}
-              className="w-8 h-8 rounded-lg flex items-center justify-center text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors shrink-0"
-            >
-              <X className="w-4 h-4" />
-            </button>
-          </div>
-        ))}
-      </div>
+              </button>
+              <button
+                type="button"
+                title="הסר חשבון"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  removeSavedAccount(a.token);
+                  setTick(t => t + 1);
+                }}
+                className="w-8 h-8 rounded-lg flex items-center justify-center text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors shrink-0"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+      {/* Always-visible "add another account" CTA. Soft-drops the
+          active biz_token (without touching the saved list) and
+          reloads — the login screen then shows the existing saved
+          accounts plus the normal phone/OTP form for a brand-new
+          login. After the new user signs in, both sessions are
+          saved and available in the switcher. */}
+      <button
+        type="button"
+        onClick={() => addAnotherAccount()}
+        className={`${otherAccounts.length > 0 ? "mt-2" : ""} w-full flex items-center gap-3 p-3 rounded-2xl border-2 border-dashed border-primary/40 bg-primary/5 text-primary text-right hover:bg-primary/10 transition-colors`}
+      >
+        <div className="w-11 h-11 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
+          <Plus className="w-5 h-5" />
+        </div>
+        <div className="flex-1 min-w-0">
+          <div className="font-semibold text-sm">הוסף חשבון נוסף</div>
+          <div className="text-[11px] text-primary/70 mt-0.5">התחברי עם מספר אחר — החשבון הנוכחי יישמר</div>
+        </div>
+      </button>
     </div>
   );
 }
