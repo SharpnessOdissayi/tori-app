@@ -51,6 +51,12 @@ export type TimeOffItem = {
   startTime?: string | null;  // HH:mm when partial
   endTime?: string | null;    // HH:mm when partial
   note?: string | null;
+  // null      = business-wide row (owner-created closure — blocks all staff)
+  // otherwise = per-staff row (that staff's personal day off)
+  // Consumers use this to scope time-off display to the current viewer:
+  // the owner's unfiltered calendar only shows NULL rows, and when the
+  // owner views a specific staff, rows matching that staff's id join in.
+  staffMemberId?: number | null;
 };
 
 type View = "day" | "week" | "month";

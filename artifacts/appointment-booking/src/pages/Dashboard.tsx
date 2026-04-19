@@ -4244,7 +4244,26 @@ function DayOffTab() {
   const load = async () => {
     try {
       const r = await fetch("/api/business/time-off", { headers: authHeaders() });
-      if (r.ok) setItems(await r.json());
+      if (r.ok) {
+        const rows = await r.json();
+        // Scope by caller role (matches BusinessCalendar's filteredTimeOff
+        // so the list view and the grid view stay consistent):
+        //   · Staff caller → only their own per-staff rows (the server
+        //     includes business-wide NULL rows too, but the staff can't
+        //     edit those, so hiding them avoids 404s on PATCH/DELETE).
+        //   · Owner caller → only business-wide rows (NULL). Staff's
+        //     personal days off are managed from the staff's own panel,
+        //     not the owner's. Previously the owner saw every staff's
+        //     time-off mixed with their own business-wide closures and
+        //     could accidentally delete a stylist's personal day off.
+        const filterStaffId = typeof window !== "undefined"
+          ? (Number(sessionStorage.getItem("kavati_staff_filter_id") ?? "") || null)
+          : null;
+        const filtered = filterStaffId
+          ? (rows as any[]).filter(it => (it.staffMemberId ?? null) === filterStaffId)
+          : (rows as any[]).filter(it => (it.staffMemberId ?? null) === null);
+        setItems(filtered);
+      }
     } catch {}
     // Mirror local state into the shared ["time-off"] react-query cache
     // so the Appointments tab calendar shows the same data without an
