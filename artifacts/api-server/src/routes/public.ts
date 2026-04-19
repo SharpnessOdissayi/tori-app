@@ -92,7 +92,10 @@ router.get("/public/directory", async (req, res): Promise<void> => {
     .from(businessesTable)
     .where(and(
       eq(businessesTable.isActive, true),
-      eq(businessesTable.subscriptionPlan, "pro"),
+      // Both paid tiers earn directory exposure: Pro (פרו) and Pro-Plus
+      // (עסקי). Free businesses still get their /book/:slug page but
+      // aren't surfaced in "גלה עסקים" until they upgrade.
+      sql`${businessesTable.subscriptionPlan} IN ('pro', 'pro-plus')`,
       sql`${businessesTable.slug} != 'admin'`,
     ));
 

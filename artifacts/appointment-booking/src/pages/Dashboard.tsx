@@ -4663,6 +4663,7 @@ function RevenueTab() {
 // /business/broadcast-subscribers (GET/POST/DELETE/POST resubscribe).
 type BroadcastSubscriberRow = {
   phoneNumber: string;
+  clientName: string | null;
   status: "active" | "unsubscribed";
   source: string;
   createdAt: string;
@@ -4672,11 +4673,17 @@ type BroadcastSubscriberRow = {
 function BroadcastSubscriberPanel() {
   const { toast } = useToast();
   const [subscribers, setSubscribers] = useState<BroadcastSubscriberRow[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [search, setSearch] = useState("");
   const [addInput, setAddInput] = useState("");
   const [adding, setAdding] = useState(false);
   const [filter, setFilter] = useState<"active" | "unsubscribed" | "all">("active");
+  // Collapsible — closed by default so the panel doesn't dominate the
+  // scroll on the Customers / SMS tabs. Owners who don't manage the
+  // list every day don't see a huge block of rows they have to scroll
+  // past. Opens on demand via the header button.
+  const [expanded, setExpanded] = useState(false);
+  const [summary, setSummary] = useState<{ active: number; total: number } | null>(null);
 
   const token = typeof window !== "undefined"
     ? (localStorage.getItem("biz_token") ?? sessionStorage.getItem("biz_token") ?? "")
@@ -4690,12 +4697,16 @@ function BroadcastSubscriberPanel() {
       if (!res.ok) throw new Error();
       const json = await res.json();
       setSubscribers(Array.isArray(json?.subscribers) ? json.subscribers : []);
+      setSummary({ active: Number(json?.active ?? 0), total: Number(json?.total ?? 0) });
     } catch {
       toast({ title: "שגיאה בטעינת רשימת התפוצה", variant: "destructive" });
     } finally {
       setLoading(false);
     }
   };
+  // Load once on mount so the collapsed header can show the active/total
+  // summary even before the panel is expanded. The full list + actions
+  // use the same data, so a single fetch powers both views.
   useEffect(() => { load(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, []);
 
   const handleAdd = async () => {
@@ -4752,24 +4763,56 @@ function BroadcastSubscriberPanel() {
 
   const activeCount       = subscribers.filter(s => s.status === "active").length;
   const unsubscribedCount = subscribers.filter(s => s.status === "unsubscribed").length;
+  const searchLower  = search.trim().toLowerCase();
   const searchDigits = search.replace(/\D/g, "");
   const filtered = subscribers
     .filter(s => filter === "all" ? true : s.status === filter)
-    .filter(s => !searchDigits || s.phoneNumber.replace(/\D/g, "").includes(searchDigits));
+    .filter(s => {
+      if (!searchLower && !searchDigits) return true;
+      if (searchLower && (s.clientName ?? "").toLowerCase().includes(searchLower)) return true;
+      if (searchDigits && s.phoneNumber.replace(/\D/g, "").includes(searchDigits)) return true;
+      return false;
+    });
+  // Sort by clientName (Hebrew aware) when available, phones without a
+  // name drop to the end — keeps the list readable at a glance.
+  const sorted = [...filtered].sort((a, b) => {
+    const an = a.clientName?.trim() ?? "";
+    const bn = b.clientName?.trim() ?? "";
+    if (an && !bn) return -1;
+    if (!an && bn) return 1;
+    if (an && bn) return an.localeCompare(bn, "he");
+    return a.phoneNumber.localeCompare(b.phoneNumber);
+  });
+
+  const headerCounts = summary ?? { active: activeCount, total: subscribers.length };
 
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <Send className="w-5 h-5 text-primary" /> רשימת תפוצה לשיווק
-        </CardTitle>
-        <CardDescription>
-          לקוחות שמקבלים הודעות SMS תפוצה. כל הזמנה חדשה מתווספת אוטומטית.
-          לקוח שמסיר את עצמו (דרך הקישור ב-SMS) מסומן אוטומטית כ"לא מנוי".
-        </CardDescription>
+        <button
+          type="button"
+          onClick={() => setExpanded(v => !v)}
+          className="w-full flex items-start justify-between gap-3 text-right hover:opacity-80 transition-opacity"
+          aria-expanded={expanded}
+        >
+          <div className="flex-1 min-w-0">
+            <CardTitle className="flex items-center gap-2">
+              <Send className="w-5 h-5 text-primary" /> רשימת תפוצה לשיווק
+            </CardTitle>
+            <CardDescription className="mt-1">
+              {headerCounts.active} מנויים פעילים · {headerCounts.total} סה״כ
+            </CardDescription>
+          </div>
+          <ChevronDown className={`w-5 h-5 text-muted-foreground shrink-0 mt-1 transition-transform ${expanded ? "rotate-180" : ""}`} />
+        </button>
       </CardHeader>
+      {expanded && (
       <CardContent className="space-y-4">
-        {/* Status tiles */}
+        <CardDescription className="text-xs">
+          כל הזמנה חדשה מתווספת אוטומטית. לקוח שמסיר את עצמו (קישור ב-SMS
+          או תשובת "הסר") מסומן אוטומטית כ"לא מנוי".
+        </CardDescription>
+        {/* Status tiles — double as quick filters */}
         <div className="grid grid-cols-2 gap-2">
           <button
             type="button"
@@ -4807,12 +4850,11 @@ function BroadcastSubscriberPanel() {
           </div>
         </div>
 
-        {/* Search */}
+        {/* Search (name or phone) */}
         <div className="relative">
           <Search className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
           <Input
-            dir="ltr"
-            placeholder="חפש לפי מספר..."
+            placeholder="חפש לפי שם או מספר..."
             value={search}
             onChange={e => setSearch(e.target.value)}
             className="pr-9"
@@ -4822,18 +4864,25 @@ function BroadcastSubscriberPanel() {
         {/* List */}
         {loading ? (
           <div className="py-8 text-center text-sm text-muted-foreground">טוען...</div>
-        ) : filtered.length === 0 ? (
+        ) : sorted.length === 0 ? (
           <div className="py-8 text-center text-sm text-muted-foreground">אין רשומות להצגה</div>
         ) : (
           <div className="space-y-1.5 max-h-96 overflow-y-auto">
-            {filtered.map(s => (
+            {sorted.map(s => (
               <div
                 key={s.phoneNumber}
                 className="flex items-center justify-between gap-2 p-3 border rounded-xl bg-card"
               >
                 <div className="flex items-center gap-2 min-w-0">
                   <span className={`w-2 h-2 rounded-full shrink-0 ${s.status === "active" ? "bg-green-500" : "bg-muted-foreground/40"}`} />
-                  <span className="font-mono text-sm" dir="ltr">{s.phoneNumber}</span>
+                  <div className="min-w-0">
+                    <div className="text-sm font-medium truncate" dir="auto">
+                      {s.clientName?.trim() || "ללא שם"}
+                    </div>
+                    <div className="text-[11px] text-muted-foreground font-mono" dir="ltr">
+                      {s.phoneNumber}
+                    </div>
+                  </div>
                 </div>
                 {s.status === "active" ? (
                   <Button type="button" size="sm" variant="outline" onClick={() => handleRemove(s.phoneNumber)} className="shrink-0 text-destructive border-destructive/30 hover:bg-destructive/5">
@@ -4849,6 +4898,7 @@ function BroadcastSubscriberPanel() {
           </div>
         )}
       </CardContent>
+      )}
     </Card>
   );
 }

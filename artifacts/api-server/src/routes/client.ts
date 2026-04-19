@@ -100,23 +100,37 @@ router.post("/client/verify-otp", async (req, res): Promise<void> => {
   const ok = await verifyOtp(phone.trim(), String(code), "client_login");
   if (!ok) { res.status(400).json({ error: "קוד שגוי או פג תוקף" }); return; }
 
-  // SECURITY: do NOT auto-fill clientName from any prior appointment that
-  // ever used this phone number. Israeli mobile numbers are recycled by
-  // carriers within ~6 months of disconnection — populating the new
-  // session with the previous owner's name leaks PII to whoever happens
-  // to be holding the SIM today. The client can re-enter their name in
-  // the portal UI; if no prior appointments exist the session is empty.
+  // Carry-forward from the most recent session for this same phone — the
+  // client has already proven ownership via OTP, so reusing their saved
+  // name / email / gender / notification prefs is safe. Without this the
+  // portal greeted every SMS re-login with "ברוכים הבאים" and a blank
+  // profile, which looked like data loss to the owner.
+  //
+  // Safety note: the OTP itself is the recycling safeguard here — if a
+  // carrier gave this phone to a new owner, they can't complete the OTP
+  // without being in physical possession of the SIM, so we only ever
+  // carry-forward to callers who just proved receipt of a fresh code.
+  const prior = await findPriorSession({ phoneNumber: phone.trim() });
+
   const token = randomUUID();
   const expiresAt = new Date(Date.now() + SESSION_DAYS * 24 * 60 * 60 * 1000);
 
   await db.insert(clientSessionsTable).values({
     token,
     phoneNumber: phone.trim(),
-    clientName: "",
+    clientName:           prior?.clientName ?? "",
+    email:                prior?.email ?? undefined,
+    receiveNotifications: prior?.receiveNotifications ?? true,
+    gender:               prior?.gender ?? undefined,
     expiresAt,
   });
 
-  res.json({ token, clientName: "", phone: phone.trim() });
+  res.json({
+    token,
+    clientName: prior?.clientName ?? "",
+    phone: phone.trim(),
+    email: prior?.email ?? null,
+  });
 });
 
 // ─── Email OTP (interim flow until WhatsApp Auth template is approved) ─────

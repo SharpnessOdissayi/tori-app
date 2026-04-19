@@ -1826,14 +1826,38 @@ router.get("/business/revenue", requireBusinessAuth, async (req, res): Promise<v
 
 router.get("/business/broadcast-subscribers", requireBusinessAuth, async (req, res): Promise<void> => {
   const businessId = req.business!.businessId;
+  // Join in the most recent client name we have for each phone — first
+  // try an appointment row for THIS business (most authoritative — the
+  // name the client typed on their last booking), then fall back to the
+  // client_sessions row so portal-only users (no bookings yet) still
+  // show up by name instead of a bare phone number.
   const rows = await db.execute(sql`
-    SELECT phone_number, status, source, created_at, updated_at
-    FROM broadcast_subscribers
-    WHERE business_id = ${businessId}
-    ORDER BY created_at DESC
+    SELECT
+      s.phone_number,
+      s.status,
+      s.source,
+      s.created_at,
+      s.updated_at,
+      COALESCE(
+        (SELECT a.client_name
+           FROM appointments a
+          WHERE a.business_id = ${businessId}
+            AND a.phone_number = s.phone_number
+          ORDER BY a.appointment_date DESC
+          LIMIT 1),
+        (SELECT c.client_name
+           FROM client_sessions c
+          WHERE c.phone_number = s.phone_number
+          ORDER BY c.created_at DESC
+          LIMIT 1)
+      ) AS client_name
+    FROM broadcast_subscribers s
+    WHERE s.business_id = ${businessId}
+    ORDER BY s.created_at DESC
   `);
   const list = ((rows as any).rows ?? []).map((r: any) => ({
     phoneNumber: r.phone_number,
+    clientName:  r.client_name ?? null,
     status:      r.status,
     source:      r.source,
     createdAt:   r.created_at,
