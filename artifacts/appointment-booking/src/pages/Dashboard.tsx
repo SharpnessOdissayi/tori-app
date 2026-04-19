@@ -3858,7 +3858,10 @@ function WorkingHoursTab() {
 
 function ForgotPasswordFlow({ onBack }: { onBack: () => void }) {
   const { toast } = useToast();
-  const [phone, setPhone] = useState("");
+  // Email-based reset (interim — Meta WhatsApp Auth template still pending).
+  // Hits the existing /auth/business/forgot-password + /reset-password
+  // endpoints which already key off the business email + sendEmail.
+  const [email, setEmail] = useState("");
   const [otpSent, setOtpSent] = useState(false);
   const [otp, setOtp] = useState("");
   const [newPassword, setNewPassword] = useState("");
@@ -3866,15 +3869,15 @@ function ForgotPasswordFlow({ onBack }: { onBack: () => void }) {
   const [done, setDone] = useState(false);
 
   const handleSendOtp = async () => {
-    if (!phone) return;
+    if (!email.trim()) return;
     setLoading(true);
     try {
-      const r = await fetch("/api/auth/forgot-password", {
+      const r = await fetch("/api/auth/business/forgot-password", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ phone }),
+        body: JSON.stringify({ email: email.trim().toLowerCase() }),
       });
-      if (r.ok) { setOtpSent(true); toast({ title: "קוד נשלח לוואטסאפ שלך" }); }
+      if (r.ok) { setOtpSent(true); toast({ title: "קוד נשלח לאימייל שלך" }); }
       else { const e = await r.json().catch(() => ({})); toast({ title: e.error || "שגיאה", variant: "destructive" }); }
     } catch {
       toast({ title: "שגיאת רשת, נסה שוב", variant: "destructive" });
@@ -3885,13 +3888,13 @@ function ForgotPasswordFlow({ onBack }: { onBack: () => void }) {
     if (!otp || !newPassword) return;
     setLoading(true);
     try {
-      const r = await fetch("/api/auth/reset-password", {
+      const r = await fetch("/api/auth/business/reset-password", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ phone, code: otp, newPassword }),
+        body: JSON.stringify({ email: email.trim().toLowerCase(), code: otp, newPassword }),
       });
       if (r.ok) { setDone(true); toast({ title: "הסיסמא שונתה בהצלחה" }); }
-      else { const e = await r.json().catch(() => ({})); toast({ title: e.error || "קוד שגוי", variant: "destructive" }); }
+      else { const e = await r.json().catch(() => ({})); toast({ title: e.message || e.error || "קוד שגוי", variant: "destructive" }); }
     } catch {
       toast({ title: "שגיאת רשת, נסה שוב", variant: "destructive" });
     } finally { setLoading(false); }
@@ -3911,18 +3914,21 @@ function ForgotPasswordFlow({ onBack }: { onBack: () => void }) {
       {!otpSent ? (
         <>
           <div className="space-y-1">
-            <Label className="text-xs">מספר טלפון הרשום בחשבון</Label>
-            <Input dir="ltr" value={phone} onChange={e => setPhone(e.target.value)} placeholder="" />
+            <Label className="text-xs">אימייל הרשום בחשבון</Label>
+            <Input type="email" dir="ltr" value={email} onChange={e => setEmail(e.target.value)} placeholder="name@example.com" />
           </div>
-          <Button size="sm" className="w-full" onClick={handleSendOtp} disabled={loading || !phone}>
-            {loading ? "שולח..." : "שלח קוד לוואטסאפ"}
+          <Button size="sm" className="w-full" onClick={handleSendOtp} disabled={loading || !email.trim()}>
+            {loading ? "שולח..." : "שלח קוד לאימייל"}
           </Button>
         </>
       ) : (
         <>
           <div className="space-y-1">
-            <Label className="text-xs">קוד שהתקבל בוואטסאפ</Label>
+            <Label className="text-xs">קוד שהתקבל באימייל</Label>
             <Input dir="ltr" value={otp} onChange={e => setOtp(e.target.value)} placeholder="123456" maxLength={6} />
+            <p className="text-[11px] text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-2 py-1.5">
+              ⚠️ הקוד עשוי להגיע לתיקיית הספאם — בדוק/י גם שם.
+            </p>
           </div>
           <div className="space-y-1">
             <Label className="text-xs">סיסמא חדשה</Label>
