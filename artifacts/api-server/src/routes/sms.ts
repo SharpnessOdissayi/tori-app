@@ -143,11 +143,39 @@ router.post("/sms/send-bulk", async (req, res): Promise<void> => {
     res.status(400).json({ error: "message must be a non-empty string" });
     return;
   }
-  const recipients = (recipientsRaw as unknown[])
+  const recipientsBeforeFilter = (recipientsRaw as unknown[])
     .map(r => String(r ?? "").trim())
     .filter(r => r.length > 0);
-  if (recipients.length === 0) {
+  if (recipientsBeforeFilter.length === 0) {
     res.status(400).json({ error: "recipients must be a non-empty array" });
+    return;
+  }
+
+  // Drop recipients who previously replied "הסר" (or any of the keywords
+  // in /sms/inforu-webhook/reply) to a prior broadcast from THIS business.
+  // Same blacklist the /business/broadcast path honours — keeps the two
+  // send paths consistent and makes the legal opt-out actually stick.
+  const normalizeForBlacklist = (p: string) => p.replace(/\D/g, "").replace(/^972/, "0");
+  const blacklistRows = await db.execute(sql`
+    SELECT phone_number FROM broadcast_unsubscribes
+    WHERE business_id = ${businessId}
+  `);
+  const blacklist = new Set<string>();
+  for (const r of ((blacklistRows as any).rows ?? [])) {
+    const p = normalizeForBlacklist(String(r.phone_number ?? ""));
+    if (p) blacklist.add(p);
+  }
+  const recipients = recipientsBeforeFilter.filter(
+    p => !blacklist.has(normalizeForBlacklist(p)),
+  );
+  const droppedForOptOut = recipientsBeforeFilter.length - recipients.length;
+
+  if (recipients.length === 0) {
+    res.status(400).json({
+      error: "all_recipients_opted_out",
+      message: "כל הנמענים הוסרו מהרשימה בעבר — לא בוצעה שליחה",
+      droppedForOptOut,
+    });
     return;
   }
   // Cap per request so a typo doesn't drain the whole balance and so we
@@ -156,7 +184,19 @@ router.post("/sms/send-bulk", async (req, res): Promise<void> => {
     res.status(400).json({ error: "too_many_recipients", limit: 1000 });
     return;
   }
-  const message = (messageRaw as string).trim();
+
+  // Compose the SMS: business name on the first line, owner's message in
+  // the middle, the legally-required opt-out footer at the end. Mirrors
+  // the shape in /business/broadcast so every broadcast SMS out of Kavati
+  // reads the same way regardless of which UI composed it.
+  const ownerMessage  = (messageRaw as string).trim();
+  const businessLabel = (biz.name ?? "").trim();
+  const message = [
+    businessLabel ? `${businessLabel}:` : null,
+    ownerMessage,
+    "",
+    "להסרה השב הסר",
+  ].filter(Boolean).join("\n");
 
   // ─── Reserve quota BEFORE calling Inforu ────────────────────────────────
   const count = recipients.length;
@@ -173,8 +213,12 @@ router.post("/sms/send-bulk", async (req, res): Promise<void> => {
     return;
   }
 
-  // Per-send UUID — echoed back in Inforu DLR so we can match webhooks to rows.
-  const customerMessageId = crypto.randomUUID();
+  // Per-send id — echoed back in Inforu DLR + reply webhooks so we can
+  // match them to rows AND extract the originating business. The
+  // "broadcast-<businessId>-<uuid>" prefix is parsed by
+  // /sms/inforu-webhook/reply to know which business to opt-out
+  // the replier from.
+  const customerMessageId = `broadcast-${businessId}-${crypto.randomUUID()}`;
   const deliveryReportUrl = `${(process.env.PUBLIC_API_BASE_URL ?? "https://www.kavati.net/api").replace(/\/$/, "")}/sms/inforu-webhook/delivery`;
 
   // Send via Inforu. Sender: prefer the account-level INFORU_SENDER_NAME
