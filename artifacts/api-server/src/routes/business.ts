@@ -1401,6 +1401,11 @@ router.post("/business/broadcast", requireBusinessAuth, async (req, res): Promis
       `להסרה https://${host}/api/u/${token}`,
     ].filter(Boolean).join("\n");
 
+  // Collect per-phone failure reasons so the owner sees WHY a send
+  // didn't arrive. Previously we swallowed them and showed "0 sent" with
+  // no context — owner was left to guess whether it was the sender name,
+  // a blocked number, or an invalid phone.
+  const failureReasons: Array<{ phone: string; reason: string }> = [];
   const { sendSms: inforuSendSms, isInforuConfigured } = await import("../lib/inforu");
   if (isInforuConfigured() && batch.length > 0) {
     const senderName = (process.env.INFORU_SENDER_NAME ?? biz2?.name ?? "Kavati").slice(0, 11);
@@ -1416,11 +1421,25 @@ router.post("/business/broadcast", requireBusinessAuth, async (req, res): Promis
         }),
       ),
     );
-    for (const r of results) {
-      if (r.status !== "fulfilled") { failCount++; continue; }
+    for (let i = 0; i < results.length; i++) {
+      const r = results[i];
+      const phone = batch[i];
+      if (r.status !== "fulfilled") {
+        failCount++;
+        failureReasons.push({ phone, reason: "network_error" });
+        continue;
+      }
       const v = r.value;
-      if (v.ok && v.recipients.some(rec => rec.status === "queued")) successCount++;
-      else failCount++;
+      if (v.ok && v.recipients.some(rec => rec.status === "queued")) {
+        successCount++;
+      } else {
+        failCount++;
+        const first = v.recipients.find(rec => rec.status === "failed");
+        failureReasons.push({
+          phone,
+          reason: first?.error ?? v.statusText ?? "unknown",
+        });
+      }
     }
   } else {
     // Fallback path: no Inforu creds → WhatsApp per-phone loop (also gets
@@ -1430,8 +1449,12 @@ router.post("/business/broadcast", requireBusinessAuth, async (req, res): Promis
       try {
         await sendWhatsApp(phone, composeMessage(phone, tokens[i]), req.business!.businessId);
         successCount++;
-      } catch {
+      } catch (e: any) {
         failCount++;
+        failureReasons.push({
+          phone,
+          reason: e?.message ?? "whatsapp_send_failed",
+        });
       }
     }
   }
@@ -1451,6 +1474,10 @@ router.post("/business/broadcast", requireBusinessAuth, async (req, res): Promis
     failed: failCount,
     total: batch.length,
     remainingThisMonth: monthlyLimit - sentThisMonth - successCount,
+    // Only include failure details when there actually were failures —
+    // keeps the happy-path payload small and lets the UI branch on the
+    // presence of this field to show an error toast with the reason.
+    ...(failureReasons.length > 0 ? { failures: failureReasons } : {}),
   });
 });
 

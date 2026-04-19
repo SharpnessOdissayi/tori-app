@@ -216,18 +216,63 @@ export async function sendSms(opts: SendSmsOptions): Promise<InforuSendResult> {
       ? json.StatusId
       : (typeof json?.Status === "number" ? json.Status : null);
     const statusText = json?.StatusDescription ?? json?.DetailedDescription ?? null;
-    const ok         = res.ok && statusCode === 1;
+    const requestOk  = res.ok && statusCode === 1;
     const messageId  = json?.RequestId ?? json?.Data?.MessageId ?? json?.Data?.BatchId ?? null;
 
-    if (!ok) {
+    if (!requestOk) {
       logger.warn({ statusCode, statusText, responseBody: json }, "[inforu] SMS send rejected");
+    }
+
+    // Per-recipient status. Inforu accepts the overall request (StatusId=1)
+    // even when individual phones fail — those show up in Data.Errors[]
+    // with their own ErrorCode / ErrorDescription. Previously we ignored
+    // the Errors array and reported every recipient as "queued", which
+    // is why the owner saw "sent to 1" but the SMS never arrived: the
+    // one recipient was actually rejected per-phone by Inforu (blocked
+    // number, bad format, invalid sender for that carrier, etc).
+    const errorsArr: Array<any> = Array.isArray(json?.Data?.Errors) ? json.Data.Errors : [];
+    const errorsByPhone = new Map<string, string>();
+    for (const err of errorsArr) {
+      const phoneKey = normalizeIsraeliPhone(String(err?.Phone ?? err?.Recipient ?? ""));
+      if (!phoneKey) continue;
+      const desc = String(err?.ErrorDescription ?? err?.Description ?? err?.Message ?? "rejected");
+      errorsByPhone.set(phoneKey, desc);
+    }
+    // Any recipient in a confirmed OK response that's NOT in Errors[] is
+    // queued for delivery. If the whole request failed (StatusId != 1),
+    // nothing was queued — everyone gets failed with the top-level reason.
+    const recipients = dedup.map(p => {
+      if (!requestOk) {
+        return { phone: p, status: "failed" as const, error: statusText ?? "send failed" };
+      }
+      const perPhoneError = errorsByPhone.get(p);
+      if (perPhoneError) {
+        return { phone: p, status: "failed" as const, error: perPhoneError };
+      }
+      return { phone: p, status: "queued" as const, error: undefined };
+    });
+
+    // If every recipient ended up rejected per-phone, demote the overall
+    // `ok` flag so callers see a failed send instead of thinking "0 sent"
+    // was somehow a success. Happens e.g. when all recipients are on the
+    // sender's blocklist.
+    const anyQueued = recipients.some(r => r.status === "queued");
+    const ok = requestOk && anyQueued;
+
+    if (errorsArr.length > 0) {
+      logger.warn({
+        statusCode,
+        totalRecipients: dedup.length,
+        perPhoneRejectedCount: errorsArr.length,
+        errorsSample: errorsArr.slice(0, 3),
+      }, "[inforu] some recipients rejected per-phone");
     }
 
     return {
       configured: true,
       ok,
       messageId: ok ? String(messageId ?? "") : null,
-      recipients: dedup.map(p => ({ phone: p, status: ok ? "queued" : "failed", error: ok ? undefined : statusText ?? "send failed" })),
+      recipients,
       statusCode,
       statusText,
     };

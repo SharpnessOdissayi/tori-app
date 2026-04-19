@@ -5067,7 +5067,31 @@ function CustomersTab() {
         toast({ title: "שגיאה", description: data.message ?? "לא ניתן לשלוח", variant: "destructive" });
         return;
       }
-      toast({ title: `✅ נשלח ל-${data.sent} נמענים${data.failed > 0 ? ` (${data.failed} נכשלו)` : ""}` });
+      // Show the per-recipient failure reason when a send didn't arrive.
+      // Inforu returns things like "blocked number", "invalid sender
+      // name for this carrier", "unsubscribed at account level", etc.
+      // Previously we just said "X failed" with no context, so the
+      // owner had no idea what to fix.
+      const failuresArr: Array<{ phone: string; reason: string }> = Array.isArray(data.failures) ? data.failures : [];
+      if (data.sent > 0 && data.failed === 0) {
+        toast({ title: `✅ נשלח ל-${data.sent} נמענים` });
+      } else if (data.sent > 0 && data.failed > 0) {
+        const sample = failuresArr.slice(0, 2).map(f => `${f.phone}: ${f.reason}`).join(" · ");
+        toast({
+          title: `נשלח ל-${data.sent} · ${data.failed} נכשלו`,
+          description: sample || undefined,
+          variant: "destructive",
+        });
+      } else if (data.failed > 0) {
+        // 0 sent — show the first reason prominently since that's the
+        // owner's main question ("why didn't it go through?").
+        const firstReason = failuresArr[0]?.reason ?? "לא ידוע";
+        toast({
+          title: `שליחה נכשלה (${data.failed} נמענים)`,
+          description: `סיבה מ-Inforu: ${firstReason}`,
+          variant: "destructive",
+        });
+      }
       setShowBroadcast(false);
       setBroadcastMessage("");
       setExcludedPhones(new Set());
