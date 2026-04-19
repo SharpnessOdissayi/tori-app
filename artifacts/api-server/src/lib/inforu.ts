@@ -1,30 +1,34 @@
 /**
- * Inforu SMS gateway — bulk marketing SMS.
+ * Inforu SMS gateway — bulk + transactional SMS over the Israeli network.
  *
- * Distinct from `lib/sms.ts`, which (despite the name) actually sends
- * WhatsApp via Green-API for OTPs and appointment reminders. This file
- * handles real SMS over the Israeli cellular network, used for:
+ * Two channels live in this file:
  *
  *   - Bulk marketing campaigns the owner composes from the dashboard
  *     ("הודעות ותזכורות" → bulk sender), gated behind Pro/עסקי.
- *   - Re-engagement blasts to clients who haven't booked in N days.
+ *   - Transactional OTP / login codes routed here when sendOtp() picks
+ *     SMS over WhatsApp (cheaper + arrives without a WA account).
  *
- * WhatsApp reminders stay on Green-API — different product, unlimited
- * under Meta template rules. This file never sends reminders.
+ * Per the official Inforu docs (https://apidoc.inforu.co.il), authentication
+ * is HTTP Basic over header — `Authorization: Basic <base64(Username:Token)>`.
+ * The legacy `{ User: { Username, ApiToken } }` body field is NOT used; the
+ * docs only show the header form. The token dialog in Inforu's portal also
+ * offers a JWT Bearer mode, which we honour automatically when only a token
+ * (no username) is set — see resolveAuthHeader() below.
  *
  * Credentials layout (populate in Railway env AFTER signing up at inforu.co.il):
- *   INFORU_USERNAME   — account username (one per Kavati, not per business)
- *   INFORU_API_TOKEN  — API token from Inforu dashboard
+ *   INFORU_USERNAME   — account username (one per Kavati). Required for Basic.
+ *   INFORU_API_TOKEN  — API token from the Inforu dashboard.
+ *   INFORU_AUTH_MODE  — optional override: "basic" | "bearer".
+ *                       Defaults to "basic" when INFORU_USERNAME is set,
+ *                       "bearer" when only INFORU_API_TOKEN is set.
  *   INFORU_BASE_URL   — optional override, defaults to https://capi.inforu.co.il
  *
  * Sender name is per-business: each API call passes the business name as
  * the SMS "from" (e.g. "LilashByGal"). Inforu requires sender names be
  * pre-registered with the Israeli carriers — the onboarding-to-production
  * step (done manually with Inforu support) is to register every business's
- * name. For new businesses we can fall back to a shared, pre-approved name
- * like "Kavati" until their own is registered.
- *
- * Docs: https://docs.inforu.co.il  (Inforu JSON API v2)
+ * name. For new businesses we fall back to the shared "Kavati" sender
+ * until their own is registered.
  *
  * Graceful degradation: when env vars are missing the client logs a warning
  * and returns a `{ configured: false }` result object instead of throwing.
@@ -35,12 +39,34 @@ import { logger } from "./logger";
 
 const BASE_URL =
   process.env.INFORU_BASE_URL?.replace(/\/$/, "") ?? "https://capi.inforu.co.il";
-const USERNAME  = process.env.INFORU_USERNAME  ?? "";
-const API_TOKEN = process.env.INFORU_API_TOKEN ?? "";
+const USERNAME    = process.env.INFORU_USERNAME    ?? "";
+const API_TOKEN   = process.env.INFORU_API_TOKEN   ?? "";
+const AUTH_MODE_RAW = (process.env.INFORU_AUTH_MODE ?? "").toLowerCase().trim();
+
+type AuthMode = "basic" | "bearer";
+
+function effectiveAuthMode(): AuthMode {
+  if (AUTH_MODE_RAW === "basic" || AUTH_MODE_RAW === "bearer") return AUTH_MODE_RAW;
+  // Auto-detect: a token alone defaults to Bearer (modern JWT-token flow);
+  // username + token together default to Basic (the docs' default).
+  return USERNAME.length > 0 ? "basic" : "bearer";
+}
+
+function resolveAuthHeader(): string | null {
+  if (!API_TOKEN) return null;
+  const mode = effectiveAuthMode();
+  if (mode === "bearer") {
+    return `Bearer ${API_TOKEN}`;
+  }
+  // Basic auth needs a username. Without one we can't form the header.
+  if (!USERNAME) return null;
+  const credentials = Buffer.from(`${USERNAME}:${API_TOKEN}`, "utf8").toString("base64");
+  return `Basic ${credentials}`;
+}
 
 /** True iff the account credentials are present. Callers may branch on this. */
 export function isInforuConfigured(): boolean {
-  return USERNAME.length > 0 && API_TOKEN.length > 0;
+  return resolveAuthHeader() !== null;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -79,20 +105,24 @@ export interface InforuBalanceResult {
 // ─────────────────────────────────────────────────────────────────────────────
 
 /**
- * Inforu expects Israeli phones in MSISDN format without a leading +:
- *     0521234567  → 972521234567
- *     +972521234567 → 972521234567
- *     972521234567 → 972521234567
+ * Inforu's documented format for Israeli phones is the LOCAL form
+ * (e.g. "0541234567") — see the curl examples in the v2 SMS docs. Strip
+ * non-digits, drop the +972 country prefix back to a leading zero.
  *
- * Non-digit characters are stripped first. Non-IL numbers are passed through
- * as-is (digits only) since Inforu does support international routing, but
- * the sender-name rules differ — that's for the caller to decide.
+ *     0521234567   → 0521234567
+ *     +972521234567 → 0521234567
+ *     972521234567 → 0521234567
+ *     521234567    → 0521234567   (assume IL when bare 9-digit mobile)
+ *
+ * Non-IL numbers (anything else after stripping) are passed through digits-
+ * only so international routing through Inforu still works for callers that
+ * pre-format E.164.
  */
 export function normalizeIsraeliPhone(phone: string): string {
   const digits = phone.replace(/\D/g, "");
-  if (digits.startsWith("0")) return "972" + digits.slice(1);
-  if (digits.startsWith("972")) return digits;
-  if (digits.startsWith("+972")) return digits.slice(1);
+  if (digits.startsWith("972")) return "0" + digits.slice(3);
+  if (digits.startsWith("0"))   return digits;
+  if (digits.length === 9 && digits.startsWith("5")) return "0" + digits;
   return digits;
 }
 
@@ -101,11 +131,12 @@ export function normalizeIsraeliPhone(phone: string): string {
 // ─────────────────────────────────────────────────────────────────────────────
 
 export interface SendSmsOptions {
-  /** One or more recipients. Will be normalized to 972XXXXXXXXX. */
+  /** One or more recipients. Will be normalized to 0XXXXXXXXX (IL local). */
   recipients: string[];
   /** SMS body. 160 chars = 1 credit (GSM-7). Longer splits into parts. */
   message: string;
-  /** The "from" the customer sees. Must be pre-registered with Inforu. */
+  /** The "from" the customer sees. Must be pre-registered with Inforu.
+   *  Max 11 chars (no spaces) OR a phone number up to 14 digits. */
   senderName: string;
   /** Optional URL Inforu POSTs delivery reports to. */
   deliveryReportUrl?: string;
@@ -131,10 +162,11 @@ export async function sendSms(opts: SendSmsOptions): Promise<InforuSendResult> {
   const normalized = opts.recipients.map(normalizeIsraeliPhone);
   const dedup      = Array.from(new Set(normalized));
 
-  if (!isInforuConfigured()) {
+  const authHeader = resolveAuthHeader();
+  if (!authHeader) {
     logger.warn(
       { recipientCount: dedup.length, senderName: opts.senderName },
-      "[inforu] skipping send — INFORU_USERNAME / INFORU_API_TOKEN not set",
+      "[inforu] skipping send — credentials not set (need INFORU_USERNAME + INFORU_API_TOKEN, or INFORU_API_TOKEN with INFORU_AUTH_MODE=bearer)",
     );
     return {
       configured: false,
@@ -146,36 +178,46 @@ export async function sendSms(opts: SendSmsOptions): Promise<InforuSendResult> {
     };
   }
 
-  // Inforu JSON API v2 body shape. See docs link at top of file.
+  // Inforu JSON API v2 body shape — header-only auth (no User block).
+  // Sender name is enforced server-side at ≤11 chars (alphanumeric, no
+  // spaces) so we trim defensively before send to avoid an obvious 4xx.
+  const safeSender = opts.senderName.replace(/\s+/g, "").slice(0, 11);
   const body = {
     Data: {
       Message: opts.message,
       Recipients: dedup.map(Phone => ({ Phone })),
       Settings: {
-        Sender: opts.senderName,
-        ...(opts.customerMessageId ? { CustomerMessageId: opts.customerMessageId } : {}),
+        Sender: safeSender,
+        ...(opts.customerMessageId ? { CustomerMessageID: opts.customerMessageId } : {}),
         ...(opts.deliveryReportUrl ? { DeliveryNotificationUrl: opts.deliveryReportUrl } : {}),
       },
     },
-    User: { Username: USERNAME, ApiToken: API_TOKEN },
   };
 
   try {
     const res = await fetch(`${BASE_URL}/api/v2/SMS/SendSms`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type":  "application/json; charset=utf-8",
+        "Authorization": authHeader,
+      },
       body: JSON.stringify(body),
     });
     const json: any = await res.json().catch(() => ({}));
 
-    // Inforu returns { Status: <number>, StatusDescription, DetailedDescription, Data: {...} }
-    // Status === 1 = accepted, anything else = failure. Code per recipient
-    // lives under json.Data.Response[] in some variants — keeping the shape
-    // permissive so we don't over-fit to undocumented corners.
-    const statusCode = typeof json?.Status === "number" ? json.Status : null;
+    // Per the docs, the success envelope is:
+    //   { StatusId: 1, StatusDescription: "Success", DetailedDescription: "",
+    //     FunctionName: "...", RequestId: "...", Data: { Recipients, Errors } }
+    // StatusId === 1 = accepted. Anything else = failure; details in
+    // StatusDescription / DetailedDescription. The legacy `Status` key from
+    // the v1 API is kept here as a fallback only because some older Inforu
+    // sub-accounts still echo it.
+    const statusCode = typeof json?.StatusId === "number"
+      ? json.StatusId
+      : (typeof json?.Status === "number" ? json.Status : null);
     const statusText = json?.StatusDescription ?? json?.DetailedDescription ?? null;
     const ok         = res.ok && statusCode === 1;
-    const messageId  = json?.Data?.MessageId ?? json?.Data?.BatchId ?? null;
+    const messageId  = json?.RequestId ?? json?.Data?.MessageId ?? json?.Data?.BatchId ?? null;
 
     if (!ok) {
       logger.warn({ statusCode, statusText, responseBody: json }, "[inforu] SMS send rejected");
@@ -211,31 +253,54 @@ export async function sendSms(opts: SendSmsOptions): Promise<InforuSendResult> {
  * (i.e. how many SMS we can send before Inforu stops us), NOT the
  * per-business quota — that one lives in the businesses table and is
  * enforced by Layer 2 before we ever reach this client.
+ *
+ * Note: the public docs don't pin a specific balance endpoint. We try
+ * v2/Account/GetBalance first, then v2/Account/Balance, and treat any
+ * 404 as "endpoint changed" rather than a hard failure so callers can
+ * still send messages even when the balance widget can't render a number.
  */
 export async function getInforuBalance(): Promise<InforuBalanceResult> {
-  if (!isInforuConfigured()) {
+  const authHeader = resolveAuthHeader();
+  if (!authHeader) {
     return { configured: false, credits: null, statusCode: null, statusText: null };
   }
-  try {
-    const res = await fetch(`${BASE_URL}/api/v2/Account/GetBalance`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ User: { Username: USERNAME, ApiToken: API_TOKEN } }),
-    });
-    const json: any = await res.json().catch(() => ({}));
-    const statusCode = typeof json?.Status === "number" ? json.Status : null;
-    const ok = res.ok && statusCode === 1;
-    const credits = typeof json?.Data?.Balance === "number" ? json.Data.Balance : null;
-    return {
-      configured: true,
-      credits: ok ? credits : null,
-      statusCode,
-      statusText: json?.StatusDescription ?? null,
-    };
-  } catch (err) {
-    logger.error({ err }, "[inforu] network error fetching balance");
-    return { configured: true, credits: null, statusCode: null, statusText: (err as Error).message };
+  const candidatePaths = [
+    "/api/v2/Account/GetBalance",
+    "/api/v2/Account/Balance",
+  ];
+  for (const path of candidatePaths) {
+    try {
+      const res = await fetch(`${BASE_URL}${path}`, {
+        method: "POST",
+        headers: {
+          "Content-Type":  "application/json; charset=utf-8",
+          "Authorization": authHeader,
+        },
+        body: JSON.stringify({}),
+      });
+      if (res.status === 404) continue;
+      const json: any = await res.json().catch(() => ({}));
+      const statusCode = typeof json?.StatusId === "number"
+        ? json.StatusId
+        : (typeof json?.Status === "number" ? json.Status : null);
+      const ok = res.ok && statusCode === 1;
+      const credits = typeof json?.Data?.Balance === "number"
+        ? json.Data.Balance
+        : typeof json?.Data?.AccountBalance === "number"
+        ? json.Data.AccountBalance
+        : null;
+      return {
+        configured: true,
+        credits: ok ? credits : null,
+        statusCode,
+        statusText: json?.StatusDescription ?? null,
+      };
+    } catch (err) {
+      logger.error({ err, path }, "[inforu] network error fetching balance");
+      // try the next candidate path
+    }
   }
+  return { configured: true, credits: null, statusCode: null, statusText: "balance endpoint unavailable" };
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -262,8 +327,8 @@ export interface InforuDeliveryReport {
 
 export function parseDeliveryReport(body: any): InforuDeliveryReport {
   const phone      = String(body?.Phone ?? body?.phone ?? "");
-  const customerId = body?.CustomerMessageId ?? body?.customerMessageId ?? null;
-  const messageId  = body?.MessageId ?? body?.messageId ?? null;
+  const customerId = body?.CustomerMessageID ?? body?.CustomerMessageId ?? body?.customerMessageId ?? null;
+  const messageId  = body?.MessageId ?? body?.messageId ?? body?.RequestId ?? null;
   const statusRaw  = String(body?.Status ?? body?.status ?? "").toUpperCase();
   const reason     = body?.StatusDescription ?? body?.statusDescription ?? null;
   const deliveredRaw = body?.DeliveryTime ?? body?.deliveryTime ?? null;
