@@ -4,6 +4,7 @@ import { db, businessesTable, servicesTable, workingHoursTable, breakTimesTable,
 import { eq, and, or, gte, sql, count } from "drizzle-orm";
 import { sendClientCancellation, sendClientReschedule, sendClientConfirmation, sendWhatsApp } from "../lib/whatsapp";
 import { isBusinessPro } from "../lib/plan";
+import { signUnsubscribeToken } from "../lib/unsubscribeToken";
 import {
   UpdateBusinessProfileBody,
   CreateBusinessServiceBody,
@@ -1382,39 +1383,51 @@ router.post("/business/broadcast", requireBusinessAuth, async (req, res): Promis
     .where(eq(businessesTable.id, req.business!.businessId));
   const ownerMessage  = message.trim();
   const businessLabel = (biz2?.name ?? "").trim();
-  // Opt-out link comes from Inforu's own UI — each account has a short
-  // link that auto-unsubscribes the clicker on Inforu's side, so we
-  // don't need to run our own "reply הסר" pipeline. Overridable per
-  // deploy via INFORU_UNSUBSCRIBE_URL; fallback is the account-level
-  // link Kavati's Inforu Shai provisioned on 19/04/2026.
-  const unsubscribeUrl = (process.env.INFORU_UNSUBSCRIBE_URL ?? "https://l5k.me/zCjo4").trim();
-  const composedMessage = [
-    businessLabel ? `${businessLabel}:` : null,
-    ownerMessage,
-    "",
-    `להסרה ${unsubscribeUrl}`,
-  ].filter(Boolean).join("\n");
+  // Opt-out link is our own — replaces the prior Inforu-hosted short URL.
+  // Per recipient so one click auto-resolves who to drop, no further input.
+  // KAVATI_HOST is overridable per deploy in case we ever move off kavati.net;
+  // defaults to www.kavati.net (the canonical production host).
+  const host = (process.env.KAVATI_HOST ?? "www.kavati.net").replace(/^https?:\/\//, "").replace(/\/$/, "");
+  const composeMessage = (recipientPhone: string) => {
+    const token = signUnsubscribeToken(req.business!.businessId, recipientPhone);
+    return [
+      businessLabel ? `${businessLabel}:` : null,
+      ownerMessage,
+      "",
+      `להסרה https://${host}/u/${token}`,
+    ].filter(Boolean).join("\n");
+  };
 
   const { sendSms: inforuSendSms, isInforuConfigured } = await import("../lib/inforu");
   if (isInforuConfigured() && batch.length > 0) {
     const senderName = (process.env.INFORU_SENDER_NAME ?? biz2?.name ?? "Kavati").slice(0, 11);
-    const result = await inforuSendSms({
-      recipients: batch,
-      message: composedMessage,
-      senderName,
-      customerMessageId: `broadcast-${req.business!.businessId}-${Date.now()}`,
-    });
-    if (result.ok) {
-      successCount = result.recipients.filter(r => r.status === "queued").length;
-      failCount = result.recipients.filter(r => r.status === "failed").length;
-    } else {
-      failCount = batch.length;
+    // Per-recipient send — each SMS carries its own tokenised opt-out URL.
+    // Runs in parallel so a 200-message broadcast still completes in a few
+    // seconds instead of a few minutes. Inforu handles concurrent API calls
+    // fine; if we ever start getting throttled we can chunk this with
+    // p-limit.
+    const results = await Promise.allSettled(
+      batch.map(phone =>
+        inforuSendSms({
+          recipients: [phone],
+          message: composeMessage(phone),
+          senderName,
+          customerMessageId: `broadcast-${req.business!.businessId}-${Date.now()}-${phone.slice(-4)}`,
+        }),
+      ),
+    );
+    for (const r of results) {
+      if (r.status !== "fulfilled") { failCount++; continue; }
+      const v = r.value;
+      if (v.ok && v.recipients.some(rec => rec.status === "queued")) successCount++;
+      else failCount++;
     }
   } else {
-    // Fallback path: no Inforu creds → legacy WhatsApp per-phone loop.
+    // Fallback path: no Inforu creds → WhatsApp per-phone loop (also gets
+    // a tokenised Kavati opt-out URL).
     for (const phone of batch) {
       try {
-        await sendWhatsApp(phone, composedMessage, req.business!.businessId);
+        await sendWhatsApp(phone, composeMessage(phone), req.business!.businessId);
         successCount++;
       } catch {
         failCount++;

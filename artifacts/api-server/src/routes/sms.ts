@@ -33,6 +33,7 @@ import {
   addExtraBalance,
 } from "../lib/smsQuota";
 import { chargeTokenOneOff } from "../lib/tranzilaCharge";
+import { signUnsubscribeToken } from "../lib/unsubscribeToken";
 
 const router = Router();
 
@@ -188,22 +189,23 @@ router.post("/sms/send-bulk", async (req, res): Promise<void> => {
     return;
   }
 
-  // Compose the SMS: business name on the first line, owner's message in
-  // the middle, the legally-required opt-out footer at the end. Mirrors
-  // the shape in /business/broadcast so every broadcast SMS out of Kavati
-  // reads the same way regardless of which UI composed it. The opt-out
-  // link is Inforu's own auto-unsubscribe short URL — when the recipient
-  // clicks it, Inforu removes them from the account-level subscriber
-  // list and rejects subsequent sends to that phone in Errors[].
+  // Compose the SMS: business name first, owner's message in the middle,
+  // our own per-recipient opt-out footer at the end. The "להסרה <url>"
+  // URL encodes (businessId, phone) as a signed token so one click on the
+  // link lands the clicker in broadcast_unsubscribes + drops them from
+  // broadcast_subscribers — no Inforu dependency.
   const ownerMessage  = (messageRaw as string).trim();
   const businessLabel = (biz.name ?? "").trim();
-  const unsubscribeUrl = (process.env.INFORU_UNSUBSCRIBE_URL ?? "https://l5k.me/zCjo4").trim();
-  const message = [
-    businessLabel ? `${businessLabel}:` : null,
-    ownerMessage,
-    "",
-    `להסרה ${unsubscribeUrl}`,
-  ].filter(Boolean).join("\n");
+  const host = (process.env.KAVATI_HOST ?? "www.kavati.net").replace(/^https?:\/\//, "").replace(/\/$/, "");
+  const composeMessage = (recipientPhone: string): string => {
+    const token = signUnsubscribeToken(businessId, recipientPhone);
+    return [
+      businessLabel ? `${businessLabel}:` : null,
+      ownerMessage,
+      "",
+      `להסרה https://${host}/u/${token}`,
+    ].filter(Boolean).join("\n");
+  };
 
   // ─── Reserve quota BEFORE calling Inforu ────────────────────────────────
   const count = recipients.length;
@@ -220,105 +222,157 @@ router.post("/sms/send-bulk", async (req, res): Promise<void> => {
     return;
   }
 
-  // Per-send id — echoed back in Inforu DLR + reply webhooks so we can
-  // match them to rows AND extract the originating business. The
+  // Per-send id prefix — echoed back in Inforu DLR + reply webhooks so we
+  // can match them to rows AND extract the originating business. The
   // "broadcast-<businessId>-<uuid>" prefix is parsed by
   // /sms/inforu-webhook/reply to know which business to opt-out
   // the replier from.
-  const customerMessageId = `broadcast-${businessId}-${crypto.randomUUID()}`;
+  const customerMessageIdBase = `broadcast-${businessId}-${crypto.randomUUID()}`;
   const deliveryReportUrl = `${(process.env.PUBLIC_API_BASE_URL ?? "https://www.kavati.net/api").replace(/\/$/, "")}/sms/inforu-webhook/delivery`;
 
-  // Send via Inforu. Sender: prefer the account-level INFORU_SENDER_NAME
-  // env var (one name that Inforu pre-registered with the Israeli
-  // carriers for our whole account — today that's "Kavati"); fall back
-  // to the business's own name only when the env var is empty. The
-  // carriers reject any sender that isn't on the whitelist, so using a
-  // per-business name without first registering it would 4xx every
-  // send. Sticking with a single registered sender keeps onboarding
-  // zero-touch for new business owners.
+  // Sender: prefer the account-level INFORU_SENDER_NAME (pre-registered
+  // with the Israeli carriers) over the business name. See comment in
+  // the previous version of this file.
   const senderName = (process.env.INFORU_SENDER_NAME ?? biz.name).trim();
-  const inforuResult = await inforuSendSms({
-    recipients,
-    message,
-    senderName,
-    customerMessageId,
-    deliveryReportUrl,
-  });
 
-  if (!inforuResult.ok) {
-    // Refund — we never actually spent the credits.
+  // Per-recipient parallel send. One SMS per recipient, each carrying its
+  // own tokenised opt-out URL. Promise.allSettled so a single failure
+  // doesn't abort the others mid-flight.
+  type PerSend = {
+    phone: string;
+    bodyId: string;
+    message: string;
+    ok: boolean;
+    messageId: string | null;
+    status: "queued" | "failed";
+    reason: string | null;
+    statusCode: number | null;
+    statusText: string | null;
+    configured: boolean;
+  };
+  const sendResults: PerSend[] = await Promise.all(
+    recipients.map(async (phone, i): Promise<PerSend> => {
+      const body = composeMessage(phone);
+      const bodyId = `${customerMessageIdBase}-${i}`;
+      try {
+        const r = await inforuSendSms({
+          recipients: [phone],
+          message: body,
+          senderName,
+          customerMessageId: bodyId,
+          deliveryReportUrl,
+        });
+        const firstRec = r.recipients[0];
+        return {
+          phone,
+          bodyId,
+          message: body,
+          ok: r.ok && firstRec?.status === "queued",
+          messageId: r.messageId,
+          status: (firstRec?.status === "queued" ? "queued" : "failed"),
+          reason: firstRec?.error ?? r.statusText ?? null,
+          statusCode: r.statusCode,
+          statusText: r.statusText,
+          configured: r.configured,
+        };
+      } catch (err: any) {
+        return {
+          phone, bodyId, message: body, ok: false, messageId: null,
+          status: "failed",
+          reason: err?.message ?? "send_threw",
+          statusCode: null,
+          statusText: err?.message ?? "send_threw",
+          configured: true,
+        };
+      }
+    }),
+  );
+
+  const anyConfigured = sendResults.some(r => r.configured);
+  if (!anyConfigured) {
+    // Pre-launch mode: no Inforu account yet. Record intent + refund
+    // credits so the owner can retry when Inforu is live.
     await refundQuota(businessId, reservation.reservations);
-    if (!inforuResult.configured) {
-      // Pre-launch mode: no Inforu account yet. Still record the intent so
-      // the owner sees their composed message in history and we can
-      // retrofit real sends later.
-      await db.insert(smsMessagesTable).values(
-        recipients.map(phone => ({
-          businessId,
-          recipientPhone: phone,
-          message,
-          status: "failed" as const,
-          statusReason: "inforu not configured (pre-launch)",
-          customerMessageId,
-          chargedCredits: 0,
-          fromSource: reservation.reservations[0]?.fromSource ?? "monthly",
-        })),
-      );
-      res.status(503).json({
-        error: "inforu_not_configured",
-        message: "SMS gateway not yet connected — contact support.",
-      });
-      return;
-    }
-    // Log the full Inforu response server-side so we can see WHY a send
-    // was rejected (sender not whitelisted, bad phone, quota exhausted,
-    // auth header mismatch, etc.) — the 502 body shows only a short
-    // reason to the client so nothing internal leaks.
-    logger.warn({
-      statusCode: inforuResult.statusCode,
-      statusText: inforuResult.statusText,
-      recipients: inforuResult.recipients,
-      sender: senderName,
-    }, "[sms/send-bulk] Inforu send failed");
-    res.status(502).json({
-      error: "sms_gateway_failed",
-      reason: inforuResult.statusText ?? "unknown",
+    await db.insert(smsMessagesTable).values(
+      sendResults.map((r, i) => ({
+        businessId,
+        recipientPhone: r.phone,
+        message: r.message,
+        status: "failed" as const,
+        statusReason: "inforu not configured (pre-launch)",
+        customerMessageId: r.bodyId,
+        chargedCredits: 0,
+        fromSource: pickBucketForIndex(reservation.reservations, i),
+      })),
+    );
+    res.status(503).json({
+      error: "inforu_not_configured",
+      message: "SMS gateway not yet connected — contact support.",
     });
     return;
   }
 
-  // Persist one row per recipient. `fromSource` needs to reflect the
-  // bucket we actually drew from per-message, not globally; for most sends
-  // there's a single bucket but when the reservation spans buckets we
-  // assign per position.
-  const rowsToInsert = recipients.map((phone, i) => {
-    const bucketForIndex = pickBucketForIndex(reservation.reservations, i);
-    const r = inforuResult.recipients.find(x => x.phone.endsWith(phone.replace(/^0/, "")));
-    return {
-      businessId,
-      recipientPhone: phone,
-      message,
-      status: (r?.status === "queued" ? "queued" : "failed") as "queued" | "failed",
-      inforuMessageId: inforuResult.messageId,
-      customerMessageId,
-      chargedCredits: 1,
-      fromSource: bucketForIndex,
-      statusReason: r?.error ?? null,
-    };
-  });
-  await db.insert(smsMessagesTable).values(rowsToInsert);
+  const queuedCount = sendResults.filter(r => r.ok).length;
+  const failedCount = recipients.length - queuedCount;
 
-  // Sync back any per-recipient opt-outs Inforu returned in Errors[]. When
-  // a recipient has clicked the Inforu unsubscribe link in a previous
-  // send, Inforu rejects future sends to them with an "unsubscribed"-ish
-  // error. Flip the matching row in broadcast_subscribers so our UI
-  // reflects the same state and we don't burn quota on them next time.
+  // Refund credits for the failed sends only — successes ate their credit.
+  if (failedCount > 0) {
+    const partialRefund = reservation.reservations
+      .map(r => ({ ...r, reservedCount: 0 })); // build zero-copy to mutate safely
+    let toRefund = failedCount;
+    for (const b of partialRefund) {
+      if (toRefund <= 0) break;
+      const original = reservation.reservations.find(x => x.fromSource === b.fromSource)?.reservedCount ?? 0;
+      const take = Math.min(original, toRefund);
+      b.reservedCount = take;
+      toRefund -= take;
+    }
+    await refundQuota(businessId, partialRefund.filter(b => b.reservedCount > 0));
+  }
+
+  // Persist one row per recipient with its individual Inforu result.
+  await db.insert(smsMessagesTable).values(
+    sendResults.map((r, i) => ({
+      businessId,
+      recipientPhone: r.phone,
+      message: r.message,
+      status: r.status,
+      inforuMessageId: r.messageId,
+      customerMessageId: r.bodyId,
+      chargedCredits: r.ok ? 1 : 0,
+      fromSource: pickBucketForIndex(reservation.reservations, i),
+      statusReason: r.reason,
+    })),
+  );
+
+  // If ALL failed, surface the first failure reason so the owner sees
+  // something actionable (same shape as the batched version used).
+  if (queuedCount === 0) {
+    const first = sendResults.find(r => !r.ok);
+    logger.warn({
+      businessId,
+      firstReason: first?.reason,
+      firstStatusCode: first?.statusCode,
+      sender: senderName,
+    }, "[sms/send-bulk] all recipients failed");
+    res.status(502).json({
+      error: "sms_gateway_failed",
+      reason: first?.statusText ?? first?.reason ?? "unknown",
+    });
+    return;
+  }
+
+  // Sync back any per-recipient opt-outs Inforu surfaced in per-send
+  // Errors[]. A recipient who's on Inforu's account-level blacklist
+  // (from the old Inforu-hosted link era) still trips this — we translate
+  // it into our own broadcast_unsubscribes so next campaign filters them
+  // out without another round trip.
   try {
     const optOutMarkers = ["unsubscr", "blacklist", "optout", "הסיר", "לא לשלוח"];
     const normalizeForSync = (p: string) => p.replace(/\D/g, "").replace(/^972/, "0");
-    for (const r of inforuResult.recipients) {
-      if (r.status !== "failed") continue;
-      const lower = String(r.error ?? "").toLowerCase();
+    for (const r of sendResults) {
+      if (r.ok) continue;
+      const lower = String(r.reason ?? "").toLowerCase();
       const looksLikeOptOut = optOutMarkers.some(k => lower.includes(k));
       if (!looksLikeOptOut) continue;
       const normPhone = normalizeForSync(r.phone);
@@ -335,16 +389,14 @@ router.post("/sms/send-bulk", async (req, res): Promise<void> => {
       logger.info({ businessId, phone: normPhone }, "[send-bulk] synced Inforu-side opt-out to local list");
     }
   } catch (syncErr) {
-    // Don't fail the whole send if the sync write hits a deadlock or
-    // transient DB issue — next campaign's Errors[] will re-surface the
-    // same opt-outs and we'll try again.
     logger.warn({ err: syncErr }, "[send-bulk] opt-out sync failed");
   }
 
   res.json({
     ok: true,
-    sent: recipients.length,
-    inforuMessageId: inforuResult.messageId,
+    sent: queuedCount,
+    failed: failedCount,
+    inforuMessageId: sendResults.find(r => r.ok)?.messageId ?? null,
     remainingMonthly: (await getQuotaSnapshot(businessId)).monthlyRemaining,
     remainingExtra:   (await getQuotaSnapshot(businessId)).extraBalance,
   });

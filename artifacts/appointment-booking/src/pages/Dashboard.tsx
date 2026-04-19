@@ -4731,7 +4731,16 @@ type BroadcastSubscriberRow = {
   updatedAt: string;
 };
 
-function BroadcastSubscriberPanel() {
+type BroadcastSubscriberPanelProps = {
+  /** Optional "שלח הודעה לכולם" button rendered in the header. Provided by
+   *  the Customers tab (which owns the broadcast composer state) and
+   *  omitted on the SMS tab (which has its own compose UI). */
+  onOpenBroadcast?: () => void;
+  /** Gate the broadcast button — hidden when the caller has no eligible
+   *  recipients yet (e.g. a brand-new business with zero appointments). */
+  canOpenBroadcast?: boolean;
+};
+function BroadcastSubscriberPanel({ onOpenBroadcast, canOpenBroadcast = true }: BroadcastSubscriberPanelProps = {}) {
   const { toast } = useToast();
   const [subscribers, setSubscribers] = useState<BroadcastSubscriberRow[]>([]);
   const [loading, setLoading] = useState(false);
@@ -4850,22 +4859,32 @@ function BroadcastSubscriberPanel() {
   return (
     <Card>
       <CardHeader>
-        <button
-          type="button"
-          onClick={() => setExpanded(v => !v)}
-          className="w-full flex items-start justify-between gap-3 text-right hover:opacity-80 transition-opacity"
-          aria-expanded={expanded}
-        >
-          <div className="flex-1 min-w-0">
-            <CardTitle className="flex items-center gap-2">
-              <Send className="w-5 h-5 text-primary" /> רשימת תפוצה לשיווק
-            </CardTitle>
-            <CardDescription className="mt-1">
-              {headerCounts.active} מנויים פעילים · {headerCounts.total} סה״כ
-            </CardDescription>
-          </div>
-          <ChevronDown className={`w-5 h-5 text-muted-foreground shrink-0 mt-1 transition-transform ${expanded ? "rotate-180" : ""}`} />
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setExpanded(v => !v)}
+            className="flex-1 flex items-start justify-between gap-3 text-right hover:opacity-80 transition-opacity"
+            aria-expanded={expanded}
+          >
+            <div className="flex-1 min-w-0">
+              <CardTitle className="flex items-center gap-2">
+                <Send className="w-5 h-5 text-primary" /> רשימת תפוצה לשיווק
+              </CardTitle>
+              <CardDescription className="mt-1">
+                {headerCounts.active} מנויים פעילים · {headerCounts.total} סה״כ
+              </CardDescription>
+            </div>
+            <ChevronDown className={`w-5 h-5 text-muted-foreground shrink-0 mt-1 transition-transform ${expanded ? "rotate-180" : ""}`} />
+          </button>
+          {/* "Send to all subscribers" button — moved here from the customer
+              directory header per owner's request; the broadcast audience is
+              subscribers, so the button belongs next to the list it acts on. */}
+          {onOpenBroadcast && canOpenBroadcast && (
+            <Button size="sm" className="gap-2 shrink-0" onClick={onOpenBroadcast}>
+              <MessageSquare className="w-4 h-4" /> הודעה לכולם
+            </Button>
+          )}
+        </div>
       </CardHeader>
       {expanded && (
       <CardContent className="space-y-4">
@@ -5371,39 +5390,30 @@ function CustomersTab() {
             in the same scroll. */}
       </div>
 
-      {/* Broadcast subscriber management — shared component. Mounted here
-          so the owner manages their marketing list right next to the
-          customer list it's derived from. */}
-      <BroadcastSubscriberPanel />
+      {/* Broadcast subscriber management — now also hosts the "הודעה לכולם"
+          button. The compose modal still lives in this tab (owns
+          broadcastMessage + recipientPhones state) and the button below
+          is just the trigger; onOpenBroadcast passes setShowBroadcast
+          back up so the existing composer opens unchanged. */}
+      <BroadcastSubscriberPanel
+        onOpenBroadcast={() => setShowBroadcast(true)}
+        canOpenBroadcast={customerList.length > 0}
+      />
 
       <Card>
         <CardHeader>
-          <div className="flex items-center gap-2">
-            {/* Clickable header — chevron toggle mirroring the pattern on
-                BroadcastSubscriberPanel so the two cards behave the same
-                way. Closed by default (showCustomerList=false). */}
-            <button
-              type="button"
-              onClick={() => setShowCustomerList(v => !v)}
-              className="flex-1 flex items-start justify-between gap-3 text-right hover:opacity-80 transition-opacity"
-              aria-expanded={showCustomerList}
-            >
-              <div className="flex-1 min-w-0">
-                <CardTitle>מאגר לקוחות</CardTitle>
-                <CardDescription className="mt-1">{customerList.length} לקוחות בסך הכל</CardDescription>
-              </div>
-              <ChevronDown className={`w-5 h-5 text-muted-foreground shrink-0 mt-1 transition-transform ${showCustomerList ? "rotate-180" : ""}`} />
-            </button>
-            {customerList.length > 0 && (
-              <Button
-                size="sm"
-                className="gap-2 shrink-0"
-                onClick={() => setShowBroadcast(true)}
-              >
-                <MessageSquare className="w-4 h-4" /> הודעה לכולם
-              </Button>
-            )}
-          </div>
+          <button
+            type="button"
+            onClick={() => setShowCustomerList(v => !v)}
+            className="w-full flex items-start justify-between gap-3 text-right hover:opacity-80 transition-opacity"
+            aria-expanded={showCustomerList}
+          >
+            <div className="flex-1 min-w-0">
+              <CardTitle>מאגר לקוחות</CardTitle>
+              <CardDescription className="mt-1">{customerList.length} לקוחות בסך הכל</CardDescription>
+            </div>
+            <ChevronDown className={`w-5 h-5 text-muted-foreground shrink-0 mt-1 transition-transform ${showCustomerList ? "rotate-180" : ""}`} />
+          </button>
         </CardHeader>
         {showCustomerList && customerList.length > 0 && (
         <CardContent>
