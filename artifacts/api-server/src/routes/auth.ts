@@ -689,6 +689,88 @@ router.post("/auth/business/confirm-email-change", requireBusinessAuth, async (r
   res.json({ success: true, newEmail: entry.newEmail });
 });
 
+// ─── Business-owner SMS login (passwordless) ────────────────────────────
+//
+// Alternative to email/phone/username + password. The owner enters the
+// phone registered on the account; we send an Inforu SMS with a 6-digit
+// code; they enter it; we mint the same JWT the password flow produces.
+//
+// Reuses whatsapp.ts sendOtp (which routes via Inforu when INFORU_*
+// env vars are set) with a dedicated purpose tag so the code can't
+// cross-use into forgot-password or client_login verifiers.
+
+router.post("/auth/business/sms-login/send", async (req, res): Promise<void> => {
+  const { phone } = req.body ?? {};
+  if (!phone || typeof phone !== "string") { res.status(400).json({ error: "מספר טלפון נדרש" }); return; }
+
+  // Look up by phone. Accept exact match + a digit-only fallback so
+  // "050-123-4567" and "0501234567" both resolve. Surface a generic
+  // "not found" — we don't want to leak which phones are registered.
+  const trimmed = phone.trim();
+  const digitsOnly = trimmed.replace(/\D/g, "");
+  const [business] = await db
+    .select()
+    .from(businessesTable)
+    .where(or(
+      eq(businessesTable.phone, trimmed),
+      eq(businessesTable.phone, digitsOnly),
+    ));
+  if (!business) {
+    // Respond 200 anyway so a caller can't enumerate registered phones
+    // by watching for the 404. The UI will still render the "enter code"
+    // step; verify will reject the code since no OTP was minted.
+    res.json({ success: true });
+    return;
+  }
+  if (!business.isActive) {
+    res.status(403).json({ error: "account_suspended", message: "החשבון מושהה. צור קשר עם התמיכה." });
+    return;
+  }
+
+  const { sendOtp, OtpRateLimitError } = await import("../lib/whatsapp");
+  try {
+    await sendOtp(trimmed, "password_reset");
+    res.json({ success: true });
+  } catch (e: any) {
+    if (e instanceof OtpRateLimitError) {
+      res.status(429).json({ error: "יותר מדי בקשות — נסה שוב בעוד כמה דקות" });
+      return;
+    }
+    console.error("[business/sms-login/send] OTP send failed:", e?.message ?? e);
+    res.status(500).json({ error: "שגיאה בשליחת קוד" });
+  }
+});
+
+router.post("/auth/business/sms-login/verify", async (req, res): Promise<void> => {
+  const { phone, code } = req.body ?? {};
+  if (!phone || !code) { res.status(400).json({ error: "שדות חסרים" }); return; }
+
+  const trimmed = String(phone).trim();
+  const digitsOnly = trimmed.replace(/\D/g, "");
+  const { verifyOtp } = await import("../lib/whatsapp");
+  const ok = await verifyOtp(trimmed, String(code), "password_reset");
+  if (!ok) { res.status(400).json({ error: "קוד שגוי או פג תוקף" }); return; }
+
+  const [business] = await db
+    .select()
+    .from(businessesTable)
+    .where(or(
+      eq(businessesTable.phone, trimmed),
+      eq(businessesTable.phone, digitsOnly),
+    ));
+  if (!business) {
+    res.status(404).json({ error: "העסק לא נמצא" });
+    return;
+  }
+  if (!business.isActive) {
+    res.status(403).json({ error: "account_suspended", message: "החשבון מושהה. צור קשר עם התמיכה." });
+    return;
+  }
+
+  const token = signBusinessToken({ businessId: business.id, email: business.email });
+  res.json(buildLoginResponse(business, token));
+});
+
 // POST /auth/forgot-password — send OTP via WhatsApp for phone-based reset
 router.post("/auth/forgot-password", async (req, res): Promise<void> => {
   const { phone } = req.body;

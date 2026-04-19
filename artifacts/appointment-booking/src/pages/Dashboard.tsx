@@ -1742,6 +1742,74 @@ function Login({ onLogin }: { onLogin: (t: string) => void }) {
   const loginMutation = useBusinessLogin();
   const [, navigate] = useLocation();
 
+  // Auth method — password by default, SMS OTP as an alternative.
+  // Stored in localStorage so a returning owner lands on the channel
+  // they used last time.
+  const [authMethod, setAuthMethod] = useState<"password" | "sms">(() => {
+    try { return localStorage.getItem("kavati_biz_auth_method") === "sms" ? "sms" : "password"; }
+    catch { return "password"; }
+  });
+  const [smsPhone, setSmsPhone] = useState("");
+  const [smsCode, setSmsCode] = useState("");
+  const [smsStep, setSmsStep] = useState<"phone" | "code">("phone");
+  const [smsSending, setSmsSending] = useState(false);
+  const [smsVerifying, setSmsVerifying] = useState(false);
+
+  const handleSmsSendCode = async () => {
+    if (!smsPhone.trim()) { toast({ title: "הזן מספר טלפון", variant: "destructive" }); return; }
+    setSmsSending(true);
+    try {
+      const res = await fetch("/api/auth/business/sms-login/send", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ phone: smsPhone.trim() }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        if (res.status === 429) {
+          toast({ title: "יותר מדי בקשות — נסה שוב בעוד כמה דקות", variant: "destructive" });
+        } else {
+          toast({ title: data?.error ?? "שגיאה בשליחת קוד", variant: "destructive" });
+        }
+        return;
+      }
+      setSmsStep("code");
+      toast({ title: "קוד נשלח ב-SMS לטלפון שלך" });
+    } catch {
+      toast({ title: "שגיאת רשת", variant: "destructive" });
+    } finally {
+      setSmsSending(false);
+    }
+  };
+
+  const handleSmsVerify = async () => {
+    if (!smsCode.trim()) return;
+    setSmsVerifying(true);
+    try {
+      const res = await fetch("/api/auth/business/sms-login/verify", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ phone: smsPhone.trim(), code: smsCode.trim() }),
+      });
+      const data = await res.json();
+      if (!res.ok) { toast({ title: data?.error ?? "קוד שגוי", variant: "destructive" }); return; }
+      if (rememberMe) {
+        localStorage.setItem("biz_token", data.token);
+        localStorage.setItem("kavati_biz_last_identifier", smsPhone.trim());
+        localStorage.setItem("kavati_biz_auth_method", "sms");
+        sessionStorage.removeItem("biz_token");
+      } else {
+        sessionStorage.setItem("biz_token", data.token);
+        localStorage.removeItem("biz_token");
+      }
+      onLogin(data.token);
+    } catch {
+      toast({ title: "שגיאת רשת", variant: "destructive" });
+    } finally {
+      setSmsVerifying(false);
+    }
+  };
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!identifier.trim()) return;
@@ -1791,6 +1859,29 @@ function Login({ onLogin }: { onLogin: (t: string) => void }) {
             <CardDescription>הזן אימייל, מספר טלפון או שם משתמש</CardDescription>
           </CardHeader>
           <CardContent>
+            {/* Auth method toggle — password (classic) vs. SMS OTP (passwordless). */}
+            <div className="flex gap-2 mb-4 rounded-md border border-border p-1 bg-muted/30">
+              <button
+                type="button"
+                onClick={() => { setAuthMethod("password"); }}
+                className={`flex-1 h-9 rounded text-sm font-medium transition-colors ${
+                  authMethod === "password" ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                סיסמה
+              </button>
+              <button
+                type="button"
+                onClick={() => { setAuthMethod("sms"); setSmsStep("phone"); setSmsCode(""); }}
+                className={`flex-1 h-9 rounded text-sm font-medium transition-colors ${
+                  authMethod === "sms" ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                קוד SMS
+              </button>
+            </div>
+
+            {authMethod === "password" && (
             <form onSubmit={handleSubmit} className="space-y-4" noValidate>
               <div className="space-y-2">
                 <Label>אימייל / טלפון / שם משתמש</Label>
@@ -1853,6 +1944,72 @@ function Login({ onLogin }: { onLogin: (t: string) => void }) {
                 </>
               )}
             </form>
+            )}
+
+            {authMethod === "sms" && (
+              <div className="space-y-4">
+                {smsStep === "phone" ? (
+                  <>
+                    <div className="space-y-2">
+                      <Label>מספר טלפון</Label>
+                      <Input
+                        type="tel"
+                        value={smsPhone}
+                        onChange={e => setSmsPhone(e.target.value)}
+                        dir="ltr"
+                        placeholder="0501234567"
+                        inputMode="tel"
+                        autoComplete="tel"
+                        onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); handleSmsSendCode(); } }}
+                      />
+                      <p className="text-xs text-muted-foreground">קוד חד-פעמי יישלח ב-SMS לטלפון הרשום בעסק.</p>
+                    </div>
+                    <div className="flex items-center gap-2 py-1">
+                      <input
+                        type="checkbox"
+                        id="remember-me-sms"
+                        checked={rememberMe}
+                        onChange={e => setRememberMe(e.target.checked)}
+                        className="w-4 h-4 rounded border-border accent-primary cursor-pointer"
+                      />
+                      <label htmlFor="remember-me-sms" className="text-sm text-muted-foreground cursor-pointer select-none">
+                        זכור אותי במכשיר זה
+                      </label>
+                    </div>
+                    <Button type="button" className="w-full h-11" disabled={smsSending} onClick={handleSmsSendCode}>
+                      {smsSending ? "שולח..." : "שלח קוד"}
+                    </Button>
+                  </>
+                ) : (
+                  <>
+                    <div className="space-y-2">
+                      <Label>קוד אימות</Label>
+                      <Input
+                        value={smsCode}
+                        onChange={e => setSmsCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
+                        dir="ltr"
+                        placeholder="123456"
+                        inputMode="numeric"
+                        autoComplete="one-time-code"
+                        maxLength={6}
+                        onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); handleSmsVerify(); } }}
+                      />
+                      <p className="text-xs text-muted-foreground">נשלח ל-{smsPhone}</p>
+                    </div>
+                    <Button type="button" className="w-full h-11" disabled={smsVerifying || smsCode.length < 6} onClick={handleSmsVerify}>
+                      {smsVerifying ? "מאמת..." : "כניסה"}
+                    </Button>
+                    <button
+                      type="button"
+                      className="text-xs text-primary underline"
+                      onClick={() => { setSmsStep("phone"); setSmsCode(""); }}
+                    >
+                      שלח שוב / שנה מספר
+                    </button>
+                  </>
+                )}
+              </div>
+            )}
             <div className="mt-5 text-center">
               <span className="text-sm text-muted-foreground">עדיין אין לך חשבון? </span>
               <button
