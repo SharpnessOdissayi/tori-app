@@ -58,6 +58,13 @@ function escapeHtmlPublic(raw: string): string {
     .replace(/"/g, "&quot;").replace(/'/g, "&#39;");
 }
 
+// Declare the router BEFORE any route registration — it's a `const`, so
+// the TDZ bites if we call router.get() above this line at module load
+// time. Previously this lived after the /r/ handlers, which crashed the
+// whole api-server on startup with "Cannot read properties of undefined
+// (reading 'get')" before any route could serve traffic.
+const router = Router();
+
 // ─── Broadcast opt-IN page (per business) ───────────────────────────────
 // URL: https://<host>/api/r/:businessSlug — the owner shares this link
 // wherever they want (social media, email signature, print, etc.).
@@ -202,8 +209,6 @@ router.post("/r/:businessSlug", async (req, res): Promise<void> => {
     biz.primaryColor ?? "#3c92f0",
   ));
 });
-
-const router = Router();
 
 // ─── Broadcast unsubscribe (tokenised link in bulk SMS) ──────────────────
 // URL: https://<host>/api/u/<token> — mounted under /api/ because Railway's
