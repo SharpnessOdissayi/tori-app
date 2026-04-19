@@ -4721,6 +4721,23 @@ type BroadcastSubscriberPanelProps = {
 };
 function BroadcastSubscriberPanel({ onOpenBroadcast, canOpenBroadcast = true }: BroadcastSubscriberPanelProps = {}) {
   const { toast } = useToast();
+  const { data: panelProfile } = useGetBusinessProfile();
+  // Public opt-in URL — owner shares this wherever they want. Customer
+  // who clicks it can re-subscribe even if they previously opted out
+  // (their positive action is the new consent required by תיקון 40).
+  const optInUrl = panelProfile?.slug
+    ? `${typeof window !== "undefined" ? window.location.origin : "https://www.kavati.net"}/api/r/${panelProfile.slug}`
+    : null;
+  const copyOptInUrl = () => {
+    if (!optInUrl) return;
+    try {
+      navigator.clipboard.writeText(optInUrl)
+        .then(() => toast({ title: "הקישור הועתק ללוח" }))
+        .catch(() => toast({ title: "לא ניתן להעתיק — העתק ידנית", variant: "destructive" }));
+    } catch {
+      toast({ title: "לא ניתן להעתיק — העתק ידנית", variant: "destructive" });
+    }
+  };
   const [subscribers, setSubscribers] = useState<BroadcastSubscriberRow[]>([]);
   const [loading, setLoading] = useState(false);
   const [search, setSearch] = useState("");
@@ -4907,6 +4924,34 @@ function BroadcastSubscriberPanel({ onOpenBroadcast, canOpenBroadcast = true }: 
             <div className="text-2xl font-bold text-muted-foreground">{unsubscribedCount}</div>
           </button>
         </div>
+
+        {/* Public opt-in link — shareable URL that lets anyone subscribe
+            themselves (even after a prior opt-out, because their fresh
+            click is the explicit positive consent required by תיקון 40).
+            Hidden until profile.slug loads since we need it for the URL. */}
+        {optInUrl && (
+          <div className="rounded-xl border border-primary/20 bg-primary/5 p-3 space-y-2">
+            <div className="flex items-center gap-2">
+              <Send className="w-4 h-4 text-primary shrink-0" />
+              <div className="text-sm font-semibold">קישור הרשמה ציבורי</div>
+            </div>
+            <p className="text-xs text-muted-foreground leading-relaxed">
+              שתפ/י את הקישור בסטורי, מייל, או בכל מקום — מי שלחץ/ה ימלא/ מספר טלפון ויירשם/תירשם לקבלת הודעות שיווק מהעסק.
+            </p>
+            <div className="flex gap-2">
+              <Input
+                readOnly
+                value={optInUrl}
+                dir="ltr"
+                onFocus={e => e.currentTarget.select()}
+                className="flex-1 text-xs font-mono"
+              />
+              <Button type="button" size="sm" onClick={copyOptInUrl} className="shrink-0 gap-1">
+                העתק
+              </Button>
+            </div>
+          </div>
+        )}
 
         {/* Add manual phone */}
         <div className="space-y-2">

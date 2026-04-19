@@ -18,6 +18,191 @@ import { isPhoneVerified, consumeVerification, markPhoneVerified, normalizePhone
 import { signPhoneVerificationToken, verifyPhoneVerificationToken } from "../lib/phoneVerificationJwt";
 import { peekUnsubscribeToken, consumeUnsubscribeToken, normalizeSubscriberPhone } from "../lib/unsubscribeToken";
 
+// Shared page shell for the public opt-in / opt-out HTML pages — keeps
+// one stylesheet so the two flows feel like the same brand.
+function brandedPageShell(title: string, body: string, accent = "#3c92f0"): string {
+  return `<!doctype html>
+<html lang="he" dir="rtl"><head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <meta name="robots" content="noindex,nofollow"/>
+  <title>${title} — קבעתי</title>
+  <style>
+    body{margin:0;min-height:100vh;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Rubik,Arial,sans-serif;
+         display:flex;align-items:center;justify-content:center;background:#f8fafc;color:#0f172a;padding:24px;}
+    .card{background:#fff;border-radius:20px;box-shadow:0 10px 30px rgba(15,23,42,.08);
+          padding:32px 28px;max-width:420px;width:100%;text-align:center;}
+    .icon{width:64px;height:64px;border-radius:50%;display:inline-flex;align-items:center;
+          justify-content:center;margin-bottom:16px;background:${accent}15;color:${accent};font-size:30px;}
+    h1{font-size:20px;margin:8px 0 12px;font-weight:700;}
+    p{font-size:15px;line-height:1.55;color:#475569;margin:6px 0;}
+    .brand{margin-top:24px;font-size:12px;color:#94a3b8;}
+    a{color:${accent};text-decoration:none;font-weight:600;}
+    form{display:flex;flex-direction:column;gap:14px;margin-top:16px;text-align:right;}
+    label{font-size:13px;color:#334155;font-weight:600;}
+    input[type=tel]{padding:12px 14px;border:1px solid #cbd5e1;border-radius:12px;font-size:16px;direction:ltr;text-align:center;letter-spacing:1px;}
+    input[type=tel]:focus{outline:none;border-color:${accent};box-shadow:0 0 0 3px ${accent}30;}
+    .consent{display:flex;align-items:flex-start;gap:8px;font-size:12px;color:#475569;line-height:1.5;text-align:right;}
+    .consent input{margin-top:3px;}
+    button{background:${accent};color:#fff;border:0;padding:12px;border-radius:12px;font-size:15px;font-weight:700;cursor:pointer;}
+    button:disabled{opacity:.6;cursor:not-allowed;}
+    .muted{font-size:12px;color:#94a3b8;}
+    .biz-logo{width:56px;height:56px;border-radius:14px;object-fit:cover;margin:0 auto 10px;display:block;box-shadow:0 4px 12px rgba(15,23,42,.08);}
+  </style>
+</head><body><div class="card">${body}<div class="brand">הרשמה להודעות עסק · <a href="https://www.kavati.net">קבעתי</a></div></div></body></html>`;
+}
+
+function escapeHtmlPublic(raw: string): string {
+  return String(raw ?? "")
+    .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+}
+
+// ─── Broadcast opt-IN page (per business) ───────────────────────────────
+// URL: https://<host>/api/r/:businessSlug — the owner shares this link
+// wherever they want (social media, email signature, print, etc.).
+// A visitor enters their phone, confirms they own the number, and lands
+// in broadcast_subscribers with status='active'. Overrides any prior
+// opt-out for THIS business because the customer just performed an
+// explicit positive consent action — the condition תיקון 40 sets for
+// marketing contact.
+router.get("/r/:businessSlug", async (req, res): Promise<void> => {
+  const slug = String(req.params.businessSlug ?? "").trim();
+  if (!slug) {
+    res.status(400).set("Content-Type", "text/html; charset=utf-8").send(brandedPageShell(
+      "לא נמצא",
+      `<div class="icon" style="background:#fee2e2;color:#dc2626">✕</div>
+       <h1>קישור לא תקין</h1>`,
+      "#dc2626",
+    ));
+    return;
+  }
+  const [biz] = await db
+    .select({
+      id: businessesTable.id,
+      name: businessesTable.name,
+      logoUrl: businessesTable.logoUrl,
+      primaryColor: businessesTable.primaryColor,
+    })
+    .from(businessesTable)
+    .where(and(eq(businessesTable.slug, slug), eq(businessesTable.isActive, true)));
+  if (!biz) {
+    res.status(404).set("Content-Type", "text/html; charset=utf-8").send(brandedPageShell(
+      "לא נמצא",
+      `<div class="icon" style="background:#fee2e2;color:#dc2626">✕</div>
+       <h1>העסק לא נמצא</h1>
+       <p>ייתכן שהקישור שגוי או שהעסק כבר לא פעיל בקבעתי.</p>`,
+      "#dc2626",
+    ));
+    return;
+  }
+  const accent = biz.primaryColor ?? "#3c92f0";
+  const logoBlock = biz.logoUrl
+    ? `<img class="biz-logo" src="${escapeHtmlPublic(biz.logoUrl)}" alt="${escapeHtmlPublic(biz.name)}"/>`
+    : "";
+  res.status(200).set("Content-Type", "text/html; charset=utf-8").send(brandedPageShell(
+    `הרשמה להודעות מ-${biz.name}`,
+    `${logoBlock}
+     <h1>הרשמה להודעות מ-${escapeHtmlPublic(biz.name)}</h1>
+     <p>הזן/י את מספר הטלפון שלך כדי להצטרף לרשימת התפוצה של העסק.</p>
+     <form method="POST" action="/api/r/${encodeURIComponent(slug)}">
+       <label for="phone">מספר טלפון</label>
+       <input type="tel" id="phone" name="phone" required pattern="[0-9+\\- ]{7,}" placeholder="0501234567" autocomplete="tel" inputmode="tel"/>
+       <label class="consent">
+         <input type="checkbox" name="consent" value="1" required/>
+         <span>אני בעל/ת המספר ומאשר/ת לקבל הודעות שיווק מ-${escapeHtmlPublic(biz.name)} ב-SMS. ניתן להסיר בכל עת באמצעות הקישור שיופיע בכל הודעה.</span>
+       </label>
+       <button type="submit">הרשמה</button>
+     </form>
+     <p class="muted" style="margin-top:14px;">שירות ההודעות מופעל על ידי קבעתי בהתאם לתיקון 40 לחוק התקשורת.</p>`,
+    accent,
+  ));
+});
+
+router.post("/r/:businessSlug", async (req, res): Promise<void> => {
+  const slug = String(req.params.businessSlug ?? "").trim();
+  const rawPhone = String((req.body as any)?.phone ?? "").trim();
+  const consent  = String((req.body as any)?.consent ?? "") === "1";
+  if (!slug || !rawPhone || !consent) {
+    res.status(400).set("Content-Type", "text/html; charset=utf-8").send(brandedPageShell(
+      "בקשה לא תקינה",
+      `<div class="icon" style="background:#fee2e2;color:#dc2626">✕</div>
+       <h1>טופס לא מלא</h1>
+       <p>חסר מספר טלפון או אישור — חזר/י לדף הקודם ונסה/י שוב.</p>`,
+      "#dc2626",
+    ));
+    return;
+  }
+  // Very loose phone sanity check — Israeli numbers have 9-10 digits
+  // after normalisation. Reject anything too short (avoids bogus rows)
+  // but accept any standard format the customer typed.
+  const digits = rawPhone.replace(/\D/g, "");
+  if (digits.length < 9 || digits.length > 15) {
+    res.status(400).set("Content-Type", "text/html; charset=utf-8").send(brandedPageShell(
+      "מספר לא תקין",
+      `<div class="icon" style="background:#fee2e2;color:#dc2626">✕</div>
+       <h1>מספר טלפון לא תקין</h1>
+       <p>הזן/י מספר ישראלי תקין (לדוגמה 0501234567) וחזר/י.</p>`,
+      "#dc2626",
+    ));
+    return;
+  }
+  const normalised = normalizeSubscriberPhone(rawPhone);
+
+  const [biz] = await db
+    .select({ id: businessesTable.id, name: businessesTable.name, primaryColor: businessesTable.primaryColor })
+    .from(businessesTable)
+    .where(and(eq(businessesTable.slug, slug), eq(businessesTable.isActive, true)));
+  if (!biz) {
+    res.status(404).set("Content-Type", "text/html; charset=utf-8").send(brandedPageShell(
+      "לא נמצא",
+      `<div class="icon" style="background:#fee2e2;color:#dc2626">✕</div>
+       <h1>העסק לא נמצא</h1>`,
+      "#dc2626",
+    ));
+    return;
+  }
+
+  try {
+    // Explicit affirmative consent by the customer = legal basis under
+    // תיקון 40 to OVERRIDE any prior opt-out for this specific business.
+    // The customer just did the positive opt-in action themselves, so
+    // removing the audit row and re-adding them is correct.
+    await db.execute(sql`
+      DELETE FROM broadcast_unsubscribes
+      WHERE business_id = ${biz.id}
+        AND regexp_replace(regexp_replace(phone_number, '\D', '', 'g'), '^972', '0') = ${normalised}
+    `);
+    await db.execute(sql`
+      INSERT INTO broadcast_subscribers (business_id, phone_number, status, source)
+      VALUES (${biz.id}, ${normalised}, 'active', 'public_optin')
+      ON CONFLICT (business_id, phone_number)
+      DO UPDATE SET status = 'active', source = 'public_optin', updated_at = NOW()
+    `);
+  } catch (e: any) {
+    console.error("[/api/r] opt-in write failed:", e?.message ?? e);
+    res.status(500).set("Content-Type", "text/html; charset=utf-8").send(brandedPageShell(
+      "שגיאה",
+      `<div class="icon" style="background:#fee2e2;color:#dc2626">!</div>
+       <h1>אירעה שגיאה זמנית</h1>
+       <p>נסה/י שוב בעוד דקה.</p>`,
+      "#dc2626",
+    ));
+    return;
+  }
+
+  res.status(200).set("Content-Type", "text/html; charset=utf-8").send(brandedPageShell(
+    "הרשמה בוצעה",
+    `<div class="icon">✓</div>
+     <h1>נרשמת בהצלחה</h1>
+     <p>מעכשיו תקבל/י הודעות שיווק מ-<strong>${escapeHtmlPublic(biz.name)}</strong>.</p>
+     <p style="margin-top:14px;font-size:13px;color:#64748b;">
+       ניתן להסיר את עצמך בכל עת באמצעות הקישור שיופיע בכל הודעה.
+     </p>`,
+    biz.primaryColor ?? "#3c92f0",
+  ));
+});
+
 const router = Router();
 
 // ─── Broadcast unsubscribe (tokenised link in bulk SMS) ──────────────────
