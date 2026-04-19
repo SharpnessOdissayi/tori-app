@@ -663,16 +663,64 @@ router.delete("/business/services/:id", requireBusinessAuth, async (req, res): P
   res.json({ success: true, message: "Service deleted" });
 });
 
+// GET /business/working-hours
+// Staff scoping: when the JWT carries a staffMemberId, return the staff's
+// per-staff rows only (falling back to business-wide rows as defaults
+// when the staff has no per-day override yet). Owner callers see every
+// business-wide row (staff_member_id IS NULL) — per-staff rows are
+// managed by each staff from their own dashboard.
 router.get("/business/working-hours", requireBusinessAuth, async (req, res): Promise<void> => {
+  const businessId = req.business!.businessId;
+  const callerStaffId = req.business!.staffMemberId ?? null;
+
+  if (callerStaffId) {
+    // Prefer per-staff rows. If the staff has never edited hours, fall
+    // back to the business-wide template so their form opens with sane
+    // defaults (matches the availability code in lib/availability.ts).
+    const staffRows = await db
+      .select()
+      .from(workingHoursTable)
+      .where(and(
+        eq(workingHoursTable.businessId, businessId),
+        eq((workingHoursTable as any).staffMemberId, callerStaffId),
+      ))
+      .orderBy(workingHoursTable.dayOfWeek);
+    if (staffRows.length > 0) {
+      res.json(staffRows.map((h) => ({ id: h.id, businessId: h.businessId, dayOfWeek: h.dayOfWeek, startTime: h.startTime, endTime: h.endTime, isEnabled: h.isEnabled })));
+      return;
+    }
+    const fallback = await db
+      .select()
+      .from(workingHoursTable)
+      .where(and(
+        eq(workingHoursTable.businessId, businessId),
+        sql`${(workingHoursTable as any).staffMemberId} IS NULL`,
+      ))
+      .orderBy(workingHoursTable.dayOfWeek);
+    res.json(fallback.map((h) => ({ id: h.id, businessId: h.businessId, dayOfWeek: h.dayOfWeek, startTime: h.startTime, endTime: h.endTime, isEnabled: h.isEnabled })));
+    return;
+  }
+
+  // Owner view — only the business-wide rows (NULL staff_member_id).
+  // Per-staff rows are not shown here so the owner's form never
+  // overwrites a staff's personal hours on save.
   const hours = await db
     .select()
     .from(workingHoursTable)
-    .where(eq(workingHoursTable.businessId, req.business!.businessId))
+    .where(and(
+      eq(workingHoursTable.businessId, businessId),
+      sql`${(workingHoursTable as any).staffMemberId} IS NULL`,
+    ))
     .orderBy(workingHoursTable.dayOfWeek);
 
   res.json(hours.map((h) => ({ id: h.id, businessId: h.businessId, dayOfWeek: h.dayOfWeek, startTime: h.startTime, endTime: h.endTime, isEnabled: h.isEnabled })));
 });
 
+// PUT /business/working-hours
+// Staff scoping mirrors GET: staff writes update ONLY their per-staff
+// rows (staff_member_id = caller). Owner writes touch only business-
+// wide rows (staff_member_id IS NULL). Neither side can clobber the
+// other's rows.
 router.put("/business/working-hours", requireBusinessAuth, async (req, res): Promise<void> => {
   const parsed = SetWorkingHoursBody.safeParse(req.body);
   if (!parsed.success) {
@@ -681,7 +729,25 @@ router.put("/business/working-hours", requireBusinessAuth, async (req, res): Pro
   }
 
   const businessId = req.business!.businessId;
-  await db.delete(workingHoursTable).where(eq(workingHoursTable.businessId, businessId));
+  const callerStaffId = req.business!.staffMemberId ?? null;
+
+  if (callerStaffId) {
+    await db.delete(workingHoursTable).where(and(
+      eq(workingHoursTable.businessId, businessId),
+      eq((workingHoursTable as any).staffMemberId, callerStaffId),
+    ));
+    const inserted = await db
+      .insert(workingHoursTable)
+      .values(parsed.data.hours.map((h) => ({ ...h, businessId, staffMemberId: callerStaffId } as any)))
+      .returning();
+    res.json(inserted.map((h) => ({ id: h.id, businessId: h.businessId, dayOfWeek: h.dayOfWeek, startTime: h.startTime, endTime: h.endTime, isEnabled: h.isEnabled })));
+    return;
+  }
+
+  await db.delete(workingHoursTable).where(and(
+    eq(workingHoursTable.businessId, businessId),
+    sql`${(workingHoursTable as any).staffMemberId} IS NULL`,
+  ));
   const inserted = await db
     .insert(workingHoursTable)
     .values(parsed.data.hours.map((h) => ({ ...h, businessId })))

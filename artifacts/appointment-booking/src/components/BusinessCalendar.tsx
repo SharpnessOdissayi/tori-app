@@ -1586,6 +1586,25 @@ export function BusinessCalendar({
       return aid === staffFilter.id;
     });
   }, [appointments, staffFilter]);
+  // Apply the same filter to time-off (constraints) — but with DIFFERENT
+  // semantics from appointments. Staff-specific constraints should NOT
+  // clutter the owner's unfiltered calendar (reported bug: "staff
+  // member created a day-off and it also blocked the owner's day").
+  //   · No filter (owner unfiltered)  → show only business-wide rows
+  //     (staff_member_id IS NULL). Each staff's personal days off stay
+  //     scoped to their own filtered view.
+  //   · Filter set (owner viewing X, or staff viewing self)
+  //     → show business-wide rows + rows matching the filtered staff.
+  const filteredTimeOff = useMemo(() => {
+    if (!timeOff) return timeOff;
+    if (!staffFilter) {
+      return timeOff.filter(t => (t.staffMemberId ?? null) === null);
+    }
+    return timeOff.filter(t => {
+      const sid = t.staffMemberId ?? null;
+      return sid === null || sid === staffFilter.id;
+    });
+  }, [timeOff, staffFilter]);
   // First-visit drag hint — shows for 5s the first time an owner opens
   // the calendar, then never again. The tip is stickier than a toast
   // and lives above the grid so the gesture it describes is right
@@ -1799,7 +1818,7 @@ export function BusinessCalendar({
           <MonthView
             cursor={cursor}
             appts={filteredAppointments}
-            timeOff={timeOff}
+            timeOff={filteredTimeOff}
             onPickDay={d => { setCursor(d); setView("day"); }}
           />
         )}
@@ -1807,7 +1826,7 @@ export function BusinessCalendar({
           <TimeGrid
             days={weekDaysForCursor}
             appts={filteredAppointments}
-            timeOff={timeOff}
+            timeOff={filteredTimeOff}
             workingHours={workingHours as WorkingHourLite[] | undefined}
             serviceColors={serviceColors}
             onApptClick={onApptClick}
@@ -1821,7 +1840,7 @@ export function BusinessCalendar({
           <TimeGrid
             days={[cursor]}
             appts={filteredAppointments}
-            timeOff={timeOff}
+            timeOff={filteredTimeOff}
             workingHours={workingHours as WorkingHourLite[] | undefined}
             serviceColors={serviceColors}
             onApptClick={onApptClick}

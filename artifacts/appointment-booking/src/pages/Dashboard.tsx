@@ -868,18 +868,19 @@ export default function Dashboard() {
   }, []);
 
   // Staff-mode tab guard: a staff account that lands on a disallowed tab
-  // (e.g. "settings" cached from a previous owner login on the same
+  // (e.g. "branding" cached from a previous owner login on the same
   // browser) should bounce to the appointments tab so they don't sit on
   // a blank/permission-denied screen.
-  // Dibs-style minimal permission set + two extras the owner asked for:
-  //   · appointments — the staff's own calendar view
-  //   · approvals    — so staff can approve their own pending requests
-  //                    (sends the "התור אושר" WhatsApp template)
-  //   · staff        — own row for profile photo, plus read-only contact
-  //                    details of the rest of the team
-  // Owner configures everything else (services-per-staff, hours,
-  // branding, broadcast, etc.) from the owner dashboard.
-  const STAFF_ALLOWED_TABS = ["appointments", "approvals", "staff"];
+  //
+  // Per owner spec, staff get EXACTLY these capabilities — nothing else:
+  //   · appointments — own calendar (time-off/constraints handled here)
+  //   · approvals    — approve own pending requests
+  //   · hours        — set OWN working hours (per-staff rows, not global)
+  //   · integrations — reminders (max 2) + Shabbat toggle ONLY (the rest
+  //                    of the tab is hidden for staff via isStaffMode)
+  //   · settings     — manual-appointment-approval toggle ONLY (the rest
+  //                    of the tab is hidden for staff via isStaffMode)
+  const STAFF_ALLOWED_TABS = ["appointments", "approvals", "hours", "integrations", "settings"];
 
   // Force-change-password flow removed — staff log in via phone + SMS
   // OTP now, there's no temp password to replace. Legacy
@@ -1174,11 +1175,12 @@ export default function Dashboard() {
                   <Briefcase className="w-4 h-4" /> שירותים
                 </TabsTrigger>
               )}
-              {!isStaffMode && (
-                <TabsTrigger value="hours" className="gap-1.5 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground whitespace-nowrap">
-                  <Clock className="w-4 h-4" /> שעות עבודה
-                </TabsTrigger>
-              )}
+              {/* Hours is staff-accessible — each staff edits their OWN
+                  per-staff hours. Backend scopes to staff_member_id
+                  when the caller's JWT carries one. */}
+              <TabsTrigger value="hours" className="gap-1.5 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground whitespace-nowrap">
+                <Clock className="w-4 h-4" /> שעות עבודה
+              </TabsTrigger>
               {!isStaffMode && (
                 <TabsTrigger value="customers" className="gap-1.5 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground whitespace-nowrap">
                   <Users className="w-4 h-4" /> לקוחות
@@ -1199,18 +1201,22 @@ export default function Dashboard() {
                   <Palette className="w-4 h-4" /> עיצוב
                 </TabsTrigger>
               )}
+              {/* Integrations tab is staff-accessible but the tab body
+                  is heavily gated: staff see ONLY the "reminders before
+                  appointment" and "שבת" sections. The rest (WhatsApp
+                  templates, broadcast config, etc.) is owner-only. */}
+              <TabsTrigger value="integrations" className="gap-1.5 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground whitespace-nowrap">
+                <Phone className="w-4 h-4" /> הודעות ותזכורות {!isProPlan && !isStaffMode && <ProShine />}
+              </TabsTrigger>
+              {/* צוות tab is OWNER-ONLY — staff don't manage team
+                  members, contact rosters, or assignments. Per spec,
+                  staff's only five capabilities are hours / reminders
+                  / Shabbat / manual-approval toggle / time-off. */}
               {!isStaffMode && (
-                <TabsTrigger value="integrations" className="gap-1.5 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground whitespace-nowrap">
-                  <Phone className="w-4 h-4" /> הודעות ותזכורות {!isProPlan && <ProShine />}
+                <TabsTrigger value="staff" className="gap-1.5 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground whitespace-nowrap">
+                  <Users className="w-4 h-4" /> צוות {!isProPlusPlan && <ProShine />}
                 </TabsTrigger>
               )}
-              {/* צוות tab is visible to BOTH owners and staff — staff uses
-                  it to update their own avatar + see team contact info.
-                  Backend PATCH /staff/:id enforces "own row + avatarUrl
-                  only" for staff tokens. */}
-              <TabsTrigger value="staff" className="gap-1.5 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground whitespace-nowrap">
-                <Users className="w-4 h-4" /> צוות {!isProPlusPlan && !isStaffMode && <ProShine />}
-              </TabsTrigger>
               {!isStaffMode && (
                 <TabsTrigger value="analytics-pro" className="gap-1.5 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground whitespace-nowrap">
                   <TrendingUp className="w-4 h-4" /> אנליטיקה {!isProPlusPlan && <ProShine />}
@@ -1221,11 +1227,12 @@ export default function Dashboard() {
                   <Download className="w-4 h-4" /> ייצוא {!isProPlusPlan && <ProShine />}
                 </TabsTrigger>
               )}
-              {!isStaffMode && (
-                <TabsTrigger value="settings" className="gap-1.5 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground whitespace-nowrap">
-                  <Settings className="w-4 h-4" /> הגדרות
-                </TabsTrigger>
-              )}
+              {/* Settings tab is staff-accessible but heavily gated —
+                  staff see ONLY the "דרוש אישור ידני לתורים" toggle.
+                  Business profile, tax, payments, etc. are owner-only. */}
+              <TabsTrigger value="settings" className="gap-1.5 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground whitespace-nowrap">
+                <Settings className="w-4 h-4" /> הגדרות
+              </TabsTrigger>
             </TabsList>
           </div>
 
@@ -1262,7 +1269,7 @@ export default function Dashboard() {
           <TabsContent value="waitlist" dir="rtl"><WaitlistTab /></TabsContent>
           <TabsContent value="receipts" dir="rtl"><ReceiptsTab /></TabsContent>
           <TabsContent value="branding" dir="rtl"><BrandingTab /></TabsContent>
-          <TabsContent value="integrations" dir="rtl">{isProPlan ? <IntegrationsTab /> : <ProUpgradePrompt title="הודעות ותזכורות — מנוי PRO בלבד" desc="שדרג למנוי PRO כדי לנהל תבניות WhatsApp אישיות, הודעות ברודקאסט ותזכורות מתוזמנות" />}</TabsContent>
+          <TabsContent value="integrations" dir="rtl">{isProPlan || isStaffMode ? <IntegrationsTab isStaffMode={isStaffMode} /> : <ProUpgradePrompt title="הודעות ותזכורות — מנוי PRO בלבד" desc="שדרג למנוי PRO כדי לנהל תבניות WhatsApp אישיות, הודעות ברודקאסט ותזכורות מתוזמנות" />}</TabsContent>
           {/* עסקי-tier-only tabs. Pro sees a "שדרג לעסקי" upgrade prompt;
               עסקי sees the real feature. Gate is isProPlusPlan, not
               isProPlan, so Pro users don't accidentally see these. */}
@@ -1278,7 +1285,7 @@ export default function Dashboard() {
           }</TabsContent>
           <TabsContent value="analytics-pro" dir="rtl">{isProPlusPlan ? <AdvancedAnalyticsTab /> : <BusinessUpgradePrompt title="אנליטיקה מתקדמת — מנוי עסקי בלבד" desc="שדרג למנוי עסקי כדי לראות LTV לפי לקוח, נתוני נאמנות, תחזית הכנסות ומגמות עסקיות מעמיקות" />}</TabsContent>
           <TabsContent value="data-export" dir="rtl">{isProPlusPlan ? <DataExportTab /> : <BusinessUpgradePrompt title="ייצוא נתונים — מנוי עסקי בלבד" desc="שדרג למנוי עסקי כדי להוריד קבצי Excel/CSV של לקוחות, תורים והכנסות לרואה החשבון" />}</TabsContent>
-          <TabsContent value="settings" dir="rtl"><SettingsTab /></TabsContent>
+          <TabsContent value="settings" dir="rtl"><SettingsTab isStaffMode={isStaffMode} /></TabsContent>
         </Tabs>
 
         {/* Suggestion banner — hidden on the calendar tab so the יומן
@@ -1317,16 +1324,16 @@ export default function Dashboard() {
             {([
               { value: "appointments", icon: <Calendar className="w-6 h-6" />, label: "פגישות",       staffAllowed: true  },
               { value: "services",     icon: <Briefcase className="w-6 h-6" />, label: "שירותים",      staffAllowed: false },
-              { value: "hours",        icon: <Clock className="w-6 h-6" />,     label: "שעות עבודה",   staffAllowed: false },
+              { value: "hours",        icon: <Clock className="w-6 h-6" />,     label: "שעות עבודה",   staffAllowed: true  },
               { value: "customers",    icon: <Users className="w-6 h-6" />,     label: "לקוחות",       staffAllowed: false },
               { value: "waitlist",     icon: <ListOrdered className="w-6 h-6" />, label: "המתנה",      staffAllowed: false },
               { value: "receipts",     icon: <FileText className="w-6 h-6" />,  label: "קבלות",         staffAllowed: false },
               { value: "branding",     icon: <Palette className="w-6 h-6" />,   label: "עיצוב",         staffAllowed: false },
-              { value: "integrations",   icon: <Phone className="w-6 h-6" />,       label: "הודעות ותזכורות", staffAllowed: false },
-              { value: "staff",          icon: <Users className="w-6 h-6" />,       label: "צוות",           staffAllowed: true  },
+              { value: "integrations",   icon: <Phone className="w-6 h-6" />,       label: "הודעות ותזכורות", staffAllowed: true  },
+              { value: "staff",          icon: <Users className="w-6 h-6" />,       label: "צוות",           staffAllowed: false },
               { value: "analytics-pro",  icon: <TrendingUp className="w-6 h-6" />,  label: "אנליטיקה",       staffAllowed: false },
               { value: "data-export",    icon: <Download className="w-6 h-6" />,    label: "ייצוא",          staffAllowed: false },
-              { value: "settings",       icon: <Settings className="w-6 h-6" />,    label: "הגדרות",         staffAllowed: false },
+              { value: "settings",       icon: <Settings className="w-6 h-6" />,    label: "הגדרות",         staffAllowed: true  },
             ] as const)
               .filter(entry => !isStaffMode || entry.staffAllowed)
               .map(({ value, icon, label }) => (
@@ -1367,6 +1374,24 @@ export default function Dashboard() {
               <ChevronLeft className="w-4 h-4 text-primary/60 shrink-0" />
             </a>
           )}
+          {/* Logout — always in the menu sheet so mobile users have a
+              single reliable place to sign out regardless of which tab
+              they're currently on. Desktop keeps the logout in the top
+              header (hidden sm:flex); this row is mobile-reachable
+              through the "תפריט" bottom-nav button. */}
+          <button
+            type="button"
+            onClick={() => { setMenuOpen(false); handleLogout(); }}
+            className="mt-2 w-full flex items-center gap-3 p-4 rounded-2xl border border-border bg-card text-right hover:bg-muted/40 transition-colors"
+          >
+            <div className="w-11 h-11 rounded-xl flex items-center justify-center shrink-0 bg-muted text-muted-foreground">
+              <LogOut className="w-5 h-5" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="font-bold text-sm">התנתק</div>
+              <div className="text-[11px] text-muted-foreground mt-0.5">יציאה מחשבון העסק</div>
+            </div>
+          </button>
         </SheetContent>
       </Sheet>
     </div>
@@ -6658,7 +6683,7 @@ function BrandingTab() {
   );
 }
 
-function IntegrationsTab() {
+function IntegrationsTab({ isStaffMode = false }: { isStaffMode?: boolean }) {
   const { data: profile } = useGetBusinessProfile();
   const updateProfile = useUpdateBusinessProfile();
   const queryClient = useQueryClient();
@@ -6783,6 +6808,12 @@ function IntegrationsTab() {
   return (
     <div className="space-y-6 max-w-2xl">
 
+      {/* Staff-mode gate: per owner spec, staff see ONLY the "reminders
+          ללקוחות לפני התור" card (which itself contains the Shabbat
+          toggle). Everything else — WhatsApp status pill, SMS quota,
+          owner-notification toggles, client-popup announcement — is
+          owner-only and hidden below. */}
+      {!isStaffMode && (<>
       {/* Status */}
       <div className="flex items-center gap-3 p-4 rounded-xl border bg-green-50 border-green-200">
         <div className="w-3 h-3 rounded-full shrink-0 bg-green-500" />
@@ -6950,8 +6981,10 @@ function IntegrationsTab() {
           )}
         </CardContent>
       </Card>
+      </>)}
 
-      {/* Reminders card */}
+      {/* Reminders card — STAFF-VISIBLE. Contains the per-booking reminder
+          list (hard-capped at 2) and the Shabbat observance toggle. */}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
@@ -7282,7 +7315,7 @@ function ReceiptsTab() {
   );
 }
 
-function SettingsTab() {
+function SettingsTab({ isStaffMode = false }: { isStaffMode?: boolean }) {
   const { data: profile } = useGetBusinessProfile();
   const updateMutation = useUpdateBusinessProfile();
   const queryClient = useQueryClient();
@@ -7473,6 +7506,13 @@ function SettingsTab() {
 
 
   if (!profile) return <div className="p-8 text-center text-muted-foreground">טוען...</div>;
+
+  // Staff-mode early return — staff see ONLY the manual-appointment-
+  // approval toggle, nothing else. Business profile, tax/receipt
+  // config, Tranzila, custom domain, subscription status, etc. are
+  // strictly owner-only. Each section above is gated further by the
+  // isPro flag; staff just never reach that code.
+  if (isStaffMode) return <StaffSettingsPanel />;
 
   return (
     <div className="space-y-6 max-w-2xl">
@@ -7811,6 +7851,75 @@ function SettingsTab() {
         onClick={() => handleSave({ preventDefault: () => {} } as any)}
         saving={updateMutation.isPending}
       />
+    </div>
+  );
+}
+
+// ─── Staff settings (single-toggle, staff-mode only) ──────────────────────
+// Rendered by SettingsTab when the caller is a non-owner staff member.
+// Exposes ONLY the "דרוש אישור ידני לתורים" toggle — per the owner's
+// spec, that's the sole setting staff are allowed to touch from the
+// settings tab. Everything else (business profile, payments, receipts,
+// subscription, domain, …) is strictly owner-only.
+//
+// We keep this minimal panel self-contained rather than gating each
+// field of the full owner SettingsTab: a dedicated surface is easier
+// to audit and won't accidentally surface an owner field if the owner
+// form grows a new input in the future.
+function StaffSettingsPanel() {
+  const { data: profile } = useGetBusinessProfile();
+  const updateMutation = useUpdateBusinessProfile();
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+  const [enabled, setEnabled] = useState<boolean>(false);
+  const [baseline, setBaseline] = useState<boolean>(false);
+
+  useEffect(() => {
+    if (profile) {
+      const v = !!(profile as any).requireAppointmentApproval;
+      setEnabled(v);
+      setBaseline(v);
+    }
+  }, [profile]);
+
+  const isDirty = enabled !== baseline;
+  const save = () => {
+    updateMutation.mutate({ data: { requireAppointmentApproval: enabled } as any }, {
+      onSuccess: async () => {
+        toast({ title: "ההגדרה נשמרה" });
+        await queryClient.invalidateQueries({ queryKey: getGetBusinessProfileQueryKey(), refetchType: "active" });
+        setBaseline(enabled);
+      },
+      onError: (err: any) => {
+        toast({
+          title: "שגיאה בשמירה",
+          description: err?.response?.data?.message ?? err?.message ?? "נסה שוב",
+          variant: "destructive",
+        });
+      },
+    });
+  };
+
+  if (!profile) return <div className="p-8 text-center text-muted-foreground">טוען...</div>;
+
+  return (
+    <div className="space-y-6 max-w-2xl">
+      <Card>
+        <CardHeader>
+          <CardTitle>אישור תורים</CardTitle>
+          <CardDescription>האם כל תור חדש מחייב אישור ידני שלך לפני שהוא נחשב מאושר</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="flex items-center justify-between p-4 border rounded-xl bg-muted/30">
+            <div>
+              <div className="font-medium text-sm">דרוש אישור ידני לתורים</div>
+              <div className="text-xs text-muted-foreground mt-0.5">כבוי = תורים מאושרים אוטומטית | דלוק = אתה מאשר כל תור ידנית</div>
+            </div>
+            <Switch checked={enabled} onCheckedChange={setEnabled} />
+          </div>
+        </CardContent>
+      </Card>
+      <FloatingSaveBar visible={isDirty} onClick={save} saving={updateMutation.isPending} />
     </div>
   );
 }
