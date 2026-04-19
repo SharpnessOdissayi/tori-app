@@ -780,24 +780,57 @@ router.post("/auth/business/google-auth", async (req, res): Promise<void> => {
     }
     const email = String(info.email).toLowerCase();
 
+    // Owner first (stronger role), then staff fallback — mirrors the
+    // SMS-login + email-OTP-login endpoints. Staff used to bounce off
+    // this with "no_business" because we only checked businesses.email;
+    // now they get the same Google sign-in convenience as owners.
     const [business] = await db
       .select()
       .from(businessesTable)
       .where(eq(businessesTable.email, email));
-    if (!business) {
-      res.status(404).json({
-        error: "no_business",
-        message: "לא נמצא עסק עם האימייל הזה. הירשמ/י תחילה או התחבר/י עם טלפון.",
-      });
-      return;
-    }
-    if (!business.isActive) {
-      res.status(403).json({ error: "account_suspended", message: "החשבון מושהה. צור קשר עם התמיכה." });
+    if (business) {
+      if (!business.isActive) {
+        res.status(403).json({ error: "account_suspended", message: "החשבון מושהה. צור קשר עם התמיכה." });
+        return;
+      }
+      const token = signBusinessToken({ businessId: business.id, email: business.email });
+      res.json(buildLoginResponse(business, token));
       return;
     }
 
-    const token = signBusinessToken({ businessId: business.id, email: business.email });
-    res.json(buildLoginResponse(business, token));
+    const { staffMembersTable } = await import("@workspace/db");
+    const [staff] = await db
+      .select()
+      .from(staffMembersTable)
+      .where(eq(staffMembersTable.email, email));
+    if (!staff) {
+      res.status(404).json({
+        error: "no_account",
+        message: "לא נמצא חשבון עם האימייל הזה. הירשמ/י תחילה או התחבר/י עם טלפון.",
+      });
+      return;
+    }
+    if (!staff.isActive) {
+      res.status(403).json({ error: "account_suspended", message: "החשבון מושהה. צור קשר עם המנהל/ת." });
+      return;
+    }
+    const [owningBusiness] = await db
+      .select()
+      .from(businessesTable)
+      .where(eq(businessesTable.id, staff.businessId));
+    if (!owningBusiness || !owningBusiness.isActive) {
+      res.status(403).json({ error: "account_suspended" });
+      return;
+    }
+    const token = signBusinessToken({
+      businessId:    owningBusiness.id,
+      email:         owningBusiness.email,
+      staffMemberId: staff.id,
+    });
+    res.json({
+      ...buildLoginResponse(owningBusiness, token),
+      staff: { id: staff.id, name: staff.name, isOwner: staff.isOwner },
+    });
   } catch (e: any) {
     console.error("[business/google-auth] failed:", e?.message ?? e);
     res.status(500).json({ error: "שגיאת Google" });
