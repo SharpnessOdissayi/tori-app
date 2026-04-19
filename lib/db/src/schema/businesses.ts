@@ -35,8 +35,6 @@ export const businessesTable = pgTable("businesses", {
   googleCalendarEnabled: boolean("google_calendar_enabled").notNull().default(false),
   stripeEnabled: boolean("stripe_enabled").notNull().default(false),
   stripePublicKey: text("stripe_public_key"),
-  greenApiInstanceId: text("green_api_instance_id"),
-  greenApiToken: text("green_api_token"),
   requirePhoneVerification: boolean("require_phone_verification").notNull().default(true),
   phone: text("phone"),
   subscriptionPlan: text("subscription_plan").notNull().default("free"),

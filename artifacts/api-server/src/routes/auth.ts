@@ -704,10 +704,12 @@ router.post("/auth/business/sms-login/send", async (req, res): Promise<void> => 
   if (!phone || typeof phone !== "string") { res.status(400).json({ error: "מספר טלפון נדרש" }); return; }
 
   // Look up by phone. Accept exact match + a digit-only fallback so
-  // "050-123-4567" and "0501234567" both resolve. Surface a generic
-  // "not found" — we don't want to leak which phones are registered.
+  // "050-123-4567" and "0501234567" both resolve. Match both owners
+  // (businesses.phone) AND staff members (staff_members.phone) —
+  // staff log in the same way as owners now, via SMS OTP.
   const trimmed = phone.trim();
   const digitsOnly = trimmed.replace(/\D/g, "");
+  const { staffMembersTable } = await import("@workspace/db");
   const [business] = await db
     .select()
     .from(businessesTable)
@@ -715,15 +717,25 @@ router.post("/auth/business/sms-login/send", async (req, res): Promise<void> => 
       eq(businessesTable.phone, trimmed),
       eq(businessesTable.phone, digitsOnly),
     ));
-  if (!business) {
-    // Respond 200 anyway so a caller can't enumerate registered phones
-    // by watching for the 404. The UI will still render the "enter code"
-    // step; verify will reject the code since no OTP was minted.
+  const [staff] = await db
+    .select()
+    .from(staffMembersTable)
+    .where(or(
+      eq(staffMembersTable.phone, trimmed),
+      eq(staffMembersTable.phone, digitsOnly),
+    ));
+  // No-enumeration guarantee: respond 200 even on miss — verify
+  // endpoint will reject the code since no OTP was minted.
+  if (!business && !staff) {
     res.json({ success: true });
     return;
   }
-  if (!business.isActive) {
+  if (business && !business.isActive) {
     res.status(403).json({ error: "account_suspended", message: "החשבון מושהה. צור קשר עם התמיכה." });
+    return;
+  }
+  if (staff && !staff.isActive) {
+    res.status(403).json({ error: "account_suspended", message: "החשבון מושהה. צור קשר עם המנהל/ת." });
     return;
   }
 
@@ -802,6 +814,10 @@ router.post("/auth/business/sms-login/verify", async (req, res): Promise<void> =
   const ok = await verifyOtp(trimmed, String(code), "password_reset");
   if (!ok) { res.status(400).json({ error: "קוד שגוי או פג תוקף" }); return; }
 
+  // Try owner first (more common path); if no business matches, fall
+  // back to staff. A phone that belongs to both an owner and a staff
+  // (rare, but possible when an owner is ALSO added as staff of another
+  // business) resolves as owner — that's the stronger role.
   const [business] = await db
     .select()
     .from(businessesTable)
@@ -809,17 +825,51 @@ router.post("/auth/business/sms-login/verify", async (req, res): Promise<void> =
       eq(businessesTable.phone, trimmed),
       eq(businessesTable.phone, digitsOnly),
     ));
-  if (!business) {
-    res.status(404).json({ error: "העסק לא נמצא" });
-    return;
-  }
-  if (!business.isActive) {
-    res.status(403).json({ error: "account_suspended", message: "החשבון מושהה. צור קשר עם התמיכה." });
+  if (business) {
+    if (!business.isActive) {
+      res.status(403).json({ error: "account_suspended", message: "החשבון מושהה. צור קשר עם התמיכה." });
+      return;
+    }
+    const token = signBusinessToken({ businessId: business.id, email: business.email });
+    res.json(buildLoginResponse(business, token));
     return;
   }
 
-  const token = signBusinessToken({ businessId: business.id, email: business.email });
-  res.json(buildLoginResponse(business, token));
+  // Staff fallback — same JWT shape as the password-login staff path,
+  // with staffMemberId baked in so the dashboard can scope views.
+  const { staffMembersTable } = await import("@workspace/db");
+  const [staff] = await db
+    .select()
+    .from(staffMembersTable)
+    .where(or(
+      eq(staffMembersTable.phone, trimmed),
+      eq(staffMembersTable.phone, digitsOnly),
+    ));
+  if (!staff) {
+    res.status(404).json({ error: "לא נמצא חשבון למספר זה" });
+    return;
+  }
+  if (!staff.isActive) {
+    res.status(403).json({ error: "account_suspended", message: "החשבון מושהה. צור קשר עם המנהל/ת." });
+    return;
+  }
+  const [owningBusiness] = await db
+    .select()
+    .from(businessesTable)
+    .where(eq(businessesTable.id, staff.businessId));
+  if (!owningBusiness || !owningBusiness.isActive) {
+    res.status(403).json({ error: "account_suspended" });
+    return;
+  }
+  const token = signBusinessToken({
+    businessId:    owningBusiness.id,
+    email:         owningBusiness.email,
+    staffMemberId: staff.id,
+  });
+  res.json({
+    ...buildLoginResponse(owningBusiness, token),
+    staff: { id: staff.id, name: staff.name, isOwner: staff.isOwner },
+  });
 });
 
 // POST /auth/forgot-password — send OTP via WhatsApp for phone-based reset

@@ -85,8 +85,6 @@ function mapBusiness(b: typeof businessesTable.$inferSelect) {
     googleCalendarEnabled: b.googleCalendarEnabled,
     stripeEnabled: b.stripeEnabled,
     stripePublicKey: b.stripePublicKey ?? null,
-    greenApiInstanceId: b.greenApiInstanceId ?? null,
-    greenApiToken: b.greenApiToken ?? null,
     requirePhoneVerification: b.requirePhoneVerification,
     phone: b.phone ?? null,
     subscriptionPlan: b.subscriptionPlan,
@@ -500,8 +498,6 @@ router.patch("/business/integrations", requireBusinessAuth, async (req, res): Pr
   if (parsed.data.googleCalendarEnabled !== undefined) updates.googleCalendarEnabled = parsed.data.googleCalendarEnabled;
   if (parsed.data.stripeEnabled !== undefined) updates.stripeEnabled = parsed.data.stripeEnabled;
   if (parsed.data.stripePublicKey !== undefined) updates.stripePublicKey = parsed.data.stripePublicKey ?? undefined;
-  if (parsed.data.greenApiInstanceId !== undefined) updates.greenApiInstanceId = parsed.data.greenApiInstanceId ?? undefined;
-  if (parsed.data.greenApiToken !== undefined) updates.greenApiToken = parsed.data.greenApiToken ?? undefined;
 
   const [updated] = await db
     .update(businessesTable)

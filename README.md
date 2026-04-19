@@ -16,7 +16,7 @@
 6. [Public Booking Experience](#public-booking-experience)
 7. [Client Portal](#client-portal)
 8. [Subscription & Billing (Tranzila)](#subscription--billing-tranzila)
-9. [WhatsApp Notifications (Green API)](#whatsapp-notifications-green-api)
+9. [WhatsApp Notifications (Meta WhatsApp Business API)](#whatsapp-notifications-meta-whatsapp-business-api)
 10. [Super Admin Panel](#super-admin-panel)
 11. [Tech Stack](#tech-stack)
 12. [Repository Layout](#repository-layout)
@@ -44,7 +44,7 @@ All UIs are Hebrew RTL by default. The business directory at `kavati.net` lets c
 
 - **Primary:** solo practitioners and small teams in Israel who want a self-service booking tool without a per-booking fee
 - **Languages:** Hebrew-only UI (all user-facing text is in Hebrew)
-- **Geography:** Israel-focused (Israel timezone, Hebrew phone validation, ILS pricing, Tranzila/Green API)
+- **Geography:** Israel-focused (Israel timezone, Hebrew phone validation, ILS pricing, Tranzila + Inforu/Meta WhatsApp)
 
 ## Feature Overview
 
@@ -87,14 +87,14 @@ Monorepo (pnpm workspaces) with three artifacts and one shared DB package.
 │   (React + Vite SPA)   │HTTP │  (Express 5 + Drizzle) │
 └────────────────────────┘     └───────────┬────────────┘
                                            │
-                          ┌────────────────┼────────────────┐
-                          ▼                ▼                ▼
-                    PostgreSQL        Tranzila          Green API
-                   (Railway PG)    (Payments + STO)    (WhatsApp)
+                          ┌──────────┬─────────┬────────────┐
+                          ▼          ▼         ▼            ▼
+                    PostgreSQL  Tranzila    Inforu   Meta WhatsApp
+                   (Railway PG) (Billing)    (SMS)   (transactional)
 ```
 
 - **SPA** renders the dashboard, booking page, client portal, and super-admin panel — all on the same bundle
-- **API server** is a single Express app with JWT auth, cron jobs (reminders + monthly charges), and webhook handlers for Tranzila & Green API
+- **API server** is a single Express app with JWT auth, cron jobs (reminders + monthly charges), and webhook handlers for Tranzila + Inforu
 - **PostgreSQL** via Drizzle ORM; schema migrations via `drizzle-kit`
 - Deployment on **Railway**, served via a production Node server (`serve.mjs`)
 
@@ -263,7 +263,8 @@ Internal panel at `/super-admin` (password-protected), used for platform operati
 - PostgreSQL (Railway)
 - Google Cloud Storage for images (presigned upload URLs)
 - Tranzila for payments (deposits + subscriptions)
-- Green API for WhatsApp
+- Inforu for SMS (OTP + bulk broadcast)
+- Meta WhatsApp Business API for transactional templates (booking confirmations, reminders)
 - Railway for deployment (single Dockerfile + `railpack.toml`)
 
 **Build tooling**
@@ -301,7 +302,8 @@ Core server env vars (set on Railway):
 | `TRANZILA_API_USER` / `TRANZILA_API_PASSWORD` | Tranzila REST API credentials (for STO) |
 | `TRANZILA_TEST_MODE` | `true` → charge 0.10 ILS for end-to-end tests |
 | `DEFAULT_OBJECT_STORAGE_BUCKET_ID` | GCS bucket for uploads |
-| `GREEN_API_*` | WhatsApp provider credentials (per-business overrides in DB) |
+| `INFORU_USERNAME` / `INFORU_API_TOKEN` / `INFORU_SENDER_NAME` | Inforu SMS gateway (OTP + bulk broadcast) |
+| `META_WHATSAPP_TOKEN` / `META_PHONE_NUMBER_ID` | Meta WhatsApp Business Cloud API (transactional templates) |
 
 ## Local Development
 

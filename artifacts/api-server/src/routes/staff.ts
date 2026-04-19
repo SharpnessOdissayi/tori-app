@@ -25,8 +25,6 @@ import { Router } from "express";
 import { db, staffMembersTable, staffServicesTable, businessesTable } from "@workspace/db";
 import { eq, and } from "drizzle-orm";
 import jwt from "jsonwebtoken";
-import bcrypt from "bcryptjs";
-import crypto from "crypto";
 import { JWT_SECRET } from "../lib/auth";
 import { sendEmail } from "../lib/email";
 import { logger } from "../lib/logger";
@@ -34,65 +32,98 @@ import { logger } from "../lib/logger";
 const router = Router();
 
 /**
- * Generate a human-readable temporary password for a new staff invite.
- * 10 chars, mixed-case alphanumerics; no look-alike symbols (O/0, l/1).
- * Not cryptographically strong — it's meant to be changed by the staff
- * on first login.
- */
-function generateTempPassword(): string {
-  const alphabet = "abcdefghjkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789";
-  const bytes = crypto.randomBytes(10);
-  let out = "";
-  for (let i = 0; i < 10; i++) out += alphabet[bytes[i] % alphabet.length];
-  return out;
-}
-
-/**
- * Welcome email to a new staff member with their login credentials. The
- * plaintext password is only ever visible here (and in the welcome email
- * that goes straight to the staff inbox) — the business owner never sees
- * it, the DB only stores the bcrypt hash.
+ * Training-focused welcome email sent to a new staff member.
+ *
+ * The credentials-based flow is gone: staff log in with phone + SMS OTP,
+ * so there's nothing secret to email. Instead we send a short "how to
+ * use the system" guide so the staff knows what their role can do and
+ * how to get started. The login instruction is a single line at the
+ * bottom ("היכנס/י ב-kavati.net עם הטלפון שלך").
  */
 async function sendStaffWelcomeEmail(args: {
   to:           string;
   staffName:    string;
   businessName: string;
-  loginHandle:  string; // email or phone — whatever we display as primary
-  password:     string;
+  staffPhone:   string | null;
 }): Promise<void> {
   const dashboardUrl = "https://www.kavati.net/dashboard";
-  // Branded chrome (logo + footer) comes from wrapEmailTemplate inside
-  // sendEmail. This body uses the same Kavati blue accents as the other
-  // transactional emails so all three (welcome owner / verify / staff
-  // welcome) read as one visual family.
+  const phoneHint = args.staffPhone
+    ? `הטלפון הרשום: <strong dir="ltr">${args.staffPhone}</strong>`
+    : `הכנס/י את הטלפון שהמנהל/ת רשמו עבורך בעת פתיחת החשבון.`;
+
   const html = `
     <div dir="rtl" style="font-family: Arial, sans-serif; color:#111827;">
       <h1 style="margin: 0 0 8px; font-size: 24px; color:#111827;">ברוך/ה הבא/ה לצוות של ${args.businessName}! 👋</h1>
       <p style="margin: 0 0 16px; color: #4b5563; font-size: 15px;">
-        הצטרפת לצוות ב-Kavati — מערכת זימון התורים של ${args.businessName}.
-        המנהל/ת יצרה עבורך חשבון אישי שדרכו תוכל/י לראות את היומן שלך, לאשר תורים ולהתעדכן על ביטולים.
+        ${args.staffName}, הצטרפת ל-Kavati — מערכת זימון התורים של ${args.businessName}.
+        ריכזנו כאן מדריך קצר עם כל מה שאת/ה יכול/ה לעשות במערכת.
       </p>
 
-      <div style="margin: 24px 0; padding: 20px; background: rgba(60,146,240,0.06); border: 1px solid rgba(60,146,240,0.22); border-radius: 12px;">
-        <p style="margin: 0 0 12px; font-weight: bold; color: #1e6fcf; font-size: 15px;">🔐 פרטי הכניסה שלך</p>
-        <p style="margin: 0 0 10px; font-size: 12px; color: #3c92f0;">אפשר להיכנס לפי אימייל, טלפון או שם משתמש — הסיסמה זהה לכולם.</p>
-        <table style="width: 100%; font-size: 14px; border-collapse: collapse;">
-          <tr><td style="padding: 6px 0; color: #6b7280; width: 120px;">שם משתמש:</td>
-              <td style="padding: 6px 0; font-family: monospace; direction: ltr; text-align: right; font-weight: bold;">${args.loginHandle}</td></tr>
-          <tr><td style="padding: 6px 0; color: #6b7280;">סיסמה:</td>
-              <td style="padding: 6px 0; font-family: monospace; direction: ltr; text-align: right; font-weight: bold;">${args.password}</td></tr>
-        </table>
-        <p style="margin: 12px 0 0; font-size: 12px; color: #3c92f0;">⚠️ מומלץ להחליף את הסיסמה בכניסה הראשונה שלך מהדאשבורד → הגדרות → שינוי סיסמה.</p>
+      <div style="margin: 20px 0; padding: 16px 18px; background: rgba(60,146,240,0.06); border-right: 4px solid #3c92f0; border-radius: 8px;">
+        <p style="margin: 0 0 8px; font-weight: bold; color: #1e6fcf; font-size: 15px;">🚪 כניסה למערכת</p>
+        <p style="margin: 0; color: #4b5563; font-size: 14px; line-height: 1.6;">
+          הכניסה היא ב-<strong>קוד חד-פעמי ב-SMS</strong> — בלי סיסמאות. בדף הכניסה הזן/י את מספר הטלפון שלך, תקבל/י SMS עם קוד אימות, הזן/י אותו וזהו.<br>
+          ${phoneHint}
+        </p>
       </div>
 
-      <div style="margin: 24px 0; text-align: center;">
-        <a href="${dashboardUrl}" style="display: inline-block; padding: 12px 28px; background: #3c92f0; color: white; text-decoration: none; border-radius: 8px; font-weight: bold; font-size: 15px;">כניסה למערכת</a>
+      <h2 style="margin: 24px 0 10px; font-size: 17px; color:#111827;">📅 מה את/ה יכול/ה לעשות במערכת</h2>
+
+      <div style="margin: 10px 0; padding: 14px 16px; background: #f9fafb; border-radius: 8px;">
+        <p style="margin: 0 0 6px; font-weight: bold; color: #111827; font-size: 14px;">יומן אישי</p>
+        <p style="margin: 0; color: #4b5563; font-size: 13px; line-height: 1.55;">
+          רואה/ה את כל התורים המשובצים אליך בתצוגת יום / שבוע / חודש. לחיצה על תור פותחת את פרטי הלקוח, ניתן לגרור תור למועד אחר.
+        </p>
       </div>
 
-      <p style="margin: 24px 0 6px; color: #4b5563; font-size: 14px;">נתקלת בבעיה? פנה/י למנהל/ת של ${args.businessName} ישירות.</p>
-      <p style="margin: 0; color: #6b7280; font-size: 12px;">באהבה,<br>צוות Kavati</p>
+      <div style="margin: 10px 0; padding: 14px 16px; background: #f9fafb; border-radius: 8px;">
+        <p style="margin: 0 0 6px; font-weight: bold; color: #111827; font-size: 14px;">אישור / דחיית בקשות תורים</p>
+        <p style="margin: 0; color: #4b5563; font-size: 13px; line-height: 1.55;">
+          אם העסק עובד במצב "אישור ידני" — תקבל/י התראה על כל בקשת תור חדש. בטאב "ממתינים לאישור" אפשר לאשר בלחיצה (נשלח WhatsApp ללקוח), או לדחות עם סיבה.
+        </p>
+      </div>
+
+      <div style="margin: 10px 0; padding: 14px 16px; background: #f9fafb; border-radius: 8px;">
+        <p style="margin: 0 0 6px; font-weight: bold; color: #111827; font-size: 14px;">ביטול תורים</p>
+        <p style="margin: 0; color: #4b5563; font-size: 13px; line-height: 1.55;">
+          לחיצה על תור → "בטל" → בחר/י סיבה (ברז / לקוח התחרט / אחר). הלקוח יקבל הודעת ביטול אוטומטית ב-WhatsApp (אם העסק מוגדר לשלוח הודעות כאלו).
+        </p>
+      </div>
+
+      <div style="margin: 10px 0; padding: 14px 16px; background: #f9fafb; border-radius: 8px;">
+        <p style="margin: 0 0 6px; font-weight: bold; color: #111827; font-size: 14px;">הגדרת שירותים ושעות</p>
+        <p style="margin: 0; color: #4b5563; font-size: 13px; line-height: 1.55;">
+          בטאב "הגדרות" → "שעות פעילות" את/ה יכול/ה להגדיר את שעות העבודה שלך באופן אישי (שונה מהעסק הכללי אם צריך). בטאב "שירותים" תראה/י אילו שירותים משויכים אליך — פנה/י למנהל/ת אם חסר משהו.
+        </p>
+      </div>
+
+      <div style="margin: 10px 0; padding: 14px 16px; background: #f9fafb; border-radius: 8px;">
+        <p style="margin: 0 0 6px; font-weight: bold; color: #111827; font-size: 14px;">אילוצים והיעדרויות</p>
+        <p style="margin: 0; color: #4b5563; font-size: 13px; line-height: 1.55;">
+          בטאב "אילוצים" אפשר לחסום תאריכים בהם את/ה לא זמין/ה — חופשה, יום מחלה, הפסקה ארוכה. הלקוחות לא יוכלו לזמן תורים לזמנים שסומנו.
+        </p>
+      </div>
+
+      <div style="margin: 10px 0; padding: 14px 16px; background: #f9fafb; border-radius: 8px;">
+        <p style="margin: 0 0 6px; font-weight: bold; color: #111827; font-size: 14px;">פרופיל אישי</p>
+        <p style="margin: 0; color: #4b5563; font-size: 13px; line-height: 1.55;">
+          תמונת פרופיל, שם תצוגה, וצבע אישי שמבדיל את התורים שלך בלוח השנה של העסק. הכל דרך "הגדרות" → "פרופיל צוות".
+        </p>
+      </div>
+
+      <h2 style="margin: 24px 0 10px; font-size: 17px; color:#111827;">🔒 מה את/ה לא יכול/ה לעשות</h2>
+      <p style="margin: 0 0 16px; color: #4b5563; font-size: 13px; line-height: 1.55;">
+        הגדרות חשבון בעל העסק (חיוב, מנוי, קישור דומיין, עיצוב פרופיל ציבורי, רשימת תפוצה ופרטי חיוב) זמינות רק למנהל/ת הראשי/ת. לכל בקשה שקשורה לאלה — פנה/י למנהל/ת.
+      </p>
+
+      <div style="margin: 28px 0 20px; text-align: center;">
+        <a href="${dashboardUrl}" style="display: inline-block; padding: 14px 32px; background: #3c92f0; color: white; text-decoration: none; border-radius: 10px; font-weight: bold; font-size: 15px;">כניסה למערכת</a>
+      </div>
+
+      <p style="margin: 24px 0 6px; color: #4b5563; font-size: 13px;">נתקלת בבעיה? פנה/י למנהל/ת של ${args.businessName} ישירות.</p>
+      <p style="margin: 0; color: #6b7280; font-size: 12px;">בהצלחה,<br>צוות Kavati</p>
     </div>`;
-  await sendEmail(args.to, `${args.businessName} — פרטי הכניסה שלך ב-Kavati`, html, {
+  await sendEmail(args.to, `${args.businessName} — מדריך הכניסה שלך ל-Kavati`, html, {
     from: "Kavati <welcome@kavati.net>",
   });
 }
@@ -238,10 +269,8 @@ router.post("/staff", async (req, res): Promise<void> => {
     if (phoneDup) { res.status(409).json({ error: "duplicate_phone" }); return; }
   }
 
-  // Generate + hash the temp password. We never log the plaintext.
-  const tempPassword = generateTempPassword();
-  const passwordHash = await bcrypt.hash(tempPassword, 10);
-
+  // No temp password — staff log in via phone + SMS OTP. passwordHash
+  // is nullable in the schema so we skip it entirely.
   const [inserted] = await db
     .insert(staffMembersTable)
     .values({
@@ -254,7 +283,6 @@ router.post("/staff", async (req, res): Promise<void> => {
       isOwner:   false,
       isActive:  true,
       sortOrder: typeof body.sortOrder === "number" ? body.sortOrder : 0,
-      passwordHash,
     } as any)
     .returning();
 
@@ -265,8 +293,7 @@ router.post("/staff", async (req, res): Promise<void> => {
     to:           email,
     staffName:    name,
     businessName: biz.name,
-    loginHandle:  email,
-    password:     tempPassword,
+    staffPhone:   phone || null,
   })
     .then(() => db.update(staffMembersTable)
       .set({ credentialsSentAt: new Date() })
@@ -280,9 +307,8 @@ router.post("/staff", async (req, res): Promise<void> => {
 });
 
 // ─── POST /api/staff/:id/resend-invite ────────────────────────────────────
-// Owner-initiated re-send of the welcome email with a freshly-generated
-// password (the old one is overwritten). Useful when a staff never got
-// the first email or forgot their password before logging in once.
+// Owner-initiated re-send of the welcome/training email. No password
+// reset — staff log in via SMS OTP, so there's nothing to rotate.
 router.post("/staff/:id/resend-invite", async (req, res): Promise<void> => {
   const businessId = getBusinessId(req.headers.authorization ?? "");
   if (!businessId) { res.status(401).json({ error: "Unauthorized" }); return; }
@@ -302,21 +328,17 @@ router.post("/staff/:id/resend-invite", async (req, res): Promise<void> => {
   if (staff.isOwner)  { res.status(400).json({ error: "cannot_resend_owner" }); return; }
   if (!staff.email)   { res.status(400).json({ error: "staff_has_no_email" }); return; }
 
-  const tempPassword = generateTempPassword();
-  const passwordHash = await bcrypt.hash(tempPassword, 10);
-  await db
-    .update(staffMembersTable)
-    .set({ passwordHash, credentialsSentAt: new Date() })
-    .where(eq(staffMembersTable.id, staffId));
-
   try {
     await sendStaffWelcomeEmail({
       to:           staff.email,
       staffName:    staff.name,
       businessName: biz.name,
-      loginHandle:  staff.email,
-      password:     tempPassword,
+      staffPhone:   staff.phone ?? null,
     });
+    await db
+      .update(staffMembersTable)
+      .set({ credentialsSentAt: new Date() })
+      .where(eq(staffMembersTable.id, staffId));
     res.json({ ok: true, sentTo: staff.email });
   } catch (err) {
     logger.error({ err, staffId }, "[staff] resend welcome email failed");
