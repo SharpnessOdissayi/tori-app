@@ -5316,36 +5316,36 @@ function CustomersTab() {
       <BroadcastSubscriberPanel />
 
       <Card>
-        <CardHeader className="flex flex-row items-center justify-between">
-          <div>
-            <CardTitle>מאגר לקוחות</CardTitle>
-            <CardDescription>{customerList.length} לקוחות בסך הכל</CardDescription>
+        <CardHeader>
+          <div className="flex items-center gap-2">
+            {/* Clickable header — chevron toggle mirroring the pattern on
+                BroadcastSubscriberPanel so the two cards behave the same
+                way. Closed by default (showCustomerList=false). */}
+            <button
+              type="button"
+              onClick={() => setShowCustomerList(v => !v)}
+              className="flex-1 flex items-start justify-between gap-3 text-right hover:opacity-80 transition-opacity"
+              aria-expanded={showCustomerList}
+            >
+              <div className="flex-1 min-w-0">
+                <CardTitle>מאגר לקוחות</CardTitle>
+                <CardDescription className="mt-1">{customerList.length} לקוחות בסך הכל</CardDescription>
+              </div>
+              <ChevronDown className={`w-5 h-5 text-muted-foreground shrink-0 mt-1 transition-transform ${showCustomerList ? "rotate-180" : ""}`} />
+            </button>
+            {customerList.length > 0 && (
+              <Button
+                size="sm"
+                className="gap-2 shrink-0"
+                onClick={() => setShowBroadcast(true)}
+              >
+                <MessageSquare className="w-4 h-4" /> הודעה לכולם
+              </Button>
+            )}
           </div>
-          {customerList.length > 0 && (
-            <Button
-              size="sm"
-              className="gap-2 shrink-0"
-              onClick={() => setShowBroadcast(true)}
-            >
-              <MessageSquare className="w-4 h-4" /> הודעה לכולם
-            </Button>
-          )}
         </CardHeader>
+        {showCustomerList && customerList.length > 0 && (
         <CardContent>
-          {/* Toggle button — owner asked for the directory to be hidden
-              behind an explicit click so the customers tab opens to a
-              clean stat summary instead of a long list. */}
-          {customerList.length > 0 && !showCustomerList && (
-            <Button
-              variant="outline"
-              className="w-full gap-2 h-12"
-              onClick={() => setShowCustomerList(true)}
-            >
-              <Users className="w-4 h-4" />
-              פתח מאגר לקוחות ({customerList.length})
-            </Button>
-          )}
-          {showCustomerList && customerList.length > 0 && (
             <div className="flex items-center gap-2 mb-4">
               {/* Search box — matches on name (substring) or phone (digit
                   substring). Works across Hebrew names and all phone
@@ -5379,8 +5379,7 @@ function CustomersTab() {
                 <X className="w-4 h-4" />
               </Button>
             </div>
-          )}
-          {showCustomerList && customerList.length && pagedCustomers.length ? (
+          {customerList.length && pagedCustomers.length ? (
             <div className="space-y-3">
               {pagedCustomers.map((c, i) => {
                 // "Favorite customer" = top-3 by visits. Computed off the full
@@ -5505,6 +5504,7 @@ function CustomersTab() {
             <EmptyState text="אין לקוחות עדיין" />
           ) : null}
         </CardContent>
+        )}
       </Card>
 
       {/* Cancellation breakdown dialog — opens when the owner taps a
