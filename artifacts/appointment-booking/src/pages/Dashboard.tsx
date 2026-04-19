@@ -871,7 +871,18 @@ export default function Dashboard() {
   // (e.g. "settings" cached from a previous owner login on the same
   // browser) should bounce to the appointments tab so they don't sit on
   // a blank/permission-denied screen.
-  const STAFF_ALLOWED_TABS = ["home", "appointments", "approvals", "hours", "waitlist", "staff"];
+  // Canonical "mini profile" permission list per owner spec:
+  //   · appointments   — the staff's own calendar view
+  //   · approvals      — pending requests + "send approved" message
+  //   · services       — read-only catalog (backend blocks mutations)
+  //   · branding       — customise their own profile page
+  //   · staff          — own row only (photo/color/name)
+  //   · hours          — their personal working hours
+  //   · integrations   — 1 reminder + "approved" confirmation messages
+  // Implicit: calendar view via the mobile bottom nav.
+  // Owner-only (hidden): home, customers, waitlist, receipts,
+  // analytics-pro, data-export, settings.
+  const STAFF_ALLOWED_TABS = ["appointments", "approvals", "services", "branding", "staff", "hours", "integrations"];
 
   // ─── Force-change-password modal state (staff first-login flow) ──────────
   // Shown the moment authMe.staff.mustChangePassword is true. Backend clears
@@ -932,9 +943,14 @@ export default function Dashboard() {
     if (tab === "customers")    return "customers";
     return "menu";
   };
-  const [bottomTab, setBottomTab] = useState<BottomTab>(() => activeToBottom(
-    typeof window !== "undefined" ? (sessionStorage.getItem("kavati_dash_active_tab") ?? "home") : "home"
-  ));
+  const [bottomTab, setBottomTab] = useState<BottomTab>(() => {
+    // Staff starts on the calendar slot — "home" is owner-only (its quick-
+    // actions link to forbidden pages) and "home" is not in their
+    // allowlist anymore. Non-staff default to whatever sessionStorage has.
+    const cached = typeof window !== "undefined" ? sessionStorage.getItem("kavati_dash_active_tab") : null;
+    if (isStaffMode) return activeToBottom("appointments");
+    return activeToBottom(cached ?? "home");
+  });
   // Keep bottomTab aligned with activeTab whenever activeTab changes from
   // anywhere (menu sheet, programmatic jumps, url hash, etc.). Without
   // this, reloading with a cached non-calendar activeTab used to leave
@@ -946,6 +962,15 @@ export default function Dashboard() {
   }, [activeTab]);
   const [menuOpen, setMenuOpen] = useState(false);
   const handleBottomTab = (t: BottomTab) => {
+    // Staff guard: block owner-only slots even if triggered programmatically.
+    // The MobileBottomNav already hides these buttons for staff, but a
+    // cached route param or a race with the bottomTab default could still
+    // drive us here.
+    if (isStaffMode && (t === "home" || t === "customers")) {
+      setBottomTab("calendar");
+      setActiveTab("appointments");
+      return;
+    }
     setBottomTab(t);
     if (t === "menu") { setMenuOpen(true); return; }
     if (t === "home") { setActiveTab("home"); window.scrollTo({ top: 0, behavior: "smooth" }); return; }
@@ -1210,14 +1235,17 @@ export default function Dashboard() {
               narrower viewports if needed. */}
           <div className="hidden sm:block pb-1">
             <TabsList className="bg-card border w-full h-auto p-1 gap-1 flex flex-wrap">
+              {/* Staff-accessible: appointments, services, branding,
+                  staff (own profile), hours, integrations (reminders +
+                  approved-confirmation), approvals (the Home tab pulls
+                  pending into the approvals trigger). Everything else
+                  is owner-only per the "mini profile" spec. */}
               <TabsTrigger value="appointments" className="gap-1.5 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground whitespace-nowrap">
                 <Calendar className="w-4 h-4" /> פגישות
               </TabsTrigger>
-              {!isStaffMode && (
-                <TabsTrigger value="services" className="gap-1.5 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground whitespace-nowrap">
-                  <Briefcase className="w-4 h-4" /> שירותים
-                </TabsTrigger>
-              )}
+              <TabsTrigger value="services" className="gap-1.5 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground whitespace-nowrap">
+                <Briefcase className="w-4 h-4" /> שירותים
+              </TabsTrigger>
               <TabsTrigger value="hours" className="gap-1.5 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground whitespace-nowrap">
                 <Clock className="w-4 h-4" /> שעות עבודה
               </TabsTrigger>
@@ -1226,22 +1254,22 @@ export default function Dashboard() {
                   <Users className="w-4 h-4" /> לקוחות
                 </TabsTrigger>
               )}
-              <TabsTrigger value="waitlist" className="gap-1.5 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground whitespace-nowrap">
-                <ListOrdered className="w-4 h-4" /> רשימת המתנה
-              </TabsTrigger>
               {!isStaffMode && (
-                <>
-                  <TabsTrigger value="receipts" className="gap-1.5 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground whitespace-nowrap">
-                    <FileText className="w-4 h-4" /> קבלות
-                  </TabsTrigger>
-                  <TabsTrigger value="branding" className="gap-1.5 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground whitespace-nowrap">
-                    <Palette className="w-4 h-4" /> עיצוב
-                  </TabsTrigger>
-                  <TabsTrigger value="integrations" className="gap-1.5 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground whitespace-nowrap">
-                    <Phone className="w-4 h-4" /> הודעות ותזכורות {!isProPlan && <ProShine />}
-                  </TabsTrigger>
-                </>
+                <TabsTrigger value="waitlist" className="gap-1.5 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground whitespace-nowrap">
+                  <ListOrdered className="w-4 h-4" /> רשימת המתנה
+                </TabsTrigger>
               )}
+              {!isStaffMode && (
+                <TabsTrigger value="receipts" className="gap-1.5 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground whitespace-nowrap">
+                  <FileText className="w-4 h-4" /> קבלות
+                </TabsTrigger>
+              )}
+              <TabsTrigger value="branding" className="gap-1.5 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground whitespace-nowrap">
+                <Palette className="w-4 h-4" /> עיצוב
+              </TabsTrigger>
+              <TabsTrigger value="integrations" className="gap-1.5 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground whitespace-nowrap">
+                <Phone className="w-4 h-4" /> הודעות ותזכורות {!isProPlan && !isStaffMode && <ProShine />}
+              </TabsTrigger>
               {/* עסקי-only "צוות" tab — visible to BOTH owners and staff so
                   staff can update their own profile photo from the same UI.
                   Backend PATCH /staff/:id enforces "only own row, only
@@ -1345,13 +1373,13 @@ export default function Dashboard() {
           <div className="grid grid-cols-3 gap-3 mt-4 pb-4">
             {([
               { value: "appointments", icon: <Calendar className="w-6 h-6" />, label: "פגישות",       staffAllowed: true  },
-              { value: "services",     icon: <Briefcase className="w-6 h-6" />, label: "שירותים",      staffAllowed: false },
+              { value: "services",     icon: <Briefcase className="w-6 h-6" />, label: "שירותים",      staffAllowed: true  },
               { value: "hours",        icon: <Clock className="w-6 h-6" />,     label: "שעות עבודה",   staffAllowed: true  },
               { value: "customers",    icon: <Users className="w-6 h-6" />,     label: "לקוחות",       staffAllowed: false },
-              { value: "waitlist",     icon: <ListOrdered className="w-6 h-6" />, label: "המתנה",      staffAllowed: true  },
+              { value: "waitlist",     icon: <ListOrdered className="w-6 h-6" />, label: "המתנה",      staffAllowed: false },
               { value: "receipts",     icon: <FileText className="w-6 h-6" />,  label: "קבלות",         staffAllowed: false },
-              { value: "branding",     icon: <Palette className="w-6 h-6" />,   label: "עיצוב",         staffAllowed: false },
-              { value: "integrations",   icon: <Phone className="w-6 h-6" />,       label: "הודעות ותזכורות", staffAllowed: false },
+              { value: "branding",     icon: <Palette className="w-6 h-6" />,   label: "עיצוב",         staffAllowed: true  },
+              { value: "integrations",   icon: <Phone className="w-6 h-6" />,       label: "הודעות ותזכורות", staffAllowed: true  },
               { value: "staff",          icon: <Users className="w-6 h-6" />,       label: "צוות",           staffAllowed: true  },
               { value: "analytics-pro",  icon: <TrendingUp className="w-6 h-6" />,  label: "אנליטיקה",       staffAllowed: false },
               { value: "data-export",    icon: <Download className="w-6 h-6" />,    label: "ייצוא",          staffAllowed: false },

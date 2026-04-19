@@ -25,10 +25,14 @@ export function MobileBottomNav({
   // Owner preference: approvals (w/ badge) on the right, בית in the
   // centre, תפריט on the far left. `staffAllowed` gates per-item
   // visibility so a staff JWT sees only the tabs they can actually use.
+  // "home" is hidden for staff because the Home tab shows a quick-action
+  // panel that links out to owner-only pages (settings, broadcast,
+  // billing). Dropping the button + the tab itself from staff navigation
+  // is the cleanest fix — their landing view becomes the calendar.
   const rawItems: Array<{ id: BottomTab; label: string; icon: React.ReactNode; badge?: number; staffAllowed: boolean }> = [
     { id: "approvals", label: "אישור תורים", icon: <BadgeCheck className="w-5 h-5" />, badge: pendingCount, staffAllowed: true  },
     { id: "calendar",  label: "יומן",         icon: <CalendarClock className="w-5 h-5" />,                  staffAllowed: true  },
-    { id: "home",      label: "בית",          icon: <Home className="w-5 h-5" />,                           staffAllowed: true  },
+    { id: "home",      label: "בית",          icon: <Home className="w-5 h-5" />,                           staffAllowed: false },
     { id: "customers", label: "לקוחות",       icon: <UsersRound className="w-5 h-5" />,                     staffAllowed: false },
     { id: "menu",      label: "תפריט",        icon: <LayoutGrid className="w-5 h-5" />,                     staffAllowed: true  },
   ];
