@@ -211,7 +211,29 @@ router.patch("/client/me", requireClientAuth, async (req, res): Promise<void> =>
   if (gender && ["male", "female", "other"].includes(gender)) updates.gender = gender;
   if (Object.keys(updates).length === 0) { res.status(400).json({ error: "אין שינויים" }); return; }
 
+  // 1. Update the current session (may include a phone-number change).
   await db.update(clientSessionsTable).set(updates).where(eq(clientSessionsTable.token, session.token));
+
+  // 2. Mirror profile-level fields (gender / name / notif preference) to
+  //    every other session with the same phone. The dashboard's
+  //    /business/customers join uses DISTINCT ON (phone_number) ORDER BY
+  //    created_at DESC — without this fan-out, an owner could see a stale
+  //    gender pill if the client edited from anything other than their
+  //    most-recent login. Phone change itself stays scoped to the current
+  //    session so we don't accidentally rewrite history on other devices.
+  const canonicalPhone = updates.phoneNumber ?? session.phoneNumber;
+  if (canonicalPhone) {
+    const propagate: any = {};
+    if (updates.clientName           !== undefined) propagate.clientName           = updates.clientName;
+    if (updates.gender               !== undefined) propagate.gender               = updates.gender;
+    if (updates.receiveNotifications !== undefined) propagate.receiveNotifications = updates.receiveNotifications;
+    if (Object.keys(propagate).length > 0) {
+      await db.update(clientSessionsTable)
+        .set(propagate)
+        .where(eq(clientSessionsTable.phoneNumber, canonicalPhone));
+    }
+  }
+
   res.json({ success: true });
 });
 
