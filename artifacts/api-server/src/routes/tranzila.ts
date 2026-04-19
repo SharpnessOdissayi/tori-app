@@ -1,7 +1,7 @@
 import { Router } from "express";
 import crypto from "node:crypto";
 import { db, appointmentsTable, businessesTable } from "@workspace/db";
-import { eq, and } from "drizzle-orm";
+import { eq, and, sql } from "drizzle-orm";
 import jwt from "jsonwebtoken";
 import { chargeToken, getSto, updateSto } from "../lib/tranzilaCharge";
 import { JWT_SECRET } from "../lib/auth";
@@ -369,13 +369,15 @@ router.post("/tranzila/notify", async (req, res): Promise<void> => {
 
     if (apptId) {
       if (responsecode === "000") {
-        // Look up whether this business requires manual approval. If yes,
-        // the appointment should go deposit-paid → "pending" (waiting for
-        // owner to approve), NOT directly to "confirmed". Earlier every
-        // successful deposit auto-confirmed, which silently bypassed the
-        // manual-approval toggle. Bug reported end-to-end.
+        // Look up the appointment + the owner's approval setting.
         const [apptRow] = await db
-          .select({ businessId: appointmentsTable.businessId })
+          .select({
+            id:               appointmentsTable.id,
+            businessId:       appointmentsTable.businessId,
+            status:           appointmentsTable.status,
+            appointmentDate:  appointmentsTable.appointmentDate,
+            appointmentTime:  appointmentsTable.appointmentTime,
+          })
           .from(appointmentsTable)
           .where(eq(appointmentsTable.id, apptId));
         let approvalActive = false;
@@ -390,14 +392,52 @@ router.post("/tranzila/notify", async (req, res): Promise<void> => {
           const isPaidPlan = apptBiz?.subscriptionPlan === "pro" || apptBiz?.subscriptionPlan === "pro-plus";
           approvalActive = !!(isPaidPlan && apptBiz?.requireAppointmentApproval);
         }
-        await db
-          .update(appointmentsTable)
-          .set({ status: approvalActive ? "pending" : "confirmed" })
-          .where(and(
-            eq(appointmentsTable.id, apptId),
-            eq(appointmentsTable.status, "pending_payment")
-          ));
-        console.log(`[Tranzila] Appointment ${apptId} deposit paid → ${approvalActive ? "pending (awaiting manual approval)" : "confirmed"}`);
+
+        const confirmedStatus = approvalActive ? "pending" : "confirmed";
+
+        if (apptRow?.status === "pending_payment") {
+          // Happy path: webhook arrived before the 1-minute cleanup cron.
+          await db
+            .update(appointmentsTable)
+            .set({ status: confirmedStatus })
+            .where(and(
+              eq(appointmentsTable.id, apptId),
+              eq(appointmentsTable.status, "pending_payment"),
+            ));
+          console.log(`[Tranzila] Appointment ${apptId} deposit paid → ${confirmedStatus}`);
+        } else if (apptRow?.status === "cancelled") {
+          // Late-payment race: the cleanup cron ran before the webhook
+          // arrived (customer took >1 min to enter their card), so the
+          // row is already cancelled. If the slot is STILL free, bring
+          // the appointment back to life — the customer paid, they
+          // should get their תור. If another booking took the slot in
+          // the meantime, log loud so we can refund manually; can't
+          // double-book.
+          const [conflict] = await db
+            .select({ id: appointmentsTable.id })
+            .from(appointmentsTable)
+            .where(and(
+              eq(appointmentsTable.businessId, apptRow.businessId),
+              eq(appointmentsTable.appointmentDate, apptRow.appointmentDate),
+              eq(appointmentsTable.appointmentTime, apptRow.appointmentTime),
+              sql`${appointmentsTable.id} != ${apptId}`,
+              sql`${appointmentsTable.status} NOT IN ('cancelled', 'no_show', 'pending_payment')`,
+            ));
+          if (!conflict) {
+            await db
+              .update(appointmentsTable)
+              .set({ status: confirmedStatus })
+              .where(eq(appointmentsTable.id, apptId));
+            console.log(`[Tranzila] Appointment ${apptId} resurrected after late payment (cleanup cron had cancelled) → ${confirmedStatus}`);
+          } else {
+            // Charged customer, no slot → needs a manual refund.
+            console.error(`[Tranzila] LATE PAYMENT WITH LOST SLOT: appointment ${apptId} paid but slot ${apptRow.appointmentDate} ${apptRow.appointmentTime} taken by #${conflict.id}. MANUAL REFUND REQUIRED.`);
+          }
+        } else {
+          // Already confirmed/completed — idempotent re-delivery of the
+          // same webhook. Nothing to do.
+          console.log(`[Tranzila] Appointment ${apptId} webhook re-delivery, status=${apptRow?.status ?? "missing"}, no-op`);
+        }
       } else {
         await db
           .update(appointmentsTable)
