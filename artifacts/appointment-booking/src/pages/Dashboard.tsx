@@ -2438,6 +2438,19 @@ function AppointmentsTab({ mobileFocus }: { mobileFocus?: "calendar" | "approval
   };
 
   const now = new Date().toISOString().split("T")[0];
+  // Staff-scope filter — applied to EVERY derived list below so the
+  // upcoming / pending / past / cancelled cards all reflect the same
+  // staff as the calendar grid. Source of truth is sessionStorage,
+  // set either by a staff login (filter_id = own staff id) or by an
+  // owner clicking "צפה ביומן של X" on the Staff tab. Owner on the
+  // unfiltered dashboard has no filter → sees every row.
+  //
+  // Previously the cards read the raw aptList while only the calendar
+  // filtered — so an owner viewing a staff's calendar still saw THEIR
+  // own upcoming appointments in the card above. Reported bug → fix.
+  const staffFilterId = typeof window !== "undefined"
+    ? (Number(sessionStorage.getItem("kavati_staff_filter_id") ?? "") || null)
+    : null;
   // Filter out pending_payment rows EVERYWHERE in the owner UI. These are
   // placeholder rows that exist server-side only to hold Tranzila's myid
   // during a deposit checkout — the owner asked that they never show up
@@ -2445,7 +2458,10 @@ function AppointmentsTab({ mobileFocus }: { mobileFocus?: "calendar" | "approval
   // simply doesn't exist from the owner's POV. Abandoned/expired rows
   // auto-clean via the pending-payment cleanup cron.
   const aptList = (Array.isArray(appointments) ? appointments : [])
-    .filter(a => a.status !== "pending_payment");
+    .filter(a => a.status !== "pending_payment")
+    .filter(a => staffFilterId == null
+      ? true
+      : ((a as any).staffMemberId ?? null) === staffFilterId);
   const pending = aptList.filter(a => a.status === "pending");
   const upcoming = aptList.filter(a => a.appointmentDate >= now && a.status !== "pending" && a.status !== "cancelled");
   const past = aptList.filter(a => a.appointmentDate < now && a.status !== "cancelled");
