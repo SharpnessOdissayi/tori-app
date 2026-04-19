@@ -10,21 +10,33 @@ export function MobileBottomNav({
   active,
   onChange,
   pendingCount = 0,
+  isStaffMode = false,
 }: {
   active: BottomTab;
   onChange: (t: BottomTab) => void;
   pendingCount?: number;
+  // Staff members get a trimmed nav — "customers" is owner-only (leads
+  // to the broadcast + customer-directory tab they can't use anyway),
+  // so we drop it for staff. Menu itself stays because the menu sheet
+  // internally filters owner-only options too.
+  isStaffMode?: boolean;
 }) {
   // Order in RTL grid: items[0] renders rightmost, items[4] leftmost.
   // Owner preference: approvals (w/ badge) on the right, בית in the
-  // centre, תפריט on the far left.
-  const items: Array<{ id: BottomTab; label: string; icon: React.ReactNode; badge?: number }> = [
-    { id: "approvals", label: "אישור תורים", icon: <BadgeCheck className="w-5 h-5" />, badge: pendingCount },
-    { id: "calendar",  label: "יומן",         icon: <CalendarClock className="w-5 h-5" /> },
-    { id: "home",      label: "בית",          icon: <Home className="w-5 h-5" /> },
-    { id: "customers", label: "לקוחות",       icon: <UsersRound className="w-5 h-5" /> },
-    { id: "menu",      label: "תפריט",        icon: <LayoutGrid className="w-5 h-5" /> },
+  // centre, תפריט on the far left. `staffAllowed` gates per-item
+  // visibility so a staff JWT sees only the tabs they can actually use.
+  const rawItems: Array<{ id: BottomTab; label: string; icon: React.ReactNode; badge?: number; staffAllowed: boolean }> = [
+    { id: "approvals", label: "אישור תורים", icon: <BadgeCheck className="w-5 h-5" />, badge: pendingCount, staffAllowed: true  },
+    { id: "calendar",  label: "יומן",         icon: <CalendarClock className="w-5 h-5" />,                  staffAllowed: true  },
+    { id: "home",      label: "בית",          icon: <Home className="w-5 h-5" />,                           staffAllowed: true  },
+    { id: "customers", label: "לקוחות",       icon: <UsersRound className="w-5 h-5" />,                     staffAllowed: false },
+    { id: "menu",      label: "תפריט",        icon: <LayoutGrid className="w-5 h-5" />,                     staffAllowed: true  },
   ];
+  const items = rawItems.filter(it => !isStaffMode || it.staffAllowed);
+  // Tailwind can't pick up dynamic class names, so we map explicitly.
+  const gridColsClass = items.length === 4 ? "grid-cols-4"
+                      : items.length === 3 ? "grid-cols-3"
+                      : "grid-cols-5";
 
   return (
     <nav
@@ -33,7 +45,7 @@ export function MobileBottomNav({
       style={{ paddingBottom: "env(safe-area-inset-bottom)", fontFamily: "'Rubik', sans-serif" }}
       aria-label="תפריט תחתון"
     >
-      <div className="grid grid-cols-5 h-16">
+      <div className={`grid ${gridColsClass} h-16`}>
         {items.map(item => {
           const isActive = active === item.id;
           const isCentre = item.id === "home";

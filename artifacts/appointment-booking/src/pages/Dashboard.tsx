@@ -871,7 +871,7 @@ export default function Dashboard() {
   // (e.g. "settings" cached from a previous owner login on the same
   // browser) should bounce to the appointments tab so they don't sit on
   // a blank/permission-denied screen.
-  const STAFF_ALLOWED_TABS = ["home", "appointments", "approvals", "services", "hours", "waitlist", "staff"];
+  const STAFF_ALLOWED_TABS = ["home", "appointments", "approvals", "hours", "waitlist", "staff"];
 
   // ─── Force-change-password modal state (staff first-login flow) ──────────
   // Shown the moment authMe.staff.mustChangePassword is true. Backend clears
@@ -1213,9 +1213,11 @@ export default function Dashboard() {
               <TabsTrigger value="appointments" className="gap-1.5 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground whitespace-nowrap">
                 <Calendar className="w-4 h-4" /> פגישות
               </TabsTrigger>
-              <TabsTrigger value="services" className="gap-1.5 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground whitespace-nowrap">
-                <Briefcase className="w-4 h-4" /> שירותים
-              </TabsTrigger>
+              {!isStaffMode && (
+                <TabsTrigger value="services" className="gap-1.5 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground whitespace-nowrap">
+                  <Briefcase className="w-4 h-4" /> שירותים
+                </TabsTrigger>
+              )}
               <TabsTrigger value="hours" className="gap-1.5 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground whitespace-nowrap">
                 <Clock className="w-4 h-4" /> שעות עבודה
               </TabsTrigger>
@@ -1324,11 +1326,14 @@ export default function Dashboard() {
         <div className="md:hidden h-32" aria-hidden />
       </main>
 
-      {/* Mobile bottom nav — fixed, always-visible on phones. */}
+      {/* Mobile bottom nav — fixed, always-visible on phones. Staff
+          mode drops "customers" tab (owner-only); the menu sheet below
+          also filters staff-disallowed entries. */}
       <MobileBottomNav
         active={bottomTab}
         onChange={handleBottomTab}
         pendingCount={pendingCount}
+        isStaffMode={isStaffMode}
       />
 
       {/* Menu sheet — the rest of the legacy tabs accessible from "תפריט" */}
@@ -1340,7 +1345,7 @@ export default function Dashboard() {
           <div className="grid grid-cols-3 gap-3 mt-4 pb-4">
             {([
               { value: "appointments", icon: <Calendar className="w-6 h-6" />, label: "פגישות",       staffAllowed: true  },
-              { value: "services",     icon: <Briefcase className="w-6 h-6" />, label: "שירותים",      staffAllowed: true  },
+              { value: "services",     icon: <Briefcase className="w-6 h-6" />, label: "שירותים",      staffAllowed: false },
               { value: "hours",        icon: <Clock className="w-6 h-6" />,     label: "שעות עבודה",   staffAllowed: true  },
               { value: "customers",    icon: <Users className="w-6 h-6" />,     label: "לקוחות",       staffAllowed: false },
               { value: "waitlist",     icon: <ListOrdered className="w-6 h-6" />, label: "המתנה",      staffAllowed: true  },
@@ -7330,9 +7335,6 @@ function SettingsTab() {
   const [categoryOpen, setCategoryOpen] = useState(false);
 
   // Password change state
-  const [pwForm, setPwForm] = useState({ currentPassword: "", newPassword: "", confirmPassword: "" });
-  const [pwLoading, setPwLoading] = useState(false);
-  const [showPw, setShowPw] = useState(false);
 
   useEffect(() => {
     if (profile) {
@@ -7474,37 +7476,6 @@ function SettingsTab() {
   };
 
 
-  const handlePasswordChange = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (pwForm.newPassword !== pwForm.confirmPassword) {
-      toast({ title: "הסיסמאות החדשות אינן תואמות", variant: "destructive" });
-      return;
-    }
-    if (pwForm.newPassword.length < 6) {
-      toast({ title: "הסיסמה חייבת להכיל לפחות 6 תווים", variant: "destructive" });
-      return;
-    }
-    setPwLoading(true);
-    try {
-      const token = localStorage.getItem("biz_token") || sessionStorage.getItem("biz_token");
-      const res = await fetch(`${API_BASE_DASH}/auth/business/change-password`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ currentPassword: pwForm.currentPassword, newPassword: pwForm.newPassword }),
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        toast({ title: "שגיאה", description: data.message ?? "לא ניתן לשנות סיסמה", variant: "destructive" });
-      } else {
-        toast({ title: "הסיסמה שונתה בהצלחה" });
-        setPwForm({ currentPassword: "", newPassword: "", confirmPassword: "" });
-      }
-    } catch {
-      toast({ title: "שגיאת רשת", variant: "destructive" });
-    } finally {
-      setPwLoading(false);
-    }
-  };
 
   if (!profile) return <div className="p-8 text-center text-muted-foreground">טוען...</div>;
 
@@ -7518,7 +7489,7 @@ function SettingsTab() {
       <Card>
         <CardHeader>
           <CardTitle>הגדרות כלליות</CardTitle>
-          <CardDescription>פרטי עסק, פרטי הפרופיל הציבורי, אפשרויות קבלת תורים ושינוי סיסמה</CardDescription>
+          <CardDescription>פרטי עסק, פרטי הפרופיל הציבורי ואפשרויות קבלת תורים</CardDescription>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSave} className="space-y-8">
@@ -7818,50 +7789,13 @@ function SettingsTab() {
 
           </form>
 
-          {/* ── Password change — nested here so it lives at the bottom of
-                 the general-settings card instead of as a standalone block. */}
-          <div className="pt-6 mt-6 border-t">
-            <h3 className="font-medium text-base mb-1">שינוי סיסמה</h3>
-            <p className="text-xs text-muted-foreground mb-4">עדכן את הסיסמה שלך לכניסה ללוח הבקרה</p>
-            <form onSubmit={handlePasswordChange} className="space-y-4">
-              <div className="space-y-2">
-                <Label>סיסמה נוכחית</Label>
-                <div className="relative">
-                  <Input
-                    type={showPw ? "text" : "password"}
-                    dir="ltr"
-                    required
-                    value={pwForm.currentPassword}
-                    onChange={e => setPwForm(p => ({ ...p, currentPassword: e.target.value }))}
-                    autoComplete="current-password"
-                  />
-                  <button type="button" tabIndex={-1} onClick={() => setShowPw(v => !v)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
-                    {showPw ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                  </button>
-                </div>
-              </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label>סיסמה חדשה</Label>
-                  <Input type={showPw ? "text" : "password"} dir="ltr" required placeholder="לפחות 6 תווים"
-                    value={pwForm.newPassword} onChange={e => setPwForm(p => ({ ...p, newPassword: e.target.value }))}
-                    autoComplete="new-password" />
-                </div>
-                <div className="space-y-2">
-                  <Label>אימות סיסמה חדשה</Label>
-                  <Input type={showPw ? "text" : "password"} dir="ltr" required placeholder="הכנס שוב"
-                    value={pwForm.confirmPassword} onChange={e => setPwForm(p => ({ ...p, confirmPassword: e.target.value }))}
-                    autoComplete="new-password" />
-                </div>
-              </div>
-              <div className="flex justify-end">
-                <Button type="submit" variant="outline" disabled={pwLoading} size="lg">
-                  {pwLoading ? "שומר..." : "שנה סיסמה"}
-                </Button>
-              </div>
-            </form>
-          </div>
+          {/* Password-change block removed — login is SMS-only (phone +
+              one-time code). There is no password to change anymore,
+              and showing the form confused owners into thinking one
+              still existed. Keeping the /auth/business/change-password
+              backend endpoint as a no-op path for now; a future cleanup
+              can remove it entirely once we're sure nothing is calling
+              it (e.g., the first-login forced-change flow for staff). */}
         </CardContent>
       </Card>
 

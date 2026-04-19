@@ -541,6 +541,14 @@ router.get("/business/services", requireBusinessAuth, async (req, res): Promise<
 });
 
 router.post("/business/services", requireBusinessAuth, async (req, res): Promise<void> => {
+  // Owner-only: staff can view (scoped to their assignments) but never
+  // create / edit / delete the service catalog. Owner reported being
+  // able to delete owner-level services from a staff panel; this guard
+  // is the fix for that.
+  if (req.business!.staffMemberId) {
+    res.status(403).json({ error: "owner_only", message: "רק בעל/ת העסק יכול/ה לנהל שירותים." });
+    return;
+  }
   const parsed = CreateBusinessServiceBody.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: parsed.error.message });
@@ -580,6 +588,10 @@ router.post("/business/services", requireBusinessAuth, async (req, res): Promise
 });
 
 router.patch("/business/services/:id", requireBusinessAuth, async (req, res): Promise<void> => {
+  if (req.business!.staffMemberId) {
+    res.status(403).json({ error: "owner_only", message: "רק בעל/ת העסק יכול/ה לנהל שירותים." });
+    return;
+  }
   const rawId = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
   const paramsParsed = UpdateBusinessServiceParams.safeParse({ id: Number(rawId) });
   if (!paramsParsed.success) {
@@ -608,6 +620,10 @@ router.patch("/business/services/:id", requireBusinessAuth, async (req, res): Pr
 });
 
 router.delete("/business/services/:id", requireBusinessAuth, async (req, res): Promise<void> => {
+  if (req.business!.staffMemberId) {
+    res.status(403).json({ error: "owner_only", message: "רק בעל/ת העסק יכול/ה לנהל שירותים." });
+    return;
+  }
   const rawId = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
   const paramsParsed = DeleteBusinessServiceParams.safeParse({ id: Number(rawId) });
   if (!paramsParsed.success) {
