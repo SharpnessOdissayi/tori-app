@@ -357,8 +357,14 @@ router.patch("/staff/:id", async (req, res): Promise<void> => {
   const body = req.body as Record<string, unknown>;
   const updates: Record<string, unknown> = {};
   if (isStaffCaller) {
-    // Strict allowlist: staff can only swap their own profile photo.
+    // Staff-caller allowlist: avatar + their own profile identity
+    // (name / phone / email). The owner-only fields — color, isActive,
+    // sortOrder — stay out so staff can't reshuffle the team roster
+    // or deactivate themselves.
     if (typeof body.avatarUrl === "string" || body.avatarUrl === null) updates.avatarUrl = body.avatarUrl || null;
+    if (typeof body.name      === "string" && body.name.trim()) updates.name = body.name.trim();
+    if (typeof body.phone     === "string" || body.phone === null) updates.phone = (body.phone as string | null) || null;
+    if (typeof body.email     === "string" || body.email === null) updates.email = ((body.email as string | null) ?? "").toLowerCase().trim() || null;
   } else {
     if (typeof body.name      === "string") updates.name      = body.name.trim();
     if (typeof body.phone     === "string" || body.phone === null) updates.phone = body.phone || null;
@@ -367,6 +373,63 @@ router.patch("/staff/:id", async (req, res): Promise<void> => {
     if (typeof body.color     === "string" || body.color === null) updates.color = body.color || null;
     if (typeof body.isActive  === "boolean") updates.isActive = body.isActive;
     if (typeof body.sortOrder === "number")  updates.sortOrder = body.sortOrder;
+  }
+
+  // Conflict check: if the staff is changing their phone or email,
+  // make sure the new value isn't already used by a different
+  // business (owner account) or a different staff member. Without
+  // this a staff who sets their phone to a business's phone would
+  // get routed to the business's owner login on the next SMS-login
+  // round-trip (owner-first lookup in auth.ts), effectively locking
+  // themselves out.
+  if (isStaffCaller) {
+    const newPhone = (updates.phone as string | null | undefined);
+    const newEmail = (updates.email as string | null | undefined);
+    if (newPhone) {
+      const digitsOnly = String(newPhone).replace(/\D/g, "");
+      const [ownerConflict] = await db
+        .select({ id: businessesTable.id })
+        .from(businessesTable)
+        .where(eq(businessesTable.phone, String(newPhone)));
+      const [ownerConflictDigits] = digitsOnly !== String(newPhone)
+        ? await db
+            .select({ id: businessesTable.id })
+            .from(businessesTable)
+            .where(eq(businessesTable.phone, digitsOnly))
+        : [ownerConflict];
+      if (ownerConflict || ownerConflictDigits) {
+        res.status(409).json({ error: "phone_taken", message: "מספר הטלפון כבר בשימוש — נסה/י מספר אחר." });
+        return;
+      }
+      const [staffConflict] = await db
+        .select({ id: staffMembersTable.id })
+        .from(staffMembersTable)
+        .where(and(
+          eq(staffMembersTable.phone, String(newPhone)),
+        ));
+      if (staffConflict && staffConflict.id !== staffId) {
+        res.status(409).json({ error: "phone_taken", message: "מספר הטלפון כבר בשימוש — נסה/י מספר אחר." });
+        return;
+      }
+    }
+    if (newEmail) {
+      const [ownerConflict] = await db
+        .select({ id: businessesTable.id })
+        .from(businessesTable)
+        .where(eq(businessesTable.email, String(newEmail)));
+      if (ownerConflict) {
+        res.status(409).json({ error: "email_taken", message: "האימייל כבר בשימוש — נסה/י אימייל אחר." });
+        return;
+      }
+      const [staffConflict] = await db
+        .select({ id: staffMembersTable.id })
+        .from(staffMembersTable)
+        .where(eq(staffMembersTable.email, String(newEmail)));
+      if (staffConflict && staffConflict.id !== staffId) {
+        res.status(409).json({ error: "email_taken", message: "האימייל כבר בשימוש — נסה/י אימייל אחר." });
+        return;
+      }
+    }
   }
 
   // Seat cap check: if we're reactivating an inactive row, ensure cap isn't

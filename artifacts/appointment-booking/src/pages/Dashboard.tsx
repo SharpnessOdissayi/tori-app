@@ -8080,24 +8080,63 @@ function SettingsTab({ isStaffMode = false }: { isStaffMode?: boolean }) {
   );
 }
 
-// ─── Staff settings (single-toggle, staff-mode only) ──────────────────────
+// ─── Staff settings (staff-mode only) ─────────────────────────────────────
 // Rendered by SettingsTab when the caller is a non-owner staff member.
-// Exposes ONLY the "דרוש אישור ידני לתורים" toggle — per the owner's
-// spec, that's the sole setting staff are allowed to touch from the
-// settings tab. Everything else (business profile, payments, receipts,
-// subscription, domain, …) is strictly owner-only.
+// Two sections:
+//   1. Profile — edit own name / phone / email (used for SMS-OTP and
+//      email-OTP logins respectively). Conflict checks are enforced
+//      server-side (PATCH /staff/:id returns 409 if taken).
+//   2. Appointment approval toggle — the sole business-level setting
+//      staff are allowed to touch from the settings tab.
 //
-// We keep this minimal panel self-contained rather than gating each
-// field of the full owner SettingsTab: a dedicated surface is easier
-// to audit and won't accidentally surface an owner field if the owner
-// form grows a new input in the future.
+// Owner-only fields (business profile, payments, receipts, subscription,
+// domain, etc.) are strictly gated out by rendering this panel instead
+// of the owner's full SettingsTab.
 function StaffSettingsPanel() {
   const { data: profile } = useGetBusinessProfile();
   const updateMutation = useUpdateBusinessProfile();
   const queryClient = useQueryClient();
   const { toast } = useToast();
+
+  // ─── Approval toggle state ──────────────────────────────────────────
   const [enabled, setEnabled] = useState<boolean>(false);
   const [baseline, setBaseline] = useState<boolean>(false);
+
+  // ─── Profile state ─────────────────────────────────────────────────
+  // We fetch /auth/me directly rather than prop-drilling authMe into
+  // SettingsTab — keeps the panel self-contained and ensures we work
+  // off the freshest values after a save.
+  const [staffId, setStaffId] = useState<number | null>(null);
+  const [pName,  setPName]  = useState("");
+  const [pPhone, setPPhone] = useState("");
+  const [pEmail, setPEmail] = useState("");
+  const [pBaselineName,  setPBaselineName]  = useState("");
+  const [pBaselinePhone, setPBaselinePhone] = useState("");
+  const [pBaselineEmail, setPBaselineEmail] = useState("");
+  const [profileSaving, setProfileSaving] = useState(false);
+
+  const bizToken = typeof window !== "undefined"
+    ? (localStorage.getItem("biz_token") ?? sessionStorage.getItem("biz_token") ?? "")
+    : "";
+
+  const loadAuthMe = async () => {
+    if (!bizToken) return;
+    try {
+      const res = await fetch("/api/auth/me", { headers: { Authorization: `Bearer ${bizToken}` } });
+      if (!res.ok) return;
+      const json = await res.json();
+      const staff = json?.staff;
+      if (!staff?.id) return;
+      setStaffId(staff.id);
+      setPName(staff.name ?? "");
+      setPPhone(staff.phone ?? "");
+      setPEmail(staff.email ?? "");
+      setPBaselineName(staff.name ?? "");
+      setPBaselinePhone(staff.phone ?? "");
+      setPBaselineEmail(staff.email ?? "");
+    } catch {}
+  };
+  useEffect(() => { void loadAuthMe(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, []);
 
   useEffect(() => {
     if (profile) {
@@ -8107,8 +8146,13 @@ function StaffSettingsPanel() {
     }
   }, [profile]);
 
-  const isDirty = enabled !== baseline;
-  const save = () => {
+  const isToggleDirty  = enabled !== baseline;
+  const isProfileDirty =
+    pName.trim() !== pBaselineName ||
+    pPhone.trim() !== pBaselinePhone ||
+    pEmail.trim().toLowerCase() !== (pBaselineEmail ?? "").toLowerCase();
+
+  const saveToggle = () => {
     updateMutation.mutate({ data: { requireAppointmentApproval: enabled } as any }, {
       onSuccess: async () => {
         toast({ title: "ההגדרה נשמרה" });
@@ -8125,10 +8169,109 @@ function StaffSettingsPanel() {
     });
   };
 
+  const saveProfile = async () => {
+    if (!staffId) return;
+    const trimmedName  = pName.trim();
+    const trimmedPhone = pPhone.trim();
+    const trimmedEmail = pEmail.trim().toLowerCase();
+    if (!trimmedName) { toast({ title: "שם אינו יכול להיות ריק", variant: "destructive" }); return; }
+    if (trimmedEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmedEmail)) {
+      toast({ title: "אימייל לא תקין", variant: "destructive" });
+      return;
+    }
+    setProfileSaving(true);
+    try {
+      const res = await fetch(`/api/staff/${staffId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${bizToken}` },
+        body: JSON.stringify({
+          name:  trimmedName,
+          phone: trimmedPhone || null,
+          email: trimmedEmail || null,
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        toast({
+          title: data?.message ?? data?.error ?? "שגיאה בשמירה",
+          variant: "destructive",
+        });
+        return;
+      }
+      toast({ title: "הפרופיל נשמר" });
+      setPBaselineName(trimmedName);
+      setPBaselinePhone(trimmedPhone);
+      setPBaselineEmail(trimmedEmail);
+    } catch {
+      toast({ title: "שגיאת רשת", variant: "destructive" });
+    } finally {
+      setProfileSaving(false);
+    }
+  };
+
   if (!profile) return <div className="p-8 text-center text-muted-foreground">טוען...</div>;
 
   return (
     <div className="space-y-6 max-w-2xl">
+      {/* Profile card — staff edits their own identity fields here.
+          Name + phone + email are all used by different login/notif
+          paths (phone for SMS-OTP, email for email-OTP + invite
+          reminders, name for the greeting + calendar tags). */}
+      <Card>
+        <CardHeader>
+          <CardTitle>הפרופיל שלי</CardTitle>
+          <CardDescription>שם, טלפון ואימייל — כולם משמשים בכניסה ובזיהוי שלך במערכת.</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="space-y-2">
+            <Label htmlFor="staff-self-name">שם מלא</Label>
+            <Input
+              id="staff-self-name"
+              value={pName}
+              onChange={e => setPName(e.target.value)}
+              placeholder="השם שלך"
+              required
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="staff-self-phone">מספר טלפון</Label>
+            <Input
+              id="staff-self-phone"
+              type="tel"
+              dir="ltr"
+              inputMode="tel"
+              value={pPhone}
+              onChange={e => setPPhone(e.target.value)}
+              placeholder="0501234567"
+            />
+            <p className="text-xs text-muted-foreground">משמש לקבלת קוד כניסה ב-SMS ולתקשורת עם המנהל/ת.</p>
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="staff-self-email">אימייל</Label>
+            <Input
+              id="staff-self-email"
+              type="email"
+              dir="ltr"
+              inputMode="email"
+              value={pEmail}
+              onChange={e => setPEmail(e.target.value)}
+              placeholder="you@example.com"
+            />
+            <p className="text-xs text-muted-foreground">משמש לקבלת קוד כניסה באימייל ולהודעות מהמערכת.</p>
+          </div>
+          <div className="flex justify-end pt-2">
+            <Button
+              type="button"
+              onClick={saveProfile}
+              disabled={!isProfileDirty || profileSaving}
+              className="min-w-[110px]"
+            >
+              {profileSaving ? "שומר..." : "שמור פרופיל"}
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+
       <Card>
         <CardHeader>
           <CardTitle>אישור תורים</CardTitle>
@@ -8144,7 +8287,7 @@ function StaffSettingsPanel() {
           </div>
         </CardContent>
       </Card>
-      <FloatingSaveBar visible={isDirty} onClick={save} saving={updateMutation.isPending} />
+      <FloatingSaveBar visible={isToggleDirty} onClick={saveToggle} saving={updateMutation.isPending} />
     </div>
   );
 }
