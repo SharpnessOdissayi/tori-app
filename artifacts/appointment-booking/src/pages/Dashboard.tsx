@@ -8,7 +8,6 @@ import {
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { DESIGN_PRESETS } from "@/lib/designPresets";
 import {
-  useBusinessLogin,
   useListBusinessAppointments,
   useGetBusinessStats,
   useCancelBusinessAppointment,
@@ -1727,33 +1726,21 @@ function NotificationBell({ token, onNotificationClick }: { token: string; onNot
 }
 
 function Login({ onLogin }: { onLogin: (t: string) => void }) {
-  // Pre-fill the identifier from the last "remember me"-checked login to
-  // this same screen. Stored under a BUSINESS-SPECIFIC key so client
-  // portal and super-admin credentials never bleed over.
-  const [identifier, setIdentifier] = useState(() => {
+  const { toast } = useToast();
+  const [, navigate] = useLocation();
+
+  // Phone-only OTP login. Pre-fill the phone from the last "remember me"-
+  // checked login to this same screen. Stored under a BUSINESS-SPECIFIC
+  // key so client portal and super-admin sessions never bleed over.
+  const [smsPhone, setSmsPhone] = useState(() => {
     try { return localStorage.getItem("kavati_biz_last_identifier") ?? ""; }
     catch { return ""; }
   });
-  const [password, setPassword] = useState("");
-  const [showPassword, setShowPassword] = useState(false);
-  const [rememberMe, setRememberMe] = useState(true);
-  const [showForgotPassword, setShowForgotPassword] = useState(false);
-  const { toast } = useToast();
-  const loginMutation = useBusinessLogin();
-  const [, navigate] = useLocation();
-
-  // Auth method — password by default, SMS OTP as an alternative.
-  // Stored in localStorage so a returning owner lands on the channel
-  // they used last time.
-  const [authMethod, setAuthMethod] = useState<"password" | "sms">(() => {
-    try { return localStorage.getItem("kavati_biz_auth_method") === "sms" ? "sms" : "password"; }
-    catch { return "password"; }
-  });
-  const [smsPhone, setSmsPhone] = useState("");
   const [smsCode, setSmsCode] = useState("");
   const [smsStep, setSmsStep] = useState<"phone" | "code">("phone");
   const [smsSending, setSmsSending] = useState(false);
   const [smsVerifying, setSmsVerifying] = useState(false);
+  const [rememberMe, setRememberMe] = useState(true);
 
   const handleSmsSendCode = async () => {
     if (!smsPhone.trim()) { toast({ title: "הזן מספר טלפון", variant: "destructive" }); return; }
@@ -1796,7 +1783,6 @@ function Login({ onLogin }: { onLogin: (t: string) => void }) {
       if (rememberMe) {
         localStorage.setItem("biz_token", data.token);
         localStorage.setItem("kavati_biz_last_identifier", smsPhone.trim());
-        localStorage.setItem("kavati_biz_auth_method", "sms");
         sessionStorage.removeItem("biz_token");
       } else {
         sessionStorage.setItem("biz_token", data.token);
@@ -1810,41 +1796,6 @@ function Login({ onLogin }: { onLogin: (t: string) => void }) {
     }
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!identifier.trim()) return;
-    // Super admin shortcut: username "admin" → redirect to super admin panel.
-    // Route is /superadmin (no hyphen) per App.tsx — must match or the
-    // redirect lands on a 404 while the real super-admin page sits at
-    // /superadmin.
-    if (identifier.trim().toLowerCase() === "admin") {
-      navigate(import.meta.env.VITE_ADMIN_PATH ?? "/superadmin");
-      return;
-    }
-    if (!password) {
-      toast({ title: "יש להזין סיסמה", variant: "destructive" });
-      return;
-    }
-    loginMutation.mutate({ data: { email: identifier, password } }, {
-      onSuccess: (data) => {
-        if (rememberMe) {
-          localStorage.setItem("biz_token", data.token);
-          localStorage.setItem("kavati_biz_last_identifier", identifier.trim());
-          sessionStorage.removeItem("biz_token");
-        } else {
-          sessionStorage.setItem("biz_token", data.token);
-          localStorage.removeItem("biz_token");
-          localStorage.removeItem("kavati_biz_last_identifier");
-        }
-        onLogin(data.token);
-      },
-      onError: (err: any) => {
-        const msg = err?.response?.data?.message ?? "אימייל/טלפון או סיסמה שגויים";
-        toast({ title: "כניסה נכשלה", description: msg, variant: "destructive" });
-      },
-    });
-  };
-
   return (
     <div className="min-h-screen flex flex-col bg-muted/30" dir="rtl">
       <Navbar />
@@ -1856,160 +1807,71 @@ function Login({ onLogin }: { onLogin: (t: string) => void }) {
             </div>
             <TodayCalendarIcon />
             <CardTitle className="text-2xl">כניסה לקבעתי</CardTitle>
-            <CardDescription>הזן אימייל, מספר טלפון או שם משתמש</CardDescription>
+            <CardDescription>הזנת מספר טלפון ואימות בקוד SMS</CardDescription>
           </CardHeader>
           <CardContent>
-            {/* Auth method toggle — password (classic) vs. SMS OTP (passwordless). */}
-            <div className="flex gap-2 mb-4 rounded-md border border-border p-1 bg-muted/30">
-              <button
-                type="button"
-                onClick={() => { setAuthMethod("password"); }}
-                className={`flex-1 h-9 rounded text-sm font-medium transition-colors ${
-                  authMethod === "password" ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
-                }`}
-              >
-                סיסמה
-              </button>
-              <button
-                type="button"
-                onClick={() => { setAuthMethod("sms"); setSmsStep("phone"); setSmsCode(""); }}
-                className={`flex-1 h-9 rounded text-sm font-medium transition-colors ${
-                  authMethod === "sms" ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
-                }`}
-              >
-                קוד SMS
-              </button>
-            </div>
-
-            {authMethod === "password" && (
-            <form onSubmit={handleSubmit} className="space-y-4" noValidate>
-              <div className="space-y-2">
-                <Label>אימייל / טלפון / שם משתמש</Label>
-                <Input
-                  required
-                  value={identifier}
-                  onChange={e => setIdentifier(e.target.value)}
-                  dir="ltr"
-                  name="kavati-biz-identifier"
-                  autoComplete="username"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label>סיסמה</Label>
-                <div className="relative">
-                  <Input
-                    type={showPassword ? "text" : "password"}
-                    required
-                    value={password}
-                    onChange={e => setPassword(e.target.value)}
-                    dir="ltr"
-                    name="kavati-biz-password"
-                    autoComplete="current-password"
-                    className="pr-10"
-                  />
-                  <button
-                    type="button"
-                    tabIndex={-1}
-                    onClick={() => setShowPassword(v => !v)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                  >
-                    {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                  </button>
-                </div>
-              </div>
-              {!showForgotPassword ? (
-                <button type="button" className="text-xs text-primary underline mt-1" onClick={() => setShowForgotPassword(true)}>
-                  שכחתי סיסמא
-                </button>
-              ) : (
-                <ForgotPasswordFlow onBack={() => setShowForgotPassword(false)} />
-              )}
-              {!showForgotPassword && (
+            <div className="space-y-4">
+              {smsStep === "phone" ? (
                 <>
+                  <div className="space-y-2">
+                    <Label>מספר טלפון</Label>
+                    <Input
+                      type="tel"
+                      value={smsPhone}
+                      onChange={e => setSmsPhone(e.target.value)}
+                      dir="ltr"
+                      placeholder="0501234567"
+                      inputMode="tel"
+                      autoComplete="tel"
+                      onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); handleSmsSendCode(); } }}
+                    />
+                    <p className="text-xs text-muted-foreground">קוד חד-פעמי יישלח ב-SMS לטלפון הרשום בעסק.</p>
+                  </div>
                   <div className="flex items-center gap-2 py-1">
                     <input
                       type="checkbox"
-                      id="remember-me"
+                      id="remember-me-sms"
                       checked={rememberMe}
                       onChange={e => setRememberMe(e.target.checked)}
                       className="w-4 h-4 rounded border-border accent-primary cursor-pointer"
                     />
-                    <label htmlFor="remember-me" className="text-sm text-muted-foreground cursor-pointer select-none">
+                    <label htmlFor="remember-me-sms" className="text-sm text-muted-foreground cursor-pointer select-none">
                       זכור אותי במכשיר זה
                     </label>
                   </div>
-                  <Button type="submit" className="w-full h-11" disabled={loginMutation.isPending}>
-                    {loginMutation.isPending ? "מתחבר..." : "כניסה"}
+                  <Button type="button" className="w-full h-11" disabled={smsSending} onClick={handleSmsSendCode}>
+                    {smsSending ? "שולח..." : "שלח קוד"}
                   </Button>
                 </>
+              ) : (
+                <>
+                  <div className="space-y-2">
+                    <Label>קוד אימות</Label>
+                    <Input
+                      value={smsCode}
+                      onChange={e => setSmsCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
+                      dir="ltr"
+                      placeholder="123456"
+                      inputMode="numeric"
+                      autoComplete="one-time-code"
+                      maxLength={6}
+                      onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); handleSmsVerify(); } }}
+                    />
+                    <p className="text-xs text-muted-foreground">נשלח ל-{smsPhone}</p>
+                  </div>
+                  <Button type="button" className="w-full h-11" disabled={smsVerifying || smsCode.length < 6} onClick={handleSmsVerify}>
+                    {smsVerifying ? "מאמת..." : "כניסה"}
+                  </Button>
+                  <button
+                    type="button"
+                    className="text-xs text-primary underline"
+                    onClick={() => { setSmsStep("phone"); setSmsCode(""); }}
+                  >
+                    שלח שוב / שנה מספר
+                  </button>
+                </>
               )}
-            </form>
-            )}
-
-            {authMethod === "sms" && (
-              <div className="space-y-4">
-                {smsStep === "phone" ? (
-                  <>
-                    <div className="space-y-2">
-                      <Label>מספר טלפון</Label>
-                      <Input
-                        type="tel"
-                        value={smsPhone}
-                        onChange={e => setSmsPhone(e.target.value)}
-                        dir="ltr"
-                        placeholder="0501234567"
-                        inputMode="tel"
-                        autoComplete="tel"
-                        onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); handleSmsSendCode(); } }}
-                      />
-                      <p className="text-xs text-muted-foreground">קוד חד-פעמי יישלח ב-SMS לטלפון הרשום בעסק.</p>
-                    </div>
-                    <div className="flex items-center gap-2 py-1">
-                      <input
-                        type="checkbox"
-                        id="remember-me-sms"
-                        checked={rememberMe}
-                        onChange={e => setRememberMe(e.target.checked)}
-                        className="w-4 h-4 rounded border-border accent-primary cursor-pointer"
-                      />
-                      <label htmlFor="remember-me-sms" className="text-sm text-muted-foreground cursor-pointer select-none">
-                        זכור אותי במכשיר זה
-                      </label>
-                    </div>
-                    <Button type="button" className="w-full h-11" disabled={smsSending} onClick={handleSmsSendCode}>
-                      {smsSending ? "שולח..." : "שלח קוד"}
-                    </Button>
-                  </>
-                ) : (
-                  <>
-                    <div className="space-y-2">
-                      <Label>קוד אימות</Label>
-                      <Input
-                        value={smsCode}
-                        onChange={e => setSmsCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
-                        dir="ltr"
-                        placeholder="123456"
-                        inputMode="numeric"
-                        autoComplete="one-time-code"
-                        maxLength={6}
-                        onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); handleSmsVerify(); } }}
-                      />
-                      <p className="text-xs text-muted-foreground">נשלח ל-{smsPhone}</p>
-                    </div>
-                    <Button type="button" className="w-full h-11" disabled={smsVerifying || smsCode.length < 6} onClick={handleSmsVerify}>
-                      {smsVerifying ? "מאמת..." : "כניסה"}
-                    </Button>
-                    <button
-                      type="button"
-                      className="text-xs text-primary underline"
-                      onClick={() => { setSmsStep("phone"); setSmsCode(""); }}
-                    >
-                      שלח שוב / שנה מספר
-                    </button>
-                  </>
-                )}
-              </div>
-            )}
+            </div>
             <div className="mt-5 text-center">
               <span className="text-sm text-muted-foreground">עדיין אין לך חשבון? </span>
               <button
@@ -4063,94 +3925,6 @@ function WorkingHoursTab() {
         no "בטל עריכה". The bar appears when the form is dirty. */}
     <FloatingSaveBar visible={isDirty} onClick={handleSave} saving={isSaving} />
     </>
-  );
-}
-
-function ForgotPasswordFlow({ onBack }: { onBack: () => void }) {
-  const { toast } = useToast();
-  // Email-based reset (interim — Meta WhatsApp Auth template still pending).
-  // Hits the existing /auth/business/forgot-password + /reset-password
-  // endpoints which already key off the business email + sendEmail.
-  const [email, setEmail] = useState("");
-  const [otpSent, setOtpSent] = useState(false);
-  const [otp, setOtp] = useState("");
-  const [newPassword, setNewPassword] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [done, setDone] = useState(false);
-
-  const handleSendOtp = async () => {
-    if (!email.trim()) return;
-    setLoading(true);
-    try {
-      const r = await fetch("/api/auth/business/forgot-password", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: email.trim().toLowerCase() }),
-      });
-      if (r.ok) { setOtpSent(true); toast({ title: "קוד נשלח לאימייל שלך" }); }
-      else { const e = await r.json().catch(() => ({})); toast({ title: e.error || "שגיאה", variant: "destructive" }); }
-    } catch {
-      toast({ title: "שגיאת רשת, נסה שוב", variant: "destructive" });
-    } finally { setLoading(false); }
-  };
-
-  const handleReset = async () => {
-    if (!otp || !newPassword) return;
-    setLoading(true);
-    try {
-      const r = await fetch("/api/auth/business/reset-password", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: email.trim().toLowerCase(), code: otp, newPassword }),
-      });
-      if (r.ok) { setDone(true); toast({ title: "הסיסמא שונתה בהצלחה" }); }
-      else { const e = await r.json().catch(() => ({})); toast({ title: e.message || e.error || "קוד שגוי", variant: "destructive" }); }
-    } catch {
-      toast({ title: "שגיאת רשת, נסה שוב", variant: "destructive" });
-    } finally { setLoading(false); }
-  };
-
-  if (done) return (
-    <div className="text-center space-y-3 py-4">
-      <div className="text-4xl">✅</div>
-      <p className="font-semibold">הסיסמא שונתה!</p>
-      <Button size="sm" onClick={onBack}>חזור להתחברות</Button>
-    </div>
-  );
-
-  return (
-    <div className="space-y-3 pt-2">
-      <p className="text-sm font-medium">איפוס סיסמא</p>
-      {!otpSent ? (
-        <>
-          <div className="space-y-1">
-            <Label className="text-xs">אימייל הרשום בחשבון</Label>
-            <Input type="email" dir="ltr" value={email} onChange={e => setEmail(e.target.value)} placeholder="name@example.com" />
-          </div>
-          <Button size="sm" className="w-full" onClick={handleSendOtp} disabled={loading || !email.trim()}>
-            {loading ? "שולח..." : "שלח קוד לאימייל"}
-          </Button>
-        </>
-      ) : (
-        <>
-          <div className="space-y-1">
-            <Label className="text-xs">קוד שהתקבל באימייל</Label>
-            <Input dir="ltr" value={otp} onChange={e => setOtp(e.target.value)} placeholder="123456" maxLength={6} />
-            <p className="text-[11px] text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-2 py-1.5">
-              ⚠️ הקוד עשוי להגיע לתיקיית הספאם — בדוק/י גם שם.
-            </p>
-          </div>
-          <div className="space-y-1">
-            <Label className="text-xs">סיסמא חדשה</Label>
-            <Input type="password" value={newPassword} onChange={e => setNewPassword(e.target.value)} placeholder="סיסמא חדשה" />
-          </div>
-          <Button size="sm" className="w-full" onClick={handleReset} disabled={loading || !otp || !newPassword}>
-            {loading ? "מאמת..." : "שנה סיסמא"}
-          </Button>
-        </>
-      )}
-      <button type="button" className="text-xs text-muted-foreground underline" onClick={onBack}>חזור</button>
-    </div>
   );
 }
 
