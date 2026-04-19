@@ -151,22 +151,25 @@ router.post("/sms/send-bulk", async (req, res): Promise<void> => {
     return;
   }
 
-  // Drop recipients who previously replied "הסר" (or any of the keywords
-  // in /sms/inforu-webhook/reply) to a prior broadcast from THIS business.
-  // Same blacklist the /business/broadcast path honours — keeps the two
-  // send paths consistent and makes the legal opt-out actually stick.
-  const normalizeForBlacklist = (p: string) => p.replace(/\D/g, "").replace(/^972/, "0");
-  const blacklistRows = await db.execute(sql`
-    SELECT phone_number FROM broadcast_unsubscribes
+  // Keep only recipients who are 'active' in this business's subscriber
+  // table. Same model the /business/broadcast path uses:
+  //   · missing / 'unsubscribed' → skip
+  //   · 'active'                 → send
+  // This is the single source of truth for broadcast permission across
+  // both send endpoints.
+  const normalizeForSub = (p: string) => p.replace(/\D/g, "").replace(/^972/, "0");
+  const subRows = await db.execute(sql`
+    SELECT phone_number, status FROM broadcast_subscribers
     WHERE business_id = ${businessId}
   `);
-  const blacklist = new Set<string>();
-  for (const r of ((blacklistRows as any).rows ?? [])) {
-    const p = normalizeForBlacklist(String(r.phone_number ?? ""));
-    if (p) blacklist.add(p);
+  const activeSet = new Set<string>();
+  for (const r of ((subRows as any).rows ?? [])) {
+    if ((r as any).status !== "active") continue;
+    const norm = normalizeForSub(String((r as any).phone_number ?? ""));
+    if (norm) activeSet.add(norm);
   }
   const recipients = recipientsBeforeFilter.filter(
-    p => !blacklist.has(normalizeForBlacklist(p)),
+    p => activeSet.has(normalizeForSub(p)),
   );
   const droppedForOptOut = recipientsBeforeFilter.length - recipients.length;
 
@@ -304,6 +307,36 @@ router.post("/sms/send-bulk", async (req, res): Promise<void> => {
     };
   });
   await db.insert(smsMessagesTable).values(rowsToInsert);
+
+  // Sync back any per-recipient opt-outs Inforu returned in Errors[]. When
+  // a recipient has clicked the Inforu unsubscribe link in a previous
+  // send, Inforu rejects future sends to them with an "unsubscribed"-ish
+  // error. Flip the matching row in broadcast_subscribers so our UI
+  // reflects the same state and we don't burn quota on them next time.
+  try {
+    const optOutMarkers = ["unsubscr", "blacklist", "optout", "הסיר", "לא לשלוח"];
+    const normalizeForSync = (p: string) => p.replace(/\D/g, "").replace(/^972/, "0");
+    for (const r of inforuResult.recipients) {
+      if (r.status !== "failed") continue;
+      const lower = String(r.error ?? "").toLowerCase();
+      const looksLikeOptOut = optOutMarkers.some(k => lower.includes(k));
+      if (!looksLikeOptOut) continue;
+      const normPhone = normalizeForSync(r.phone);
+      if (!normPhone) continue;
+      await db.execute(sql`
+        INSERT INTO broadcast_subscribers (business_id, phone_number, status, source)
+        VALUES (${businessId}, ${normPhone}, 'unsubscribed', 'inforu_self_link')
+        ON CONFLICT (business_id, phone_number)
+        DO UPDATE SET status = 'unsubscribed', source = 'inforu_self_link', updated_at = NOW()
+      `);
+      logger.info({ businessId, phone: normPhone }, "[send-bulk] synced Inforu-side opt-out to local list");
+    }
+  } catch (syncErr) {
+    // Don't fail the whole send if the sync write hits a deadlock or
+    // transient DB issue — next campaign's Errors[] will re-surface the
+    // same opt-outs and we'll try again.
+    logger.warn({ err: syncErr }, "[send-bulk] opt-out sync failed");
+  }
 
   res.json({
     ok: true,
@@ -649,6 +682,17 @@ router.post("/sms/inforu-webhook/reply", async (req, res): Promise<void> => {
 
     // Normalise to Israeli local form to match what we store elsewhere.
     const normalizedPhone = rawPhone.replace(/\D/g, "").replace(/^972/, "0");
+
+    // Flip the subscriber row to 'unsubscribed' — this is the new source
+    // of truth for marketing permission. Legacy broadcast_unsubscribes
+    // table is also updated below for historical compatibility; once
+    // all callers have migrated we can drop it.
+    await db.execute(sql`
+      INSERT INTO broadcast_subscribers (business_id, phone_number, status, source)
+      VALUES (${businessId}, ${normalizedPhone}, 'unsubscribed', 'reply')
+      ON CONFLICT (business_id, phone_number)
+      DO UPDATE SET status = 'unsubscribed', source = 'reply', updated_at = NOW()
+    `);
     await db.execute(sql`
       INSERT INTO broadcast_unsubscribes (business_id, phone_number, source)
       VALUES (${businessId}, ${normalizedPhone}, 'reply')

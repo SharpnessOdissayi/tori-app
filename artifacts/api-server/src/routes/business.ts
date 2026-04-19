@@ -1316,23 +1316,29 @@ router.post("/business/broadcast", requireBusinessAuth, async (req, res): Promis
     phones = [...new Set(rows.map(r => r.phoneNumber).filter(Boolean))];
   }
 
-  // Drop anyone who already opted out of THIS business's broadcasts. Israeli
-  // spam law requires the opt-out to be honoured immediately and we maintain
-  // an internal blacklist independent of Inforu's so we can't accidentally
-  // re-send even if Inforu's side is out of sync.
+  // Drop anyone who's not an 'active' row in broadcast_subscribers. That
+  // table is the single source of truth for who can receive marketing:
+  //   · 'active'       → send
+  //   · 'unsubscribed' → skip (owner manually removed OR replied 'הסר'
+  //                              OR clicked the Inforu opt-out link)
+  //   · row missing    → skip (never booked + never manually added)
+  //
+  // Normalisation handles 050 / 972 / +972 variants — the subscriber
+  // table stores whatever form the booking endpoint originally saved.
   if (phones.length > 0) {
-    const normalizedInputs = phones.map(p => p.replace(/\D/g, "").replace(/^972/, "0").replace(/^([^0])/, "0$1"));
-    const rowsUnsub = await db.execute(sql`
-      SELECT phone_number FROM broadcast_unsubscribes
+    const normalize = (p: string) => p.replace(/\D/g, "").replace(/^972/, "0");
+    const normalizedInputs = phones.map(normalize);
+    const subRows = await db.execute(sql`
+      SELECT phone_number, status FROM broadcast_subscribers
       WHERE business_id = ${businessId}
     `);
-    const blockedSet = new Set<string>();
-    for (const r of (rowsUnsub as any).rows ?? []) {
-      const p = String(r.phone_number ?? "");
-      const norm = p.replace(/\D/g, "").replace(/^972/, "0");
-      if (norm) blockedSet.add(norm);
+    const activeSet = new Set<string>();
+    for (const r of (subRows as any).rows ?? []) {
+      if (r.status !== "active") continue;
+      const norm = normalize(String(r.phone_number ?? ""));
+      if (norm) activeSet.add(norm);
     }
-    phones = phones.filter((_, i) => !blockedSet.has(normalizedInputs[i]));
+    phones = phones.filter((_, i) => activeSet.has(normalizedInputs[i]));
   }
 
   // Cap at remaining quota
@@ -1805,6 +1811,94 @@ router.get("/business/revenue", requireBusinessAuth, async (req, res): Promise<v
     forecast: Math.round(forecast / 100),
     allTime: Math.round(allTime / 100),
   });
+});
+
+// ─── Broadcast subscriber management ─────────────────────────────────────
+//
+// Per-business subscriber list: the owner sees who's on the list, can add
+// custom phones that never booked (walk-ins, contacts they typed in), and
+// can remove anyone (soft — flipped to status='unsubscribed' rather than
+// row-deleted so Inforu-side blacklisting stays in sync).
+//
+// All four endpoints are owner-scoped by businessId. Staff callers see
+// their business's subscribers but can't add/remove — the dashboard UI
+// hides the buttons for non-owner sessions.
+
+router.get("/business/broadcast-subscribers", requireBusinessAuth, async (req, res): Promise<void> => {
+  const businessId = req.business!.businessId;
+  const rows = await db.execute(sql`
+    SELECT phone_number, status, source, created_at, updated_at
+    FROM broadcast_subscribers
+    WHERE business_id = ${businessId}
+    ORDER BY created_at DESC
+  `);
+  const list = ((rows as any).rows ?? []).map((r: any) => ({
+    phoneNumber: r.phone_number,
+    status:      r.status,
+    source:      r.source,
+    createdAt:   r.created_at,
+    updatedAt:   r.updated_at,
+  }));
+  const activeCount = list.filter((r: any) => r.status === "active").length;
+  res.json({ subscribers: list, total: list.length, active: activeCount });
+});
+
+router.post("/business/broadcast-subscribers", requireBusinessAuth, async (req, res): Promise<void> => {
+  const businessId = req.business!.businessId;
+  const { phoneNumber } = req.body ?? {};
+  if (!phoneNumber || typeof phoneNumber !== "string") {
+    res.status(400).json({ error: "מספר טלפון נדרש" });
+    return;
+  }
+  const normalized = phoneNumber.trim();
+  if (!/^\+?\d[\d\- ]{7,}$/.test(normalized)) {
+    res.status(400).json({ error: "מספר טלפון לא תקין" });
+    return;
+  }
+  // Idempotent: insert or flip back to active if they were previously
+  // unsubscribed. source="manual_add" distinguishes owner-added rows
+  // from auto-subscribed booking rows for analytics/debugging.
+  await db.execute(sql`
+    INSERT INTO broadcast_subscribers (business_id, phone_number, status, source)
+    VALUES (${businessId}, ${normalized}, 'active', 'manual_add')
+    ON CONFLICT (business_id, phone_number)
+    DO UPDATE SET status = 'active', source = 'manual_resubscribe', updated_at = NOW()
+  `);
+  res.json({ success: true, phoneNumber: normalized, status: "active" });
+});
+
+router.delete("/business/broadcast-subscribers/:phone", requireBusinessAuth, async (req, res): Promise<void> => {
+  const businessId = req.business!.businessId;
+  const raw = Array.isArray(req.params.phone) ? req.params.phone[0] : req.params.phone;
+  const phone = decodeURIComponent(String(raw ?? "")).trim();
+  if (!phone) { res.status(400).json({ error: "מספר טלפון נדרש" }); return; }
+  // Soft remove — flip to 'unsubscribed' so the row stays in the table
+  // (history for the owner to re-activate later). Hard delete would
+  // lose the "why were they removed" context.
+  const result = await db.execute(sql`
+    UPDATE broadcast_subscribers
+    SET status = 'unsubscribed', source = 'manual_remove', updated_at = NOW()
+    WHERE business_id = ${businessId} AND phone_number = ${phone}
+  `);
+  if ((result as any).rowCount === 0) {
+    res.status(404).json({ error: "לא נמצא ברשימת התפוצה" });
+    return;
+  }
+  res.json({ success: true });
+});
+
+router.post("/business/broadcast-subscribers/:phone/resubscribe", requireBusinessAuth, async (req, res): Promise<void> => {
+  const businessId = req.business!.businessId;
+  const raw = Array.isArray(req.params.phone) ? req.params.phone[0] : req.params.phone;
+  const phone = decodeURIComponent(String(raw ?? "")).trim();
+  if (!phone) { res.status(400).json({ error: "מספר טלפון נדרש" }); return; }
+  await db.execute(sql`
+    INSERT INTO broadcast_subscribers (business_id, phone_number, status, source)
+    VALUES (${businessId}, ${phone}, 'active', 'manual_resubscribe')
+    ON CONFLICT (business_id, phone_number)
+    DO UPDATE SET status = 'active', source = 'manual_resubscribe', updated_at = NOW()
+  `);
+  res.json({ success: true, status: "active" });
 });
 
 export default router;

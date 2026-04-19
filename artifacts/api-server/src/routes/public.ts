@@ -686,6 +686,22 @@ router.post("/public/:businessSlug/appointments", async (req, res): Promise<void
 
   if (business.requirePhoneVerification) consumeVerification(phoneNumber);
 
+  // Auto-subscribe this phone to the business's broadcast list. First-
+  // time customers land with status='active' so the owner can reach
+  // them with future campaigns. Returning customers whose row already
+  // says 'unsubscribed' stay unsubscribed (ON CONFLICT DO NOTHING)
+  // — booking again doesn't re-opt them back in behind their back.
+  try {
+    await db.execute(sql`
+      INSERT INTO broadcast_subscribers (business_id, phone_number, status, source)
+      VALUES (${business.id}, ${phoneNumber}, 'active', 'booking')
+      ON CONFLICT (business_id, phone_number) DO NOTHING
+    `);
+  } catch (e) {
+    // Never let a subscriber-list write break booking confirmation.
+    console.warn("[broadcast_subscribers] auto-add failed:", (e as any)?.message ?? e);
+  }
+
   const [, month, day] = appointmentDate.split("-");
   const formattedDate = `${day}/${month}`;
 
