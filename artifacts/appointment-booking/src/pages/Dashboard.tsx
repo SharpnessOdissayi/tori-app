@@ -4476,6 +4476,15 @@ function CustomersTab() {
   const [broadcastMessage, setBroadcastMessage] = useState("");
   const [broadcastLoading, setBroadcastLoading] = useState(false);
   const [quota, setQuota] = useState<{ sent: number; limit: number; remaining: number } | null>(null);
+  // Recipient editor inside the broadcast dialog. Owner can deselect specific
+  // customers (excludedPhones grows) and/or add custom phone numbers that
+  // aren't in the customer base yet (extraPhones grows). Default behaviour =
+  // send to every customer, matching the legacy "send to all" flow.
+  const [editingRecipients, setEditingRecipients] = useState(false);
+  const [excludedPhones, setExcludedPhones] = useState<Set<string>>(new Set());
+  const [extraPhones, setExtraPhones] = useState<string[]>([]);
+  const [newPhoneInput, setNewPhoneInput] = useState("");
+  const [recipientSearch, setRecipientSearch] = useState("");
   // Owner request: the directory used to be visible by default and sorted by
   // visits — they wanted it hidden behind a "פתח מאגר לקוחות" button, paged
   // 5-at-a-time, and sorted strictly alphabetically (no sort toggle UI).
@@ -4505,23 +4514,44 @@ function CustomersTab() {
       .catch(() => {});
   }, [token]);
 
-  const handleBroadcast = async () => {
-    if (!broadcastMessage.trim()) return;
+  // Normalize an Israeli phone to digits-only, prefixed with 972. Handles
+  // 0501234567, +972501234567, 050-123-4567, etc. Used so excluded /
+  // extra-added phones de-duplicate properly against the customer base.
+  const normalizePhone = (p: string): string => {
+    const digits = p.replace(/\D/g, "");
+    if (digits.startsWith("972")) return digits;
+    if (digits.startsWith("0")) return "972" + digits.slice(1);
+    return digits;
+  };
+  const isValidIsraeliPhone = (p: string): boolean => {
+    const d = p.replace(/\D/g, "");
+    return d.length >= 9 && d.length <= 13;
+  };
+
+  const handleBroadcast = async (recipients: string[]) => {
+    if (!broadcastMessage.trim() || recipients.length === 0) return;
     setBroadcastLoading(true);
     try {
       const res = await fetch("/api/business/broadcast", {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ message: broadcastMessage.trim() }),
+        body: JSON.stringify({
+          message: broadcastMessage.trim(),
+          phoneNumbers: recipients,
+        }),
       });
       const data = await res.json();
       if (!res.ok) {
         toast({ title: "שגיאה", description: data.message ?? "לא ניתן לשלוח", variant: "destructive" });
         return;
       }
-      toast({ title: `✅ נשלח ל-${data.sent} לקוחות${data.failed > 0 ? ` (${data.failed} נכשלו)` : ""}` });
+      toast({ title: `✅ נשלח ל-${data.sent} נמענים${data.failed > 0 ? ` (${data.failed} נכשלו)` : ""}` });
       setShowBroadcast(false);
       setBroadcastMessage("");
+      setExcludedPhones(new Set());
+      setExtraPhones([]);
+      setNewPhoneInput("");
+      setEditingRecipients(false);
       setQuota(q => q ? { ...q, sent: q.sent + data.sent, remaining: q.remaining - data.sent } : q);
     } catch {
       toast({ title: "שגיאת רשת", variant: "destructive" });
@@ -4577,46 +4607,211 @@ function CustomersTab() {
   return (
     <div className="space-y-6">
       {/* Broadcast dialog */}
-      {showBroadcast && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4" onClick={() => setShowBroadcast(false)}>
-          <div className="bg-background rounded-2xl shadow-2xl p-6 w-full max-w-md space-y-4" dir="rtl" onClick={e => e.stopPropagation()}>
-            <div className="flex items-center justify-between">
-              <h3 className="text-lg font-bold flex items-center gap-2">
-                <Send className="w-5 h-5 text-primary" /> הודעה לכל הלקוחות
-              </h3>
-              <button onClick={() => setShowBroadcast(false)} className="text-muted-foreground hover:text-foreground"><X className="w-5 h-5" /></button>
-            </div>
-            {quota && (
-              <div className="flex items-center justify-between text-xs text-muted-foreground bg-muted/30 px-3 py-2 rounded-lg">
-                <span>נשלחו החודש: {quota.sent}/{quota.limit}</span>
-                <span className={quota.remaining < 20 ? "text-red-500 font-medium" : ""}>{quota.remaining} נותרו</span>
+      {showBroadcast && (() => {
+        // Final recipient list computed here so the count, the disable/enable
+        // state of the send button, and the request body all stay in sync.
+        // Customer base, minus owner-deselected phones, plus any custom
+        // numbers the owner typed in. De-duped on the normalized phone form
+        // so 050... and 972... can't both fire to the same handset.
+        const customerPhones = customerList.map(c => normalizePhone(c.phoneNumber));
+        const includedCustomerPhones = customerPhones.filter(p => !excludedPhones.has(p));
+        const extraNormalized = extraPhones.map(normalizePhone);
+        const recipientPhones = [...new Set([...includedCustomerPhones, ...extraNormalized])];
+
+        const recipientSearchLower = recipientSearch.trim().toLowerCase();
+        const recipientSearchDigits = recipientSearchLower.replace(/\D/g, "");
+        const visibleCustomers = customerList.filter(c => {
+          if (!recipientSearchLower) return true;
+          if (c.clientName.toLowerCase().includes(recipientSearchLower)) return true;
+          if (recipientSearchDigits && c.phoneNumber.replace(/\D/g, "").includes(recipientSearchDigits)) return true;
+          return false;
+        });
+
+        const tryAddPhone = () => {
+          const trimmed = newPhoneInput.trim();
+          if (!isValidIsraeliPhone(trimmed)) {
+            toast({ title: "מספר טלפון לא תקין", variant: "destructive" });
+            return;
+          }
+          const normalized = normalizePhone(trimmed);
+          // Already in customer base — un-exclude it instead of adding as extra,
+          // so the row in the customer list lights back up automatically.
+          if (customerPhones.includes(normalized)) {
+            setExcludedPhones(prev => {
+              const next = new Set(prev); next.delete(normalized); return next;
+            });
+            toast({ title: "המספר כבר במאגר — סומן לשליחה" });
+          } else if (extraNormalized.includes(normalized)) {
+            toast({ title: "המספר כבר ברשימת ההוספות" });
+          } else {
+            setExtraPhones(prev => [...prev, trimmed]);
+          }
+          setNewPhoneInput("");
+        };
+
+        return (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4" onClick={() => setShowBroadcast(false)}>
+            <div className="bg-background rounded-2xl shadow-2xl p-6 w-full max-w-lg space-y-4 max-h-[90vh] overflow-y-auto" dir="rtl" onClick={e => e.stopPropagation()}>
+              <div className="flex items-center justify-between">
+                <h3 className="text-lg font-bold flex items-center gap-2">
+                  <Send className="w-5 h-5 text-primary" /> הודעת תפוצה
+                </h3>
+                <button onClick={() => setShowBroadcast(false)} className="text-muted-foreground hover:text-foreground"><X className="w-5 h-5" /></button>
               </div>
-            )}
-            <div>
-              <p className="text-sm text-muted-foreground mb-2">ההודעה תישלח ל-{customerList.length} לקוחות דרך WhatsApp</p>
-              <textarea
-                className="w-full border rounded-xl p-3 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-primary/30"
-                rows={4}
-                placeholder="כתוב/י את ההודעה כאן..."
-                value={broadcastMessage}
-                onChange={e => setBroadcastMessage(e.target.value)}
-                maxLength={1000}
-              />
-              <div className="text-xs text-muted-foreground text-end mt-1">{broadcastMessage.length}/1000</div>
-            </div>
-            <div className="flex gap-2">
-              <Button variant="outline" className="flex-1" onClick={() => setShowBroadcast(false)}>ביטול</Button>
-              <Button
-                className="flex-1 gap-2"
-                disabled={!broadcastMessage.trim() || broadcastLoading || (quota?.remaining ?? 1) <= 0}
-                onClick={handleBroadcast}
-              >
-                {broadcastLoading ? "שולח..." : <><Send className="w-4 h-4" /> שלח לכולם</>}
-              </Button>
+              {quota && (
+                <div className="flex items-center justify-between text-xs text-muted-foreground bg-muted/30 px-3 py-2 rounded-lg">
+                  <span>נשלחו החודש: {quota.sent}/{quota.limit}</span>
+                  <span className={quota.remaining < 20 ? "text-red-500 font-medium" : ""}>{quota.remaining} נותרו</span>
+                </div>
+              )}
+
+              {/* Recipient summary + edit toggle. Default closed so the dialog
+                  stays compact for the common "send to everyone" flow. */}
+              <div className="border rounded-xl p-3 bg-muted/20">
+                <div className="flex items-center justify-between gap-2">
+                  <div className="text-sm">
+                    <span className="font-semibold">{recipientPhones.length}</span>
+                    <span className="text-muted-foreground"> נמענים</span>
+                    {(excludedPhones.size > 0 || extraPhones.length > 0) && (
+                      <span className="text-xs text-muted-foreground"> · ערוך/ה</span>
+                    )}
+                  </div>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    onClick={() => setEditingRecipients(v => !v)}
+                  >
+                    {editingRecipients ? "סגור" : "ערוך נמענים"}
+                  </Button>
+                </div>
+
+                {editingRecipients && (
+                  <div className="mt-3 space-y-3">
+                    {/* Add custom phone */}
+                    <div>
+                      <Label className="text-xs">הוסף מספר חיצוני (לא במאגר)</Label>
+                      <div className="flex gap-2 mt-1">
+                        <Input
+                          dir="ltr"
+                          value={newPhoneInput}
+                          onChange={e => setNewPhoneInput(e.target.value)}
+                          onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); tryAddPhone(); } }}
+                          placeholder="0501234567"
+                          className="flex-1"
+                        />
+                        <Button type="button" size="sm" onClick={tryAddPhone} className="shrink-0 gap-1">
+                          <Plus className="w-3.5 h-3.5" /> הוסף
+                        </Button>
+                      </div>
+                      {extraPhones.length > 0 && (
+                        <div className="flex flex-wrap gap-1.5 mt-2">
+                          {extraPhones.map(p => (
+                            <span key={p} className="inline-flex items-center gap-1 bg-blue-50 text-blue-800 border border-blue-200 rounded-full px-2 py-0.5 text-xs">
+                              <span dir="ltr">{p}</span>
+                              <button
+                                type="button"
+                                onClick={() => setExtraPhones(prev => prev.filter(x => x !== p))}
+                                className="hover:text-rose-600"
+                                aria-label="הסר"
+                              >
+                                <X className="w-3 h-3" />
+                              </button>
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Customer list — toggle individual customers off */}
+                    {customerList.length > 0 && (
+                      <div>
+                        <div className="flex items-center justify-between gap-2 mb-1.5">
+                          <Label className="text-xs">לקוחות במאגר ({customerList.length})</Label>
+                          {excludedPhones.size > 0 && (
+                            <button
+                              type="button"
+                              onClick={() => setExcludedPhones(new Set())}
+                              className="text-xs text-primary hover:underline"
+                            >
+                              סמן הכל
+                            </button>
+                          )}
+                        </div>
+                        <div className="relative mb-2">
+                          <Search className="w-3.5 h-3.5 absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none" />
+                          <Input
+                            value={recipientSearch}
+                            onChange={e => setRecipientSearch(e.target.value)}
+                            placeholder="חיפוש לקוח..."
+                            className="pr-8 h-9 text-sm"
+                          />
+                        </div>
+                        <div className="max-h-56 overflow-y-auto border rounded-lg divide-y">
+                          {visibleCustomers.length === 0 ? (
+                            <div className="p-3 text-xs text-muted-foreground text-center">
+                              לא נמצאו לקוחות
+                            </div>
+                          ) : visibleCustomers.map(c => {
+                            const normalized = normalizePhone(c.phoneNumber);
+                            const isIncluded = !excludedPhones.has(normalized);
+                            return (
+                              <label
+                                key={c.phoneNumber}
+                                className="flex items-center gap-2 px-3 py-2 hover:bg-muted/30 cursor-pointer"
+                              >
+                                <input
+                                  type="checkbox"
+                                  checked={isIncluded}
+                                  onChange={() => {
+                                    setExcludedPhones(prev => {
+                                      const next = new Set(prev);
+                                      if (next.has(normalized)) next.delete(normalized);
+                                      else next.add(normalized);
+                                      return next;
+                                    });
+                                  }}
+                                  className="w-4 h-4 accent-primary"
+                                />
+                                <div className="flex-1 min-w-0">
+                                  <div className="text-sm font-medium truncate">{c.clientName}</div>
+                                  <div className="text-xs text-muted-foreground" dir="ltr">{c.phoneNumber}</div>
+                                </div>
+                              </label>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              <div>
+                <textarea
+                  className="w-full border rounded-xl p-3 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-primary/30"
+                  rows={4}
+                  placeholder="כתוב/י את ההודעה כאן..."
+                  value={broadcastMessage}
+                  onChange={e => setBroadcastMessage(e.target.value)}
+                  maxLength={1000}
+                />
+                <div className="text-xs text-muted-foreground text-end mt-1">{broadcastMessage.length}/1000</div>
+              </div>
+              <div className="flex gap-2">
+                <Button variant="outline" className="flex-1" onClick={() => setShowBroadcast(false)}>ביטול</Button>
+                <Button
+                  className="flex-1 gap-2"
+                  disabled={!broadcastMessage.trim() || broadcastLoading || (quota?.remaining ?? 1) <= 0 || recipientPhones.length === 0}
+                  onClick={() => handleBroadcast(recipientPhones)}
+                >
+                  {broadcastLoading ? "שולח..." : <><Send className="w-4 h-4" /> שלח ל-{recipientPhones.length}</>}
+                </Button>
+              </div>
             </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
 
       {/* Stats */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">

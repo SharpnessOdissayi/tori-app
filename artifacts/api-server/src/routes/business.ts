@@ -1187,7 +1187,7 @@ const BROADCAST_MONTHLY_LIMIT = 150;
 
 router.post("/business/broadcast", requireBusinessAuth, async (req, res): Promise<void> => {
   const businessId = req.business!.businessId;
-  const { message } = req.body ?? {};
+  const { message, phoneNumbers } = req.body ?? {};
   if (!message || typeof message !== "string" || !message.trim()) {
     res.status(400).json({ error: "הודעה נדרשת" }); return;
   }
@@ -1219,17 +1219,29 @@ router.post("/business/broadcast", requireBusinessAuth, async (req, res): Promis
     return;
   }
 
-  // Get unique phone numbers with at least one non-cancelled appointment
-  const rows = await db
-    .select({ phoneNumber: appointmentsTable.phoneNumber })
-    .from(appointmentsTable)
-    .where(and(
-      eq(appointmentsTable.businessId, businessId),
-      sql`${appointmentsTable.status} != 'cancelled'`,
-      sql`${appointmentsTable.status} != 'pending_payment'`
-    ));
-
-  const phones = [...new Set(rows.map(r => r.phoneNumber).filter(Boolean))];
+  // Recipient list: caller can pass an explicit `phoneNumbers` array (the
+  // owner edited the list — removed customers, added custom phones, etc.).
+  // Falls back to "every customer with a non-cancelled appointment" so the
+  // legacy "send to everyone" behaviour still works without UI changes.
+  let phones: string[];
+  if (Array.isArray(phoneNumbers) && phoneNumbers.length > 0) {
+    phones = [...new Set(
+      phoneNumbers
+        .filter((p): p is string => typeof p === "string")
+        .map(p => p.trim())
+        .filter(Boolean)
+    )];
+  } else {
+    const rows = await db
+      .select({ phoneNumber: appointmentsTable.phoneNumber })
+      .from(appointmentsTable)
+      .where(and(
+        eq(appointmentsTable.businessId, businessId),
+        sql`${appointmentsTable.status} != 'cancelled'`,
+        sql`${appointmentsTable.status} != 'pending_payment'`
+      ));
+    phones = [...new Set(rows.map(r => r.phoneNumber).filter(Boolean))];
+  }
 
   // Cap at remaining quota
   const remaining = BROADCAST_MONTHLY_LIMIT - sentThisMonth;
