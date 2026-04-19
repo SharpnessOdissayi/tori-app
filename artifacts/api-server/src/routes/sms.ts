@@ -177,12 +177,19 @@ router.post("/sms/send-bulk", async (req, res): Promise<void> => {
   const customerMessageId = crypto.randomUUID();
   const deliveryReportUrl = `${(process.env.PUBLIC_API_BASE_URL ?? "https://www.kavati.net/api").replace(/\/$/, "")}/sms/inforu-webhook/delivery`;
 
-  // Send via Inforu. Sender = business name (must be pre-registered with
-  // Inforu + the Israeli carriers before going live).
+  // Send via Inforu. Sender: prefer the account-level INFORU_SENDER_NAME
+  // env var (one name that Inforu pre-registered with the Israeli
+  // carriers for our whole account — today that's "Kavati"); fall back
+  // to the business's own name only when the env var is empty. The
+  // carriers reject any sender that isn't on the whitelist, so using a
+  // per-business name without first registering it would 4xx every
+  // send. Sticking with a single registered sender keeps onboarding
+  // zero-touch for new business owners.
+  const senderName = (process.env.INFORU_SENDER_NAME ?? biz.name).trim();
   const inforuResult = await inforuSendSms({
     recipients,
     message,
-    senderName: biz.name,
+    senderName,
     customerMessageId,
     deliveryReportUrl,
   });
@@ -212,6 +219,16 @@ router.post("/sms/send-bulk", async (req, res): Promise<void> => {
       });
       return;
     }
+    // Log the full Inforu response server-side so we can see WHY a send
+    // was rejected (sender not whitelisted, bad phone, quota exhausted,
+    // auth header mismatch, etc.) — the 502 body shows only a short
+    // reason to the client so nothing internal leaks.
+    logger.warn({
+      statusCode: inforuResult.statusCode,
+      statusText: inforuResult.statusText,
+      recipients: inforuResult.recipients,
+      sender: senderName,
+    }, "[sms/send-bulk] Inforu send failed");
     res.status(502).json({
       error: "sms_gateway_failed",
       reason: inforuResult.statusText ?? "unknown",

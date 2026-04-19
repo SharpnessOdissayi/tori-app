@@ -8052,6 +8052,16 @@ function SmsBulkCard() {
           setPurchaseOpen(true);
         } else if (json?.error === "inforu_not_configured") {
           toast({ title: "שער SMS עדיין לא מחובר", description: "החשבון מול אינפורו יחובר בקרוב.", variant: "default" });
+        } else if (json?.error === "sms_gateway_failed") {
+          // Surface Inforu's own rejection reason so the owner can act on
+          // it (commonly: sender name not whitelisted, IP restriction on
+          // the token, or malformed phone). Without the reason the toast
+          // was just "sms_gateway_failed" which is useless.
+          toast({
+            title: "שער SMS סירב",
+            description: json?.reason ?? "לא ידוע — בדוק לוגי שרת",
+            variant: "destructive",
+          });
         } else {
           toast({ title: "שגיאה בשליחה", description: json?.error ?? "נסה שוב", variant: "destructive" });
         }
