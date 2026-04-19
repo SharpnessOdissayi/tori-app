@@ -1,5 +1,5 @@
 import { db, workingHoursTable, breakTimesTable, appointmentsTable, timeOffTable } from "@workspace/db";
-import { eq, and, isNull, sql } from "drizzle-orm";
+import { eq, and, or, isNull, sql } from "drizzle-orm";
 
 function timeToMinutes(time: string): number {
   const [h, m] = time.split(":").map(Number);
@@ -76,19 +76,33 @@ export async function computeAvailableSlots(
     return [];
   }
 
-  // Time off — one-off days/partial days the owner marked as closed in the
-  // dashboard. A matching full-day entry blocks the whole date outright;
-  // partial-day entries are treated as extra breaks layered on top of the
-  // regular weekly break schedule below. Previously this table was never
-  // consulted by the booking flow, so a day flagged as "יום חופש" still
-  // appeared bookable to clients.
+  // Time off — one-off days/partial days marked as closed in the dashboard.
+  // A matching full-day entry blocks the whole date; partial-day entries
+  // layer on top of the regular weekly break schedule below.
+  //
+  // Staff scoping (fixed): originally this query loaded EVERY time_off row
+  // for the business on that date, regardless of staff_member_id. That meant
+  // a stylist's personal day off silently zeroed out the owner's calendar
+  // (and every other stylist's) — so the owner reported their constraints
+  // "disappearing". Now:
+  //   · caller passed a staffMemberId → include rows that are business-wide
+  //     (staff_member_id IS NULL) OR target this specific staff
+  //   · no staffMemberId (business-default view) → only business-wide rows;
+  //     individual staff's personal days off don't block the shared view
+  //     because another staff may still be available for that slot.
   const timeOffEntries = await db
     .select()
     .from(timeOffTable)
     .where(
       and(
         eq(timeOffTable.businessId, businessId),
-        eq(timeOffTable.date, date)
+        eq(timeOffTable.date, date),
+        staffMemberId
+          ? or(
+              isNull((timeOffTable as any).staffMemberId),
+              eq((timeOffTable as any).staffMemberId, staffMemberId),
+            )!
+          : isNull((timeOffTable as any).staffMemberId),
       )
     );
   if (timeOffEntries.some(t => t.fullDay || (!t.startTime && !t.endTime))) {
