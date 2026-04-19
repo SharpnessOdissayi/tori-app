@@ -427,6 +427,23 @@ export async function runMigrations() {
       )
     `));
 
+    // ─── Time-off normalisation backfill ──────────────────────────────
+    // Any existing time_off row that's assigned to an isOwner=true staff
+    // row is ACTUALLY a business-wide closure (the owner created it
+    // while logged in via the staff path, which slapped their staff_id
+    // onto the row). Flip those back to NULL so they behave like any
+    // other owner-created closure — they block the public booking page
+    // and show up in every staff's calendar.
+    //
+    // Idempotent: the UPDATE is a no-op once every such row is cleared.
+    await db.execute(sql.raw(`
+      UPDATE time_off
+      SET staff_member_id = NULL
+      WHERE staff_member_id IN (
+        SELECT id FROM staff_members WHERE is_owner = TRUE
+      )
+    `));
+
     // ─── One-shot seed: import existing businesses + clients ────────────
     // Idempotent via ON CONFLICT DO NOTHING. Safe to run every boot.
     await seedUsersFromExistingData();

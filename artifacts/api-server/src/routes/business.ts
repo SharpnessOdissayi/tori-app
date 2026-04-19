@@ -1293,12 +1293,41 @@ router.post("/business/broadcast", requireBusinessAuth, async (req, res): Promis
   let successCount = 0;
   let failCount = 0;
 
-  for (const phone of batch) {
-    try {
-      await sendWhatsApp(phone, message.trim(), req.business!.businessId);
-      successCount++;
-    } catch {
-      failCount++;
+  // Broadcast channel moved from WhatsApp → SMS (Inforu) per owner. SMS
+  // is cheaper per message and avoids Meta template approval for free-form
+  // marketing text (Meta forbids non-templated marketing on WA Business
+  // API). Inforu send supports multi-recipient in one request so we can
+  // flip the per-phone loop to a single batched call — fewer API round
+  // trips + we only pay one network cost per batch. Falls back to
+  // WhatsApp if Inforu credentials aren't set yet.
+  const { sendSms: inforuSendSms, isInforuConfigured } = await import("../lib/inforu");
+  if (isInforuConfigured() && batch.length > 0) {
+    const [biz2] = await db
+      .select({ name: businessesTable.name })
+      .from(businessesTable)
+      .where(eq(businessesTable.id, req.business!.businessId));
+    const senderName = (process.env.INFORU_SENDER_NAME ?? biz2?.name ?? "Kavati").slice(0, 11);
+    const result = await inforuSendSms({
+      recipients: batch,
+      message: message.trim(),
+      senderName,
+      customerMessageId: `broadcast-${req.business!.businessId}-${Date.now()}`,
+    });
+    if (result.ok) {
+      successCount = result.recipients.filter(r => r.status === "queued").length;
+      failCount = result.recipients.filter(r => r.status === "failed").length;
+    } else {
+      failCount = batch.length;
+    }
+  } else {
+    // Fallback path: no Inforu creds → legacy WhatsApp per-phone loop.
+    for (const phone of batch) {
+      try {
+        await sendWhatsApp(phone, message.trim(), req.business!.businessId);
+        successCount++;
+      } catch {
+        failCount++;
+      }
     }
   }
 
@@ -1461,15 +1490,38 @@ router.get("/business/time-off", requireBusinessAuth, async (req, res): Promise<
 });
 
 // POST /business/time-off
-// staff token  → staff_member_id = caller (their personal day off)
-// owner token  → staff_member_id = NULL (business-wide closure)
+// staff token (non-owner) → staff_member_id = caller (their personal day off)
+// owner token             → staff_member_id = NULL (business-wide closure)
+// staff token WHERE staff.isOwner = TRUE → treat as owner → NULL
+//
+// The third branch fixes the owner-who-logged-in-as-staff footgun: owner
+// rows in staff_members (isOwner=true) exist so the multi-staff UI can
+// render the owner's calendar tab. But if the owner happens to log in via
+// that row (say their business-table email was changed and the staff row
+// matched first), every time-off they create ends up tagged to their
+// personal id instead of being business-wide, so the public booking page
+// no longer blocks for it and "אילוצים נעלמו".
 router.post("/business/time-off", requireBusinessAuth, async (req, res): Promise<void> => {
   const parsed = parseCreateTimeOffBody(req.body);
   if (!parsed.success) { res.status(400).json({ error: "Invalid data" }); return; }
-  const staffMemberId = req.business!.staffMemberId ?? null;
+  const callerStaffId = req.business!.staffMemberId ?? null;
+
+  // If the caller is actually the business owner masquerading as a staff
+  // row (isOwner=true), flip the assignment to NULL so the entry behaves
+  // like an owner-created business-wide closure.
+  let staffMemberIdForInsert: number | null = callerStaffId;
+  if (callerStaffId) {
+    const { staffMembersTable } = await import("@workspace/db");
+    const [row] = await db
+      .select({ isOwner: staffMembersTable.isOwner })
+      .from(staffMembersTable)
+      .where(eq(staffMembersTable.id, callerStaffId));
+    if (row?.isOwner) staffMemberIdForInsert = null;
+  }
+
   const [item] = await db.insert(timeOffTable).values({
     businessId: req.business!.businessId,
-    staffMemberId: staffMemberId,
+    staffMemberId: staffMemberIdForInsert,
     date: parsed.data.date,
     startTime: parsed.data.startTime ?? undefined,
     endTime: parsed.data.endTime ?? undefined,
