@@ -1192,16 +1192,30 @@ export default function Book({ slugOverride }: { slugOverride?: string } = {}) {
                     className="h-11"
                   />
                 </div>
-                {/* "Continue without login" — moved here per owner request and
-                    styled as a strong-blue link so it reads as clickable. */}
-                <button
-                  type="button"
-                  onClick={() => setShowLoginGate(false)}
-                  className="w-full text-center text-sm font-bold underline underline-offset-2 hover:no-underline transition-colors"
-                  style={{ color: "#1e6fcf" }}
-                >
-                  המשך ללא התחברות
-                </button>
+                {/* Remember-me + "continue without login" sit on a single
+                    row so customers see both choices side-by-side before
+                    committing to the OTP. The skip link is rendered in
+                    strong blue so it reads as a real call-to-action, not
+                    a buried footnote. */}
+                <div className="flex items-center justify-between gap-2 pt-1">
+                  <label className="flex items-center gap-2 cursor-pointer select-none">
+                    <input
+                      type="checkbox"
+                      checked={rememberMe}
+                      onChange={e => setRememberMe(e.target.checked)}
+                      className="w-4 h-4 rounded accent-primary"
+                    />
+                    <span className="text-sm">זכור/י אותי</span>
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => setShowLoginGate(false)}
+                    className="text-sm font-bold underline underline-offset-2 hover:no-underline transition-colors"
+                    style={{ color: "#1e6fcf" }}
+                  >
+                    המשך ללא התחברות
+                  </button>
+                </div>
                 <Button className="w-full h-11" style={{ backgroundColor: primaryColor }}
                   onClick={handlePortalSendOtp} disabled={portalLoading || !portalPhone.trim() || !portalEmail.trim()}>
                   {portalLoading ? "שולח..." : "שלח קוד אימות למייל"}
@@ -1223,16 +1237,6 @@ export default function Book({ slugOverride }: { slugOverride?: string } = {}) {
                     ⚠️ הקוד עשוי להגיע לתיקיית הספאם — בדוק/י גם שם.
                   </p>
                 </div>
-                {/* Remember me */}
-                <label className="flex items-center gap-2 cursor-pointer select-none">
-                  <input
-                    type="checkbox"
-                    checked={rememberMe}
-                    onChange={e => setRememberMe(e.target.checked)}
-                    className="w-4 h-4 rounded accent-primary"
-                  />
-                  <span className="text-sm">זכור/י אותי (נשאר מחובר/ת)</span>
-                </label>
                 <Button className="w-full h-11" style={{ backgroundColor: primaryColor }}
                   onClick={() => handlePortalVerifyOtp(rememberMe)}
                   disabled={portalLoading || portalOtpCode.length < 6}>

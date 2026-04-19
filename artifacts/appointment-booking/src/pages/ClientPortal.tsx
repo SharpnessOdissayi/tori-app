@@ -298,19 +298,28 @@ function LoginScreen({ onLogin }: { onLogin: (token: string, name: string) => vo
               className="w-full py-3 rounded-xl bg-blue-500 text-white font-semibold text-sm hover:bg-blue-600 disabled:opacity-50 transition-all">
               {loading ? "שולח..." : "שלח קוד אימות למייל"}
             </button>
-            <label className="flex items-center gap-2 cursor-pointer select-none justify-end mt-1">
-              <span className="text-sm text-gray-500">זכור אותי</span>
-              <div
-                onClick={() => setRemember(v => !v)}
-                className="relative w-10 h-5 rounded-full transition-colors duration-200 flex-shrink-0"
-                style={{ background: remember ? "#3c92f0" : "#d1d5db" }}
-              >
+            <div className="flex items-center justify-between gap-2 mt-1">
+              <label className="flex items-center gap-2 cursor-pointer select-none">
+                <span className="text-sm text-gray-500">זכור אותי</span>
                 <div
-                  className="absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-all duration-200"
-                  style={{ right: remember ? "2px" : "auto", left: remember ? "auto" : "2px" }}
-                />
-              </div>
-            </label>
+                  onClick={() => setRemember(v => !v)}
+                  className="relative w-10 h-5 rounded-full transition-colors duration-200 flex-shrink-0"
+                  style={{ background: remember ? "#3c92f0" : "#d1d5db" }}
+                >
+                  <div
+                    className="absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-all duration-200"
+                    style={{ right: remember ? "2px" : "auto", left: remember ? "auto" : "2px" }}
+                  />
+                </div>
+              </label>
+              <a
+                href="/"
+                className="text-sm font-bold underline underline-offset-2 hover:no-underline"
+                style={{ color: "#1e6fcf" }}
+              >
+                המשך ללא התחברות
+              </a>
+            </div>
           </div>
         ) : (
           <div className="space-y-4">
