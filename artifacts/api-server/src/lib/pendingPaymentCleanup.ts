@@ -1,17 +1,28 @@
 /**
  * Cancels stale `pending_payment` appointments where the Tranzila webhook
  * never arrived (network failure, abandoned checkout). Without this, the
- * slot would be permanently reserved.
+ * slot would be reserved indefinitely.
+ *
+ * Owner asked: stop showing "waiting for payment" anywhere in the UI, and
+ * don't have pending_payment rows linger. We already hide them from the
+ * owner's calendar + lists client-side — this cron keeps the DB honest by
+ * cancelling abandoned checkouts quickly so the Inforu/WhatsApp sides
+ * (which otherwise could fire a stale confirmation if the webhook arrived
+ * hours later) stay in sync.
  */
 
 import { db, appointmentsTable } from "@workspace/db";
 import { and, eq, lt } from "drizzle-orm";
 import { logger } from "./logger";
 
-const STALE_HOURS = 2; // give the user 2h to complete payment, then release the slot
+// Short window — Tranzila's iframe checkout takes 30-60 seconds in
+// practice. 15 minutes is enough slack for slow typists / network
+// blips, and short enough that an abandoned checkout doesn't block
+// the slot for the next customer. Was 2 hours; owner wanted it gone.
+const STALE_MINUTES = 15;
 
 export async function cleanupStalePendingPayment(): Promise<void> {
-  const cutoff = new Date(Date.now() - STALE_HOURS * 60 * 60 * 1000);
+  const cutoff = new Date(Date.now() - STALE_MINUTES * 60 * 1000);
 
   const result = await db
     .update(appointmentsTable)

@@ -2458,11 +2458,17 @@ function AppointmentsTab({ mobileFocus }: { mobileFocus?: "calendar" | "approval
   };
 
   const now = new Date().toISOString().split("T")[0];
-  const aptList = Array.isArray(appointments) ? appointments : [];
+  // Filter out pending_payment rows EVERYWHERE in the owner UI. These are
+  // placeholder rows that exist server-side only to hold Tranzila's myid
+  // during a deposit checkout — the owner asked that they never show up
+  // in the calendar or any list: if the customer hasn't paid, the booking
+  // simply doesn't exist from the owner's POV. Abandoned/expired rows
+  // auto-clean via the pending-payment cleanup cron.
+  const aptList = (Array.isArray(appointments) ? appointments : [])
+    .filter(a => a.status !== "pending_payment");
   const pending = aptList.filter(a => a.status === "pending");
-  const pendingPayment = aptList.filter(a => a.status === "pending_payment");
-  const upcoming = aptList.filter(a => a.appointmentDate >= now && a.status !== "pending" && a.status !== "cancelled" && a.status !== "pending_payment");
-  const past = aptList.filter(a => a.appointmentDate < now && a.status !== "cancelled" && a.status !== "pending_payment");
+  const upcoming = aptList.filter(a => a.appointmentDate >= now && a.status !== "pending" && a.status !== "cancelled");
+  const past = aptList.filter(a => a.appointmentDate < now && a.status !== "cancelled");
   const cancelled = aptList.filter(a => a.status === "cancelled");
 
   const CANCEL_REASONS = ["ברז", "לקוח התחרט", "אחר"];
@@ -2544,40 +2550,10 @@ function AppointmentsTab({ mobileFocus }: { mobileFocus?: "calendar" | "approval
         </Card>
       )}
 
-      {pendingPayment.length > 0 && (
-        <Card className="border-blue-300 bg-blue-50/50">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-blue-800">
-              <span>💳</span> ממתינים לתשלום ({pendingPayment.length})
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-3">
-              {pendingPayment.map(apt => (
-                <div key={apt.id} className="flex flex-col sm:flex-row justify-between items-start sm:items-center p-4 border border-blue-200 rounded-xl bg-white gap-3">
-                  <div className="flex-1">
-                    <div className="font-semibold flex items-center gap-2 flex-wrap">
-                      <GenderMark gender={genderByPhone.get(apt.phoneNumber)} />
-                      <span>{apt.clientName}</span>
-                      <span className="text-muted-foreground text-sm font-normal" dir="ltr">{apt.phoneNumber}</span>
-                    </div>
-                    <div className="text-sm text-muted-foreground mt-0.5">{apt.serviceName} • {formatDuration(apt.durationMinutes)}</div>
-                    <div className="text-blue-700 font-medium text-sm mt-1">
-                      {format(parseISO(apt.appointmentDate + "T" + apt.appointmentTime), "EEEE, d בMMMM yyyy", { locale: he })} • {apt.appointmentTime}
-                    </div>
-                  </div>
-                  <button
-                    onClick={() => handleCancel(apt.id)} disabled={cancelMutation.isPending}
-                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-red-50 hover:bg-red-100 text-red-500 border border-red-100 transition-all disabled:opacity-60"
-                  >
-                    <X className="w-3.5 h-3.5" /> בטל
-                  </button>
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-      )}
+      {/* "ממתינים לתשלום" block removed — pending_payment rows never
+          surface in the owner UI now. They only live server-side until
+          the Tranzila webhook either confirms them or the 15-minute
+          cleanup cron cancels abandoned checkouts. */}
 
       {/* Upcoming-appointments card hidden on mobile — lives on Home
           instead so the mobile יומן tab is a pure calendar surface. */}
@@ -3098,13 +3074,16 @@ function HomeTab({ onJump }: { onJump: (tab: string) => void }) {
   const queryClient = useQueryClient();
   const { toast } = useToast();
 
-  const aptList = Array.isArray(appointments) ? appointments : [];
+  // Same pending_payment invisibility rule as AppointmentsTab: server-side
+  // placeholders never surface in the owner UI.
+  const aptList = (Array.isArray(appointments) ? appointments : [])
+    .filter(a => a.status !== "pending_payment");
   const now = new Date().toISOString().split("T")[0];
   const pending = aptList.filter(a => a.status === "pending");
   // Show more of them on Home than before — the rich card paginates so
   // there's no downside to passing the full upcoming list.
   const upcoming = aptList
-    .filter(a => a.appointmentDate >= now && a.status !== "pending" && a.status !== "cancelled" && a.status !== "pending_payment")
+    .filter(a => a.appointmentDate >= now && a.status !== "pending" && a.status !== "cancelled")
     .sort((a, b) => (a.appointmentDate + a.appointmentTime).localeCompare(b.appointmentDate + b.appointmentTime));
 
   const genderByPhone = useMemo(() => {

@@ -1945,10 +1945,16 @@ router.post("/business/broadcast-subscribers", requireBusinessAuth, async (req, 
   // from auto-subscribed booking rows for analytics/debugging.
   // Also clear any prior audit row in broadcast_unsubscribes — the owner
   // is explicitly overriding the opt-out, otherwise the send filters
-  // would block the manually-added phone.
+  // would block the manually-added phone. Match on normalised digits
+  // so "0501234567" / "972501234567" / "+972-50-123-4567" all resolve
+  // to the same audit row — format drift between the /u/ token writer
+  // and the UI displayer caused resubscribes to silently leave old
+  // unsubscribe rows behind, blocking future SMS to the re-added phone.
+  const digitsOnly = normalized.replace(/\D/g, "").replace(/^972/, "0");
   await db.execute(sql`
     DELETE FROM broadcast_unsubscribes
-    WHERE business_id = ${businessId} AND phone_number = ${normalized}
+    WHERE business_id = ${businessId}
+      AND regexp_replace(regexp_replace(phone_number, '\D', '', 'g'), '^972', '0') = ${digitsOnly}
   `);
   await db.execute(sql`
     INSERT INTO broadcast_subscribers (business_id, phone_number, status, source)
