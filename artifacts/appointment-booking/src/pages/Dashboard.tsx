@@ -4851,6 +4851,38 @@ function BroadcastSubscriberPanel({ onOpenBroadcast, canOpenBroadcast = true }: 
     }
   };
 
+  // Per-row pending state for the "invite back" button so we can show
+  // a loading state on just the row being invited, and prevent rapid
+  // double-clicks while the POST is in flight.
+  const [invitingPhone, setInvitingPhone] = useState<string | null>(null);
+  const handleInviteBack = async (phone: string) => {
+    setInvitingPhone(phone);
+    try {
+      const res = await fetch(`/api/business/broadcast-subscribers/${encodeURIComponent(phone)}/invite-back`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        if (res.status === 429 && data?.error === "invite_back_rate_limited") {
+          toast({ title: "כבר נשלחה הזמנה", description: data.message, variant: "destructive" });
+          return;
+        }
+        if (res.status === 502 && data?.error === "sms_gateway_failed") {
+          toast({ title: "שליחת SMS נכשלה", description: data.reason ?? undefined, variant: "destructive" });
+          return;
+        }
+        toast({ title: data?.message ?? "שגיאה בשליחת הזמנה", variant: "destructive" });
+        return;
+      }
+      toast({ title: "הזמנה נשלחה ב-SMS", description: `הלקוח יקבל קישור לאישור חזרה לרשימה.` });
+    } catch {
+      toast({ title: "שגיאת רשת", variant: "destructive" });
+    } finally {
+      setInvitingPhone(null);
+    }
+  };
+
   const activeCount       = subscribers.filter(s => s.status === "active").length;
   const unsubscribedCount = subscribers.filter(s => s.status === "unsubscribed").length;
   const searchLower  = search.trim().toLowerCase();
@@ -5001,12 +5033,14 @@ function BroadcastSubscriberPanel({ onOpenBroadcast, canOpenBroadcast = true }: 
                     <div className="text-[11px] text-muted-foreground font-mono" dir="ltr">
                       {s.phoneNumber}
                     </div>
-                    {/* When the customer opted out themselves we explain
-                        why "החזר" isn't offered — owners kept clicking
-                        the button and getting a 403 without context. */}
-                    {s.status === "unsubscribed" && ["unsub_link", "reply", "inforu_self_link"].includes(s.source) && (
+                    {/* For customer-initiated opt-outs, explain the
+                        re-opt-in workflow: a single-click SMS invite
+                        the customer approves themselves. Legal cover
+                        under תיקון 40 stays intact because the customer's
+                        fresh click + SMS OTP is a positive re-consent. */}
+                    {s.status === "unsubscribed" && ["unsub_link", "reply", "inforu_self_link", "reply_legacy"].includes(s.source) && (
                       <div className="text-[10px] text-amber-700 mt-0.5">
-                        הלקוח ביקש הסרה · לא ניתן להחזיר (תיקון 40)
+                        הלקוח הסיר את עצמו — שלח הזמנה לחזור
                       </div>
                     )}
                   </div>
@@ -5015,17 +5049,24 @@ function BroadcastSubscriberPanel({ onOpenBroadcast, canOpenBroadcast = true }: 
                   <Button type="button" size="sm" variant="outline" onClick={() => handleRemove(s.phoneNumber)} className="shrink-0 text-destructive border-destructive/30 hover:bg-destructive/5">
                     הסר
                   </Button>
-                ) : ["unsub_link", "reply", "inforu_self_link"].includes(s.source) ? (
+                ) : ["unsub_link", "reply", "inforu_self_link", "reply_legacy"].includes(s.source) ? (
                   // Customer-initiated opt-out — owner can't revive them
-                  // directly (תיקון 40). Instead, let the owner copy the
-                  // public opt-in link to send the customer in WhatsApp
-                  // / SMS — if the customer clicks + verifies via SMS,
-                  // they self-resubscribe.
-                  optInUrl ? (
-                    <Button type="button" size="sm" variant="outline" onClick={copyOptInUrl} className="shrink-0 gap-1">
-                      <Send className="w-3.5 h-3.5" /> העתק קישור חזרה
-                    </Button>
-                  ) : null
+                  // directly (תיקון 40). Instead, a single-click sends
+                  // an SMS invite with the public opt-in link. If the
+                  // customer clicks + verifies via SMS, they self-
+                  // resubscribe. 7-day cooldown on the server prevents
+                  // owner from nagging the same phone.
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    onClick={() => handleInviteBack(s.phoneNumber)}
+                    disabled={invitingPhone === s.phoneNumber}
+                    className="shrink-0 gap-1"
+                  >
+                    <Send className="w-3.5 h-3.5" />
+                    {invitingPhone === s.phoneNumber ? "שולח..." : "שלח הזמנה"}
+                  </Button>
                 ) : (
                   // Owner's own manual_remove — owner can undo.
                   <Button type="button" size="sm" variant="outline" onClick={() => handleResubscribe(s.phoneNumber)} className="shrink-0">

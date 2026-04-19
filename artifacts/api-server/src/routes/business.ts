@@ -2106,4 +2106,96 @@ router.post("/business/broadcast-subscribers/:phone/resubscribe", requireBusines
   res.json({ success: true, status: "active" });
 });
 
+// ─── Broadcast re-opt-in invite (owner-triggered, SMS) ──────────────────
+// Owner clicks "הזמן בחזרה" on a row in "לא מנויים". We send a short
+// SMS to that phone with the public opt-in link — customer clicks it,
+// enters SMS OTP on /api/r/<slug>, and self-resubscribes.
+//
+// Legal framing: this is a transactional consent-request, not marketing.
+// We're ASKING if they want to come back, not pushing content. To keep
+// that framing defensible, we hard-cap to one invite every 7 days per
+// (business, phone) pair — otherwise an owner could spam an unsubscribed
+// customer with "please come back" messages, which would itself be
+// marketing under תיקון 40.
+const INVITE_BACK_COOLDOWN_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
+const inviteBackSentAt = new Map<string, number>();
+function inviteBackKey(businessId: number, phone: string) {
+  return `${businessId}:${phone}`;
+}
+
+router.post("/business/broadcast-subscribers/:phone/invite-back", requireBusinessAuth, async (req, res): Promise<void> => {
+  const businessId = req.business!.businessId;
+  const raw = Array.isArray(req.params.phone) ? req.params.phone[0] : req.params.phone;
+  const phone = decodeURIComponent(String(raw ?? "")).trim();
+  if (!phone) { res.status(400).json({ error: "מספר טלפון נדרש" }); return; }
+  const digitsOnly = phone.replace(/\D/g, "").replace(/^972/, "0");
+
+  // Validate: this phone must currently be opted out (we're not using
+  // this to cold-spam random phones).
+  const existingAudit = await db.execute(sql`
+    SELECT source FROM broadcast_unsubscribes
+    WHERE business_id = ${businessId}
+      AND regexp_replace(regexp_replace(phone_number, '\D', '', 'g'), '^972', '0') = ${digitsOnly}
+    LIMIT 1
+  `);
+  if (((existingAudit as any).rows ?? []).length === 0) {
+    res.status(404).json({ error: "not_unsubscribed", message: "הלקוח לא ברשימת המוסרים." });
+    return;
+  }
+
+  // Cooldown check — in-memory map, one process per Railway replica.
+  // A multi-replica deploy would need Redis or a DB column; for now
+  // Kavati runs on a single replica so this is enough.
+  const key = inviteBackKey(businessId, digitsOnly);
+  const last = inviteBackSentAt.get(key);
+  if (last && Date.now() - last < INVITE_BACK_COOLDOWN_MS) {
+    const waitMs   = INVITE_BACK_COOLDOWN_MS - (Date.now() - last);
+    const waitDays = Math.ceil(waitMs / (24 * 60 * 60 * 1000));
+    res.status(429).json({
+      error: "invite_back_rate_limited",
+      message: `הזמנה כבר נשלחה. אפשר לשלוח שוב בעוד ${waitDays} ימים.`,
+    });
+    return;
+  }
+
+  const [biz] = await db
+    .select({ slug: businessesTable.slug, name: businessesTable.name })
+    .from(businessesTable)
+    .where(eq(businessesTable.id, businessId));
+  if (!biz) { res.status(404).json({ error: "עסק לא נמצא" }); return; }
+
+  const host = (process.env.KAVATI_HOST ?? "www.kavati.net").replace(/^https?:\/\//, "").replace(/\/$/, "");
+  const optInUrl = `https://${host}/api/r/${encodeURIComponent(biz.slug)}`;
+  const businessLabel = (biz.name ?? "").trim();
+  const inviteMessage = [
+    businessLabel ? `${businessLabel}:` : null,
+    `נשמח לחזור להיות בקשר.`,
+    `להרשמה מחודשת לרשימת התפוצה שלנו:`,
+    optInUrl,
+  ].filter(Boolean).join("\n");
+
+  const { sendSms, isInforuConfigured } = await import("../lib/inforu");
+  if (!isInforuConfigured()) {
+    res.status(503).json({ error: "sms_not_configured", message: "שירות ה-SMS לא מוגדר." });
+    return;
+  }
+  const senderName = (process.env.INFORU_SENDER_NAME ?? biz.name ?? "Kavati").slice(0, 11);
+  const result = await sendSms({
+    recipients: [digitsOnly],
+    message: inviteMessage,
+    senderName,
+    customerMessageId: `invite-back-${businessId}-${Date.now()}`,
+  });
+  if (!result.ok) {
+    res.status(502).json({
+      error: "sms_gateway_failed",
+      reason: result.statusText ?? result.recipients[0]?.error ?? "unknown",
+    });
+    return;
+  }
+
+  inviteBackSentAt.set(key, Date.now());
+  res.json({ success: true, sentTo: digitsOnly });
+});
+
 export default router;
