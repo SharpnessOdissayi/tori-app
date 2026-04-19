@@ -1112,9 +1112,6 @@ router.get("/business/customers", requireBusinessAuth, async (req, res): Promise
   }>();
 
   for (const a of appointments) {
-    // Abandoned deposit attempts — not a meaningful signal either way.
-    if (a.status === "pending_payment") continue;
-
     const key = a.phoneNumber;
     if (!customerMap.has(key)) {
       customerMap.set(key, {
@@ -1135,7 +1132,14 @@ router.get("/business/customers", requireBusinessAuth, async (req, res): Promise
     }
     const record = customerMap.get(key)!;
 
-    if (a.status === "cancelled") {
+    // Abandoned-deposit attempts (pending_payment) used to be skipped
+    // outright; owner asked to keep them in the customer base as leads
+    // — they entered a phone, that's worth tracking. Don't count them as
+    // visits / cancellations / no-shows; they sit in the map with zeros
+    // until they convert into a real booking.
+    if (a.status === "pending_payment") {
+      // still here = customer was added above; skip per-status counters.
+    } else if (a.status === "cancelled") {
       record.cancelledCount += 1;
       if (a.cancelledBy === "client") record.cancelledByClientCount += 1;
       else if (a.cancelledBy === "business") record.cancelledByBusinessCount += 1;
