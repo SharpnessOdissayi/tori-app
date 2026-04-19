@@ -67,13 +67,14 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sh
 import { ServiceSortableList } from "@/components/ServiceSortableList";
 import { NewAppointmentDialog, DatePickerField, TimePickerField } from "@/components/NewAppointmentDialog";
 import { isInstalled as isPwaInstalled, onInstallStateChange } from "@/lib/pwa";
-import {
-  saveAccount,
-  listSavedAccounts,
-  removeSavedAccount,
-  switchToSavedAccount,
-  addAnotherAccount,
-} from "@/lib/savedAccounts";
+
+// One-shot cleanup: the multi-account switcher used to persist every
+// signed-in session under `kavati_saved_biz_accounts`. The feature
+// was reverted per the owner's request — wipe the key on boot so
+// stale tokens from previous releases don't linger on users' devices.
+if (typeof window !== "undefined") {
+  try { localStorage.removeItem("kavati_saved_biz_accounts"); } catch {}
+}
 
 const DAYS = ["ראשון", "שני", "שלישי", "רביעי", "חמישי", "שישי", "שבת"];
 
@@ -834,26 +835,6 @@ export default function Dashboard() {
           sessionStorage.removeItem("kavati_staff_filter_id");
           sessionStorage.removeItem("kavati_staff_filter_name");
         }
-        // Upsert the multi-account switcher row. Uses /auth/me's
-        // response (authoritative) + the business profile as a
-        // best-effort enrichment for the phone/avatar fields — if
-        // profile hasn't loaded yet the row still saves and the next
-        // reload fills the missing bits in.
-        try {
-          const role: "owner" | "staff" = json?.staff && !json.staff.isOwner ? "staff" : "owner";
-          const displayName = role === "staff"
-            ? (json.staff?.name ?? "")
-            : (json.businessName ?? "");
-          saveAccount({
-            token,
-            businessName: json.businessName ?? "",
-            displayName,
-            role,
-            phone: json?.staff?.phone ?? null,
-            avatarUrl: json?.staff?.avatarUrl ?? null,
-            savedAt: Date.now(),
-          });
-        } catch {}
       } catch {
         if (!cancelled) setAuthMe(null);
       }
@@ -1381,15 +1362,6 @@ export default function Dashboard() {
             ))}
           </div>
 
-          {/* Multi-account switcher — Facebook-style. Every successful
-              /auth/me upserts the active session into localStorage, so
-              all previously-signed-in accounts on this device stay one
-              tap away. Switching swaps biz_token and hard-reloads;
-              no OTP or re-auth. Only renders when there's at least one
-              OTHER saved account (staying logged in as yourself
-              doesn't need a "switch to me" button). */}
-          <AccountSwitcher currentToken={token} />
-
           {/* Full-width row under the grid — PWA install shortcut. Lives
               here (not in the grid) so it doesn't visually compete with
               the main categories and so it reads as a call-to-action.
@@ -1430,163 +1402,6 @@ export default function Dashboard() {
           </button>
         </SheetContent>
       </Sheet>
-    </div>
-  );
-}
-
-// ─── Account switcher (multi-login, Facebook-style) ───────────────────────
-// Lives in the mobile hamburger menu. Shows every account previously
-// signed in on this device so the owner can flip between e.g. their
-// owner dashboard and a staff seat without re-entering an OTP.
-//
-// The currently-active account is rendered as a read-only "active"
-// row at the top; the rest are tap-to-switch. A small × on hover
-// removes a saved account without signing out (useful after replacing
-// a staff phone, decommissioning an account, etc.).
-function AccountSwitcher({ currentToken }: { currentToken: string | null }) {
-  // Re-read on every render — the list is small (≤5 entries) and this
-  // guarantees the UI stays fresh after a sibling component's
-  // save/remove call. `tick` is bumped by the × handler below to force
-  // the re-render without routing through react state.
-  const [tick, setTick] = useState(0);
-  const accounts = useMemo(() => listSavedAccounts(), [tick, currentToken]);
-
-  // Filter out the currently-active account — switching to yourself is
-  // a no-op. The section still renders even when this list is empty,
-  // because the "+ הוסף חשבון נוסף" button needs to be reachable so
-  // a returning owner can sign in as a second account (their staff
-  // seat, another business, etc.) without first tapping Logout.
-  const otherAccounts = accounts.filter(a => a.token !== currentToken);
-
-  return (
-    <div className="mt-4 pt-4 border-t">
-      <div className="text-xs font-semibold text-muted-foreground px-1 mb-2">חשבונות נוספים</div>
-      {otherAccounts.length > 0 && (
-        <div className="space-y-2">
-          {otherAccounts.map((a) => (
-            <div
-              key={a.token}
-              className="flex items-center gap-3 p-3 rounded-2xl border border-border bg-card hover:bg-muted/40 transition-colors"
-            >
-              <button
-                type="button"
-                onClick={() => switchToSavedAccount(a.token)}
-                className="flex items-center gap-3 flex-1 min-w-0 text-right"
-              >
-                {a.avatarUrl ? (
-                  <img src={a.avatarUrl} alt="" className="w-11 h-11 rounded-full object-cover shrink-0" />
-                ) : (
-                  <div className="w-11 h-11 rounded-full bg-primary/10 text-primary flex items-center justify-center font-bold shrink-0">
-                    {(a.displayName || a.businessName || "?").slice(0, 1)}
-                  </div>
-                )}
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-1.5">
-                    <span className="font-semibold text-sm truncate">{a.displayName || a.businessName}</span>
-                    {a.role === "staff" && (
-                      <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-blue-100 text-blue-700 shrink-0">איש צוות</span>
-                    )}
-                  </div>
-                  <div className="text-xs text-muted-foreground truncate">
-                    {a.role === "staff" ? a.businessName : (a.phone ?? "")}
-                  </div>
-                </div>
-              </button>
-              <button
-                type="button"
-                title="הסר חשבון"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  removeSavedAccount(a.token);
-                  setTick(t => t + 1);
-                }}
-                className="w-8 h-8 rounded-lg flex items-center justify-center text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors shrink-0"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-          ))}
-        </div>
-      )}
-      {/* Always-visible "add another account" CTA. Soft-drops the
-          active biz_token (without touching the saved list) and
-          reloads — the login screen then shows the existing saved
-          accounts plus the normal phone/OTP form for a brand-new
-          login. After the new user signs in, both sessions are
-          saved and available in the switcher. */}
-      <button
-        type="button"
-        onClick={() => addAnotherAccount()}
-        className={`${otherAccounts.length > 0 ? "mt-2" : ""} w-full flex items-center gap-3 p-3 rounded-2xl border-2 border-dashed border-primary/40 bg-primary/5 text-primary text-right hover:bg-primary/10 transition-colors`}
-      >
-        <div className="w-11 h-11 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
-          <Plus className="w-5 h-5" />
-        </div>
-        <div className="flex-1 min-w-0">
-          <div className="font-semibold text-sm">הוסף חשבון נוסף</div>
-          <div className="text-[11px] text-primary/70 mt-0.5">התחברי עם מספר אחר — החשבון הנוכחי יישמר</div>
-        </div>
-      </button>
-    </div>
-  );
-}
-
-// ─── Saved-accounts row on the Login card ────────────────────────────────
-// Shown at the top of the login form (before the SMS step). Tapping a
-// row restores that account's token and hard-reloads the dashboard —
-// no OTP, no Google round-trip. Handy after deliberate logout or when
-// the owner flips between their own business and a staff seat.
-function LoginSavedAccountsRow() {
-  const [tick, setTick] = useState(0);
-  const accounts = useMemo(() => listSavedAccounts(), [tick]);
-  if (accounts.length === 0) return null;
-  return (
-    <div className="mb-5 space-y-2">
-      <div className="text-xs font-semibold text-muted-foreground px-1">המשך עם חשבון שמור</div>
-      {accounts.map((a) => (
-        <div
-          key={a.token}
-          className="flex items-center gap-3 p-3 rounded-2xl border border-border bg-card hover:bg-muted/40 transition-colors"
-        >
-          <button
-            type="button"
-            onClick={() => switchToSavedAccount(a.token)}
-            className="flex items-center gap-3 flex-1 min-w-0 text-right"
-          >
-            {a.avatarUrl ? (
-              <img src={a.avatarUrl} alt="" className="w-10 h-10 rounded-full object-cover shrink-0" />
-            ) : (
-              <div className="w-10 h-10 rounded-full bg-primary/10 text-primary flex items-center justify-center font-bold shrink-0">
-                {(a.displayName || a.businessName || "?").slice(0, 1)}
-              </div>
-            )}
-            <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-1.5">
-                <span className="font-semibold text-sm truncate">{a.displayName || a.businessName}</span>
-                {a.role === "staff" && (
-                  <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-blue-100 text-blue-700 shrink-0">איש צוות</span>
-                )}
-              </div>
-              <div className="text-xs text-muted-foreground truncate">
-                {a.role === "staff" ? a.businessName : (a.phone ?? "")}
-              </div>
-            </div>
-          </button>
-          <button
-            type="button"
-            title="הסר חשבון"
-            onClick={() => { removeSavedAccount(a.token); setTick(t => t + 1); }}
-            className="w-8 h-8 rounded-lg flex items-center justify-center text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors shrink-0"
-          >
-            <X className="w-4 h-4" />
-          </button>
-        </div>
-      ))}
-      <div className="relative flex items-center gap-3 py-1 pt-2">
-        <div className="flex-1 h-px bg-border" />
-        <span className="text-xs text-muted-foreground shrink-0">או כניסה עם חשבון חדש</span>
-        <div className="flex-1 h-px bg-border" />
-      </div>
     </div>
   );
 }
@@ -2089,13 +1904,6 @@ function Login({ onLogin }: { onLogin: (t: string) => void }) {
             <CardDescription>הזנת מספר טלפון ואימות בקוד SMS</CardDescription>
           </CardHeader>
           <CardContent>
-            {/* Saved-accounts quick-login — if this device has signed in
-                as an account before, we surface them as one-tap
-                re-login chips above the phone form. Tokens are kept in
-                localStorage after logout precisely so returning users
-                skip the SMS OTP round-trip. Hidden when the user is
-                mid-OTP (already committed to a specific login). */}
-            {smsStep === "phone" && <LoginSavedAccountsRow />}
             {smsStep === "phone" ? (
               // Wrapped in <form> with name/autoComplete so Chrome/Safari/1Password
               // detect it as a login form and offer saved phone numbers.
