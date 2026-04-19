@@ -872,6 +872,111 @@ router.post("/auth/business/sms-login/verify", async (req, res): Promise<void> =
   });
 });
 
+// ─── Email-OTP login (staff + owners) ────────────────────────────────────
+// Parallel to /auth/business/sms-login/{send,verify}: instead of a phone
+// number + WhatsApp SMS, the caller identifies themselves by email and
+// gets a 6-digit code via transactional email (Resend → SMTP fallback).
+// The verify endpoint mints the same JWT — owner token if the email
+// matches a businesses row, staff token if it matches a staff_members
+// row. Enables the owner's ask: staff can sign in "באמצעות מייל בלבד".
+
+router.post("/auth/business/email-login/send", async (req, res): Promise<void> => {
+  const { email } = req.body ?? {};
+  if (!email || typeof email !== "string") { res.status(400).json({ error: "אימייל נדרש" }); return; }
+  const trimmed = email.trim().toLowerCase();
+  // Simple sanity check — server-side Zod in auth.ts is zod-based but
+  // this endpoint is small enough to inline.
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmed)) {
+    res.status(400).json({ error: "אימייל לא תקין" }); return;
+  }
+
+  const { staffMembersTable } = await import("@workspace/db");
+  const [business] = await db
+    .select()
+    .from(businessesTable)
+    .where(eq(businessesTable.email, trimmed));
+  const [staff] = await db
+    .select()
+    .from(staffMembersTable)
+    .where(eq(staffMembersTable.email, trimmed));
+
+  // No-enumeration guarantee: respond 200 even on miss so an attacker
+  // can't probe which emails are registered. The verify endpoint will
+  // reject because no code was ever minted for that email.
+  if (!business && !staff) { res.json({ success: true }); return; }
+  if (business && !business.isActive) {
+    res.status(403).json({ error: "account_suspended", message: "החשבון מושהה. צור קשר עם התמיכה." });
+    return;
+  }
+  if (staff && !staff.isActive) {
+    res.status(403).json({ error: "account_suspended", message: "החשבון מושהה. צור קשר עם המנהל/ת." });
+    return;
+  }
+
+  try {
+    const { sendEmailVerificationCode } = await import("../lib/emailAuth");
+    await sendEmailVerificationCode(trimmed, "email_login");
+    res.json({ success: true });
+  } catch (e: any) {
+    console.error("[business/email-login/send] email send failed:", e?.message ?? e);
+    res.status(500).json({ error: "שגיאה בשליחת קוד" });
+  }
+});
+
+router.post("/auth/business/email-login/verify", async (req, res): Promise<void> => {
+  const { email, code } = req.body ?? {};
+  if (!email || !code) { res.status(400).json({ error: "שדות חסרים" }); return; }
+  const trimmed = String(email).trim().toLowerCase();
+
+  const { verifyEmailCode } = await import("../lib/emailAuth");
+  const ok = await verifyEmailCode(trimmed, String(code), "email_login");
+  if (!ok) { res.status(400).json({ error: "קוד שגוי או פג תוקף" }); return; }
+
+  // Owner first (stronger role), then staff fallback — mirrors the
+  // SMS-login endpoint above.
+  const [business] = await db
+    .select()
+    .from(businessesTable)
+    .where(eq(businessesTable.email, trimmed));
+  if (business) {
+    if (!business.isActive) {
+      res.status(403).json({ error: "account_suspended", message: "החשבון מושהה. צור קשר עם התמיכה." });
+      return;
+    }
+    const token = signBusinessToken({ businessId: business.id, email: business.email });
+    res.json(buildLoginResponse(business, token));
+    return;
+  }
+
+  const { staffMembersTable } = await import("@workspace/db");
+  const [staff] = await db
+    .select()
+    .from(staffMembersTable)
+    .where(eq(staffMembersTable.email, trimmed));
+  if (!staff) { res.status(404).json({ error: "לא נמצא חשבון לאימייל זה" }); return; }
+  if (!staff.isActive) {
+    res.status(403).json({ error: "account_suspended", message: "החשבון מושהה. צור קשר עם המנהל/ת." });
+    return;
+  }
+  const [owningBusiness] = await db
+    .select()
+    .from(businessesTable)
+    .where(eq(businessesTable.id, staff.businessId));
+  if (!owningBusiness || !owningBusiness.isActive) {
+    res.status(403).json({ error: "account_suspended" });
+    return;
+  }
+  const token = signBusinessToken({
+    businessId:    owningBusiness.id,
+    email:         owningBusiness.email,
+    staffMemberId: staff.id,
+  });
+  res.json({
+    ...buildLoginResponse(owningBusiness, token),
+    staff: { id: staff.id, name: staff.name, isOwner: staff.isOwner },
+  });
+});
+
 // POST /auth/forgot-password — send OTP via WhatsApp for phone-based reset
 router.post("/auth/forgot-password", async (req, res): Promise<void> => {
   const { phone } = req.body;

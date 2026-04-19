@@ -1739,6 +1739,11 @@ function Login({ onLogin }: { onLogin: (t: string) => void }) {
   const { toast } = useToast();
   const [, navigate] = useLocation();
 
+  // Login method toggle — phone-OTP (default) or email-OTP. Staff that
+  // don't have a personal SMS-capable line use the email path; owners
+  // can use either. Both paths mint the same JWT via auth.ts endpoints.
+  const [loginMethod, setLoginMethod] = useState<"phone" | "email">("phone");
+
   // Phone-only OTP login. Pre-fill the phone from the last "remember me"-
   // checked login to this same screen. Stored under a BUSINESS-SPECIFIC
   // key so client portal and super-admin sessions never bleed over.
@@ -1751,6 +1756,16 @@ function Login({ onLogin }: { onLogin: (t: string) => void }) {
   const [smsSending, setSmsSending] = useState(false);
   const [smsVerifying, setSmsVerifying] = useState(false);
   const [rememberMe, setRememberMe] = useState(true);
+
+  // Email-OTP login — parallel state. Reuses rememberMe + onLogin.
+  const [emailAddr, setEmailAddr] = useState(() => {
+    try { return localStorage.getItem("kavati_biz_last_email") ?? ""; }
+    catch { return ""; }
+  });
+  const [emailCode, setEmailCode] = useState("");
+  const [emailStep, setEmailStep] = useState<"email" | "code">("email");
+  const [emailSending, setEmailSending] = useState(false);
+  const [emailVerifying, setEmailVerifying] = useState(false);
 
   const handleSmsSendCode = async () => {
     if (!smsPhone.trim()) { toast({ title: "הזן מספר טלפון", variant: "destructive" }); return; }
@@ -1804,6 +1819,65 @@ function Login({ onLogin }: { onLogin: (t: string) => void }) {
       toast({ title: "שגיאת רשת", variant: "destructive" });
     } finally {
       setSmsVerifying(false);
+    }
+  };
+
+  // Email-OTP handlers — mirror the SMS path. Backend endpoint is
+  // /auth/business/email-login/{send,verify}; the verify response is
+  // identical to SMS (JWT + optional staff info) so reuse onLogin.
+  const handleEmailSendCode = async () => {
+    const addr = emailAddr.trim().toLowerCase();
+    if (!addr || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(addr)) {
+      toast({ title: "הזן כתובת אימייל תקינה", variant: "destructive" });
+      return;
+    }
+    setEmailSending(true);
+    try {
+      const res = await fetch("/api/auth/business/email-login/send", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: addr }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        toast({ title: data?.error ?? "שגיאה בשליחת קוד", variant: "destructive" });
+        return;
+      }
+      setEmailStep("code");
+      toast({ title: "קוד נשלח לאימייל שלך" });
+    } catch {
+      toast({ title: "שגיאת רשת", variant: "destructive" });
+    } finally {
+      setEmailSending(false);
+    }
+  };
+
+  const handleEmailVerify = async () => {
+    const codeToUse = emailCode.trim();
+    if (!codeToUse) return;
+    setEmailVerifying(true);
+    try {
+      const addr = emailAddr.trim().toLowerCase();
+      const res = await fetch("/api/auth/business/email-login/verify", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: addr, code: codeToUse }),
+      });
+      const data = await res.json();
+      if (!res.ok) { toast({ title: data?.error ?? "קוד שגוי", variant: "destructive" }); return; }
+      if (rememberMe) {
+        localStorage.setItem("biz_token", data.token);
+        localStorage.setItem("kavati_biz_last_email", addr);
+        sessionStorage.removeItem("biz_token");
+      } else {
+        sessionStorage.setItem("biz_token", data.token);
+        localStorage.removeItem("biz_token");
+      }
+      onLogin(data.token);
+    } catch {
+      toast({ title: "שגיאת רשת", variant: "destructive" });
+    } finally {
+      setEmailVerifying(false);
     }
   };
 
@@ -1901,10 +1975,110 @@ function Login({ onLogin }: { onLogin: (t: string) => void }) {
             </div>
             <TodayCalendarIcon />
             <CardTitle className="text-2xl">כניסה לקבעתי</CardTitle>
-            <CardDescription>הזנת מספר טלפון ואימות בקוד SMS</CardDescription>
+            <CardDescription>
+              {loginMethod === "phone"
+                ? "הזנת מספר טלפון ואימות בקוד SMS"
+                : "הזנת אימייל ואימות בקוד שנשלח לתיבת הדואר שלך"}
+            </CardDescription>
           </CardHeader>
           <CardContent>
-            {smsStep === "phone" ? (
+            {/* Method-toggle pill — two tabs that swap the form body.
+                Hidden once the user has already sent the code (step === code)
+                so the viewport stays focused on entering the digits. */}
+            {(loginMethod === "phone" ? smsStep : emailStep) === (loginMethod === "phone" ? "phone" : "email") && (
+              <div className="flex items-center gap-1 p-1 rounded-xl bg-muted/40 border border-border mb-4">
+                <button
+                  type="button"
+                  onClick={() => setLoginMethod("phone")}
+                  className={`flex-1 py-2 rounded-lg text-sm font-medium transition-all ${loginMethod === "phone" ? "bg-white shadow text-foreground" : "text-muted-foreground hover:text-foreground"}`}
+                >
+                  📱 טלפון
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setLoginMethod("email")}
+                  className={`flex-1 py-2 rounded-lg text-sm font-medium transition-all ${loginMethod === "email" ? "bg-white shadow text-foreground" : "text-muted-foreground hover:text-foreground"}`}
+                >
+                  📧 אימייל
+                </button>
+              </div>
+            )}
+
+            {loginMethod === "email" ? (
+              emailStep === "email" ? (
+                <form
+                  className="space-y-4"
+                  onSubmit={e => { e.preventDefault(); handleEmailSendCode(); }}
+                  noValidate
+                >
+                  <div className="space-y-2">
+                    <Label htmlFor="kavati-biz-email">כתובת אימייל</Label>
+                    <Input
+                      id="kavati-biz-email"
+                      name="kavati-biz-email"
+                      type="email"
+                      value={emailAddr}
+                      onChange={e => setEmailAddr(e.target.value)}
+                      dir="ltr"
+                      placeholder="you@example.com"
+                      inputMode="email"
+                      autoComplete="email"
+                      required
+                    />
+                    <p className="text-xs text-muted-foreground">קוד חד-פעמי יישלח לכתובת האימייל שהעסק/המנהל/ת רשמו עבורך.</p>
+                  </div>
+                  <label className="flex items-center gap-2 cursor-pointer select-none py-1">
+                    <span className="text-sm text-muted-foreground">זכור אותי במכשיר זה</span>
+                    <div
+                      onClick={() => setRememberMe(v => !v)}
+                      className="relative w-10 h-5 rounded-full transition-colors duration-200 flex-shrink-0"
+                      style={{ background: rememberMe ? "#3c92f0" : "#d1d5db" }}
+                    >
+                      <div
+                        className="absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-all duration-200"
+                        style={{ right: rememberMe ? "2px" : "auto", left: rememberMe ? "auto" : "2px" }}
+                      />
+                    </div>
+                  </label>
+                  <Button type="submit" className="w-full h-11" disabled={emailSending}>
+                    {emailSending ? "שולח..." : "שלח קוד"}
+                  </Button>
+                </form>
+              ) : (
+                <form
+                  className="space-y-4"
+                  onSubmit={e => { e.preventDefault(); handleEmailVerify(); }}
+                  noValidate
+                >
+                  <div className="space-y-2">
+                    <Label htmlFor="kavati-biz-email-otp">קוד אימות</Label>
+                    <Input
+                      id="kavati-biz-email-otp"
+                      name="kavati-biz-email-otp"
+                      value={emailCode}
+                      onChange={e => setEmailCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
+                      dir="ltr"
+                      placeholder="123456"
+                      inputMode="numeric"
+                      autoComplete="one-time-code"
+                      maxLength={6}
+                      required
+                    />
+                    <p className="text-xs text-muted-foreground">נשלח ל-<span dir="ltr">{emailAddr}</span></p>
+                  </div>
+                  <Button type="submit" className="w-full h-11" disabled={emailVerifying || emailCode.length < 6}>
+                    {emailVerifying ? "מאמת..." : "כניסה"}
+                  </Button>
+                  <button
+                    type="button"
+                    className="text-xs text-primary underline"
+                    onClick={() => { setEmailStep("email"); setEmailCode(""); }}
+                  >
+                    שלח שוב / שנה אימייל
+                  </button>
+                </form>
+              )
+            ) : smsStep === "phone" ? (
               // Wrapped in <form> with name/autoComplete so Chrome/Safari/1Password
               // detect it as a login form and offer saved phone numbers.
               <form

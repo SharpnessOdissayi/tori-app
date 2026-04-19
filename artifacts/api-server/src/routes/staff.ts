@@ -32,13 +32,13 @@ import { logger } from "../lib/logger";
 const router = Router();
 
 /**
- * Training-focused welcome email sent to a new staff member.
+ * Welcome email sent to a new staff member.
  *
- * The credentials-based flow is gone: staff log in with phone + SMS OTP,
- * so there's nothing secret to email. Instead we send a short "how to
- * use the system" guide so the staff knows what their role can do and
- * how to get started. The login instruction is a single line at the
- * bottom ("היכנס/י ב-kavati.net עם הטלפון שלך").
+ * Two login options are offered — SMS (phone) and email. Both mint the
+ * same JWT and land on the same staff dashboard. The email is framed
+ * as a short positive "this is what your account includes" guide; the
+ * previous "🔒 things you can't do" section was removed per the owner's
+ * request — staff shouldn't be greeted by a list of restrictions.
  */
 async function sendStaffWelcomeEmail(args: {
   to:           string;
@@ -49,81 +49,72 @@ async function sendStaffWelcomeEmail(args: {
   const dashboardUrl = "https://www.kavati.net/dashboard";
   const phoneHint = args.staffPhone
     ? `הטלפון הרשום: <strong dir="ltr">${args.staffPhone}</strong>`
-    : `הכנס/י את הטלפון שהמנהל/ת רשמו עבורך בעת פתיחת החשבון.`;
+    : `השתמש/י בטלפון שהמנהל/ת רשמו עבורך.`;
 
   const html = `
     <div dir="rtl" style="font-family: Arial, sans-serif; color:#111827;">
       <h1 style="margin: 0 0 8px; font-size: 24px; color:#111827;">ברוך/ה הבא/ה לצוות של ${args.businessName}! 👋</h1>
       <p style="margin: 0 0 16px; color: #4b5563; font-size: 15px;">
         ${args.staffName}, הצטרפת ל-Kavati — מערכת זימון התורים של ${args.businessName}.
-        ריכזנו כאן מדריך קצר עם כל מה שאת/ה יכול/ה לעשות במערכת.
+        כדי להתחיל, בחר/י איך להיכנס למערכת — שתי האפשרויות זמינות, ללא סיסמאות.
       </p>
 
       <div style="margin: 20px 0; padding: 16px 18px; background: rgba(60,146,240,0.06); border-right: 4px solid #3c92f0; border-radius: 8px;">
-        <p style="margin: 0 0 8px; font-weight: bold; color: #1e6fcf; font-size: 15px;">🚪 כניסה למערכת</p>
+        <p style="margin: 0 0 8px; font-weight: bold; color: #1e6fcf; font-size: 15px;">🚪 שתי דרכי כניסה — בחר/י את הנוחה לך</p>
+        <p style="margin: 0 0 10px; color: #4b5563; font-size: 14px; line-height: 1.6;">
+          <strong>📱 קוד ב-SMS:</strong> בדף הכניסה הזן/י את מספר הטלפון שלך → יישלח אליך SMS עם קוד חד-פעמי → הזן/י אותו ונכנסת.<br>
+          <span style="color:#6b7280; font-size:13px;">${phoneHint}</span>
+        </p>
         <p style="margin: 0; color: #4b5563; font-size: 14px; line-height: 1.6;">
-          הכניסה היא ב-<strong>קוד חד-פעמי ב-SMS</strong> — בלי סיסמאות. בדף הכניסה הזן/י את מספר הטלפון שלך, תקבל/י SMS עם קוד אימות, הזן/י אותו וזהו.<br>
-          ${phoneHint}
+          <strong>📧 קוד במייל:</strong> לחץ/י על "כניסה עם אימייל" בדף הכניסה → הזן/י את האימייל שלך (<strong dir="ltr">${args.to}</strong>) → יישלח אליך קוד חד-פעמי לאימייל הזה.
         </p>
       </div>
 
-      <h2 style="margin: 24px 0 10px; font-size: 17px; color:#111827;">📅 מה את/ה יכול/ה לעשות במערכת</h2>
+      <h2 style="margin: 24px 0 10px; font-size: 17px; color:#111827;">📅 מה כלול בחשבון שלך</h2>
 
       <div style="margin: 10px 0; padding: 14px 16px; background: #f9fafb; border-radius: 8px;">
-        <p style="margin: 0 0 6px; font-weight: bold; color: #111827; font-size: 14px;">יומן אישי</p>
+        <p style="margin: 0 0 6px; font-weight: bold; color: #111827; font-size: 14px;">היומן האישי</p>
         <p style="margin: 0; color: #4b5563; font-size: 13px; line-height: 1.55;">
-          רואה/ה את כל התורים המשובצים אליך בתצוגת יום / שבוע / חודש. לחיצה על תור פותחת את פרטי הלקוח, ניתן לגרור תור למועד אחר.
-        </p>
-      </div>
-
-      <div style="margin: 10px 0; padding: 14px 16px; background: #f9fafb; border-radius: 8px;">
-        <p style="margin: 0 0 6px; font-weight: bold; color: #111827; font-size: 14px;">אישור / דחיית בקשות תורים</p>
-        <p style="margin: 0; color: #4b5563; font-size: 13px; line-height: 1.55;">
-          אם העסק עובד במצב "אישור ידני" — תקבל/י התראה על כל בקשת תור חדש. בטאב "ממתינים לאישור" אפשר לאשר בלחיצה (נשלח WhatsApp ללקוח), או לדחות עם סיבה.
+          רואה/ה את כל התורים המשובצים אליך בתצוגת יום / שבוע / חודש. לחיצה על תור פותחת את פרטי הלקוח, וניתן לגרור תור למועד אחר.
         </p>
       </div>
 
       <div style="margin: 10px 0; padding: 14px 16px; background: #f9fafb; border-radius: 8px;">
-        <p style="margin: 0 0 6px; font-weight: bold; color: #111827; font-size: 14px;">ביטול תורים</p>
+        <p style="margin: 0 0 6px; font-weight: bold; color: #111827; font-size: 14px;">אישור תורים</p>
         <p style="margin: 0; color: #4b5563; font-size: 13px; line-height: 1.55;">
-          לחיצה על תור → "בטל" → בחר/י סיבה (ברז / לקוח התחרט / אחר). הלקוח יקבל הודעת ביטול אוטומטית ב-WhatsApp (אם העסק מוגדר לשלוח הודעות כאלו).
+          בטאב "אישור תורים" ניתן לאשר בקשות חדשות בלחיצה (נשלחת הודעת WhatsApp ללקוח) או לדחות עם סיבה. אפשר גם להפעיל מצב "אישור ידני" מההגדרות.
         </p>
       </div>
 
       <div style="margin: 10px 0; padding: 14px 16px; background: #f9fafb; border-radius: 8px;">
-        <p style="margin: 0 0 6px; font-weight: bold; color: #111827; font-size: 14px;">הגדרת שירותים ושעות</p>
+        <p style="margin: 0 0 6px; font-weight: bold; color: #111827; font-size: 14px;">שעות עבודה אישיות</p>
         <p style="margin: 0; color: #4b5563; font-size: 13px; line-height: 1.55;">
-          בטאב "הגדרות" → "שעות פעילות" את/ה יכול/ה להגדיר את שעות העבודה שלך באופן אישי (שונה מהעסק הכללי אם צריך). בטאב "שירותים" תראה/י אילו שירותים משויכים אליך — פנה/י למנהל/ת אם חסר משהו.
+          בטאב "שעות עבודה" את/ה קובע/ת מתי את/ה זמין/ה — הלקוחות יראו את השעות שלך בדף ההזמנה. ניתן לשנות בכל עת.
         </p>
       </div>
 
       <div style="margin: 10px 0; padding: 14px 16px; background: #f9fafb; border-radius: 8px;">
         <p style="margin: 0 0 6px; font-weight: bold; color: #111827; font-size: 14px;">אילוצים והיעדרויות</p>
         <p style="margin: 0; color: #4b5563; font-size: 13px; line-height: 1.55;">
-          בטאב "אילוצים" אפשר לחסום תאריכים בהם את/ה לא זמין/ה — חופשה, יום מחלה, הפסקה ארוכה. הלקוחות לא יוכלו לזמן תורים לזמנים שסומנו.
+          ישירות מהיומן אפשר לסמן תאריכים שבהם את/ה לא זמין/ה — חופשה, יום מחלה, הפסקה. לקוחות לא יוכלו לזמן תורים לזמנים שסימנת.
         </p>
       </div>
 
       <div style="margin: 10px 0; padding: 14px 16px; background: #f9fafb; border-radius: 8px;">
-        <p style="margin: 0 0 6px; font-weight: bold; color: #111827; font-size: 14px;">פרופיל אישי</p>
+        <p style="margin: 0 0 6px; font-weight: bold; color: #111827; font-size: 14px;">תזכורות ושבת</p>
         <p style="margin: 0; color: #4b5563; font-size: 13px; line-height: 1.55;">
-          תמונת פרופיל, שם תצוגה, וצבע אישי שמבדיל את התורים שלך בלוח השנה של העסק. הכל דרך "הגדרות" → "פרופיל צוות".
+          בטאב "הודעות ותזכורות" אפשר להגדיר מתי יישלחו תזכורות ללקוחות לפני התור (עד 2 תזכורות) ולסמן "עסק שומר שבת" — המערכת תתאים את לוח ההודעות בהתאם.
         </p>
       </div>
-
-      <h2 style="margin: 24px 0 10px; font-size: 17px; color:#111827;">🔒 מה את/ה לא יכול/ה לעשות</h2>
-      <p style="margin: 0 0 16px; color: #4b5563; font-size: 13px; line-height: 1.55;">
-        הגדרות חשבון בעל העסק (חיוב, מנוי, קישור דומיין, עיצוב פרופיל ציבורי, רשימת תפוצה ופרטי חיוב) זמינות רק למנהל/ת הראשי/ת. לכל בקשה שקשורה לאלה — פנה/י למנהל/ת.
-      </p>
 
       <div style="margin: 28px 0 20px; text-align: center;">
         <a href="${dashboardUrl}" style="display: inline-block; padding: 14px 32px; background: #3c92f0; color: white; text-decoration: none; border-radius: 10px; font-weight: bold; font-size: 15px;">כניסה למערכת</a>
       </div>
 
-      <p style="margin: 24px 0 6px; color: #4b5563; font-size: 13px;">נתקלת בבעיה? פנה/י למנהל/ת של ${args.businessName} ישירות.</p>
+      <p style="margin: 24px 0 6px; color: #4b5563; font-size: 13px;">נתקלת בבעיה? פנה/י למנהל/ת של ${args.businessName}.</p>
       <p style="margin: 0; color: #6b7280; font-size: 12px;">בהצלחה,<br>צוות Kavati</p>
     </div>`;
-  await sendEmail(args.to, `${args.businessName} — מדריך הכניסה שלך ל-Kavati`, html, {
+  await sendEmail(args.to, `${args.businessName} — הכניסה שלך ל-Kavati`, html, {
     from: "Kavati <welcome@kavati.net>",
   });
 }
@@ -481,7 +472,7 @@ router.post("/staff/:id/services", async (req, res): Promise<void> => {
   // perform — the business owner assigns. Staff tokens carry staffMemberId
   // in the JWT; absence of that claim marks an owner caller.
   if (getStaffMemberId(req.headers.authorization ?? "")) {
-    res.status(403).json({ error: "owner_only", message: "רק בעל/ת העסק יכול/ה לקבוע אילו שירותים כל עובד/ת מבצע/ת." });
+    res.status(403).json({ error: "owner_only", message: "הפעולה אינה זמינה." });
     return;
   }
 

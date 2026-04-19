@@ -186,7 +186,7 @@ router.patch("/business/profile", requireBusinessAuth, async (req, res): Promise
   // Owner-only: staff tokens can view the profile tab but not mutate
   // business-level settings. Frontend also gates the save button.
   if (req.business!.staffMemberId) {
-    res.status(403).json({ error: "owner_only", message: "רק בעל/ת העסק יכול/ה לשנות את הגדרות העסק." });
+    res.status(403).json({ error: "owner_only", message: "הפעולה אינה זמינה." });
     return;
   }
   const parsed = UpdateBusinessProfileBody.safeParse(req.body);
@@ -341,7 +341,7 @@ router.patch("/business/profile", requireBusinessAuth, async (req, res): Promise
 
 router.patch("/business/branding", requireBusinessAuth, async (req, res): Promise<void> => {
   if (req.business!.staffMemberId) {
-    res.status(403).json({ error: "owner_only", message: "רק בעל/ת העסק יכול/ה לעדכן את העיצוב של עמוד העסק." });
+    res.status(403).json({ error: "owner_only", message: "הפעולה אינה זמינה." });
     return;
   }
   const parsed = UpdateBusinessBrandingBody.safeParse(req.body);
@@ -497,7 +497,7 @@ router.patch("/business/domain", requireBusinessAuth, async (req, res): Promise<
 
 router.patch("/business/integrations", requireBusinessAuth, async (req, res): Promise<void> => {
   if (req.business!.staffMemberId) {
-    res.status(403).json({ error: "owner_only", message: "רק בעל/ת העסק יכול/ה לשנות הגדרות הודעות ותזכורות." });
+    res.status(403).json({ error: "owner_only", message: "הפעולה אינה זמינה." });
     return;
   }
   const parsed = UpdateBusinessIntegrationsBody.safeParse(req.body);
@@ -560,7 +560,7 @@ router.post("/business/services", requireBusinessAuth, async (req, res): Promise
   // able to delete owner-level services from a staff panel; this guard
   // is the fix for that.
   if (req.business!.staffMemberId) {
-    res.status(403).json({ error: "owner_only", message: "רק בעל/ת העסק יכול/ה לנהל שירותים." });
+    res.status(403).json({ error: "owner_only", message: "הפעולה אינה זמינה." });
     return;
   }
   const parsed = CreateBusinessServiceBody.safeParse(req.body);
@@ -603,7 +603,7 @@ router.post("/business/services", requireBusinessAuth, async (req, res): Promise
 
 router.patch("/business/services/:id", requireBusinessAuth, async (req, res): Promise<void> => {
   if (req.business!.staffMemberId) {
-    res.status(403).json({ error: "owner_only", message: "רק בעל/ת העסק יכול/ה לנהל שירותים." });
+    res.status(403).json({ error: "owner_only", message: "הפעולה אינה זמינה." });
     return;
   }
   const rawId = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
@@ -635,7 +635,7 @@ router.patch("/business/services/:id", requireBusinessAuth, async (req, res): Pr
 
 router.delete("/business/services/:id", requireBusinessAuth, async (req, res): Promise<void> => {
   if (req.business!.staffMemberId) {
-    res.status(403).json({ error: "owner_only", message: "רק בעל/ת העסק יכול/ה לנהל שירותים." });
+    res.status(403).json({ error: "owner_only", message: "הפעולה אינה זמינה." });
     return;
   }
   const rawId = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;

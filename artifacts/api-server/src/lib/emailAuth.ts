@@ -20,7 +20,7 @@ function sixDigits(): string {
 
 export async function sendEmailVerificationCode(
   email: string,
-  purpose: "signup" | "email_change" = "signup",
+  purpose: "signup" | "email_change" | "email_login" = "signup",
 ): Promise<void> {
   const code = sixDigits();
   const expiresAt = new Date(Date.now() + CODE_TTL_MS);
@@ -60,7 +60,7 @@ export async function sendEmailVerificationCode(
 export async function verifyEmailCode(
   email: string,
   code: string,
-  purpose: "signup" | "email_change" = "signup",
+  purpose: "signup" | "email_change" | "email_login" = "signup",
 ): Promise<boolean> {
   const rows = await db.execute(sql`
     SELECT code, purpose, expires_at
