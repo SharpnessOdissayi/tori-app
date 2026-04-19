@@ -238,6 +238,19 @@ router.post("/auth/business/register", async (req, res): Promise<void> => {
 
   const { name, slug, username, ownerName, phone, email, password, subscriptionPlan, businessCategories, address, websiteUrl, instagramHandle } = parsed.data;
 
+  // Require an SMS-verified phone before we create the account. The
+  // Register form asks the caller to tap "שלח קוד", enter the 6-digit
+  // Inforu SMS, and tap "אמת" — /auth/phone/verify parks a 15-min flag in
+  // the in-memory otpStore which `isPhoneVerified` reads here.
+  const { isPhoneVerified } = await import("../lib/otpStore");
+  if (!isPhoneVerified(phone)) {
+    res.status(403).json({
+      error: "phone_not_verified",
+      message: "יש לאמת את מספר הטלפון באמצעות קוד SMS לפני ההרשמה",
+    });
+    return;
+  }
+
   // Check uniqueness
   const [existingEmail] = await db.select({ id: businessesTable.id }).from(businessesTable).where(eq(businessesTable.email, email));
   if (existingEmail) {
