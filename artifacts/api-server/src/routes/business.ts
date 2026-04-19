@@ -790,6 +790,7 @@ router.post("/business/appointments", requireBusinessAuth, async (req, res): Pro
     message: `תור חדש שקבעת: ${clientName} — ${service.name} ב-${appointmentDate} בשעה ${appointmentTime}`,
     actorType: "business",
     actorName: req.business!.businessName,
+    staffMemberId: (appointment as any).staffMemberId ?? null,
   });
 
   // Notify the client via WhatsApp (non-blocking) — Pro-only, only when
@@ -919,7 +920,8 @@ router.patch("/business/appointments/:id/reschedule", requireBusinessAuth, async
     ).catch(() => {});
   }
 
-  // Log notification for business + client
+  // Log notification for business + client — scoped to the appointment's
+  // assigned staff so the reschedule lands in their own feed too.
   logBusinessNotification({
     businessId: req.business!.businessId,
     type: "reschedule",
@@ -927,6 +929,7 @@ router.patch("/business/appointments/:id/reschedule", requireBusinessAuth, async
     message: `שינית תור של ${appt.clientName} ל-${formattedDate} בשעה ${newTime}`,
     actorType: "business",
     actorName: req.business!.businessName,
+    staffMemberId: (appt as any).staffMemberId ?? null,
   });
   logClientNotification({
     phoneNumber: appt.phoneNumber,

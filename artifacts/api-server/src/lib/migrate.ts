@@ -265,6 +265,13 @@ export async function runMigrations() {
       // Staff themselves live in the staff_members table created below.
       "ALTER TABLE appointments   ADD COLUMN IF NOT EXISTS staff_member_id INTEGER",
       "ALTER TABLE working_hours  ADD COLUMN IF NOT EXISTS staff_member_id INTEGER",
+      // Per-staff in-app notifications. NULL on notifications =
+      // business-wide event visible only to the owner (subscription
+      // state, broadcast deliveries, etc.). Non-NULL = scoped to that
+      // staff's feed; the owner still sees it too because
+      // GET /notifications/business for an owner token returns every
+      // row regardless of staff_member_id.
+      "ALTER TABLE notifications  ADD COLUMN IF NOT EXISTS staff_member_id INTEGER",
       // time_off.staff_member_id was added in a later PR (per-staff scoping)
       // but never made it into migrate.ts — production DBs that pre-date
       // that PR have the Drizzle schema out of sync with reality, which

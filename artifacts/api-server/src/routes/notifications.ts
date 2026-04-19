@@ -31,17 +31,23 @@ export async function logBusinessNotification(params: {
   message: string;
   actorType: "client" | "business";
   actorName?: string;
+  // When set, this notification belongs to a specific staff's feed
+  // (the staff sees it in their /notifications/business response;
+  // the owner also sees it unfiltered). NULL = business-wide event
+  // the owner owns, staff never see it.
+  staffMemberId?: number | null;
 }) {
   try {
     await db.execute(sql`
-      INSERT INTO notifications (business_id, type, appointment_id, message, actor_type, actor_name)
+      INSERT INTO notifications (business_id, type, appointment_id, message, actor_type, actor_name, staff_member_id)
       VALUES (
         ${params.businessId},
         ${params.type},
         ${params.appointmentId ?? null},
         ${params.message},
         ${params.actorType},
-        ${params.actorName ?? null}
+        ${params.actorName ?? null},
+        ${params.staffMemberId ?? null}
       )
     `);
   } catch {}
@@ -71,18 +77,37 @@ export async function logClientNotification(params: {
 // ── Business notifications ────────────────────────────────────────────────────
 
 router.get("/notifications/business", requireBusinessAuth, async (req, res): Promise<void> => {
-  const bizId = req.business!.businessId;
-  const rows = await db.execute(sql`
-    SELECT id, type, appointment_id, message, actor_type, actor_name, is_read, created_at
-    FROM notifications
-    WHERE business_id = ${bizId}
-    ORDER BY created_at DESC
-    LIMIT 50
-  `);
-  const unread = await db.execute(sql`
-    SELECT COUNT(*) as count FROM notifications
-    WHERE business_id = ${bizId} AND is_read = FALSE
-  `);
+  const bizId         = req.business!.businessId;
+  const staffMemberId = req.business!.staffMemberId ?? null;
+  // Scoping:
+  //   · Staff caller → only their own rows (staff_member_id = self).
+  //                    Business-wide events (staff_member_id NULL) are
+  //                    NOT shown — those belong to the owner.
+  //   · Owner caller → every row for the business, staff-specific or not.
+  const rows = staffMemberId
+    ? await db.execute(sql`
+        SELECT id, type, appointment_id, message, actor_type, actor_name, is_read, created_at
+        FROM notifications
+        WHERE business_id = ${bizId} AND staff_member_id = ${staffMemberId}
+        ORDER BY created_at DESC
+        LIMIT 50
+      `)
+    : await db.execute(sql`
+        SELECT id, type, appointment_id, message, actor_type, actor_name, is_read, created_at
+        FROM notifications
+        WHERE business_id = ${bizId}
+        ORDER BY created_at DESC
+        LIMIT 50
+      `);
+  const unread = staffMemberId
+    ? await db.execute(sql`
+        SELECT COUNT(*) as count FROM notifications
+        WHERE business_id = ${bizId} AND staff_member_id = ${staffMemberId} AND is_read = FALSE
+      `)
+    : await db.execute(sql`
+        SELECT COUNT(*) as count FROM notifications
+        WHERE business_id = ${bizId} AND is_read = FALSE
+      `);
   res.json({
     notifications: rows.rows,
     unreadCount: parseInt((unread.rows[0] as any).count ?? "0"),
@@ -90,32 +115,58 @@ router.get("/notifications/business", requireBusinessAuth, async (req, res): Pro
 });
 
 router.post("/notifications/business/read-all", requireBusinessAuth, async (req, res): Promise<void> => {
-  await db.execute(sql`
-    UPDATE notifications SET is_read = TRUE
-    WHERE business_id = ${req.business!.businessId}
-  `);
+  const bizId         = req.business!.businessId;
+  const staffMemberId = req.business!.staffMemberId ?? null;
+  if (staffMemberId) {
+    await db.execute(sql`
+      UPDATE notifications SET is_read = TRUE
+      WHERE business_id = ${bizId} AND staff_member_id = ${staffMemberId}
+    `);
+  } else {
+    await db.execute(sql`
+      UPDATE notifications SET is_read = TRUE
+      WHERE business_id = ${bizId}
+    `);
+  }
   res.json({ success: true });
 });
 
 // POST /notifications/business/:id/read — mark a single notification
-// as read. Called when the owner taps a notification row so the
-// unread counter + highlight update immediately without waiting for
-// "סמן הכל".
+// as read. Staff tokens can only touch rows tied to their staff_member_id;
+// owner tokens can touch any row for the business.
 router.post("/notifications/business/:id/read", requireBusinessAuth, async (req, res): Promise<void> => {
   const id = Number(req.params.id);
   if (!id || isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
-  await db.execute(sql`
-    UPDATE notifications SET is_read = TRUE
-    WHERE id = ${id} AND business_id = ${req.business!.businessId}
-  `);
+  const bizId         = req.business!.businessId;
+  const staffMemberId = req.business!.staffMemberId ?? null;
+  if (staffMemberId) {
+    await db.execute(sql`
+      UPDATE notifications SET is_read = TRUE
+      WHERE id = ${id} AND business_id = ${bizId} AND staff_member_id = ${staffMemberId}
+    `);
+  } else {
+    await db.execute(sql`
+      UPDATE notifications SET is_read = TRUE
+      WHERE id = ${id} AND business_id = ${bizId}
+    `);
+  }
   res.json({ success: true });
 });
 
 router.delete("/notifications/business/all", requireBusinessAuth, async (req, res): Promise<void> => {
-  await db.execute(sql`
-    DELETE FROM notifications
-    WHERE business_id = ${req.business!.businessId}
-  `);
+  const bizId         = req.business!.businessId;
+  const staffMemberId = req.business!.staffMemberId ?? null;
+  if (staffMemberId) {
+    await db.execute(sql`
+      DELETE FROM notifications
+      WHERE business_id = ${bizId} AND staff_member_id = ${staffMemberId}
+    `);
+  } else {
+    await db.execute(sql`
+      DELETE FROM notifications
+      WHERE business_id = ${bizId}
+    `);
+  }
   res.json({ success: true });
 });
 

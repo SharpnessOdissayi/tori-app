@@ -1150,7 +1150,10 @@ router.post("/public/:businessSlug/appointments", async (req, res): Promise<void
   const [, month, day] = appointmentDate.split("-");
   const formattedDate = `${day}/${month}`;
 
-  // Log in-app notification for business owner
+  // Log in-app notification. staffMemberId scopes the feed: when the
+  // customer picked a specific staff on the booking page, that staff's
+  // inbox gets the notification; owner sees everything regardless.
+  // NULL staffMemberId = "assigned to owner" → staff inboxes skip it.
   logBusinessNotification({
     businessId: business.id,
     type: "new_booking",
@@ -1158,6 +1161,7 @@ router.post("/public/:businessSlug/appointments", async (req, res): Promise<void
     message: `תור חדש: ${clientName} קבע ${service.name} ב-${formattedDate} בשעה ${appointmentTime}`,
     actorType: "client",
     actorName: clientName,
+    staffMemberId: (appointment as any).staffMemberId ?? null,
   });
 
   // Notify business owner via WhatsApp (non-blocking).

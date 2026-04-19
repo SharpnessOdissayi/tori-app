@@ -1259,7 +1259,16 @@ export default function Dashboard() {
           {/* עסקי-tier-only tabs. Pro sees a "שדרג לעסקי" upgrade prompt;
               עסקי sees the real feature. Gate is isProPlusPlan, not
               isProPlan, so Pro users don't accidentally see these. */}
-          <TabsContent value="staff" dir="rtl">{isProPlusPlan ? <StaffTab /> : <BusinessUpgradePrompt title="ניהול צוות — מנוי עסקי בלבד" desc="שדרג למנוי עסקי כדי לנהל עובדים נפרדים עם יומנים אישיים, שירותים מותאמים ושעות עבודה נפרדות" />}</TabsContent>
+          <TabsContent value="staff" dir="rtl">{
+            // Staff session → show the simplified staff-self panel.
+            // Owner (non-staff) → full StaffTab with add/edit/delete/billing.
+            // Free/pro plans without the עסקי seat still get the upsell.
+            isStaffMode
+              ? <StaffSelfPanel />
+              : (isProPlusPlan
+                  ? <StaffTab />
+                  : <BusinessUpgradePrompt title="ניהול צוות — מנוי עסקי בלבד" desc="שדרג למנוי עסקי כדי לנהל עובדים נפרדים עם יומנים אישיים, שירותים מותאמים ושעות עבודה נפרדות" />)
+          }</TabsContent>
           <TabsContent value="analytics-pro" dir="rtl">{isProPlusPlan ? <AdvancedAnalyticsTab /> : <BusinessUpgradePrompt title="אנליטיקה מתקדמת — מנוי עסקי בלבד" desc="שדרג למנוי עסקי כדי לראות LTV לפי לקוח, נתוני נאמנות, תחזית הכנסות ומגמות עסקיות מעמיקות" />}</TabsContent>
           <TabsContent value="data-export" dir="rtl">{isProPlusPlan ? <DataExportTab /> : <BusinessUpgradePrompt title="ייצוא נתונים — מנוי עסקי בלבד" desc="שדרג למנוי עסקי כדי להוריד קבצי Excel/CSV של לקוחות, תורים והכנסות לרואה החשבון" />}</TabsContent>
           <TabsContent value="settings" dir="rtl"><SettingsTab /></TabsContent>
@@ -8699,6 +8708,187 @@ const BUSINESS_BASE_ILS_PER_MONTH = 150; // the עסקי plan base (2 staff incl
 const EXTRA_STAFF_ILS_PER_MONTH   = 25;  // each staff beyond the 2 included
 const INCLUDED_STAFF_COUNT        = 2;   // active staff included in base plan
 const HARD_STAFF_CAP              = 5;   // absolute ceiling before "contact us"
+
+// ─── Staff-self panel — the "צוות" tab as the staff member sees it ─────────
+// Completely separate from the owner's StaffTab (which shows billing, seat
+// caps, add / edit / delete / service-assignments). The staff version just
+// gives them:
+//   · their own profile row — edit the photo, view their own contact info
+//   · the team roster (read-only) with tap-to-call / tap-to-WhatsApp
+//     so they can coordinate shifts without asking the owner
+// No ability to add, remove, reassign, or change anyone else's row.
+function StaffSelfPanel() {
+  const { toast } = useToast();
+  const [staff, setStaff] = useState<Array<{ id: number; name: string; phone: string | null; email: string | null; avatarUrl: string | null; color: string | null; isOwner: boolean; isActive: boolean }>>([]);
+  const [loading, setLoading] = useState(false);
+  const avatarUpload = useImageUpload();
+  const [savingAvatar, setSavingAvatar] = useState(false);
+
+  const token = typeof window !== "undefined"
+    ? (localStorage.getItem("biz_token") ?? sessionStorage.getItem("biz_token") ?? "")
+    : "";
+  const myStaffId = typeof window !== "undefined"
+    ? Number(sessionStorage.getItem("kavati_staff_filter_id") ?? "") || null
+    : null;
+
+  const load = async () => {
+    if (!token) return;
+    setLoading(true);
+    try {
+      const res = await fetch("/api/staff", { headers: { Authorization: `Bearer ${token}` } });
+      if (res.ok) setStaff(await res.json());
+    } finally {
+      setLoading(false);
+    }
+  };
+  useEffect(() => { load(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, []);
+
+  const me = staff.find(s => s.id === myStaffId) ?? null;
+  const teammates = staff.filter(s => s.id !== myStaffId && s.isActive);
+
+  // Save a new avatar once the image-upload hook surfaces a URL.
+  useEffect(() => {
+    if (!avatarUpload.url || !me) return;
+    (async () => {
+      setSavingAvatar(true);
+      try {
+        const res = await fetch(`/api/staff/${me.id}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+          body: JSON.stringify({ avatarUrl: avatarUpload.url }),
+        });
+        if (!res.ok) { toast({ title: "שמירה נכשלה", variant: "destructive" }); return; }
+        toast({ title: "התמונה עודכנה" });
+        avatarUpload.reset?.();
+        await load();
+      } finally {
+        setSavingAvatar(false);
+      }
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [avatarUpload.url]);
+
+  const openWhatsApp = (phone: string) => {
+    const digits = phone.replace(/\D/g, "").replace(/^0/, "972");
+    window.open(`https://wa.me/${digits}`, "_blank");
+  };
+
+  return (
+    <div className="space-y-6">
+      {/* My profile */}
+      <Card>
+        <CardHeader>
+          <CardTitle>הפרופיל שלי</CardTitle>
+          <CardDescription>עדכן/י תמונת פרופיל שתופיע ללקוחות וליתר הצוות</CardDescription>
+        </CardHeader>
+        <CardContent>
+          {!me ? (
+            <div className="py-6 text-center text-sm text-muted-foreground">טוען...</div>
+          ) : (
+            <div className="flex items-center gap-4">
+              <div className="relative">
+                {me.avatarUrl ? (
+                  <img
+                    src={me.avatarUrl}
+                    alt={me.name}
+                    className="w-20 h-20 rounded-full object-cover border-2 border-border"
+                  />
+                ) : (
+                  <div
+                    className="w-20 h-20 rounded-full flex items-center justify-center text-2xl font-bold text-white"
+                    style={{ background: me.color ?? "#64748b" }}
+                  >
+                    {me.name.slice(0, 1)}
+                  </div>
+                )}
+                {savingAvatar && (
+                  <div className="absolute inset-0 rounded-full bg-black/40 flex items-center justify-center">
+                    <span className="text-white text-xs">שומר...</span>
+                  </div>
+                )}
+              </div>
+              <div className="flex-1 min-w-0 space-y-1">
+                <div className="text-base font-semibold truncate">{me.name}</div>
+                {me.phone && <div className="text-xs text-muted-foreground" dir="ltr">{me.phone}</div>}
+                {me.email && <div className="text-xs text-muted-foreground truncate" dir="ltr">{me.email}</div>}
+                <div className="pt-2">
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={e => {
+                      const f = e.target.files?.[0];
+                      if (f) avatarUpload.upload(f);
+                    }}
+                    className="text-xs"
+                  />
+                </div>
+              </div>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Team roster — read-only contact list */}
+      <Card>
+        <CardHeader>
+          <CardTitle>הצוות שלי</CardTitle>
+          <CardDescription>פרטי יצירת קשר עם שאר אנשי הצוות לתיאומים</CardDescription>
+        </CardHeader>
+        <CardContent>
+          {loading ? (
+            <div className="py-6 text-center text-sm text-muted-foreground">טוען...</div>
+          ) : teammates.length === 0 ? (
+            <div className="py-6 text-center text-sm text-muted-foreground">אין חברי צוות נוספים.</div>
+          ) : (
+            <div className="space-y-2">
+              {teammates.map(s => (
+                <div key={s.id} className="flex items-center gap-3 p-3 border rounded-xl bg-card">
+                  {s.avatarUrl ? (
+                    <img src={s.avatarUrl} alt={s.name} className="w-11 h-11 rounded-full object-cover" />
+                  ) : (
+                    <div
+                      className="w-11 h-11 rounded-full flex items-center justify-center text-white font-bold"
+                      style={{ background: s.color ?? (s.isOwner ? "#2563eb" : "#64748b") }}
+                    >
+                      {s.name.slice(0, 1)}
+                    </div>
+                  )}
+                  <div className="flex-1 min-w-0">
+                    <div className="text-sm font-medium truncate">{s.name}</div>
+                    <div className="text-[11px] text-muted-foreground">{s.isOwner ? "בעלים" : "עובד/ת"}</div>
+                  </div>
+                  <div className="flex items-center gap-1 shrink-0">
+                    {s.phone && (
+                      <>
+                        <button
+                          type="button"
+                          onClick={() => openWhatsApp(s.phone!)}
+                          className="p-2 rounded-lg hover:bg-green-50 text-green-600"
+                          title="שלח הודעה ב-WhatsApp"
+                          aria-label="WhatsApp"
+                        >
+                          <MessageSquare className="w-4 h-4" />
+                        </button>
+                        <a
+                          href={`tel:${s.phone}`}
+                          className="p-2 rounded-lg hover:bg-blue-50 text-blue-600"
+                          title="התקשר"
+                          aria-label="Call"
+                        >
+                          <Phone className="w-4 h-4" />
+                        </a>
+                      </>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
 
 function StaffTab() {
   const { toast } = useToast();

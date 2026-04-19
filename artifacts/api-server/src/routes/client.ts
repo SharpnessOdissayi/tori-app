@@ -570,6 +570,7 @@ router.patch("/client/appointments/:id/reschedule", requireClientAuth, async (re
     message:      `${appt.clientName} עדכן/ה את התור של ${appt.serviceName} מ-${fromLabel} ל-${toLabel}`,
     actorType:    "client",
     actorName:    appt.clientName,
+    staffMemberId: (appt as any).staffMemberId ?? null,
   });
 
   res.json({ success: true, newDate, newTime });
@@ -592,7 +593,8 @@ router.patch("/client/appointments/:id/cancel", requireClientAuth, async (req, r
 
   await db.update(appointmentsTable).set({ status: "cancelled", ...({ cancelledBy: "client" } as any) }).where(eq(appointmentsTable.id, id));
 
-  // Log notification for business owner
+  // Log notification for business owner + the appointment's assigned
+  // staff (if any) so cancellations land in both inboxes.
   const [, month, day] = appt.appointmentDate.split("-");
   logBusinessNotification({
     businessId: appt.businessId,
@@ -601,6 +603,7 @@ router.patch("/client/appointments/:id/cancel", requireClientAuth, async (req, r
     message: `${appt.clientName} ביטל/ה את התור של ${appt.serviceName} ב-${day}/${month} בשעה ${appt.appointmentTime}`,
     actorType: "client",
     actorName: appt.clientName,
+    staffMemberId: (appt as any).staffMemberId ?? null,
   });
 
   res.json({ success: true });
