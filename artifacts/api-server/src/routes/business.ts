@@ -1230,7 +1230,15 @@ const BROADCAST_MONTHLY_LIMIT = 150;
 
 router.post("/business/broadcast", requireBusinessAuth, async (req, res): Promise<void> => {
   const businessId = req.business!.businessId;
-  const { message, phoneNumbers } = req.body ?? {};
+  const { message, phoneNumbers, scope: scopeRaw } = req.body ?? {};
+  // Recipient scope. When explicit `phoneNumbers` are given they win.
+  // Otherwise `scope` picks between the owner's preset audiences:
+  //   · "all"         — every customer who ever booked (legacy behaviour)
+  //   · "dormant_30"  — customers with NO booking in the last 30 days
+  //                     (the new default per owner, since marketing to
+  //                     regulars right after they already booked is
+  //                     annoying + wasteful).
+  const scope: "all" | "dormant_30" = scopeRaw === "all" ? "all" : "dormant_30";
   if (!message || typeof message !== "string" || !message.trim()) {
     res.status(400).json({ error: "הודעה נדרשת" }); return;
   }
@@ -1274,7 +1282,29 @@ router.post("/business/broadcast", requireBusinessAuth, async (req, res): Promis
         .map(p => p.trim())
         .filter(Boolean)
     )];
+  } else if (scope === "dormant_30") {
+    // "dormant_30" = everyone who's EVER booked here but whose MOST RECENT
+    // booking is ≥ 30 days ago. The idea is a reactivation blast — people
+    // actively booking don't need a nag.
+    const cutoff = new Date();
+    cutoff.setDate(cutoff.getDate() - 30);
+    const cutoffIso = cutoff.toISOString().slice(0, 10);
+    const rows = await db.execute(sql`
+      SELECT phone_number
+      FROM (
+        SELECT phone_number, MAX(appointment_date) AS last_date
+        FROM appointments
+        WHERE business_id = ${businessId}
+          AND status NOT IN ('cancelled', 'pending_payment')
+        GROUP BY phone_number
+      ) t
+      WHERE last_date < ${cutoffIso}
+    `);
+    const list = ((rows as any).rows ?? []).map((r: any) => r.phone_number).filter(Boolean);
+    phones = [...new Set(list)];
   } else {
+    // "all" scope — legacy behaviour: every customer with any non-cancelled
+    // appointment. Used as the explicit opt-out from dormant_30.
     const rows = await db
       .select({ phoneNumber: appointmentsTable.phoneNumber })
       .from(appointmentsTable)
@@ -1339,7 +1369,7 @@ router.post("/business/broadcast", requireBusinessAuth, async (req, res): Promis
     businessLabel ? `${businessLabel}:` : null,
     ownerMessage,
     "",
-    "להסרה, הגב 'הסר'",
+    "להסרה השב הסר",
   ].filter(Boolean).join("\n");
 
   const { sendSms: inforuSendSms, isInforuConfigured } = await import("../lib/inforu");

@@ -4665,10 +4665,16 @@ function CustomersTab() {
   const [broadcastMessage, setBroadcastMessage] = useState("");
   const [broadcastLoading, setBroadcastLoading] = useState(false);
   const [quota, setQuota] = useState<{ sent: number; limit: number; remaining: number } | null>(null);
+  // Audience scope — "dormant_30" (default) targets only customers whose last
+  // booking was more than 30 days ago; "all" sends to the whole customer
+  // base. Switched the default here because re-marketing to clients who
+  // booked yesterday is spammy, and the 30-day-dormant cohort is the one
+  // the owner usually wants to reactivate.
+  const [broadcastScope, setBroadcastScope] = useState<"dormant_30" | "all">("dormant_30");
   // Recipient editor inside the broadcast dialog. Owner can deselect specific
   // customers (excludedPhones grows) and/or add custom phone numbers that
   // aren't in the customer base yet (extraPhones grows). Default behaviour =
-  // send to every customer, matching the legacy "send to all" flow.
+  // send to every customer in the current scope.
   const [editingRecipients, setEditingRecipients] = useState(false);
   const [excludedPhones, setExcludedPhones] = useState<Set<string>>(new Set());
   const [extraPhones, setExtraPhones] = useState<string[]>([]);
@@ -4727,6 +4733,7 @@ function CustomersTab() {
         body: JSON.stringify({
           message: broadcastMessage.trim(),
           phoneNumbers: recipients,
+          scope: broadcastScope,
         }),
       });
       const data = await res.json();
@@ -4799,10 +4806,20 @@ function CustomersTab() {
       {showBroadcast && (() => {
         // Final recipient list computed here so the count, the disable/enable
         // state of the send button, and the request body all stay in sync.
-        // Customer base, minus owner-deselected phones, plus any custom
-        // numbers the owner typed in. De-duped on the normalized phone form
-        // so 050... and 972... can't both fire to the same handset.
-        const customerPhones = customerList.map(c => normalizePhone(c.phoneNumber));
+        // Customer base (filtered by scope), minus owner-deselected phones,
+        // plus any custom numbers the owner typed in. De-duped on the
+        // normalized phone form so 050... and 972... can't both fire to
+        // the same handset.
+        //
+        // Scope filter: "dormant_30" keeps only customers whose most recent
+        // visit is more than 30 days ago (or who have no visit at all).
+        // "all" keeps the whole customer base.
+        const now = new Date();
+        const thirtyDaysAgoIso = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+        const scopedCustomers = broadcastScope === "dormant_30"
+          ? customerList.filter(c => !c.lastVisitDate || c.lastVisitDate < thirtyDaysAgoIso)
+          : customerList;
+        const customerPhones = scopedCustomers.map(c => normalizePhone(c.phoneNumber));
         const includedCustomerPhones = customerPhones.filter(p => !excludedPhones.has(p));
         const extraNormalized = extraPhones.map(normalizePhone);
         const recipientPhones = [...new Set([...includedCustomerPhones, ...extraNormalized])];
@@ -4853,6 +4870,30 @@ function CustomersTab() {
                   <span className={quota.remaining < 20 ? "text-red-500 font-medium" : ""}>{quota.remaining} נותרו</span>
                 </div>
               )}
+
+              {/* Audience picker — who should this message go to? Default is
+                  "dormant_30" (re-engagement blast). Owner can flip to "all"
+                  when they want a full-list promo. The selection also flows
+                  to the backend so recipient resolution stays server-side
+                  authoritative. */}
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => { setBroadcastScope("dormant_30"); setExcludedPhones(new Set()); }}
+                  className={`text-right px-3 py-2 rounded-xl border text-sm transition-all ${broadcastScope === "dormant_30" ? "border-primary bg-primary/5 ring-2 ring-primary/20" : "border-border hover:bg-muted/30"}`}
+                >
+                  <div className="font-semibold text-sm">לא הזמינו ב-30 ימים</div>
+                  <div className="text-[11px] text-muted-foreground mt-0.5">לקוחות "רדומים" להחזרה</div>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { setBroadcastScope("all"); setExcludedPhones(new Set()); }}
+                  className={`text-right px-3 py-2 rounded-xl border text-sm transition-all ${broadcastScope === "all" ? "border-primary bg-primary/5 ring-2 ring-primary/20" : "border-border hover:bg-muted/30"}`}
+                >
+                  <div className="font-semibold text-sm">כל הלקוחות</div>
+                  <div className="text-[11px] text-muted-foreground mt-0.5">רשימה מלאה של המאגר</div>
+                </button>
+              </div>
 
               {/* Recipient summary + edit toggle. Default closed so the dialog
                   stays compact for the common "send to everyone" flow. */}

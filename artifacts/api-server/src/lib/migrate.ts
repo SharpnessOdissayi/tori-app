@@ -265,6 +265,12 @@ export async function runMigrations() {
       // Staff themselves live in the staff_members table created below.
       "ALTER TABLE appointments   ADD COLUMN IF NOT EXISTS staff_member_id INTEGER",
       "ALTER TABLE working_hours  ADD COLUMN IF NOT EXISTS staff_member_id INTEGER",
+      // time_off.staff_member_id was added in a later PR (per-staff scoping)
+      // but never made it into migrate.ts — production DBs that pre-date
+      // that PR have the Drizzle schema out of sync with reality, which
+      // 500s every GET /business/time-off call (and cascades to break
+      // the dashboard Customers tab via its time-off query). Idempotent.
+      "ALTER TABLE time_off       ADD COLUMN IF NOT EXISTS staff_member_id INTEGER",
       // ─── Staff logins (v2) ───────────────────────────────────────────
       // Added to the pre-existing staff_members table. Nullable — legacy
       // rows + owner-seeded rows keep having no hash and can't log in.
@@ -453,13 +459,21 @@ export async function runMigrations() {
     // and show up in every staff's calendar.
     //
     // Idempotent: the UPDATE is a no-op once every such row is cleared.
-    await db.execute(sql.raw(`
-      UPDATE time_off
-      SET staff_member_id = NULL
-      WHERE staff_member_id IN (
-        SELECT id FROM staff_members WHERE is_owner = TRUE
-      )
-    `));
+    // Wrapped in its own try/catch so a freshly-created DB that doesn't
+    // yet have time_off.staff_member_id (or staff_members) doesn't abort
+    // the entire migration flow — the next boot will pick up where this
+    // left off, both tables will exist by then.
+    try {
+      await db.execute(sql.raw(`
+        UPDATE time_off
+        SET staff_member_id = NULL
+        WHERE staff_member_id IN (
+          SELECT id FROM staff_members WHERE is_owner = TRUE
+        )
+      `));
+    } catch (backfillErr) {
+      console.warn("[Migrate] time_off backfill skipped:", (backfillErr as any)?.message ?? backfillErr);
+    }
 
     // ─── One-shot seed: import existing businesses + clients ────────────
     // Idempotent via ON CONFLICT DO NOTHING. Safe to run every boot.
