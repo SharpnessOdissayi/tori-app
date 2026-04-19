@@ -1409,6 +1409,14 @@ router.post("/business/broadcast", requireBusinessAuth, async (req, res): Promis
   const { sendSms: inforuSendSms, isInforuConfigured } = await import("../lib/inforu");
   if (isInforuConfigured() && batch.length > 0) {
     const senderName = (process.env.INFORU_SENDER_NAME ?? biz2?.name ?? "Kavati").slice(0, 11);
+    // Register the delivery-report webhook for every broadcast send so
+    // Inforu pings us back once the carrier actually accepts (or drops)
+    // the message. Without this, a "StatusId=1" from the SendSMS call
+    // just means Inforu queued it; we have no visibility into whether
+    // the phone got the SMS. The webhook logs per-phone outcomes into
+    // sms_messages + surfaces them in the owner's "היסטוריית תפוצה"
+    // view (once we build it).
+    const deliveryReportUrl = `${(process.env.PUBLIC_API_BASE_URL ?? "https://www.kavati.net/api").replace(/\/$/, "")}/sms/inforu-webhook/delivery`;
     // Per-recipient send in parallel; each SMS carries its own opt-out
     // URL. Inforu handles concurrent calls fine for our volume.
     const results = await Promise.allSettled(
@@ -1418,6 +1426,7 @@ router.post("/business/broadcast", requireBusinessAuth, async (req, res): Promis
           message: composeMessage(phone, tokens[i]),
           senderName,
           customerMessageId: `broadcast-${req.business!.businessId}-${Date.now()}-${phone.slice(-4)}`,
+          deliveryReportUrl,
         }),
       ),
     );

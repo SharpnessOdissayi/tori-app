@@ -205,6 +205,22 @@ export async function sendSms(opts: SendSmsOptions): Promise<InforuSendResult> {
     });
     const json: any = await res.json().catch(() => ({}));
 
+    // Always log the full Inforu request+response when debugging delivery
+    // issues. Owner reports "says 1 sent but SMS never arrives" even when
+    // StatusId=1 and no Errors[] — the cause is invisible without seeing
+    // what Inforu actually returned. This is gated behind an env var so
+    // we don't drown Railway logs in verbose traffic in normal operation;
+    // flip INFORU_DEBUG_LOG=1 in Railway when tracing a specific issue.
+    if (process.env.INFORU_DEBUG_LOG === "1") {
+      logger.info({
+        sentTo:    dedup,
+        sender:    safeSender,
+        messageLen: opts.message.length,
+        httpStatus: res.status,
+        responseBody: json,
+      }, "[inforu] send verbose-dump");
+    }
+
     // Per the docs, the success envelope is:
     //   { StatusId: 1, StatusDescription: "Success", DetailedDescription: "",
     //     FunctionName: "...", RequestId: "...", Data: { Recipients, Errors } }
