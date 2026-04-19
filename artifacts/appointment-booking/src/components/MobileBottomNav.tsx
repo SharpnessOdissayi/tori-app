@@ -25,17 +25,18 @@ export function MobileBottomNav({
   // Owner preference: approvals (w/ badge) on the right, בית in the
   // centre, תפריט on the far left. `staffAllowed` gates per-item
   // visibility so a staff JWT sees only the tabs they can actually use.
-  // Staff gets CALENDAR ONLY (Dibs-style minimal permission set). The
-  // owner manages everything else from their own view, including which
-  // services each staff member performs. All other bottom-nav buttons
-  // are hidden for staff, which collapses the nav to a single centred
-  // tab — serves as a clear "this is your only view" signal.
+  // Staff-visible buttons: approvals (pending requests + the "התור
+  // אושר" confirmation message), calendar (their appointments), and
+  // the menu sheet (which itself only exposes the "צוות" tab for
+  // staff — used for self-profile-photo + team contact lookup).
+  // home + customers stay owner-only because they open owner-scoped
+  // dashboards with quick-action links into billing / broadcast / etc.
   const rawItems: Array<{ id: BottomTab; label: string; icon: React.ReactNode; badge?: number; staffAllowed: boolean }> = [
-    { id: "approvals", label: "אישור תורים", icon: <BadgeCheck className="w-5 h-5" />, badge: pendingCount, staffAllowed: false },
+    { id: "approvals", label: "אישור תורים", icon: <BadgeCheck className="w-5 h-5" />, badge: pendingCount, staffAllowed: true  },
     { id: "calendar",  label: "יומן",         icon: <CalendarClock className="w-5 h-5" />,                  staffAllowed: true  },
     { id: "home",      label: "בית",          icon: <Home className="w-5 h-5" />,                           staffAllowed: false },
     { id: "customers", label: "לקוחות",       icon: <UsersRound className="w-5 h-5" />,                     staffAllowed: false },
-    { id: "menu",      label: "תפריט",        icon: <LayoutGrid className="w-5 h-5" />,                     staffAllowed: false },
+    { id: "menu",      label: "תפריט",        icon: <LayoutGrid className="w-5 h-5" />,                     staffAllowed: true  },
   ];
   const items = rawItems.filter(it => !isStaffMode || it.staffAllowed);
   // Tailwind can't pick up dynamic class names, so we map explicitly.

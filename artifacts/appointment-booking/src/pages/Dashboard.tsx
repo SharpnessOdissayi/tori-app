@@ -871,13 +871,15 @@ export default function Dashboard() {
   // (e.g. "settings" cached from a previous owner login on the same
   // browser) should bounce to the appointments tab so they don't sit on
   // a blank/permission-denied screen.
-  // Simplified per owner: staff gets CALENDAR ONLY (same model as Dibs).
-  // The owner controls services-per-staff from their own "צוות" tab
-  // via the staff_services assignment; the staff themselves don't see
-  // or configure anything beyond their appointments. If a specific
-  // permission ever needs to be carved out (e.g., letting staff edit
-  // their own photo), it's a new entry here.
-  const STAFF_ALLOWED_TABS = ["appointments"];
+  // Dibs-style minimal permission set + two extras the owner asked for:
+  //   · appointments — the staff's own calendar view
+  //   · approvals    — so staff can approve their own pending requests
+  //                    (sends the "התור אושר" WhatsApp template)
+  //   · staff        — own row for profile photo, plus read-only contact
+  //                    details of the rest of the team
+  // Owner configures everything else (services-per-staff, hours,
+  // branding, broadcast, etc.) from the owner dashboard.
+  const STAFF_ALLOWED_TABS = ["appointments", "approvals", "staff"];
 
   // ─── Force-change-password modal state (staff first-login flow) ──────────
   // Shown the moment authMe.staff.mustChangePassword is true. Backend clears
@@ -1272,11 +1274,13 @@ export default function Dashboard() {
                   <Phone className="w-4 h-4" /> הודעות ותזכורות {!isProPlan && <ProShine />}
                 </TabsTrigger>
               )}
-              {!isStaffMode && (
-                <TabsTrigger value="staff" className="gap-1.5 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground whitespace-nowrap">
-                  <Users className="w-4 h-4" /> צוות {!isProPlusPlan && <ProShine />}
-                </TabsTrigger>
-              )}
+              {/* צוות tab is visible to BOTH owners and staff — staff uses
+                  it to update their own avatar + see team contact info.
+                  Backend PATCH /staff/:id enforces "own row + avatarUrl
+                  only" for staff tokens. */}
+              <TabsTrigger value="staff" className="gap-1.5 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground whitespace-nowrap">
+                <Users className="w-4 h-4" /> צוות {!isProPlusPlan && !isStaffMode && <ProShine />}
+              </TabsTrigger>
               {!isStaffMode && (
                 <TabsTrigger value="analytics-pro" className="gap-1.5 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground whitespace-nowrap">
                   <TrendingUp className="w-4 h-4" /> אנליטיקה {!isProPlusPlan && <ProShine />}
@@ -1380,7 +1384,7 @@ export default function Dashboard() {
               { value: "receipts",     icon: <FileText className="w-6 h-6" />,  label: "קבלות",         staffAllowed: false },
               { value: "branding",     icon: <Palette className="w-6 h-6" />,   label: "עיצוב",         staffAllowed: false },
               { value: "integrations",   icon: <Phone className="w-6 h-6" />,       label: "הודעות ותזכורות", staffAllowed: false },
-              { value: "staff",          icon: <Users className="w-6 h-6" />,       label: "צוות",           staffAllowed: false },
+              { value: "staff",          icon: <Users className="w-6 h-6" />,       label: "צוות",           staffAllowed: true  },
               { value: "analytics-pro",  icon: <TrendingUp className="w-6 h-6" />,  label: "אנליטיקה",       staffAllowed: false },
               { value: "data-export",    icon: <Download className="w-6 h-6" />,    label: "ייצוא",          staffAllowed: false },
               { value: "settings",       icon: <Settings className="w-6 h-6" />,    label: "הגדרות",         staffAllowed: false },
