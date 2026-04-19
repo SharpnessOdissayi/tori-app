@@ -433,13 +433,9 @@ export async function runMigrations() {
       )
     `));
 
-    // ─── Broadcast opt-out list ─────────────────────────────────────
-    // Per Israeli spam law (תיקון 40 לחוק התקשורת) every marketing SMS
-    // must let the recipient opt out, and the opt-out must be honoured
-    // immediately. We append "להסרה, הגב 'הסר'" to every broadcast;
-    // Inforu calls our webhook when a client replies "הסר"; we insert
-    // a row here; subsequent broadcasts skip that (business_id, phone)
-    // pair at send-time.
+    // ─── Broadcast opt-out list (legacy) ──────────────────────────
+    // Kept for backwards compat with rows already inserted via the
+    // reply webhook. The new model is broadcast_subscribers below.
     await db.execute(sql.raw(`
       CREATE TABLE IF NOT EXISTS broadcast_unsubscribes (
         business_id    INTEGER NOT NULL,
@@ -449,6 +445,54 @@ export async function runMigrations() {
         PRIMARY KEY (business_id, phone_number)
       )
     `));
+
+    // ─── Broadcast subscriber list (per business, positive model) ──
+    // One row per (business, phone). status flips between 'active'
+    // and 'unsubscribed' over the row's lifetime. Every new
+    // booking auto-inserts a row with status='active'; the Inforu
+    // reply webhook flips an existing row to 'unsubscribed'; the
+    // owner can manually re-activate or remove from a future
+    // dashboard panel. Send paths filter by status='active'.
+    await db.execute(sql.raw(`
+      CREATE TABLE IF NOT EXISTS broadcast_subscribers (
+        business_id   INTEGER NOT NULL,
+        phone_number  TEXT    NOT NULL,
+        status        TEXT    NOT NULL DEFAULT 'active',
+        source        TEXT    NOT NULL DEFAULT 'auto',
+        created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        updated_at    TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        PRIMARY KEY (business_id, phone_number)
+      )
+    `));
+    await db.execute(sql.raw(
+      `CREATE INDEX IF NOT EXISTS broadcast_subscribers_business_status_idx
+       ON broadcast_subscribers (business_id, status)`
+    ));
+
+    // Backfill: every customer with a non-cancelled appointment becomes
+    // an active subscriber. Idempotent via ON CONFLICT.
+    try {
+      await db.execute(sql.raw(`
+        INSERT INTO broadcast_subscribers (business_id, phone_number, status, source)
+        SELECT DISTINCT a.business_id, a.phone_number, 'active', 'backfill'
+        FROM appointments a
+        WHERE a.phone_number IS NOT NULL
+          AND a.status NOT IN ('cancelled', 'pending_payment')
+        ON CONFLICT (business_id, phone_number) DO NOTHING
+      `));
+
+      // Honour the legacy unsubscribes table — anyone who already opted
+      // out keeps that status when we backfill the new positive list.
+      await db.execute(sql.raw(`
+        INSERT INTO broadcast_subscribers (business_id, phone_number, status, source)
+        SELECT business_id, phone_number, 'unsubscribed', 'reply_legacy'
+        FROM broadcast_unsubscribes
+        ON CONFLICT (business_id, phone_number)
+        DO UPDATE SET status = 'unsubscribed', source = 'reply_legacy', updated_at = NOW()
+      `));
+    } catch (backfillErr) {
+      console.warn("[Migrate] broadcast_subscribers backfill skipped:", (backfillErr as any)?.message ?? backfillErr);
+    }
 
     // ─── Time-off normalisation backfill ──────────────────────────────
     // Any existing time_off row that's assigned to an isOwner=true staff
