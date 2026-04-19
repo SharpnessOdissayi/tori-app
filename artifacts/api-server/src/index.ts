@@ -56,13 +56,13 @@ app.listen(port, (err) => {
   logger.info("Subscription billing cron started (daily 08:00 IL)");
 
   // Release pending_payment slots whose webhook never arrived. Runs every
-  // 5 minutes so abandoned checkouts (cutoff = 15 min) free their slot
-  // within ~20 min end-to-end. Shorter than before (was every 30 min)
-  // because the cleanup cutoff itself dropped from 2h → 15min.
-  cron.schedule("*/5 * * * *", () => {
+  // minute so abandoned checkouts (cutoff = 1 min) free their slot in
+  // under 2 minutes end-to-end. Owner's explicit ask: "אם הוא לא משלים
+  // תשלום תוך דקה זה משתחרר".
+  cron.schedule("*/1 * * * *", () => {
     cleanupStalePendingPayment().catch(e => logger.error(e, "Pending-payment cleanup failed"));
   });
-  logger.info("Pending-payment cleanup cron started (every 5 minutes)");
+  logger.info("Pending-payment cleanup cron started (every minute)");
 
   // Poll Railway every 2 minutes for pending custom-domain verifications.
   // Businesses that added a domain but haven't finished DNS propagation

@@ -15,11 +15,13 @@ import { db, appointmentsTable } from "@workspace/db";
 import { and, eq, lt } from "drizzle-orm";
 import { logger } from "./logger";
 
-// Short window — Tranzila's iframe checkout takes 30-60 seconds in
-// practice. 15 minutes is enough slack for slow typists / network
-// blips, and short enough that an abandoned checkout doesn't block
-// the slot for the next customer. Was 2 hours; owner wanted it gone.
-const STALE_MINUTES = 15;
+// Very short window per owner request: if the customer doesn't finish
+// payment within a minute, the slot is released. Tradeoff: customers
+// who hesitate at the Tranzila iframe lose their hold and may see a
+// "slot taken" error when they finally submit. The owner considered
+// that tradeoff acceptable — they'd rather have the calendar honest
+// than hold slots for stragglers.
+const STALE_MINUTES = 1;
 
 export async function cleanupStalePendingPayment(): Promise<void> {
   const cutoff = new Date(Date.now() - STALE_MINUTES * 60 * 1000);
