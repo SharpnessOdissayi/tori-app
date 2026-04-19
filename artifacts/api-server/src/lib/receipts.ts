@@ -212,8 +212,8 @@ interface KavatiReceiptView {
 function renderKavatiReceiptHtml(v: KavatiReceiptView): string {
   return `
   <div dir="rtl" style="font-family: Arial, sans-serif; max-width: 560px; margin: 0 auto; padding: 24px; color: #111;">
-    <div style="text-align:center; padding-bottom: 16px; border-bottom: 2px solid #111;">
-      <h1 style="margin: 0; font-size: 24px;">קבלה</h1>
+    <div style="text-align:center; padding-bottom: 16px; border-bottom: 2px solid #3c92f0;">
+      <h1 style="margin: 0; font-size: 24px; color:#1e6fcf;">קבלה</h1>
       <p style="margin: 8px 0 0; font-size: 18px; font-weight: bold;">מספר ${v.receiptNumber}</p>
     </div>
     <div style="margin: 20px 0; display: flex; justify-content: space-between; gap: 16px;">
@@ -269,8 +269,8 @@ interface BusinessReceiptView {
 function renderBusinessReceiptHtml(v: BusinessReceiptView): string {
   return `
   <div dir="rtl" style="font-family: Arial, sans-serif; max-width: 560px; margin: 0 auto; padding: 24px; color: #111;">
-    <div style="text-align:center; padding-bottom: 16px; border-bottom: 2px solid #111;">
-      <h1 style="margin: 0; font-size: 24px;">קבלה</h1>
+    <div style="text-align:center; padding-bottom: 16px; border-bottom: 2px solid #3c92f0;">
+      <h1 style="margin: 0; font-size: 24px; color:#1e6fcf;">קבלה</h1>
       <p style="margin: 8px 0 0; font-size: 18px; font-weight: bold;">מספר ${v.receiptNumber}</p>
     </div>
     <div style="margin: 20px 0; display: flex; justify-content: space-between; gap: 16px;">

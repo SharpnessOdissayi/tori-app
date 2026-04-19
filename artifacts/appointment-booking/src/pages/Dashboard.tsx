@@ -8765,7 +8765,7 @@ function StaffTab() {
                         (backend PATCH /staff/:id enforces this too). */}
                     {(!isStaffMode || selectedStaff.id === myStaffId) && (
                       <label
-                        className={`absolute -bottom-1 -left-1 w-7 h-7 rounded-full bg-white border shadow flex items-center justify-center cursor-pointer hover:bg-blue-50 transition-colors ${(avatarUpload.isUploading || savingAvatar) ? "opacity-60 pointer-events-none" : ""}`}
+                        className={`absolute -bottom-1 -left-1 w-7 h-7 rounded-full bg-white dark:bg-neutral-800 border border-border shadow flex items-center justify-center cursor-pointer hover:bg-blue-50 dark:hover:bg-neutral-700 transition-colors ${(avatarUpload.isUploading || savingAvatar) ? "opacity-60 pointer-events-none" : ""}`}
                         title="שנה תמונת פרופיל"
                       >
                         {avatarUpload.isUploading || savingAvatar

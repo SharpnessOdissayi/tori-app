@@ -61,32 +61,36 @@ async function sendStaffWelcomeEmail(args: {
   password:     string;
 }): Promise<void> {
   const dashboardUrl = "https://www.kavati.net/dashboard";
+  // Branded chrome (logo + footer) comes from wrapEmailTemplate inside
+  // sendEmail. This body uses the same Kavati blue accents as the other
+  // transactional emails so all three (welcome owner / verify / staff
+  // welcome) read as one visual family.
   const html = `
-    <div dir="rtl" style="font-family: Arial, sans-serif; max-width: 560px; margin: 0 auto; padding: 24px; color: #111;">
-      <h1 style="margin: 0 0 8px; font-size: 24px;">ברוך/ה הבא/ה לצוות של ${args.businessName}! 👋</h1>
-      <p style="margin: 0 0 16px; color: #555; font-size: 15px;">
+    <div dir="rtl" style="font-family: Arial, sans-serif; color:#111827;">
+      <h1 style="margin: 0 0 8px; font-size: 24px; color:#111827;">ברוך/ה הבא/ה לצוות של ${args.businessName}! 👋</h1>
+      <p style="margin: 0 0 16px; color: #4b5563; font-size: 15px;">
         הצטרפת לצוות ב-Kavati — מערכת זימון התורים של ${args.businessName}.
         המנהל/ת יצרה עבורך חשבון אישי שדרכו תוכל/י לראות את היומן שלך, לאשר תורים ולהתעדכן על ביטולים.
       </p>
 
-      <div style="margin: 24px 0; padding: 20px; background: #f0f9ff; border: 1px solid #bae6fd; border-radius: 12px;">
-        <p style="margin: 0 0 12px; font-weight: bold; color: #075985; font-size: 15px;">🔐 פרטי הכניסה שלך</p>
-        <p style="margin: 0 0 10px; font-size: 12px; color: #0369a1;">אפשר להיכנס לפי אימייל, טלפון או שם משתמש — הסיסמה זהה לכולם.</p>
+      <div style="margin: 24px 0; padding: 20px; background: rgba(60,146,240,0.06); border: 1px solid rgba(60,146,240,0.22); border-radius: 12px;">
+        <p style="margin: 0 0 12px; font-weight: bold; color: #1e6fcf; font-size: 15px;">🔐 פרטי הכניסה שלך</p>
+        <p style="margin: 0 0 10px; font-size: 12px; color: #3c92f0;">אפשר להיכנס לפי אימייל, טלפון או שם משתמש — הסיסמה זהה לכולם.</p>
         <table style="width: 100%; font-size: 14px; border-collapse: collapse;">
-          <tr><td style="padding: 6px 0; color: #666; width: 120px;">שם משתמש:</td>
+          <tr><td style="padding: 6px 0; color: #6b7280; width: 120px;">שם משתמש:</td>
               <td style="padding: 6px 0; font-family: monospace; direction: ltr; text-align: right; font-weight: bold;">${args.loginHandle}</td></tr>
-          <tr><td style="padding: 6px 0; color: #666;">סיסמה:</td>
+          <tr><td style="padding: 6px 0; color: #6b7280;">סיסמה:</td>
               <td style="padding: 6px 0; font-family: monospace; direction: ltr; text-align: right; font-weight: bold;">${args.password}</td></tr>
         </table>
-        <p style="margin: 12px 0 0; font-size: 12px; color: #0369a1;">⚠️ מומלץ להחליף את הסיסמה בכניסה הראשונה שלך מהדאשבורד → הגדרות → שינוי סיסמה.</p>
+        <p style="margin: 12px 0 0; font-size: 12px; color: #3c92f0;">⚠️ מומלץ להחליף את הסיסמה בכניסה הראשונה שלך מהדאשבורד → הגדרות → שינוי סיסמה.</p>
       </div>
 
       <div style="margin: 24px 0; text-align: center;">
-        <a href="${dashboardUrl}" style="display: inline-block; padding: 12px 28px; background: #2563eb; color: white; text-decoration: none; border-radius: 8px; font-weight: bold; font-size: 15px;">כניסה למערכת</a>
+        <a href="${dashboardUrl}" style="display: inline-block; padding: 12px 28px; background: #3c92f0; color: white; text-decoration: none; border-radius: 8px; font-weight: bold; font-size: 15px;">כניסה למערכת</a>
       </div>
 
-      <p style="margin: 24px 0 6px; color: #555; font-size: 14px;">נתקלת בבעיה? פנה/י למנהל/ת של ${args.businessName} ישירות.</p>
-      <p style="margin: 0 0 0; color: #888; font-size: 12px;">באהבה,<br>צוות Kavati</p>
+      <p style="margin: 24px 0 6px; color: #4b5563; font-size: 14px;">נתקלת בבעיה? פנה/י למנהל/ת של ${args.businessName} ישירות.</p>
+      <p style="margin: 0; color: #6b7280; font-size: 12px;">באהבה,<br>צוות Kavati</p>
     </div>`;
   await sendEmail(args.to, `${args.businessName} — פרטי הכניסה שלך ב-Kavati`, html, {
     from: "Kavati <welcome@kavati.net>",

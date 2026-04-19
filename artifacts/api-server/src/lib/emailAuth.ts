@@ -36,14 +36,16 @@ export async function sendEmailVerificationCode(
           created_at = NOW()
   `);
 
+  // The outer branded frame (logo, footer) is applied by wrapEmailTemplate
+  // inside sendEmail — just emit the inner body with Kavati-blue accents.
   const html = `
-    <div dir="rtl" style="font-family: Arial, sans-serif; max-width: 480px; margin: 0 auto; padding: 24px;">
-      <h2 style="margin: 0 0 16px;">אימות כתובת אימייל</h2>
-      <p style="margin: 0 0 16px; color: #444;">הקוד שלך ל-Kavati:</p>
-      <div style="font-size: 36px; font-weight: bold; letter-spacing: 8px; text-align: center; padding: 20px; background: #f1f5f9; border-radius: 12px; margin: 16px 0;">
+    <div dir="rtl" style="font-family: Arial, sans-serif; color:#1f2937;">
+      <h2 style="margin: 0 0 16px; color:#3c92f0;">אימות כתובת אימייל</h2>
+      <p style="margin: 0 0 16px; color: #374151;">הקוד שלך ל-Kavati:</p>
+      <div style="font-size: 36px; font-weight: bold; letter-spacing: 8px; text-align: center; padding: 20px; background: rgba(60,146,240,0.08); border:1px solid rgba(60,146,240,0.2); border-radius: 12px; margin: 16px 0; color:#1e6fcf;">
         ${code}
       </div>
-      <p style="color: #888; font-size: 13px;">הקוד תקף ל-15 דקות. אם לא ביקשת את הקוד, אפשר להתעלם מהמייל הזה.</p>
+      <p style="color: #6b7280; font-size: 13px;">הקוד תקף ל-15 דקות. אם לא ביקשת את הקוד, אפשר להתעלם מהמייל הזה.</p>
     </div>`;
 
   try {
@@ -99,39 +101,42 @@ export async function sendWelcomeEmail(params: {
     ? `<p style="margin: 0 0 16px; color: #444;">תודה שהצטרפת למנוי <b>פרו</b>. קבלה על התשלום תישלח בנפרד.</p>`
     : `<p style="margin: 0 0 16px; color: #444;">החשבון שלך פעיל במסלול <b>חינמי</b>. בכל עת אפשר לשדרג למנוי פרו/עסקי מתוך הדאשבורד.</p>`;
 
+  // The outer branded frame (header + footer) is applied by wrapEmailTemplate
+  // in sendEmail. We just emit the inner body here. All accents use the
+  // Kavati brand blue (#3c92f0) to match the site.
   const html = `
-    <div dir="rtl" style="font-family: Arial, sans-serif; max-width: 560px; margin: 0 auto; padding: 24px; color: #111;">
-      <h1 style="margin: 0 0 8px; font-size: 24px;">ברוך/ה הבא/ה ל-Kavati, ${ownerName}! 🎉</h1>
-      <p style="margin: 0 0 16px; color: #555; font-size: 15px;">העסק שלך נרשם בהצלחה — הנה כל מה שצריך לדעת כדי להתחיל.</p>
+    <div dir="rtl" style="font-family: Arial, sans-serif; color:#111827;">
+      <h1 style="margin: 0 0 8px; font-size: 24px; color:#111827;">ברוך/ה הבא/ה ל-Kavati, ${ownerName}! 🎉</h1>
+      <p style="margin: 0 0 16px; color: #4b5563; font-size: 15px;">העסק שלך נרשם בהצלחה — הנה כל מה שצריך לדעת כדי להתחיל.</p>
       ${planCopy}
 
       <!-- Credentials card -->
-      <div style="margin: 24px 0; padding: 20px; background: #faf5ff; border: 1px solid #e9d5ff; border-radius: 12px;">
-        <p style="margin: 0 0 6px; font-weight: bold; color: #6b21a8; font-size: 15px;">🔐 פרטי הכניסה שלך</p>
-        <p style="margin: 0 0 12px; font-size: 12px; color: #7c3aed;">אפשר להיכנס לפי שם משתמש, אימייל או מספר טלפון — הסיסמה זהה לכולם.</p>
+      <div style="margin: 24px 0; padding: 20px; background: rgba(60,146,240,0.06); border: 1px solid rgba(60,146,240,0.22); border-radius: 12px;">
+        <p style="margin: 0 0 6px; font-weight: bold; color: #1e6fcf; font-size: 15px;">🔐 פרטי הכניסה שלך</p>
+        <p style="margin: 0 0 12px; font-size: 12px; color: #3c92f0;">אפשר להיכנס לפי שם משתמש, אימייל או מספר טלפון — הסיסמה זהה לכולם.</p>
         <table style="width: 100%; font-size: 14px; border-collapse: collapse;">
-          <tr><td style="padding: 6px 0; color: #666; width: 120px;">שם משתמש:</td>
+          <tr><td style="padding: 6px 0; color: #6b7280; width: 120px;">שם משתמש:</td>
               <td style="padding: 6px 0; font-family: monospace; direction: ltr; text-align: right; font-weight: bold;">${loginHandle}</td></tr>
-          <tr><td style="padding: 6px 0; color: #666;">סיסמה:</td>
+          <tr><td style="padding: 6px 0; color: #6b7280;">סיסמה:</td>
               <td style="padding: 6px 0; font-family: monospace; direction: ltr; text-align: right; font-weight: bold;">${password}</td></tr>
         </table>
-        <p style="margin: 12px 0 0; font-size: 12px; color: #7c3aed;">⚠️ מומלץ להחליף את הסיסמה בכניסה הראשונה שלך מהדאשבורד → הגדרות → שינוי סיסמה.</p>
+        <p style="margin: 12px 0 0; font-size: 12px; color: #3c92f0;">⚠️ מומלץ להחליף את הסיסמה בכניסה הראשונה שלך מהדאשבורד → הגדרות → שינוי סיסמה.</p>
       </div>
 
       <!-- Action buttons -->
       <div style="margin: 24px 0; text-align: center;">
-        <a href="${dashboardUrl}" style="display: inline-block; margin: 4px; padding: 12px 28px; background: #7c3aed; color: white; text-decoration: none; border-radius: 8px; font-weight: bold; font-size: 15px;">פתח את הדאשבורד</a>
-        <a href="${bookingUrl}" style="display: inline-block; margin: 4px; padding: 12px 28px; background: white; color: #7c3aed; text-decoration: none; border: 2px solid #7c3aed; border-radius: 8px; font-weight: bold; font-size: 15px;">צפה בעמוד העסק שלך</a>
+        <a href="${dashboardUrl}" style="display: inline-block; margin: 4px; padding: 12px 28px; background: #3c92f0; color: white; text-decoration: none; border-radius: 8px; font-weight: bold; font-size: 15px;">פתח את הדאשבורד</a>
+        <a href="${bookingUrl}" style="display: inline-block; margin: 4px; padding: 12px 28px; background: white; color: #3c92f0; text-decoration: none; border: 2px solid #3c92f0; border-radius: 8px; font-weight: bold; font-size: 15px;">צפה בעמוד העסק שלך</a>
       </div>
 
       <!-- Share link card -->
-      <div style="margin: 20px 0; padding: 16px; background: #f5f5f5; border-radius: 8px;">
-        <p style="margin: 0 0 8px; font-weight: bold; color: #333;">📲 הקישור שלך להזמנת תור — שתף עם הלקוחות שלך:</p>
-        <p style="margin: 0; font-family: monospace; font-size: 14px; word-break: break-all; direction: ltr; text-align: right; color: #7c3aed;">${bookingUrl}</p>
+      <div style="margin: 20px 0; padding: 16px; background: #f9fafb; border:1px solid #e5e7eb; border-radius: 8px;">
+        <p style="margin: 0 0 8px; font-weight: bold; color: #1f2937;">📲 הקישור שלך להזמנת תור — שתף עם הלקוחות שלך:</p>
+        <p style="margin: 0; font-family: monospace; font-size: 14px; word-break: break-all; direction: ltr; text-align: right; color: #3c92f0;">${bookingUrl}</p>
       </div>
 
-      <p style="margin: 24px 0 6px; color: #555; font-size: 14px;">נתקלת בבעיה? פשוט השב למייל הזה ונחזור אליך.</p>
-      <p style="margin: 0 0 0; color: #888; font-size: 12px;">באהבה,<br>צוות Kavati</p>
+      <p style="margin: 24px 0 6px; color: #4b5563; font-size: 14px;">נתקלת בבעיה? פשוט השב למייל הזה ונחזור אליך.</p>
+      <p style="margin: 0; color: #6b7280; font-size: 12px;">באהבה,<br>צוות Kavati</p>
     </div>`;
 
   try {

@@ -1325,13 +1325,36 @@ router.get("/business/broadcast/quota", requireBusinessAuth, async (req, res): P
 });
 
 router.get("/business/waitlist", requireBusinessAuth, async (req, res): Promise<void> => {
+  // Staff scoping: when the caller is a staff member (JWT carries
+  // staffMemberId), return ONLY waitlist entries that target a service
+  // this staff actually performs — anything tied to a service they
+  // don't offer (or any service the owner exclusively owns) is hidden.
+  // Business-wide entries with a null serviceId stay on the owner's
+  // view only; staff shouldn't see them because they have no way to
+  // fulfil a "any service" request for the owner.
+  const staffMemberId = req.business!.staffMemberId ?? null;
+
+  let allowedServiceIds: number[] | null = null;
+  if (staffMemberId) {
+    const { staffServicesTable } = await import("@workspace/db");
+    const rows = await db
+      .select({ serviceId: staffServicesTable.serviceId })
+      .from(staffServicesTable)
+      .where(eq(staffServicesTable.staffMemberId, staffMemberId));
+    allowedServiceIds = rows.map(r => r.serviceId);
+  }
+
   const entries = await db
     .select()
     .from(waitlistTable)
     .where(eq(waitlistTable.businessId, req.business!.businessId))
     .orderBy(waitlistTable.createdAt);
 
-  res.json(entries.map((e) => ({
+  const visible = allowedServiceIds
+    ? entries.filter(e => e.serviceId != null && allowedServiceIds!.includes(e.serviceId))
+    : entries;
+
+  res.json(visible.map((e) => ({
     id: e.id,
     businessId: e.businessId,
     serviceId: e.serviceId ?? null,
@@ -1350,6 +1373,36 @@ router.delete("/business/waitlist/:id", requireBusinessAuth, async (req, res): P
   if (!paramsParsed.success) {
     res.status(400).json({ error: "Invalid id" });
     return;
+  }
+
+  // Staff can only delete entries tied to services they perform; otherwise
+  // a staff could still wipe the owner's waitlist by guessing ids.
+  const staffMemberId = req.business!.staffMemberId ?? null;
+  if (staffMemberId) {
+    const { staffServicesTable } = await import("@workspace/db");
+    const [entry] = await db
+      .select({ serviceId: waitlistTable.serviceId })
+      .from(waitlistTable)
+      .where(and(
+        eq(waitlistTable.id, paramsParsed.data.id),
+        eq(waitlistTable.businessId, req.business!.businessId),
+      ));
+    if (!entry) { res.status(404).json({ error: "Waitlist entry not found" }); return; }
+    if (entry.serviceId == null) {
+      res.status(403).json({ error: "לא ניתן להסיר רישום של שירותים שאינם בתחומך" });
+      return;
+    }
+    const [owns] = await db
+      .select({ id: staffServicesTable.id })
+      .from(staffServicesTable)
+      .where(and(
+        eq(staffServicesTable.staffMemberId, staffMemberId),
+        eq(staffServicesTable.serviceId, entry.serviceId),
+      ));
+    if (!owns) {
+      res.status(403).json({ error: "לא ניתן להסיר רישום של שירותים שאינם בתחומך" });
+      return;
+    }
   }
 
   const deleted = await db

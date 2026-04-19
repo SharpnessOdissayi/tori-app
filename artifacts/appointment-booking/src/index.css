@@ -238,10 +238,41 @@
 .dark .portal-dark-scope .divide-gray-100 > * + *,
 .dark .portal-dark-scope .divide-gray-200 > * + * { border-top-color: #262626 !important; }
 
-/* Make the brand blue accent pop a bit brighter on dark backgrounds. */
-.dark .portal-dark-scope .text-blue-500    { color: #5ba5f3 !important; }
-.dark .portal-dark-scope .text-blue-600    { color: #7ab8f5 !important; }
-.dark .portal-dark-scope .bg-blue-100      { background-color: rgba(60, 146, 240, 0.2) !important; }
+/* ──────────────────────────────────────────────────────────────────────
+ * UNSCOPED dark-mode colour overrides — apply to any .dark descendant,
+ * including Radix Dialog/Popper portals that render outside the
+ * .portal-dark-scope root. Only classes that Book.tsx does NOT use in its
+ * branded content are listed here, so these rules can't overwrite a
+ * business's custom design on /book/:slug.
+ *
+ * Blue 100-900 → Kavati-blue tints so the staff tab + dashboard cards
+ * stay legible in dark mode (dark text on light background would be
+ * unreadable). Book.tsx uses inline style={{ color: primaryColor }},
+ * not these Tailwind utility classes.
+ */
+.dark .text-blue-500    { color: #5ba5f3 !important; }
+.dark .text-blue-600    { color: #7ab8f5 !important; }
+.dark .text-blue-700    { color: #93c2f7 !important; }
+.dark .text-blue-800    { color: #b3d3f9 !important; }
+.dark .text-blue-900    { color: #d4e6fc !important; }
+.dark .bg-blue-100      { background-color: rgba(60, 146, 240, 0.2) !important; }
+.dark .bg-blue-200      { background-color: rgba(60, 146, 240, 0.28) !important; }
+.dark .border-blue-200  { border-color: rgba(60, 146, 240, 0.3) !important; }
+.dark .border-blue-300  { border-color: rgba(60, 146, 240, 0.4) !important; }
+
+/* Amber — warning badges (Pro-only, days-off notes). */
+.dark .text-amber-700   { color: #fbbf24 !important; }
+.dark .text-amber-800   { color: #fcd34d !important; }
+.dark .text-amber-900   { color: #fde68a !important; }
+.dark .bg-amber-100     { background-color: rgba(245, 158, 11, 0.2) !important; }
+.dark .border-amber-200 { border-color: rgba(245, 158, 11, 0.3) !important; }
+
+/* Slate — neutral badges / inactive states. */
+.dark .bg-slate-100     { background-color: #1f2937 !important; }
+.dark .bg-slate-200     { background-color: #374151 !important; }
+.dark .text-slate-500   { color: #9ca3af !important; }
+.dark .text-slate-600   { color: #9ca3af !important; }
+.dark .text-slate-700   { color: #cbd5e1 !important; }
 
 @layer base {
   * {
