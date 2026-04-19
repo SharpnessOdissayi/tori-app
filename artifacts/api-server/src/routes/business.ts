@@ -502,13 +502,35 @@ router.patch("/business/integrations", requireBusinessAuth, async (req, res): Pr
 });
 
 router.get("/business/services", requireBusinessAuth, async (req, res): Promise<void> => {
+  const businessId = req.business!.businessId;
+  const staffMemberId = req.business!.staffMemberId ?? null;
+
   const services = await db
     .select()
     .from(servicesTable)
-    .where(eq(servicesTable.businessId, req.business!.businessId))
+    .where(eq(servicesTable.businessId, businessId))
     .orderBy(servicesTable.sortOrder, servicesTable.createdAt);
 
-  res.json(services.map((s) => ({ ...s, createdAt: s.createdAt.toISOString() })));
+  // Staff scoping: when the JWT carries staffMemberId we filter the service
+  // list to the ones THIS staff actually performs (per the staff_services
+  // many-to-many). Convention: a staff with NO links is treated as "performs
+  // every service" (so a brand-new staff isn't accidentally locked out
+  // before the owner sets up their service catalog) — same fallback the
+  // /book page uses.
+  let filtered = services;
+  if (staffMemberId) {
+    const { staffServicesTable } = await import("@workspace/db");
+    const links = await db
+      .select({ serviceId: staffServicesTable.serviceId })
+      .from(staffServicesTable)
+      .where(eq(staffServicesTable.staffMemberId, staffMemberId));
+    if (links.length > 0) {
+      const allowed = new Set(links.map(l => l.serviceId));
+      filtered = services.filter(s => allowed.has(s.id));
+    }
+  }
+
+  res.json(filtered.map((s) => ({ ...s, createdAt: s.createdAt.toISOString() })));
 });
 
 router.post("/business/services", requireBusinessAuth, async (req, res): Promise<void> => {
