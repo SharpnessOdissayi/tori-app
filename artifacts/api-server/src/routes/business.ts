@@ -1316,12 +1316,12 @@ router.post("/business/broadcast", requireBusinessAuth, async (req, res): Promis
     phones = [...new Set(rows.map(r => r.phoneNumber).filter(Boolean))];
   }
 
-  // Drop anyone who's not an 'active' row in broadcast_subscribers. That
-  // table is the single source of truth for who can receive marketing:
-  //   · 'active'       → send
+  // Block ONLY phones that explicitly opted out in broadcast_subscribers:
   //   · 'unsubscribed' → skip (owner manually removed OR replied 'הסר'
   //                              OR clicked the Inforu opt-out link)
-  //   · row missing    → skip (never booked + never manually added)
+  //   · 'active' / missing → send (customer relationship = legal basis
+  //                                 under תיקון 40 for transactional /
+  //                                 relationship marketing)
   //
   // Normalisation handles 050 / 972 / +972 variants — the subscriber
   // table stores whatever form the booking endpoint originally saved.
@@ -1329,16 +1329,15 @@ router.post("/business/broadcast", requireBusinessAuth, async (req, res): Promis
     const normalize = (p: string) => p.replace(/\D/g, "").replace(/^972/, "0");
     const normalizedInputs = phones.map(normalize);
     const subRows = await db.execute(sql`
-      SELECT phone_number, status FROM broadcast_subscribers
-      WHERE business_id = ${businessId}
+      SELECT phone_number FROM broadcast_subscribers
+      WHERE business_id = ${businessId} AND status = 'unsubscribed'
     `);
-    const activeSet = new Set<string>();
+    const unsubSet = new Set<string>();
     for (const r of (subRows as any).rows ?? []) {
-      if (r.status !== "active") continue;
       const norm = normalize(String(r.phone_number ?? ""));
-      if (norm) activeSet.add(norm);
+      if (norm) unsubSet.add(norm);
     }
-    phones = phones.filter((_, i) => activeSet.has(normalizedInputs[i]));
+    phones = phones.filter((_, i) => !unsubSet.has(normalizedInputs[i]));
   }
 
   // Cap at remaining quota

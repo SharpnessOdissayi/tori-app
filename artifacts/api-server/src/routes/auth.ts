@@ -741,6 +741,57 @@ router.post("/auth/business/sms-login/send", async (req, res): Promise<void> => 
   }
 });
 
+// POST /auth/business/google-auth — Google Sign-In for existing business owners
+//
+// Accepts a Google ID token (credential) from the GIS client. Verifies it
+// against Google's tokeninfo endpoint, then looks up a business by its
+// registered email. Issues the same JWT the password / SMS paths mint.
+//
+// No auto-signup — if no business has this email we return 404 with a
+// friendly message. Registration still has to go through the SMS-verified
+// form (which gates on phone, not email), keeping the "one phone = one
+// business" invariant the rest of the app relies on.
+router.post("/auth/business/google-auth", async (req, res): Promise<void> => {
+  const { credential } = req.body ?? {};
+  if (!credential || typeof credential !== "string") {
+    res.status(400).json({ error: "Google token חסר" }); return;
+  }
+
+  try {
+    const infoRes = await fetch(`https://oauth2.googleapis.com/tokeninfo?id_token=${encodeURIComponent(credential)}`);
+    const info = await infoRes.json() as { sub?: string; email?: string; aud?: string };
+    const googleClientId = process.env.GOOGLE_CLIENT_ID;
+    // aud must match our GOOGLE_CLIENT_ID if configured — otherwise anyone
+    // could mint a token on their own client ID and hand it to us.
+    if (!infoRes.ok || !info.sub || !info.email || (googleClientId && info.aud !== googleClientId)) {
+      res.status(400).json({ error: "Google token לא תקין" }); return;
+    }
+    const email = String(info.email).toLowerCase();
+
+    const [business] = await db
+      .select()
+      .from(businessesTable)
+      .where(eq(businessesTable.email, email));
+    if (!business) {
+      res.status(404).json({
+        error: "no_business",
+        message: "לא נמצא עסק עם האימייל הזה. הירשמ/י תחילה או התחבר/י עם טלפון.",
+      });
+      return;
+    }
+    if (!business.isActive) {
+      res.status(403).json({ error: "account_suspended", message: "החשבון מושהה. צור קשר עם התמיכה." });
+      return;
+    }
+
+    const token = signBusinessToken({ businessId: business.id, email: business.email });
+    res.json(buildLoginResponse(business, token));
+  } catch (e: any) {
+    console.error("[business/google-auth] failed:", e?.message ?? e);
+    res.status(500).json({ error: "שגיאת Google" });
+  }
+});
+
 router.post("/auth/business/sms-login/verify", async (req, res): Promise<void> => {
   const { phone, code } = req.body ?? {};
   if (!phone || !code) { res.status(400).json({ error: "שדות חסרים" }); return; }

@@ -151,25 +151,26 @@ router.post("/sms/send-bulk", async (req, res): Promise<void> => {
     return;
   }
 
-  // Keep only recipients who are 'active' in this business's subscriber
-  // table. Same model the /business/broadcast path uses:
-  //   · missing / 'unsubscribed' → skip
-  //   · 'active'                 → send
-  // This is the single source of truth for broadcast permission across
-  // both send endpoints.
+  // Block ONLY recipients who explicitly unsubscribed (replied 'הסר',
+  // clicked Inforu's opt-out link, or were removed manually by the owner).
+  // Missing rows are treated as implicitly allowed — the existing customer
+  // relationship provides legal basis under Israeli spam law (תיקון 40)
+  // for transactional / relationship marketing. Previously we required
+  // an explicit 'active' row and silently dropped everyone else, which
+  // meant sends to customers who booked before the subscriber table
+  // existed came back "sent to 0" even though the UI said "sending to N".
   const normalizeForSub = (p: string) => p.replace(/\D/g, "").replace(/^972/, "0");
   const subRows = await db.execute(sql`
     SELECT phone_number, status FROM broadcast_subscribers
-    WHERE business_id = ${businessId}
+    WHERE business_id = ${businessId} AND status = 'unsubscribed'
   `);
-  const activeSet = new Set<string>();
+  const unsubSet = new Set<string>();
   for (const r of ((subRows as any).rows ?? [])) {
-    if ((r as any).status !== "active") continue;
     const norm = normalizeForSub(String((r as any).phone_number ?? ""));
-    if (norm) activeSet.add(norm);
+    if (norm) unsubSet.add(norm);
   }
   const recipients = recipientsBeforeFilter.filter(
-    p => activeSet.has(normalizeForSub(p)),
+    p => !unsubSet.has(normalizeForSub(p)),
   );
   const droppedForOptOut = recipientsBeforeFilter.length - recipients.length;
 
