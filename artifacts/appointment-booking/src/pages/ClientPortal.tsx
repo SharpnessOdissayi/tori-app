@@ -112,11 +112,15 @@ function TodayCalendarIcon() {
 }
 
 function LoginScreen({ onLogin }: { onLogin: (token: string, name: string) => void }) {
-  // Pre-fill the phone with the last remembered value from a previous
-  // portal login on this device. Stored under a client-specific key so
-  // it never mixes with business-owner or super-admin credentials.
+  // Pre-fill phone + email with the last remembered values from a previous
+  // portal login on this device. Stored under client-specific keys so they
+  // never mix with business-owner or super-admin credentials.
   const [phone, setPhone] = useState(() => {
     try { return localStorage.getItem("kavati_client_last_phone") ?? ""; }
+    catch { return ""; }
+  });
+  const [email, setEmail] = useState(() => {
+    try { return localStorage.getItem("kavati_client_last_email") ?? ""; }
     catch { return ""; }
   });
   const [code, setCode] = useState("");
@@ -125,25 +129,38 @@ function LoginScreen({ onLogin }: { onLogin: (token: string, name: string) => vo
   const [remember, setRemember] = useState(true);
   const { toast } = useToast();
 
-  const rememberPhone = () => {
-    if (remember) localStorage.setItem("kavati_client_last_phone", phone.trim());
-    else          localStorage.removeItem("kavati_client_last_phone");
+  const rememberInputs = () => {
+    if (remember) {
+      localStorage.setItem("kavati_client_last_phone", phone.trim());
+      localStorage.setItem("kavati_client_last_email", email.trim().toLowerCase());
+    } else {
+      localStorage.removeItem("kavati_client_last_phone");
+      localStorage.removeItem("kavati_client_last_email");
+    }
   };
 
   const storeToken = (token: string) =>
     (remember ? localStorage : sessionStorage).setItem(TOKEN_KEY, token);
 
+  // Email-OTP flow (interim — Meta WhatsApp Auth template still pending review).
+  // Once approved, swap back to /client/send-otp + /client/verify-otp.
+  const isEmailValid = (e: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e.trim());
   const sendOtp = async () => {
     if (!phone.trim()) { toast({ title: "הכנס מספר טלפון", variant: "destructive" }); return; }
+    if (!isEmailValid(email)) { toast({ title: "אימייל לא תקין", variant: "destructive" }); return; }
     setLoading(true);
     try {
-      const res = await fetch(`${API}/client/send-otp`, {
+      const res = await fetch(`${API}/client/send-email-otp`, {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ phone: phone.trim() }),
+        body: JSON.stringify({ email: email.trim().toLowerCase() }),
       });
-      if (!res.ok) throw new Error();
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        toast({ title: data.error ?? "שגיאה בשליחת קוד", variant: "destructive" });
+        return;
+      }
       setStep("otp");
-      toast({ title: "קוד נשלח לווצאפ שלך" });
+      toast({ title: "קוד נשלח לאימייל שלך" });
     } catch { toast({ title: "שגיאה בשליחת קוד", variant: "destructive" }); }
     finally { setLoading(false); }
   };
@@ -152,14 +169,18 @@ function LoginScreen({ onLogin }: { onLogin: (token: string, name: string) => vo
     if (!code.trim()) return;
     setLoading(true);
     try {
-      const res = await fetch(`${API}/client/verify-otp`, {
+      const res = await fetch(`${API}/client/verify-email-otp`, {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ phone: phone.trim(), code: code.trim() }),
+        body: JSON.stringify({
+          email: email.trim().toLowerCase(),
+          phone: phone.trim(),
+          code: code.trim(),
+        }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error);
       storeToken(data.token);
-      rememberPhone();
+      rememberInputs();
       onLogin(data.token, data.clientName);
     } catch (e: any) { toast({ title: e?.message ?? "קוד שגוי", variant: "destructive" }); }
     finally { setLoading(false); }
@@ -263,9 +284,19 @@ function LoginScreen({ onLogin }: { onLogin: (token: string, name: string) => vo
                 className="w-full rounded-xl border border-gray-200 px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 text-center"
               />
             </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-gray-700">אימייל</label>
+              <input
+                type="email" dir="ltr" value={email}
+                onChange={e => setEmail(e.target.value)}
+                onKeyDown={e => e.key === "Enter" && sendOtp()}
+                placeholder="name@example.com"
+                className="w-full rounded-xl border border-gray-200 px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 text-center"
+              />
+            </div>
             <button onClick={sendOtp} disabled={loading}
               className="w-full py-3 rounded-xl bg-blue-500 text-white font-semibold text-sm hover:bg-blue-600 disabled:opacity-50 transition-all">
-              {loading ? "שולח..." : <span dir="rtl">שלח קוד <span dir="ltr">WhatsApp</span></span>}
+              {loading ? "שולח..." : "שלח קוד אימות למייל"}
             </button>
             <label className="flex items-center gap-2 cursor-pointer select-none justify-end mt-1">
               <span className="text-sm text-gray-500">זכור אותי</span>
@@ -284,7 +315,7 @@ function LoginScreen({ onLogin }: { onLogin: (token: string, name: string) => vo
         ) : (
           <div className="space-y-4">
             <div className="p-3 bg-blue-50 rounded-xl text-center text-sm text-blue-600">
-              קוד נשלח לווצאפ {phone}
+              קוד נשלח למייל <span dir="ltr">{email}</span>
             </div>
             <div className="space-y-2">
               <label className="text-sm font-medium text-gray-700">קוד אימות</label>
@@ -296,6 +327,9 @@ function LoginScreen({ onLogin }: { onLogin: (token: string, name: string) => vo
                 className="w-full rounded-xl border border-gray-200 px-4 py-3 text-xl font-mono text-center tracking-widest focus:outline-none focus:ring-2 focus:ring-blue-500"
                 autoFocus
               />
+              <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 mt-1">
+                ⚠️ הקוד עשוי להגיע לתיקיית הספאם — בדוק/י גם שם.
+              </p>
             </div>
             <button onClick={verifyOtp} disabled={loading}
               className="w-full py-3 rounded-xl bg-blue-500 text-white font-semibold text-sm hover:bg-blue-600 disabled:opacity-50 transition-all">

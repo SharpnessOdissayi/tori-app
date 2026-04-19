@@ -437,6 +437,11 @@ export default function Book({ slugOverride }: { slugOverride?: string } = {}) {
   const [showPortalLogin, setShowPortalLogin] = useState(false);
   const [portalLoginStep, setPortalLoginStep] = useState<"phone" | "otp">("phone");
   const [portalPhone, setPortalPhone] = useState("");
+  // Email is required alongside phone — the interim email-OTP flow uses
+  // it as the verification channel (Meta WhatsApp Auth template still
+  // pending review). Once approved, we'll switch back to WA OTP and email
+  // becomes optional.
+  const [portalEmail, setPortalEmail] = useState("");
   const [portalOtpCode, setPortalOtpCode] = useState("");
   const [portalLoading, setPortalLoading] = useState(false);
   const [gateGoogleLoading, setGateGoogleLoading] = useState(false);
@@ -1068,17 +1073,23 @@ export default function Book({ slugOverride }: { slugOverride?: string } = {}) {
     </div>
   );
 
+  const isPortalEmailValid = (e: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e.trim());
   const handlePortalSendOtp = async () => {
     if (!portalPhone.trim()) return;
+    if (!isPortalEmailValid(portalEmail)) { toast({ title: "אימייל לא תקין", variant: "destructive" }); return; }
     setPortalLoading(true);
     try {
-      const res = await fetch(`${API_BASE}/client/send-otp`, {
+      const res = await fetch(`${API_BASE}/client/send-email-otp`, {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ phone: portalPhone.trim() }),
+        body: JSON.stringify({ email: portalEmail.trim().toLowerCase() }),
       });
-      if (!res.ok) throw new Error();
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        toast({ title: data.error ?? "שגיאה בשליחת קוד", variant: "destructive" });
+        return;
+      }
       setPortalLoginStep("otp");
-      toast({ title: "קוד נשלח לווצאפ שלך" });
+      toast({ title: "קוד נשלח לאימייל שלך" });
     } catch { toast({ title: "שגיאה בשליחת קוד", variant: "destructive" }); }
     finally { setPortalLoading(false); }
   };
@@ -1088,9 +1099,13 @@ export default function Book({ slugOverride }: { slugOverride?: string } = {}) {
     setPortalLoading(true);
     const shouldRemember = gateRememberMe ?? rememberMe;
     try {
-      const res = await fetch(`${API_BASE}/client/verify-otp`, {
+      const res = await fetch(`${API_BASE}/client/verify-email-otp`, {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ phone: portalPhone.trim(), code: portalOtpCode.trim() }),
+        body: JSON.stringify({
+          email: portalEmail.trim().toLowerCase(),
+          phone: portalPhone.trim(),
+          code: portalOtpCode.trim(),
+        }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error);
@@ -1167,9 +1182,29 @@ export default function Book({ slugOverride }: { slugOverride?: string } = {}) {
                     className="h-11"
                   />
                 </div>
+                <div>
+                  <Label className="text-sm mb-1.5 block">אימייל</Label>
+                  <Input
+                    type="email" dir="ltr" placeholder="name@example.com"
+                    value={portalEmail}
+                    onChange={e => setPortalEmail(e.target.value)}
+                    onKeyDown={e => e.key === "Enter" && handlePortalSendOtp()}
+                    className="h-11"
+                  />
+                </div>
+                {/* "Continue without login" — moved here per owner request and
+                    styled as a strong-blue link so it reads as clickable. */}
+                <button
+                  type="button"
+                  onClick={() => setShowLoginGate(false)}
+                  className="w-full text-center text-sm font-bold underline underline-offset-2 hover:no-underline transition-colors"
+                  style={{ color: "#1e6fcf" }}
+                >
+                  המשך ללא התחברות
+                </button>
                 <Button className="w-full h-11" style={{ backgroundColor: primaryColor }}
-                  onClick={handlePortalSendOtp} disabled={portalLoading || !portalPhone.trim()}>
-                  {portalLoading ? "שולח..." : "שלח קוד לווצאפ"}
+                  onClick={handlePortalSendOtp} disabled={portalLoading || !portalPhone.trim() || !portalEmail.trim()}>
+                  {portalLoading ? "שולח..." : "שלח קוד אימות למייל"}
                 </Button>
               </div>
             ) : (
@@ -1183,7 +1218,10 @@ export default function Book({ slugOverride }: { slugOverride?: string } = {}) {
                     onKeyDown={e => e.key === "Enter" && handlePortalVerifyOtp(rememberMe)}
                     className="h-11 text-center tracking-[0.4em] font-bold text-xl"
                   />
-                  <p className="text-xs text-muted-foreground mt-1">שלחנו קוד לווצאפ שלך</p>
+                  <p className="text-xs text-muted-foreground mt-1">שלחנו קוד לאימייל שלך</p>
+                  <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 mt-2">
+                    ⚠️ הקוד עשוי להגיע לתיקיית הספאם — בדוק/י גם שם.
+                  </p>
                 </div>
                 {/* Remember me */}
                 <label className="flex items-center gap-2 cursor-pointer select-none">
@@ -1202,7 +1240,7 @@ export default function Book({ slugOverride }: { slugOverride?: string } = {}) {
                 </Button>
                 <button className="text-xs text-muted-foreground hover:text-foreground w-full text-center"
                   onClick={() => { setPortalLoginStep("phone"); setPortalOtpCode(""); }}>
-                  ← שינוי מספר
+                  ← חזור
                 </button>
               </div>
             )}
@@ -1237,14 +1275,6 @@ export default function Book({ slugOverride }: { slugOverride?: string } = {}) {
               )}
 
               {/* Facebook login hidden — pending Meta App Review */}
-
-              <button
-                className="w-full h-11 rounded-lg border text-sm font-medium transition-colors hover:bg-gray-50"
-                style={{ borderColor: "#e5e7eb", color: "#6b7280" }}
-                onClick={() => setShowLoginGate(false)}
-              >
-                המשך ללא התחברות
-              </button>
             </div>
           </div>
         </div>
