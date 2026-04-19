@@ -104,6 +104,20 @@ function getBusinessId(authHeader: string): number | null {
   }
 }
 
+// Returns the staffMemberId baked into a staff JWT, or null for owner tokens.
+// Used to scope PATCH operations so a staff member can only modify their own
+// row (avatar, etc.) without being able to mutate other workers' records.
+function getStaffMemberId(authHeader: string): number | null {
+  const token = authHeader.startsWith("Bearer ") ? authHeader.slice(7) : "";
+  if (!token) return null;
+  try {
+    const payload = jwt.verify(token, JWT_SECRET) as { staffMemberId?: number };
+    return payload.staffMemberId ?? null;
+  } catch {
+    return null;
+  }
+}
+
 function planSeatCap(plan: string): number {
   // Seat caps per tier. See register page + docs.
   if (plan === "pro-plus") return 5; // 2 included + up to 3 paid extras
@@ -314,15 +328,29 @@ router.patch("/staff/:id", async (req, res): Promise<void> => {
   const staffId = Number(req.params.id);
   if (!staffId) { res.status(400).json({ error: "Invalid id" }); return; }
 
+  // Staff-token callers can only edit their OWN row, and only avatarUrl.
+  // Owner tokens (no staffMemberId on the JWT) keep full edit access.
+  const callerStaffId = getStaffMemberId(req.headers.authorization ?? "");
+  const isStaffCaller = callerStaffId !== null;
+  if (isStaffCaller && callerStaffId !== staffId) {
+    res.status(403).json({ error: "forbidden" });
+    return;
+  }
+
   const body = req.body as Record<string, unknown>;
   const updates: Record<string, unknown> = {};
-  if (typeof body.name      === "string") updates.name      = body.name.trim();
-  if (typeof body.phone     === "string" || body.phone === null) updates.phone = body.phone || null;
-  if (typeof body.email     === "string" || body.email === null) updates.email = body.email || null;
-  if (typeof body.avatarUrl === "string" || body.avatarUrl === null) updates.avatarUrl = body.avatarUrl || null;
-  if (typeof body.color     === "string" || body.color === null) updates.color = body.color || null;
-  if (typeof body.isActive  === "boolean") updates.isActive = body.isActive;
-  if (typeof body.sortOrder === "number")  updates.sortOrder = body.sortOrder;
+  if (isStaffCaller) {
+    // Strict allowlist: staff can only swap their own profile photo.
+    if (typeof body.avatarUrl === "string" || body.avatarUrl === null) updates.avatarUrl = body.avatarUrl || null;
+  } else {
+    if (typeof body.name      === "string") updates.name      = body.name.trim();
+    if (typeof body.phone     === "string" || body.phone === null) updates.phone = body.phone || null;
+    if (typeof body.email     === "string" || body.email === null) updates.email = body.email || null;
+    if (typeof body.avatarUrl === "string" || body.avatarUrl === null) updates.avatarUrl = body.avatarUrl || null;
+    if (typeof body.color     === "string" || body.color === null) updates.color = body.color || null;
+    if (typeof body.isActive  === "boolean") updates.isActive = body.isActive;
+    if (typeof body.sortOrder === "number")  updates.sortOrder = body.sortOrder;
+  }
 
   // Seat cap check: if we're reactivating an inactive row, ensure cap isn't
   // already full. Doesn't matter for rename/phone edits.

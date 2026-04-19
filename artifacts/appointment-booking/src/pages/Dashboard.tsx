@@ -772,7 +772,18 @@ function OnboardingTour({ onComplete, onTabChange }: { onComplete: () => void; o
 type AuthMe = {
   businessId: number;
   businessName: string;
-  staff: { id: number; name: string; isOwner: boolean; email: string | null; phone: string | null } | null;
+  staff: {
+    id: number;
+    name: string;
+    isOwner: boolean;
+    email: string | null;
+    phone: string | null;
+    avatarUrl: string | null;
+    // True until the staff successfully calls /change-password — clears
+    // credentialsSentAt server-side. Drives the force-change modal that
+    // pops on first staff login with the welcome-email temp password.
+    mustChangePassword: boolean;
+  } | null;
 };
 
 export default function Dashboard() {
@@ -784,6 +795,17 @@ export default function Dashboard() {
   // to this staff member and admin-only tabs (settings/billing/analytics/
   // export/customers/staff) are hidden from the nav.
   const [authMe, setAuthMe] = useState<AuthMe | null>(null);
+  // Re-pulls /auth/me. Called after a forced password change so the staff's
+  // mustChangePassword flag flips and the modal closes itself.
+  const refreshAuthMe = async () => {
+    if (!token) return;
+    try {
+      const res = await fetch("/api/auth/me", { headers: { Authorization: `Bearer ${token}` } });
+      if (!res.ok) return;
+      const json = await res.json();
+      setAuthMe(json);
+    } catch {}
+  };
   useEffect(() => {
     if (!token) { setAuthMe(null); return; }
     let cancelled = false;
@@ -850,7 +872,42 @@ export default function Dashboard() {
   // (e.g. "settings" cached from a previous owner login on the same
   // browser) should bounce to the appointments tab so they don't sit on
   // a blank/permission-denied screen.
-  const STAFF_ALLOWED_TABS = ["home", "appointments", "approvals", "services", "hours", "waitlist"];
+  const STAFF_ALLOWED_TABS = ["home", "appointments", "approvals", "services", "hours", "waitlist", "staff"];
+
+  // ─── Force-change-password modal state (staff first-login flow) ──────────
+  // Shown the moment authMe.staff.mustChangePassword is true. Backend clears
+  // it after a successful POST /auth/business/change-password (staff branch).
+  const [forcePwForm, setForcePwForm] = useState({ current: "", next: "", confirm: "" });
+  const [forcePwSaving, setForcePwSaving] = useState(false);
+  const [forcePwError, setForcePwError] = useState<string | null>(null);
+  const mustChangePassword = !!authMe?.staff?.mustChangePassword;
+  const handleForcePwSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setForcePwError(null);
+    if (forcePwForm.next.length < 6) {
+      setForcePwError("הסיסמה חייבת לפחות 6 תווים"); return;
+    }
+    if (forcePwForm.next !== forcePwForm.confirm) {
+      setForcePwError("הסיסמאות לא תואמות"); return;
+    }
+    setForcePwSaving(true);
+    try {
+      const res = await fetch("/api/auth/business/change-password", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ currentPassword: forcePwForm.current, newPassword: forcePwForm.next }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setForcePwError(data.message ?? "שגיאה בשינוי סיסמה");
+        return;
+      }
+      setForcePwForm({ current: "", next: "", confirm: "" });
+      await refreshAuthMe();
+    } finally {
+      setForcePwSaving(false);
+    }
+  };
   useEffect(() => {
     if (isStaffMode && !STAFF_ALLOWED_TABS.includes(activeTab)) {
       setActiveTab("appointments");
@@ -964,6 +1021,62 @@ export default function Dashboard() {
     <div className="portal-dark-scope min-h-screen bg-muted/30" dir="rtl"
       style={{ fontFamily: "'Rubik', sans-serif" }}
     >
+      {/* Force-change-password modal — fired the first time a staff member
+          logs in with the auto-generated welcome-email password. Cannot be
+          dismissed; closes itself after refreshAuthMe() reflects the
+          mustChangePassword flag flipping to false. */}
+      {mustChangePassword && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 px-4">
+          <div className="bg-background rounded-2xl shadow-2xl p-6 w-full max-w-sm space-y-4" dir="rtl">
+            <div className="text-center space-y-1">
+              <div className="w-12 h-12 mx-auto rounded-full bg-amber-100 text-amber-700 flex items-center justify-center text-xl">🔐</div>
+              <h2 className="text-lg font-bold">שינוי סיסמה הראשון</h2>
+              <p className="text-xs text-muted-foreground">
+                התחברת עם הסיסמה הזמנית. בחר/י סיסמה חדשה כדי להמשיך.
+              </p>
+            </div>
+            <form onSubmit={handleForcePwSubmit} className="space-y-3">
+              <div>
+                <Label className="text-xs">סיסמה זמנית (מהמייל)</Label>
+                <Input
+                  type="password" autoFocus dir="ltr"
+                  value={forcePwForm.current}
+                  onChange={e => setForcePwForm(p => ({ ...p, current: e.target.value }))}
+                  required
+                />
+              </div>
+              <div>
+                <Label className="text-xs">סיסמה חדשה (מינימום 6 תווים)</Label>
+                <Input
+                  type="password" dir="ltr"
+                  value={forcePwForm.next}
+                  onChange={e => setForcePwForm(p => ({ ...p, next: e.target.value }))}
+                  required minLength={6}
+                />
+              </div>
+              <div>
+                <Label className="text-xs">אישור סיסמה חדשה</Label>
+                <Input
+                  type="password" dir="ltr"
+                  value={forcePwForm.confirm}
+                  onChange={e => setForcePwForm(p => ({ ...p, confirm: e.target.value }))}
+                  required minLength={6}
+                />
+              </div>
+              {forcePwError && (
+                <div className="text-xs text-rose-600 bg-rose-50 border border-rose-200 rounded-lg px-3 py-2">{forcePwError}</div>
+              )}
+              <Button type="submit" disabled={forcePwSaving} className="w-full h-11">
+                {forcePwSaving ? "שומר..." : "החלף סיסמה והמשך"}
+              </Button>
+              <p className="text-[11px] text-center text-muted-foreground">
+                לא ניתן לסגור — חובה לעדכן סיסמה לפני המשך השימוש.
+              </p>
+            </form>
+          </div>
+        </div>
+      )}
+
       {showTour && (
         <OnboardingTour
           onComplete={completeTour}
@@ -1131,16 +1244,19 @@ export default function Dashboard() {
                   <TabsTrigger value="integrations" className="gap-1.5 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground whitespace-nowrap">
                     <Phone className="w-4 h-4" /> הודעות ותזכורות {!isProPlan && <ProShine />}
                   </TabsTrigger>
-                  {/* עסקי-only tabs — always visible so Pro users know what
-                      they'd unlock by upgrading. Clicking on Pro routes to
-                      the upgrade prompt; on עסקי routes to the real feature. */}
-                  <TabsTrigger value="staff" className="gap-1.5 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground whitespace-nowrap">
-                    <Users className="w-4 h-4" /> צוות {!isProPlusPlan && <ProShine />}
-                  </TabsTrigger>
-                  <TabsTrigger value="analytics-pro" className="gap-1.5 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground whitespace-nowrap">
-                    <TrendingUp className="w-4 h-4" /> אנליטיקה {!isProPlusPlan && <ProShine />}
-                  </TabsTrigger>
                 </>
+              )}
+              {/* עסקי-only "צוות" tab — visible to BOTH owners and staff so
+                  staff can update their own profile photo from the same UI.
+                  Backend PATCH /staff/:id enforces "only own row, only
+                  avatarUrl" for staff tokens. */}
+              <TabsTrigger value="staff" className="gap-1.5 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground whitespace-nowrap">
+                <Users className="w-4 h-4" /> צוות {!isProPlusPlan && !isStaffMode && <ProShine />}
+              </TabsTrigger>
+              {!isStaffMode && (
+                <TabsTrigger value="analytics-pro" className="gap-1.5 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground whitespace-nowrap">
+                  <TrendingUp className="w-4 h-4" /> אנליטיקה {!isProPlusPlan && <ProShine />}
+                </TabsTrigger>
               )}
               {!isStaffMode && (
                 <TabsTrigger value="data-export" className="gap-1.5 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground whitespace-nowrap">
@@ -1237,7 +1353,7 @@ export default function Dashboard() {
               { value: "receipts",     icon: <FileText className="w-6 h-6" />,  label: "קבלות",         staffAllowed: false },
               { value: "branding",     icon: <Palette className="w-6 h-6" />,   label: "עיצוב",         staffAllowed: false },
               { value: "integrations",   icon: <Phone className="w-6 h-6" />,       label: "הודעות ותזכורות", staffAllowed: false },
-              { value: "staff",          icon: <Users className="w-6 h-6" />,       label: "צוות",           staffAllowed: false },
+              { value: "staff",          icon: <Users className="w-6 h-6" />,       label: "צוות",           staffAllowed: true  },
               { value: "analytics-pro",  icon: <TrendingUp className="w-6 h-6" />,  label: "אנליטיקה",       staffAllowed: false },
               { value: "data-export",    icon: <Download className="w-6 h-6" />,    label: "ייצוא",          staffAllowed: false },
               { value: "settings",       icon: <Settings className="w-6 h-6" />,    label: "הגדרות",         staffAllowed: false },
@@ -8143,6 +8259,17 @@ function StaffTab() {
   const [newPhone, setNewPhone] = useState("");
   const [adding, setAdding] = useState(false);
   const [showGuide, setShowGuide] = useState(true);
+
+  // Staff-mode flag — when true, the caller is a non-owner staff member
+  // logged in with their own account. We hide the add-staff form, disable
+  // remove/invite-resend on other rows, and lock avatar upload to their own
+  // row only. Read from sessionStorage where Dashboard parks the staff id
+  // from /auth/me on every login.
+  const myStaffId = (() => {
+    try { const v = sessionStorage.getItem("kavati_staff_filter_id"); return v ? Number(v) : null; }
+    catch { return null; }
+  })();
+  const isStaffMode = myStaffId !== null;
   // Two dialogs:
   //   · billingConfirm — "you're about to add a paid extra, +₪25/mo"
   //   · selectedStaff  — per-row actions (calendar / WhatsApp / call / delete)
@@ -8455,6 +8582,7 @@ function StaffTab() {
       </Card>
 
       {/* ─── Add form ───────────────────────────────────────────────── */}
+      {!isStaffMode && (
       <Card>
         <CardHeader>
           <CardTitle className="text-base flex items-center gap-2">
@@ -8502,6 +8630,7 @@ function StaffTab() {
           </Button>
         </CardContent>
       </Card>
+      )}
 
       {/* ─── List ───────────────────────────────────────────────────── */}
       <div className="space-y-2">
@@ -8630,27 +8759,29 @@ function StaffTab() {
                         {selectedStaff.name.slice(0, 1)}
                       </div>
                     )}
-                    {/* Camera-style upload overlay — clicking the small badge
-                        opens the file picker. Disabled while a save is in
-                        flight so a double-click can't fire two PATCHes. */}
-                    <label
-                      className={`absolute -bottom-1 -left-1 w-7 h-7 rounded-full bg-white border shadow flex items-center justify-center cursor-pointer hover:bg-blue-50 transition-colors ${(avatarUpload.isUploading || savingAvatar) ? "opacity-60 pointer-events-none" : ""}`}
-                      title="שנה תמונת פרופיל"
-                    >
-                      {avatarUpload.isUploading || savingAvatar
-                        ? <RotateCw className="w-3.5 h-3.5 text-blue-600 animate-spin" />
-                        : <Upload className="w-3.5 h-3.5 text-blue-600" />}
-                      <input
-                        type="file"
-                        accept="image/*"
-                        className="hidden"
-                        onChange={e => {
-                          const f = e.target.files?.[0];
-                          if (f) avatarUpload.upload(f);
-                          e.target.value = "";
-                        }}
-                      />
-                    </label>
+                    {/* Camera-style upload overlay — owners can edit any
+                        staff photo; staff users can only edit their own
+                        (backend PATCH /staff/:id enforces this too). */}
+                    {(!isStaffMode || selectedStaff.id === myStaffId) && (
+                      <label
+                        className={`absolute -bottom-1 -left-1 w-7 h-7 rounded-full bg-white border shadow flex items-center justify-center cursor-pointer hover:bg-blue-50 transition-colors ${(avatarUpload.isUploading || savingAvatar) ? "opacity-60 pointer-events-none" : ""}`}
+                        title="שנה תמונת פרופיל"
+                      >
+                        {avatarUpload.isUploading || savingAvatar
+                          ? <RotateCw className="w-3.5 h-3.5 text-blue-600 animate-spin" />
+                          : <Upload className="w-3.5 h-3.5 text-blue-600" />}
+                        <input
+                          type="file"
+                          accept="image/*"
+                          className="hidden"
+                          onChange={e => {
+                            const f = e.target.files?.[0];
+                            if (f) avatarUpload.upload(f);
+                            e.target.value = "";
+                          }}
+                        />
+                      </label>
+                    )}
                   </div>
                   <div className="flex-1 min-w-0 text-right">
                     <DialogTitle className="truncate">{selectedStaff.name}</DialogTitle>
@@ -8663,14 +8794,16 @@ function StaffTab() {
               </DialogHeader>
 
               <div className="grid grid-cols-1 gap-2 pt-2">
-                <Button
-                  variant="outline"
-                  onClick={() => viewStaffCalendar(selectedStaff)}
-                  className="justify-start gap-3 h-12"
-                >
-                  <Calendar className="w-5 h-5 text-blue-600" />
-                  <span className="flex-1 text-right">צפה ביומן של {selectedStaff.name}</span>
-                </Button>
+                {!isStaffMode && (
+                  <Button
+                    variant="outline"
+                    onClick={() => viewStaffCalendar(selectedStaff)}
+                    className="justify-start gap-3 h-12"
+                  >
+                    <Calendar className="w-5 h-5 text-blue-600" />
+                    <span className="flex-1 text-right">צפה ביומן של {selectedStaff.name}</span>
+                  </Button>
+                )}
                 <Button
                   variant="outline"
                   onClick={() => openStaffWhatsApp(selectedStaff)}
@@ -8693,7 +8826,7 @@ function StaffTab() {
                     {selectedStaff.phone ? "התקשר" : "התקשר (אין טלפון)"}
                   </span>
                 </Button>
-                {!selectedStaff.isOwner && selectedStaff.email && (
+                {!isStaffMode && !selectedStaff.isOwner && selectedStaff.email && (
                   <Button
                     variant="outline"
                     onClick={() => handleResendInvite(selectedStaff.id)}
@@ -8710,7 +8843,7 @@ function StaffTab() {
                     )}
                   </Button>
                 )}
-                {!selectedStaff.isOwner && (
+                {!isStaffMode && !selectedStaff.isOwner && (
                   <Button
                     variant="outline"
                     onClick={() => handleRemove(selectedStaff.id)}

@@ -95,12 +95,25 @@ router.get("/auth/me", async (req, res): Promise<void> => {
   const [biz] = await db.select().from(businessesTable).where(eq(businessesTable.id, businessId));
   if (!biz) { res.status(404).json({ error: "Business not found" }); return; }
 
-  let staff: { id: number; name: string; isOwner: boolean; email: string | null; phone: string | null } | null = null;
+  let staff: { id: number; name: string; isOwner: boolean; email: string | null; phone: string | null; avatarUrl: string | null; mustChangePassword: boolean } | null = null;
   if (payload.staffMemberId) {
     const { staffMembersTable } = await import("@workspace/db");
     const [row] = await db.select().from(staffMembersTable).where(eq(staffMembersTable.id, payload.staffMemberId));
     if (row) {
-      staff = { id: row.id, name: row.name, isOwner: row.isOwner, email: row.email, phone: row.phone };
+      // mustChangePassword: when credentialsSentAt is set we know the staff
+      // is still on the auto-generated welcome-email password — they
+      // haven't successfully called /change-password yet, which clears the
+      // timestamp. Used by the dashboard to force a password change modal
+      // before any other interaction.
+      staff = {
+        id: row.id,
+        name: row.name,
+        isOwner: row.isOwner,
+        email: row.email,
+        phone: row.phone,
+        avatarUrl: (row as any).avatarUrl ?? null,
+        mustChangePassword: !!(row as any).credentialsSentAt,
+      };
     }
   }
 
@@ -386,6 +399,10 @@ router.post("/auth/email/verify", async (req, res): Promise<void> => {
 });
 
 // POST /auth/business/change-password — change own password
+// Branches on whether the caller is the business owner or a staff member:
+//   · staff token (staffMemberId set) → updates staff_members.password_hash
+//     and clears credentials_sent_at so /auth/me reports mustChangePassword=false
+//   · owner token → updates businesses.password_hash (legacy path)
 router.post("/auth/business/change-password", requireBusinessAuth, async (req, res): Promise<void> => {
   const parsed = parseChangePasswordBody(req.body);
   if (!parsed.success) {
@@ -394,6 +411,28 @@ router.post("/auth/business/change-password", requireBusinessAuth, async (req, r
   }
 
   const { currentPassword, newPassword } = parsed.data;
+
+  const staffMemberId = (req.business as any)?.staffMemberId;
+  if (staffMemberId) {
+    const { staffMembersTable } = await import("@workspace/db");
+    const [staff] = await db.select().from(staffMembersTable).where(eq(staffMembersTable.id, staffMemberId));
+    if (!staff || !(staff as any).passwordHash) {
+      res.status(404).json({ error: "Not found" });
+      return;
+    }
+    const valid = await bcrypt.compare(currentPassword, (staff as any).passwordHash);
+    if (!valid) {
+      res.status(401).json({ error: "wrong_password", message: "הסיסמה הנוכחית שגויה" });
+      return;
+    }
+    const passwordHash = await bcrypt.hash(newPassword, 10);
+    await db
+      .update(staffMembersTable)
+      .set({ passwordHash, credentialsSentAt: null } as any)
+      .where(eq(staffMembersTable.id, staffMemberId));
+    res.json({ success: true });
+    return;
+  }
 
   const [business] = await db.select().from(businessesTable).where(eq(businessesTable.id, req.business!.businessId));
   if (!business) {
