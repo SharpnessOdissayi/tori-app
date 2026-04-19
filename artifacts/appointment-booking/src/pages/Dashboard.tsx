@@ -881,44 +881,10 @@ export default function Dashboard() {
   // branding, broadcast, etc.) from the owner dashboard.
   const STAFF_ALLOWED_TABS = ["appointments", "approvals", "staff"];
 
-  // ─── Force-change-password modal state (staff first-login flow) ──────────
-  // Shown the moment authMe.staff.mustChangePassword is true. Backend clears
-  // credentialsSentAt after a successful change, which flips the flag to
-  // false on every subsequent /auth/me — so the modal appears exactly once
-  // per staff member, regardless of which device they finished the change on.
-  // Body: only the new password + confirmation. Re-verifying the temp
-  // password is skipped because the JWT already proves identity.
-  const [forcePwForm, setForcePwForm] = useState({ next: "", confirm: "" });
-  const [forcePwSaving, setForcePwSaving] = useState(false);
-  const [forcePwError, setForcePwError] = useState<string | null>(null);
-  const mustChangePassword = !!authMe?.staff?.mustChangePassword;
-  const handleForcePwSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setForcePwError(null);
-    if (forcePwForm.next.length < 6) {
-      setForcePwError("הסיסמה חייבת לפחות 6 תווים"); return;
-    }
-    if (forcePwForm.next !== forcePwForm.confirm) {
-      setForcePwError("הסיסמאות לא תואמות"); return;
-    }
-    setForcePwSaving(true);
-    try {
-      const res = await fetch("/api/auth/business/change-password", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ newPassword: forcePwForm.next }),
-      });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        setForcePwError(data.message ?? "שגיאה בשינוי סיסמה");
-        return;
-      }
-      setForcePwForm({ next: "", confirm: "" });
-      await refreshAuthMe();
-    } finally {
-      setForcePwSaving(false);
-    }
-  };
+  // Force-change-password flow removed — staff log in via phone + SMS
+  // OTP now, there's no temp password to replace. Legacy
+  // authMe.staff.mustChangePassword flags are ignored at the UI layer;
+  // they'll age out as the backend stops setting them.
   useEffect(() => {
     if (isStaffMode && !STAFF_ALLOWED_TABS.includes(activeTab)) {
       setActiveTab("appointments");
@@ -1046,52 +1012,9 @@ export default function Dashboard() {
     <div className="portal-dark-scope min-h-screen bg-muted/30" dir="rtl"
       style={{ fontFamily: "'Rubik', sans-serif" }}
     >
-      {/* Force-change-password modal — fired the first time a staff member
-          logs in with the auto-generated welcome-email password. Cannot be
-          dismissed; closes itself after refreshAuthMe() reflects the
-          mustChangePassword flag flipping to false. */}
-      {mustChangePassword && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 px-4">
-          <div className="bg-background rounded-2xl shadow-2xl p-6 w-full max-w-sm space-y-4" dir="rtl">
-            <div className="text-center space-y-1">
-              <div className="w-12 h-12 mx-auto rounded-full bg-amber-100 text-amber-700 flex items-center justify-center text-xl">🔐</div>
-              <h2 className="text-lg font-bold">בחר/י סיסמה חדשה</h2>
-              <p className="text-xs text-muted-foreground">
-                כדי לאבטח את החשבון, החלף/י את הסיסמה הזמנית בסיסמה משלך.
-              </p>
-            </div>
-            <form onSubmit={handleForcePwSubmit} className="space-y-3">
-              <div>
-                <Label className="text-xs">סיסמה חדשה (מינימום 6 תווים)</Label>
-                <Input
-                  type="password" autoFocus dir="ltr"
-                  value={forcePwForm.next}
-                  onChange={e => setForcePwForm(p => ({ ...p, next: e.target.value }))}
-                  required minLength={6}
-                />
-              </div>
-              <div>
-                <Label className="text-xs">אישור סיסמה חדשה</Label>
-                <Input
-                  type="password" dir="ltr"
-                  value={forcePwForm.confirm}
-                  onChange={e => setForcePwForm(p => ({ ...p, confirm: e.target.value }))}
-                  required minLength={6}
-                />
-              </div>
-              {forcePwError && (
-                <div className="text-xs text-rose-600 bg-rose-50 border border-rose-200 rounded-lg px-3 py-2">{forcePwError}</div>
-              )}
-              <Button type="submit" disabled={forcePwSaving} className="w-full h-11">
-                {forcePwSaving ? "שומר..." : "שמור והמשך"}
-              </Button>
-              <p className="text-[11px] text-center text-muted-foreground">
-                ההודעה הזו תופיע פעם אחת בלבד — לא תופיע שוב במכשירים אחרים.
-              </p>
-            </form>
-          </div>
-        </div>
-      )}
+      {/* Force-change-password modal removed — staff log in via SMS OTP
+          now, there's no temp password to replace. Legacy mustChangePassword
+          flags from older rows are ignored at the UI layer. */}
 
       {showTour && (
         <OnboardingTour
