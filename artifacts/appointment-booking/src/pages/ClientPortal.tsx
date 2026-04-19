@@ -319,7 +319,7 @@ function LoginScreen({ onLogin }: { onLogin: (token: string, name: string) => vo
                   onChange={e => setPhone(e.target.value)}
                   onKeyDown={e => e.key === "Enter" && sendOtp()}
                   placeholder=""
-                  className="w-full rounded-xl border border-gray-200 px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 text-center"
+                  className="w-full rounded-xl border border-gray-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 text-gray-900 dark:text-gray-100 px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 text-center"
                 />
               </div>
             ) : (
@@ -330,7 +330,7 @@ function LoginScreen({ onLogin }: { onLogin: (token: string, name: string) => vo
                   onChange={e => setEmail(e.target.value)}
                   onKeyDown={e => e.key === "Enter" && sendOtp()}
                   placeholder="name@example.com"
-                  className="w-full rounded-xl border border-gray-200 px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 text-center"
+                  className="w-full rounded-xl border border-gray-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 text-gray-900 dark:text-gray-100 px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 text-center"
                 />
               </div>
             )}
@@ -375,7 +375,7 @@ function LoginScreen({ onLogin }: { onLogin: (token: string, name: string) => vo
                 onChange={e => setCode(e.target.value.replace(/\D/g, ""))}
                 onKeyDown={e => e.key === "Enter" && verifyOtp()}
                 placeholder="123456"
-                className="w-full rounded-xl border border-gray-200 px-4 py-3 text-xl font-mono text-center tracking-widest focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full rounded-xl border border-gray-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 text-gray-900 dark:text-gray-100 px-4 py-3 text-xl font-mono text-center tracking-widest focus:outline-none focus:ring-2 focus:ring-blue-500"
                 autoFocus
               />
               {authMethod === "email" && (

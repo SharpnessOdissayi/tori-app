@@ -4655,6 +4655,204 @@ function RevenueTab() {
   );
 }
 
+// ─── BroadcastSubscriberPanel ─────────────────────────────────────────────
+// Shared between the Customers tab and the SmsTab "הודעות SMS תפוצה" card
+// — one UI for the whole product so the owner doesn't learn two flows.
+// Shows the subscriber list, lets the owner add a custom phone, and
+// flip each row between active / unsubscribed. Backend is
+// /business/broadcast-subscribers (GET/POST/DELETE/POST resubscribe).
+type BroadcastSubscriberRow = {
+  phoneNumber: string;
+  status: "active" | "unsubscribed";
+  source: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
+function BroadcastSubscriberPanel() {
+  const { toast } = useToast();
+  const [subscribers, setSubscribers] = useState<BroadcastSubscriberRow[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [search, setSearch] = useState("");
+  const [addInput, setAddInput] = useState("");
+  const [adding, setAdding] = useState(false);
+  const [filter, setFilter] = useState<"active" | "unsubscribed" | "all">("active");
+
+  const token = typeof window !== "undefined"
+    ? (localStorage.getItem("biz_token") ?? sessionStorage.getItem("biz_token") ?? "")
+    : "";
+
+  const load = async () => {
+    if (!token) return;
+    setLoading(true);
+    try {
+      const res = await fetch("/api/business/broadcast-subscribers", { headers: { Authorization: `Bearer ${token}` } });
+      if (!res.ok) throw new Error();
+      const json = await res.json();
+      setSubscribers(Array.isArray(json?.subscribers) ? json.subscribers : []);
+    } catch {
+      toast({ title: "שגיאה בטעינת רשימת התפוצה", variant: "destructive" });
+    } finally {
+      setLoading(false);
+    }
+  };
+  useEffect(() => { load(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, []);
+
+  const handleAdd = async () => {
+    const phone = addInput.trim();
+    if (!phone || !/^\+?\d[\d\- ]{7,}$/.test(phone)) {
+      toast({ title: "מספר טלפון לא תקין", variant: "destructive" });
+      return;
+    }
+    setAdding(true);
+    try {
+      const res = await fetch("/api/business/broadcast-subscribers", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ phoneNumber: phone }),
+      });
+      if (!res.ok) throw new Error();
+      toast({ title: "נוסף לרשימה" });
+      setAddInput("");
+      load();
+    } catch {
+      toast({ title: "שגיאה בהוספה", variant: "destructive" });
+    } finally {
+      setAdding(false);
+    }
+  };
+
+  const handleRemove = async (phone: string) => {
+    try {
+      const res = await fetch(`/api/business/broadcast-subscribers/${encodeURIComponent(phone)}`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) throw new Error();
+      toast({ title: "הוסר מרשימת התפוצה" });
+      load();
+    } catch {
+      toast({ title: "שגיאה בהסרה", variant: "destructive" });
+    }
+  };
+
+  const handleResubscribe = async (phone: string) => {
+    try {
+      const res = await fetch(`/api/business/broadcast-subscribers/${encodeURIComponent(phone)}/resubscribe`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) throw new Error();
+      toast({ title: "הוחזר לרשימה" });
+      load();
+    } catch {
+      toast({ title: "שגיאה בהחזרה", variant: "destructive" });
+    }
+  };
+
+  const activeCount       = subscribers.filter(s => s.status === "active").length;
+  const unsubscribedCount = subscribers.filter(s => s.status === "unsubscribed").length;
+  const searchDigits = search.replace(/\D/g, "");
+  const filtered = subscribers
+    .filter(s => filter === "all" ? true : s.status === filter)
+    .filter(s => !searchDigits || s.phoneNumber.replace(/\D/g, "").includes(searchDigits));
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <Send className="w-5 h-5 text-primary" /> רשימת תפוצה לשיווק
+        </CardTitle>
+        <CardDescription>
+          לקוחות שמקבלים הודעות SMS תפוצה. כל הזמנה חדשה מתווספת אוטומטית.
+          לקוח שמסיר את עצמו (דרך הקישור ב-SMS) מסומן אוטומטית כ"לא מנוי".
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        {/* Status tiles */}
+        <div className="grid grid-cols-2 gap-2">
+          <button
+            type="button"
+            onClick={() => setFilter("active")}
+            className={`text-right px-3 py-2 rounded-xl border transition-all ${filter === "active" ? "border-primary bg-primary/5 ring-2 ring-primary/20" : "border-border hover:bg-muted/30"}`}
+          >
+            <div className="text-xs text-muted-foreground">פעילים</div>
+            <div className="text-2xl font-bold text-green-600">{activeCount}</div>
+          </button>
+          <button
+            type="button"
+            onClick={() => setFilter("unsubscribed")}
+            className={`text-right px-3 py-2 rounded-xl border transition-all ${filter === "unsubscribed" ? "border-primary bg-primary/5 ring-2 ring-primary/20" : "border-border hover:bg-muted/30"}`}
+          >
+            <div className="text-xs text-muted-foreground">לא מנויים</div>
+            <div className="text-2xl font-bold text-muted-foreground">{unsubscribedCount}</div>
+          </button>
+        </div>
+
+        {/* Add manual phone */}
+        <div className="space-y-2">
+          <Label className="text-sm">הוסף מספר ידנית</Label>
+          <div className="flex gap-2">
+            <Input
+              dir="ltr"
+              value={addInput}
+              onChange={e => setAddInput(e.target.value)}
+              onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); handleAdd(); } }}
+              placeholder="0501234567"
+              className="flex-1"
+            />
+            <Button type="button" onClick={handleAdd} disabled={adding || !addInput.trim()} className="shrink-0 gap-1">
+              <Plus className="w-4 h-4" /> הוסף
+            </Button>
+          </div>
+        </div>
+
+        {/* Search */}
+        <div className="relative">
+          <Search className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
+          <Input
+            dir="ltr"
+            placeholder="חפש לפי מספר..."
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            className="pr-9"
+          />
+        </div>
+
+        {/* List */}
+        {loading ? (
+          <div className="py-8 text-center text-sm text-muted-foreground">טוען...</div>
+        ) : filtered.length === 0 ? (
+          <div className="py-8 text-center text-sm text-muted-foreground">אין רשומות להצגה</div>
+        ) : (
+          <div className="space-y-1.5 max-h-96 overflow-y-auto">
+            {filtered.map(s => (
+              <div
+                key={s.phoneNumber}
+                className="flex items-center justify-between gap-2 p-3 border rounded-xl bg-card"
+              >
+                <div className="flex items-center gap-2 min-w-0">
+                  <span className={`w-2 h-2 rounded-full shrink-0 ${s.status === "active" ? "bg-green-500" : "bg-muted-foreground/40"}`} />
+                  <span className="font-mono text-sm" dir="ltr">{s.phoneNumber}</span>
+                </div>
+                {s.status === "active" ? (
+                  <Button type="button" size="sm" variant="outline" onClick={() => handleRemove(s.phoneNumber)} className="shrink-0 text-destructive border-destructive/30 hover:bg-destructive/5">
+                    הסר
+                  </Button>
+                ) : (
+                  <Button type="button" size="sm" variant="outline" onClick={() => handleResubscribe(s.phoneNumber)} className="shrink-0">
+                    החזר
+                  </Button>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
 function CustomersTab() {
   const { data: customers, isLoading } = useListBusinessCustomers();
   const { data: services } = useListBusinessServices();
@@ -5061,6 +5259,11 @@ function CustomersTab() {
             merged Customers tab) — avoid duplicating the same number twice
             in the same scroll. */}
       </div>
+
+      {/* Broadcast subscriber management — shared component. Mounted here
+          so the owner manages their marketing list right next to the
+          customer list it's derived from. */}
+      <BroadcastSubscriberPanel />
 
       <Card>
         <CardHeader className="flex flex-row items-center justify-between">
@@ -8125,6 +8328,11 @@ function SmsBulkCard() {
 
   return (
     <>
+      {/* Subscriber list — same component the Customers tab uses. Keeps the
+          owner's marketing permission management in one shape across the
+          product so they don't learn two UIs. */}
+      <BroadcastSubscriberPanel />
+
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
