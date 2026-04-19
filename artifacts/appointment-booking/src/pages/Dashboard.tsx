@@ -1116,7 +1116,14 @@ export default function Dashboard() {
                 {(() => { const h = new Date().getHours(); return h < 12 ? "בוקר טוב! ☀️" : h < 17 ? "צהריים טובים! 🌤️" : h < 21 ? "ערב טוב! 🌆" : "לילה טוב! 🌙"; })()}
               </p>
               <p className="font-semibold text-sm" style={{ color: "#3c92f0" }}>
-                שלום {(headerProfile as any)?.ownerName?.split(" ")[0] ?? ""}
+                {/* Staff session → greet the staff by THEIR own name, not
+                    the business owner's. Owner was reporting "שלום אופק"
+                    still appeared after logging in as a non-owner staff
+                    because we were reading headerProfile.ownerName for
+                    everyone regardless of role. */}
+                שלום {isStaffMode
+                  ? (authMe?.staff?.name?.split(" ")[0] ?? "")
+                  : ((headerProfile as any)?.ownerName?.split(" ")[0] ?? "")}
               </p>
             </div>
             <button
