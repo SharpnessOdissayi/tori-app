@@ -4926,9 +4926,9 @@ function BroadcastSubscriberPanel({ onOpenBroadcast, canOpenBroadcast = true }: 
         </div>
 
         {/* Public opt-in link — shareable URL that lets anyone subscribe
-            themselves (even after a prior opt-out, because their fresh
-            click is the explicit positive consent required by תיקון 40).
-            Hidden until profile.slug loads since we need it for the URL. */}
+            themselves with SMS verification. The URL text is intentionally
+            hidden to keep the UI clean — owner rarely needs to see it,
+            just wants to paste into a DM or social post. */}
         {optInUrl && (
           <div className="rounded-xl border border-primary/20 bg-primary/5 p-3 space-y-2">
             <div className="flex items-center gap-2">
@@ -4936,20 +4936,11 @@ function BroadcastSubscriberPanel({ onOpenBroadcast, canOpenBroadcast = true }: 
               <div className="text-sm font-semibold">קישור הרשמה ציבורי</div>
             </div>
             <p className="text-xs text-muted-foreground leading-relaxed">
-              שתפ/י את הקישור בסטורי, מייל, או בכל מקום — מי שלחץ/ה ימלא/ מספר טלפון ויירשם/תירשם לקבלת הודעות שיווק מהעסק.
+              שתפ/י את הקישור במקום שבו לקוחות יגיעו — סטורי, מייל, ביו של אינסטגרם. לקוח/ה שילחצ/תלחץ יקבל/תקבל SMS עם קוד אימות וייכנס/תיכנס לרשימת התפוצה.
             </p>
-            <div className="flex gap-2">
-              <Input
-                readOnly
-                value={optInUrl}
-                dir="ltr"
-                onFocus={e => e.currentTarget.select()}
-                className="flex-1 text-xs font-mono"
-              />
-              <Button type="button" size="sm" onClick={copyOptInUrl} className="shrink-0 gap-1">
-                העתק
-              </Button>
-            </div>
+            <Button type="button" size="sm" onClick={copyOptInUrl} className="w-full gap-2">
+              <Send className="w-4 h-4" /> העתק קישור הרשמה
+            </Button>
           </div>
         )}
 
@@ -5018,9 +5009,16 @@ function BroadcastSubscriberPanel({ onOpenBroadcast, canOpenBroadcast = true }: 
                     הסר
                   </Button>
                 ) : ["unsub_link", "reply", "inforu_self_link"].includes(s.source) ? (
-                  // Customer-initiated opt-out — no "החזר" button at all.
-                  // Legal (תיקון 40) bar on owner reversal.
-                  null
+                  // Customer-initiated opt-out — owner can't revive them
+                  // directly (תיקון 40). Instead, let the owner copy the
+                  // public opt-in link to send the customer in WhatsApp
+                  // / SMS — if the customer clicks + verifies via SMS,
+                  // they self-resubscribe.
+                  optInUrl ? (
+                    <Button type="button" size="sm" variant="outline" onClick={copyOptInUrl} className="shrink-0 gap-1">
+                      <Send className="w-3.5 h-3.5" /> העתק קישור חזרה
+                    </Button>
+                  ) : null
                 ) : (
                   // Owner's own manual_remove — owner can undo.
                   <Button type="button" size="sm" variant="outline" onClick={() => handleResubscribe(s.phoneNumber)} className="shrink-0">

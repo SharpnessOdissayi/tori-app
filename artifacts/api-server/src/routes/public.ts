@@ -65,25 +65,22 @@ function escapeHtmlPublic(raw: string): string {
 // (reading 'get')" before any route could serve traffic.
 const router = Router();
 
-// ─── Broadcast opt-IN page (per business) ───────────────────────────────
-// URL: https://<host>/api/r/:businessSlug — the owner shares this link
-// wherever they want (social media, email signature, print, etc.).
-// A visitor enters their phone, confirms they own the number, and lands
-// in broadcast_subscribers with status='active'. Overrides any prior
-// opt-out for THIS business because the customer just performed an
-// explicit positive consent action — the condition תיקון 40 sets for
-// marketing contact.
-router.get("/r/:businessSlug", async (req, res): Promise<void> => {
-  const slug = String(req.params.businessSlug ?? "").trim();
-  if (!slug) {
-    res.status(400).set("Content-Type", "text/html; charset=utf-8").send(brandedPageShell(
-      "לא נמצא",
-      `<div class="icon" style="background:#fee2e2;color:#dc2626">✕</div>
-       <h1>קישור לא תקין</h1>`,
-      "#dc2626",
-    ));
-    return;
-  }
+// ─── Broadcast opt-IN page (per business, SMS-verified) ─────────────────
+// URL: https://<host>/api/r/:businessSlug — owner shares this link
+// wherever they want (WhatsApp, Instagram bio, email signature, etc.).
+//
+// Two-step flow (HTML forms, no JS required):
+//   1. GET  /api/r/:slug            → form asking for phone
+//   2. POST /api/r/:slug            → sends OTP via SMS + renders code form
+//   3. POST /api/r/:slug/verify     → verifies OTP + subscribes + success page
+//
+// The OTP step guards against someone maliciously opting in random
+// phone numbers — the recipient has to actually hold the phone to
+// complete the subscription. Also gives us cryptographic-grade proof
+// of consent (we can show "customer X verified phone ownership at
+// <timestamp>" if a תיקון 40 claim ever arises).
+async function loadBusinessForOptIn(slug: string) {
+  if (!slug) return null;
   const [biz] = await db
     .select({
       id: businessesTable.id,
@@ -93,6 +90,12 @@ router.get("/r/:businessSlug", async (req, res): Promise<void> => {
     })
     .from(businessesTable)
     .where(and(eq(businessesTable.slug, slug), eq(businessesTable.isActive, true)));
+  return biz ?? null;
+}
+
+router.get("/r/:businessSlug", async (req, res): Promise<void> => {
+  const slug = String(req.params.businessSlug ?? "").trim();
+  const biz = await loadBusinessForOptIn(slug);
   if (!biz) {
     res.status(404).set("Content-Type", "text/html; charset=utf-8").send(brandedPageShell(
       "לא נמצא",
@@ -111,7 +114,7 @@ router.get("/r/:businessSlug", async (req, res): Promise<void> => {
     `הרשמה להודעות מ-${biz.name}`,
     `${logoBlock}
      <h1>הרשמה להודעות מ-${escapeHtmlPublic(biz.name)}</h1>
-     <p>הזן/י את מספר הטלפון שלך כדי להצטרף לרשימת התפוצה של העסק.</p>
+     <p>הזן/י את מספר הטלפון שלך — נשלח קוד חד-פעמי ב-SMS כדי לאמת שזה באמת את/ה.</p>
      <form method="POST" action="/api/r/${encodeURIComponent(slug)}">
        <label for="phone">מספר טלפון</label>
        <input type="tel" id="phone" name="phone" required pattern="[0-9+\\- ]{7,}" placeholder="0501234567" autocomplete="tel" inputmode="tel"/>
@@ -119,47 +122,19 @@ router.get("/r/:businessSlug", async (req, res): Promise<void> => {
          <input type="checkbox" name="consent" value="1" required/>
          <span>אני בעל/ת המספר ומאשר/ת לקבל הודעות שיווק מ-${escapeHtmlPublic(biz.name)} ב-SMS. ניתן להסיר בכל עת באמצעות הקישור שיופיע בכל הודעה.</span>
        </label>
-       <button type="submit">הרשמה</button>
+       <button type="submit">שלח קוד</button>
      </form>
      <p class="muted" style="margin-top:14px;">שירות ההודעות מופעל על ידי קבעתי בהתאם לתיקון 40 לחוק התקשורת.</p>`,
     accent,
   ));
 });
 
+// Step 2 — POST phone → send SMS OTP, render code-entry form.
 router.post("/r/:businessSlug", async (req, res): Promise<void> => {
   const slug = String(req.params.businessSlug ?? "").trim();
   const rawPhone = String((req.body as any)?.phone ?? "").trim();
   const consent  = String((req.body as any)?.consent ?? "") === "1";
-  if (!slug || !rawPhone || !consent) {
-    res.status(400).set("Content-Type", "text/html; charset=utf-8").send(brandedPageShell(
-      "בקשה לא תקינה",
-      `<div class="icon" style="background:#fee2e2;color:#dc2626">✕</div>
-       <h1>טופס לא מלא</h1>
-       <p>חסר מספר טלפון או אישור — חזר/י לדף הקודם ונסה/י שוב.</p>`,
-      "#dc2626",
-    ));
-    return;
-  }
-  // Very loose phone sanity check — Israeli numbers have 9-10 digits
-  // after normalisation. Reject anything too short (avoids bogus rows)
-  // but accept any standard format the customer typed.
-  const digits = rawPhone.replace(/\D/g, "");
-  if (digits.length < 9 || digits.length > 15) {
-    res.status(400).set("Content-Type", "text/html; charset=utf-8").send(brandedPageShell(
-      "מספר לא תקין",
-      `<div class="icon" style="background:#fee2e2;color:#dc2626">✕</div>
-       <h1>מספר טלפון לא תקין</h1>
-       <p>הזן/י מספר ישראלי תקין (לדוגמה 0501234567) וחזר/י.</p>`,
-      "#dc2626",
-    ));
-    return;
-  }
-  const normalised = normalizeSubscriberPhone(rawPhone);
-
-  const [biz] = await db
-    .select({ id: businessesTable.id, name: businessesTable.name, primaryColor: businessesTable.primaryColor })
-    .from(businessesTable)
-    .where(and(eq(businessesTable.slug, slug), eq(businessesTable.isActive, true)));
+  const biz = await loadBusinessForOptIn(slug);
   if (!biz) {
     res.status(404).set("Content-Type", "text/html; charset=utf-8").send(brandedPageShell(
       "לא נמצא",
@@ -169,12 +144,121 @@ router.post("/r/:businessSlug", async (req, res): Promise<void> => {
     ));
     return;
   }
+  const accent = biz.primaryColor ?? "#3c92f0";
+
+  if (!rawPhone || !consent) {
+    res.status(400).set("Content-Type", "text/html; charset=utf-8").send(brandedPageShell(
+      "בקשה לא תקינה",
+      `<div class="icon" style="background:#fee2e2;color:#dc2626">✕</div>
+       <h1>טופס לא מלא</h1>
+       <p>חסר מספר טלפון או אישור. <a href="/api/r/${encodeURIComponent(slug)}">חזרה לטופס</a></p>`,
+      "#dc2626",
+    ));
+    return;
+  }
+  const digits = rawPhone.replace(/\D/g, "");
+  if (digits.length < 9 || digits.length > 15) {
+    res.status(400).set("Content-Type", "text/html; charset=utf-8").send(brandedPageShell(
+      "מספר לא תקין",
+      `<div class="icon" style="background:#fee2e2;color:#dc2626">✕</div>
+       <h1>מספר טלפון לא תקין</h1>
+       <p>הזן/י מספר ישראלי תקין (לדוגמה 0501234567).
+         <a href="/api/r/${encodeURIComponent(slug)}">חזרה לטופס</a></p>`,
+      "#dc2626",
+    ));
+    return;
+  }
+  const normalised = normalizeSubscriberPhone(rawPhone);
+
+  // Send the OTP. Rate-limited per phone by lib/whatsapp; a user who
+  // keeps re-submitting the first form gets a friendly error after 5
+  // attempts in 15 minutes.
+  try {
+    await sendOtp(normalised, "broadcast_optin");
+  } catch (e: any) {
+    if (e?.name === "OtpRateLimitError" || e instanceof OtpRateLimitError) {
+      res.status(429).set("Content-Type", "text/html; charset=utf-8").send(brandedPageShell(
+        "יותר מדי ניסיונות",
+        `<div class="icon" style="background:#fef3c7;color:#d97706">⏱</div>
+         <h1>יותר מדי בקשות</h1>
+         <p>שלחנו יותר מדי קודים למספר הזה. נסה/י שוב בעוד מספר דקות.</p>`,
+        "#d97706",
+      ));
+      return;
+    }
+    console.error("[/api/r POST] sendOtp failed:", e?.message ?? e);
+    res.status(500).set("Content-Type", "text/html; charset=utf-8").send(brandedPageShell(
+      "שגיאה",
+      `<div class="icon" style="background:#fee2e2;color:#dc2626">!</div>
+       <h1>לא הצלחנו לשלוח SMS</h1>
+       <p>נסה/י שוב בעוד דקה. <a href="/api/r/${encodeURIComponent(slug)}">חזרה לטופס</a></p>`,
+      "#dc2626",
+    ));
+    return;
+  }
+
+  // Render the code-entry form. Phone travels via hidden input so the
+  // verify endpoint can re-normalise without trusting re-typed values.
+  res.status(200).set("Content-Type", "text/html; charset=utf-8").send(brandedPageShell(
+    "הזן/י קוד אימות",
+    `<div class="icon">📱</div>
+     <h1>הזן/י את הקוד שקיבלת</h1>
+     <p>שלחנו קוד חד-פעמי ל-<strong dir="ltr">${escapeHtmlPublic(normalised)}</strong>.</p>
+     <form method="POST" action="/api/r/${encodeURIComponent(slug)}/verify">
+       <input type="hidden" name="phone" value="${escapeHtmlPublic(normalised)}"/>
+       <label for="code">קוד אימות (6 ספרות)</label>
+       <input type="tel" id="code" name="code" required pattern="[0-9]{6}" maxlength="6" placeholder="123456" autocomplete="one-time-code" inputmode="numeric"/>
+       <button type="submit">אמת והירשם</button>
+     </form>
+     <p class="muted" style="margin-top:14px;">לא קיבלת? בדוק/י ב-SMS. אם לא הגיע תוך דקה, <a href="/api/r/${encodeURIComponent(slug)}">נסה/י שוב</a>.</p>`,
+    accent,
+  ));
+});
+
+// Step 3 — verify OTP + write subscriber row.
+router.post("/r/:businessSlug/verify", async (req, res): Promise<void> => {
+  const slug  = String(req.params.businessSlug ?? "").trim();
+  const phone = String((req.body as any)?.phone ?? "").trim();
+  const code  = String((req.body as any)?.code ?? "").trim();
+  const biz = await loadBusinessForOptIn(slug);
+  if (!biz) {
+    res.status(404).set("Content-Type", "text/html; charset=utf-8").send(brandedPageShell(
+      "לא נמצא",
+      `<div class="icon" style="background:#fee2e2;color:#dc2626">✕</div>
+       <h1>העסק לא נמצא</h1>`,
+      "#dc2626",
+    ));
+    return;
+  }
+  const accent = biz.primaryColor ?? "#3c92f0";
+
+  if (!phone || !code) {
+    res.status(400).set("Content-Type", "text/html; charset=utf-8").send(brandedPageShell(
+      "פרטים חסרים",
+      `<div class="icon" style="background:#fee2e2;color:#dc2626">✕</div>
+       <h1>קוד חסר</h1>
+       <p><a href="/api/r/${encodeURIComponent(slug)}">חזרה לטופס</a></p>`,
+      "#dc2626",
+    ));
+    return;
+  }
+  const normalised = normalizeSubscriberPhone(phone);
+  const ok = await verifyOtp(normalised, code, "broadcast_optin");
+  if (!ok) {
+    res.status(400).set("Content-Type", "text/html; charset=utf-8").send(brandedPageShell(
+      "קוד שגוי",
+      `<div class="icon" style="background:#fee2e2;color:#dc2626">✕</div>
+       <h1>הקוד שגוי או פג תוקף</h1>
+       <p>הזן/י את הקוד האחרון שקיבלת, או <a href="/api/r/${encodeURIComponent(slug)}">בקש/י קוד חדש</a>.</p>`,
+      "#dc2626",
+    ));
+    return;
+  }
 
   try {
-    // Explicit affirmative consent by the customer = legal basis under
-    // תיקון 40 to OVERRIDE any prior opt-out for this specific business.
-    // The customer just did the positive opt-in action themselves, so
-    // removing the audit row and re-adding them is correct.
+    // Verified positive consent — legal basis under תיקון 40 to OVERRIDE
+    // any prior opt-out for this specific business. Remove the audit
+    // row and add them as active.
     await db.execute(sql`
       DELETE FROM broadcast_unsubscribes
       WHERE business_id = ${biz.id}
@@ -187,7 +271,7 @@ router.post("/r/:businessSlug", async (req, res): Promise<void> => {
       DO UPDATE SET status = 'active', source = 'public_optin', updated_at = NOW()
     `);
   } catch (e: any) {
-    console.error("[/api/r] opt-in write failed:", e?.message ?? e);
+    console.error("[/api/r/verify] opt-in write failed:", e?.message ?? e);
     res.status(500).set("Content-Type", "text/html; charset=utf-8").send(brandedPageShell(
       "שגיאה",
       `<div class="icon" style="background:#fee2e2;color:#dc2626">!</div>
@@ -206,7 +290,7 @@ router.post("/r/:businessSlug", async (req, res): Promise<void> => {
      <p style="margin-top:14px;font-size:13px;color:#64748b;">
        ניתן להסיר את עצמך בכל עת באמצעות הקישור שיופיע בכל הודעה.
      </p>`,
-    biz.primaryColor ?? "#3c92f0",
+    accent,
   ));
 });
 

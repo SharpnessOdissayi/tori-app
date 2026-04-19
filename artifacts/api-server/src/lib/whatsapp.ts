@@ -128,7 +128,7 @@ export async function sendWhatsApp(phone: string, message: string, businessId?: 
 // by a "password_reset" verifier — without this, a client-portal login OTP
 // sent to a business-owner's phone could be used by the same actor to take
 // over the business owner's account at /auth/reset-password.
-export type OtpPurpose = "client_login" | "password_reset" | "booking_verify" | "generic";
+export type OtpPurpose = "client_login" | "password_reset" | "booking_verify" | "broadcast_optin" | "generic";
 
 const otpStore = new Map<string, { code: string; expiresAt: number; purpose: OtpPurpose }>();
 
