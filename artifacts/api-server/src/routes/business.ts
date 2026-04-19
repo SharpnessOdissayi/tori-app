@@ -2130,15 +2130,30 @@ router.post("/business/broadcast-subscribers/:phone/invite-back", requireBusines
   if (!phone) { res.status(400).json({ error: "מספר טלפון נדרש" }); return; }
   const digitsOnly = phone.replace(/\D/g, "").replace(/^972/, "0");
 
-  // Validate: this phone must currently be opted out (we're not using
-  // this to cold-spam random phones).
-  const existingAudit = await db.execute(sql`
-    SELECT source FROM broadcast_unsubscribes
+  // Validate: this phone must currently be opted out. The UI's merged
+  // view treats "unsubscribed" as coming from EITHER table:
+  //   · broadcast_unsubscribes                       (new audit trail)
+  //   · broadcast_subscribers with status='unsubscribed'  (legacy rows
+  //     from the migration backfill — some rows never got ported to
+  //     the audit table). Without the OR, rows that only exist in the
+  //     legacy shape 404'd here with "הלקוח לא ברשימת המוסרים" even
+  //     though the UI clearly showed them as unsubscribed.
+  const inAudit = await db.execute(sql`
+    SELECT 1 FROM broadcast_unsubscribes
     WHERE business_id = ${businessId}
       AND regexp_replace(regexp_replace(phone_number, '\D', '', 'g'), '^972', '0') = ${digitsOnly}
     LIMIT 1
   `);
-  if (((existingAudit as any).rows ?? []).length === 0) {
+  const inLegacySubs = await db.execute(sql`
+    SELECT 1 FROM broadcast_subscribers
+    WHERE business_id = ${businessId}
+      AND status = 'unsubscribed'
+      AND regexp_replace(regexp_replace(phone_number, '\D', '', 'g'), '^972', '0') = ${digitsOnly}
+    LIMIT 1
+  `);
+  const hasAudit  = ((inAudit as any).rows ?? []).length > 0;
+  const hasLegacy = ((inLegacySubs as any).rows ?? []).length > 0;
+  if (!hasAudit && !hasLegacy) {
     res.status(404).json({ error: "not_unsubscribed", message: "הלקוח לא ברשימת המוסרים." });
     return;
   }

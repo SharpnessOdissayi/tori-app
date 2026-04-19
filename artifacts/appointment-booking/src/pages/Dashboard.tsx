@@ -4721,23 +4721,6 @@ type BroadcastSubscriberPanelProps = {
 };
 function BroadcastSubscriberPanel({ onOpenBroadcast, canOpenBroadcast = true }: BroadcastSubscriberPanelProps = {}) {
   const { toast } = useToast();
-  const { data: panelProfile } = useGetBusinessProfile();
-  // Public opt-in URL — owner shares this wherever they want. Customer
-  // who clicks it can re-subscribe even if they previously opted out
-  // (their positive action is the new consent required by תיקון 40).
-  const optInUrl = panelProfile?.slug
-    ? `${typeof window !== "undefined" ? window.location.origin : "https://www.kavati.net"}/api/r/${panelProfile.slug}`
-    : null;
-  const copyOptInUrl = () => {
-    if (!optInUrl) return;
-    try {
-      navigator.clipboard.writeText(optInUrl)
-        .then(() => toast({ title: "הקישור הועתק ללוח" }))
-        .catch(() => toast({ title: "לא ניתן להעתיק — העתק ידנית", variant: "destructive" }));
-    } catch {
-      toast({ title: "לא ניתן להעתיק — העתק ידנית", variant: "destructive" });
-    }
-  };
   const [subscribers, setSubscribers] = useState<BroadcastSubscriberRow[]>([]);
   const [loading, setLoading] = useState(false);
   const [search, setSearch] = useState("");
@@ -4964,24 +4947,12 @@ function BroadcastSubscriberPanel({ onOpenBroadcast, canOpenBroadcast = true }: 
           </button>
         </div>
 
-        {/* Public opt-in link — shareable URL that lets anyone subscribe
-            themselves with SMS verification. The URL text is intentionally
-            hidden to keep the UI clean — owner rarely needs to see it,
-            just wants to paste into a DM or social post. */}
-        {optInUrl && (
-          <div className="rounded-xl border border-primary/20 bg-primary/5 p-3 space-y-2">
-            <div className="flex items-center gap-2">
-              <Send className="w-4 h-4 text-primary shrink-0" />
-              <div className="text-sm font-semibold">קישור הרשמה ציבורי</div>
-            </div>
-            <p className="text-xs text-muted-foreground leading-relaxed">
-              שתפ/י את הקישור במקום שבו לקוחות יגיעו — סטורי, מייל, ביו של אינסטגרם. לקוח/ה שילחצ/תלחץ יקבל/תקבל SMS עם קוד אימות וייכנס/תיכנס לרשימת התפוצה.
-            </p>
-            <Button type="button" size="sm" onClick={copyOptInUrl} className="w-full gap-2">
-              <Send className="w-4 h-4" /> העתק קישור הרשמה
-            </Button>
-          </div>
-        )}
+        {/* Public opt-in link card removed per owner request — the
+            per-row "שלח הזמנה" button covers the targeted invite flow,
+            and the generic shareable link was surfaced in too many
+            places and adding clutter. If we ever want it back for
+            social-media sharing we can resurrect it as an opt-in menu
+            item in Settings. */}
 
         {/* Add manual phone */}
         <div className="space-y-2">
