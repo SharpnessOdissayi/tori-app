@@ -154,10 +154,15 @@ router.post("/client/send-email-otp", async (req, res): Promise<void> => {
 
 router.post("/client/verify-email-otp", async (req, res): Promise<void> => {
   const { email, phone, code, clientName } = req.body;
-  if (!email || !phone || !code) { res.status(400).json({ error: "שדות חסרים" }); return; }
+  // Phone is now OPTIONAL — clients can log in with just an email when
+  // they pick the email path on the login screen. The session is still
+  // useful (notifications + business list keyed by email + googleId/
+  // facebookId), and findPriorSession will fill phoneNumber back in if
+  // they verified one before. Required fields: email + code.
+  if (!email || !code) { res.status(400).json({ error: "שדות חסרים" }); return; }
 
   const normalizedEmail = String(email).trim().toLowerCase();
-  const trimmedPhone = String(phone).trim();
+  const trimmedPhone = typeof phone === "string" ? phone.trim() : "";
   const trimmedName = typeof clientName === "string" ? clientName.trim() : "";
 
   const entry = emailOtpStore.get(normalizedEmail);
@@ -175,7 +180,10 @@ router.post("/client/verify-email-otp", async (req, res): Promise<void> => {
 
   // Carry over preferences from any prior session for this email so a
   // returning user doesn't lose their gender / receiveNotifications choice.
+  // The prior session also gives us back a phone number when the caller
+  // didn't supply one — common on the email-only login path.
   const prior = await findPriorSession({ email: normalizedEmail });
+  const phoneToUse = trimmedPhone || prior?.phoneNumber || null;
 
   const token = randomUUID();
   const expiresAt = new Date(Date.now() + SESSION_DAYS * 24 * 60 * 60 * 1000);
@@ -183,7 +191,7 @@ router.post("/client/verify-email-otp", async (req, res): Promise<void> => {
   await db.insert(clientSessionsTable).values({
     token,
     email: normalizedEmail,
-    phoneNumber: trimmedPhone,
+    phoneNumber: phoneToUse ?? undefined,
     clientName: trimmedName || prior?.clientName || "",
     receiveNotifications: prior?.receiveNotifications ?? true,
     gender: prior?.gender ?? undefined,
@@ -193,7 +201,7 @@ router.post("/client/verify-email-otp", async (req, res): Promise<void> => {
   res.json({
     token,
     clientName: trimmedName || prior?.clientName || "",
-    phone: trimmedPhone,
+    phone: phoneToUse,
     email: normalizedEmail,
   });
 });

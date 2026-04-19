@@ -127,32 +127,49 @@ function LoginScreen({ onLogin }: { onLogin: (token: string, name: string) => vo
   const [step, setStep] = useState<"phone" | "otp">("phone");
   const [loading, setLoading] = useState(false);
   const [remember, setRemember] = useState(true);
+  // Login channel — SMS by default (Inforu over the user's phone), email
+  // as opt-in. Driven by a small toggle at the top of the form. Stored
+  // in localStorage so a returning user lands on whichever channel they
+  // used last time.
+  const [authMethod, setAuthMethod] = useState<"sms" | "email">(() => {
+    try { return (localStorage.getItem("kavati_client_last_auth") === "email" ? "email" : "sms"); }
+    catch { return "sms"; }
+  });
   const { toast } = useToast();
 
   const rememberInputs = () => {
     if (remember) {
       localStorage.setItem("kavati_client_last_phone", phone.trim());
       localStorage.setItem("kavati_client_last_email", email.trim().toLowerCase());
+      localStorage.setItem("kavati_client_last_auth", authMethod);
     } else {
       localStorage.removeItem("kavati_client_last_phone");
       localStorage.removeItem("kavati_client_last_email");
+      localStorage.removeItem("kavati_client_last_auth");
     }
   };
 
   const storeToken = (token: string) =>
     (remember ? localStorage : sessionStorage).setItem(TOKEN_KEY, token);
 
-  // Email-OTP flow (interim — Meta WhatsApp Auth template still pending review).
-  // Once approved, swap back to /client/send-otp + /client/verify-otp.
+  // Two parallel OTP channels:
+  //   · sms   → /client/send-otp   + /client/verify-otp        (Inforu)
+  //   · email → /client/send-email-otp + /client/verify-email-otp (Resend)
+  // The user picks one with the toggle at the top of the form.
   const isEmailValid = (e: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e.trim());
+
   const sendOtp = async () => {
-    if (!phone.trim()) { toast({ title: "הכנס מספר טלפון", variant: "destructive" }); return; }
-    if (!isEmailValid(email)) { toast({ title: "אימייל לא תקין", variant: "destructive" }); return; }
+    if (authMethod === "sms" && !phone.trim()) { toast({ title: "הכנס מספר טלפון", variant: "destructive" }); return; }
+    if (authMethod === "email" && !isEmailValid(email)) { toast({ title: "אימייל לא תקין", variant: "destructive" }); return; }
     setLoading(true);
     try {
-      const res = await fetch(`${API}/client/send-email-otp`, {
+      const url  = authMethod === "sms" ? `${API}/client/send-otp` : `${API}/client/send-email-otp`;
+      const body = authMethod === "sms"
+        ? { phone: phone.trim() }
+        : { email: email.trim().toLowerCase() };
+      const res = await fetch(url, {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: email.trim().toLowerCase() }),
+        body: JSON.stringify(body),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
@@ -160,7 +177,7 @@ function LoginScreen({ onLogin }: { onLogin: (token: string, name: string) => vo
         return;
       }
       setStep("otp");
-      toast({ title: "קוד נשלח לאימייל שלך" });
+      toast({ title: authMethod === "sms" ? "קוד נשלח ב-SMS לטלפון שלך" : "קוד נשלח לאימייל שלך" });
     } catch { toast({ title: "שגיאה בשליחת קוד", variant: "destructive" }); }
     finally { setLoading(false); }
   };
@@ -169,13 +186,13 @@ function LoginScreen({ onLogin }: { onLogin: (token: string, name: string) => vo
     if (!code.trim()) return;
     setLoading(true);
     try {
-      const res = await fetch(`${API}/client/verify-email-otp`, {
+      const url  = authMethod === "sms" ? `${API}/client/verify-otp` : `${API}/client/verify-email-otp`;
+      const body = authMethod === "sms"
+        ? { phone: phone.trim(), code: code.trim() }
+        : { email: email.trim().toLowerCase(), code: code.trim() };
+      const res = await fetch(url, {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          email: email.trim().toLowerCase(),
-          phone: phone.trim(),
-          code: code.trim(),
-        }),
+        body: JSON.stringify(body),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error);
@@ -274,26 +291,49 @@ function LoginScreen({ onLogin }: { onLogin: (token: string, name: string) => vo
 
         {step === "phone" ? (
           <div className="space-y-4">
-            <div className="space-y-2">
-              <label className="text-sm font-medium text-gray-700">מספר טלפון</label>
-              <input
-                type="tel" dir="ltr" value={phone}
-                onChange={e => setPhone(e.target.value)}
-                onKeyDown={e => e.key === "Enter" && sendOtp()}
-                placeholder=""
-                className="w-full rounded-xl border border-gray-200 px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 text-center"
-              />
+            {/* Auth method toggle — SMS by default, email as alternative.
+                Owner asked for clear visual separation; the active option
+                gets the brand-blue background, the other one stays neutral. */}
+            <div className="grid grid-cols-2 gap-1 p-1 rounded-xl bg-gray-100">
+              <button
+                type="button"
+                onClick={() => setAuthMethod("sms")}
+                className={`py-2 rounded-lg text-sm font-semibold transition-all ${authMethod === "sms" ? "bg-blue-500 text-white shadow" : "text-gray-600 hover:text-gray-900"}`}
+              >
+                📱 קוד ב-SMS
+              </button>
+              <button
+                type="button"
+                onClick={() => setAuthMethod("email")}
+                className={`py-2 rounded-lg text-sm font-semibold transition-all ${authMethod === "email" ? "bg-blue-500 text-white shadow" : "text-gray-600 hover:text-gray-900"}`}
+              >
+                ✉️ קוד באימייל
+              </button>
             </div>
-            <div className="space-y-2">
-              <label className="text-sm font-medium text-gray-700">אימייל</label>
-              <input
-                type="email" dir="ltr" value={email}
-                onChange={e => setEmail(e.target.value)}
-                onKeyDown={e => e.key === "Enter" && sendOtp()}
-                placeholder="name@example.com"
-                className="w-full rounded-xl border border-gray-200 px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 text-center"
-              />
-            </div>
+
+            {authMethod === "sms" ? (
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-gray-700">מספר טלפון</label>
+                <input
+                  type="tel" dir="ltr" value={phone}
+                  onChange={e => setPhone(e.target.value)}
+                  onKeyDown={e => e.key === "Enter" && sendOtp()}
+                  placeholder=""
+                  className="w-full rounded-xl border border-gray-200 px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 text-center"
+                />
+              </div>
+            ) : (
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-gray-700">אימייל</label>
+                <input
+                  type="email" dir="ltr" value={email}
+                  onChange={e => setEmail(e.target.value)}
+                  onKeyDown={e => e.key === "Enter" && sendOtp()}
+                  placeholder="name@example.com"
+                  className="w-full rounded-xl border border-gray-200 px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 text-center"
+                />
+              </div>
+            )}
             <button onClick={sendOtp} disabled={loading}
               className="w-full py-3 rounded-xl bg-blue-500 text-white font-semibold text-sm hover:bg-blue-600 disabled:opacity-50 transition-all">
               {loading ? "שולח..." : "המשך"}
@@ -324,7 +364,9 @@ function LoginScreen({ onLogin }: { onLogin: (token: string, name: string) => vo
         ) : (
           <div className="space-y-4">
             <div className="p-3 bg-blue-50 rounded-xl text-center text-sm text-blue-600">
-              קוד נשלח למייל <span dir="ltr">{email}</span>
+              {authMethod === "sms"
+                ? <>קוד נשלח ב-SMS לטלפון <span dir="ltr">{phone}</span></>
+                : <>קוד נשלח למייל <span dir="ltr">{email}</span></>}
             </div>
             <div className="space-y-2">
               <label className="text-sm font-medium text-gray-700">קוד אימות</label>
@@ -336,9 +378,11 @@ function LoginScreen({ onLogin }: { onLogin: (token: string, name: string) => vo
                 className="w-full rounded-xl border border-gray-200 px-4 py-3 text-xl font-mono text-center tracking-widest focus:outline-none focus:ring-2 focus:ring-blue-500"
                 autoFocus
               />
-              <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 mt-1">
-                ⚠️ הקוד עשוי להגיע לתיקיית הספאם — בדוק/י גם שם.
-              </p>
+              {authMethod === "email" && (
+                <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 mt-1">
+                  ⚠️ הקוד עשוי להגיע לתיקיית הספאם — בדוק/י גם שם.
+                </p>
+              )}
             </div>
             <button onClick={verifyOtp} disabled={loading}
               className="w-full py-3 rounded-xl bg-blue-500 text-white font-semibold text-sm hover:bg-blue-600 disabled:opacity-50 transition-all">
