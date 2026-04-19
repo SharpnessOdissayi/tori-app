@@ -1518,6 +1518,7 @@ export function BusinessCalendar({
   serviceColors,
   onNewAppointment,
   onNewTimeOff,
+  isStaffMode = false,
 }: {
   appointments: CalAppt[];
   // Constraint / time-off blocks rendered as red striped overlays in
@@ -1541,6 +1542,12 @@ export function BusinessCalendar({
   // Red "אילוץ" button in the header. Opens the same shared dialog
   // with the timeoff tab preselected.
   onNewTimeOff?: (opts?: { date?: string; time?: string }) => void;
+  // When true, the staff filter is PERMANENT — the filter chip + its
+  // clear button are hidden, and clearStaffFilter() is a no-op. Without
+  // this a staff user could click the × on the chip and end up seeing
+  // other staff's appointments (or no filtered calendar at all with no
+  // way back).
+  isStaffMode?: boolean;
 }) {
   const [view, setView] = useState<View>("week");
   const [cursor, setCursor] = useState<Date>(new Date());
@@ -1557,6 +1564,10 @@ export function BusinessCalendar({
     return Number.isFinite(id) && name ? { id, name } : null;
   });
   function clearStaffFilter() {
+    // Staff session: the filter IS their scope. No-op so that any stale
+    // UI path that reaches here can't silently dump them into the
+    // whole-business calendar.
+    if (isStaffMode) return;
     try {
       sessionStorage.removeItem("kavati_staff_filter_id");
       sessionStorage.removeItem("kavati_staff_filter_name");
@@ -1696,10 +1707,14 @@ export function BusinessCalendar({
         onNewTimeOff={onNewTimeOff ? () => onNewTimeOff() : undefined}
       />
 
-      {/* Staff filter chip — shown when the owner clicked "צפה ביומן" on
+      {/* Staff filter chip — shown when the OWNER clicked "צפה ביומן" on
           a specific staff member from the Staff tab. Clicking × removes
-          the filter and re-renders with all appointments. */}
-      {staffFilter && (
+          the filter and re-renders with all appointments. For a STAFF
+          session the filter is their own scope (set at login); we hide
+          the whole chip so staff doesn't see a "toggle" control that
+          would either drop them into the owner view or just confuse
+          them. */}
+      {staffFilter && !isStaffMode && (
         <div className="flex items-center gap-2 px-4 py-2 bg-blue-50 border-b border-blue-200 text-sm">
           <span className="text-blue-700 font-medium">מסננים לפי עובד:</span>
           <span className="inline-flex items-center gap-1 rounded-full bg-blue-600 text-white px-3 py-0.5 text-xs font-semibold">

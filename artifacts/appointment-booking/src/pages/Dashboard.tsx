@@ -2250,6 +2250,10 @@ function AppointmentsTab({ mobileFocus }: { mobileFocus?: "calendar" | "approval
   const { data: appointments } = useListBusinessAppointments();
   const { data: profile } = useGetBusinessProfile();
   const { data: customers } = useListBusinessCustomers();
+  // Staff session detection — mirrors Dashboard.tsx's top-level logic.
+  // Reads sessionStorage because AppointmentsTab doesn't take isStaffMode
+  // as a prop and we don't want to prop-drill through the whole file.
+  const tabIsStaffMode = typeof window !== "undefined" && !!sessionStorage.getItem("kavati_staff_filter_id");
   // Quick phone→gender + phone→email maps. Gender drives the ♂︎/♀︎
   // badge next to client names; email auto-fills the receipt dialog
   // and flags walk-ins ("not registered") who have no email on file.
@@ -2515,9 +2519,12 @@ function AppointmentsTab({ mobileFocus }: { mobileFocus?: "calendar" | "approval
           the Tranzila webhook either confirms them or the 15-minute
           cleanup cron cancels abandoned checkouts. */}
 
-      {/* Upcoming-appointments card hidden on mobile — lives on Home
-          instead so the mobile יומן tab is a pure calendar surface. */}
-      <div className="hidden sm:block">
+      {/* Upcoming-appointments card. On desktop everyone sees it here;
+          on mobile the owner gets it on Home (keeps יומן a pure
+          calendar surface), but STAFF has no Home tab — so we show the
+          card here on mobile too for staff. Without this, a staff on
+          a phone had no list view of their upcoming appointments. */}
+      <div className={tabIsStaffMode ? "" : "hidden sm:block"}>
         <UpcomingAppointmentsCard
           items={upcoming}
           genderByPhone={genderByPhone}
@@ -2562,6 +2569,7 @@ function AppointmentsTab({ mobileFocus }: { mobileFocus?: "calendar" | "approval
         serviceColors={serviceColors}
         onNewAppointment={opts => setNewApptDialog({ open: true, date: opts?.date, time: opts?.time, tab: "appointment" })}
         onNewTimeOff={opts => setNewApptDialog({ open: true, date: opts?.date, time: opts?.time, tab: "timeoff" })}
+        isStaffMode={tabIsStaffMode}
       />
 
       <TimeOffEditDialog
