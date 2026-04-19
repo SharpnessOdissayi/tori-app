@@ -366,32 +366,48 @@ function StepDetails({
     instagramHandle: "",
   });
 
-  // ── Email verification state ─────────────────────────────────────────────
-  // The user must verify their email with a 6-digit code before registration.
-  // Verification is tied to the email string — changing the email resets it.
+  // ── Phone verification state ─────────────────────────────────────────────
+  // The owner must verify their phone with a 6-digit SMS code before
+  // registration. Switched from email verification per product decision —
+  // SMS arrives instantly, doesn't require a WhatsApp account, and avoids
+  // email deliverability issues (spam folders, typos). Verification is tied
+  // to the phone string — changing the phone field resets it.
+  //
+  // Variable names kept as `verifiedEmail` / `emailIsVerified` externally
+  // so the downstream submit guard doesn't need to change. Internally we
+  // now bind to `form.phone`.
   const [verificationCode, setVerificationCode] = useState("");
-  const [verifiedEmail, setVerifiedEmail]       = useState("");
+  const [verifiedEmail, setVerifiedEmail]       = useState(""); // actually phone now
   const [sendingCode, setSendingCode]           = useState(false);
   const [codeSent, setCodeSent]                 = useState(false);
   const [verifyingCode, setVerifyingCode]       = useState(false);
-  const emailIsVerified = Boolean(verifiedEmail && verifiedEmail === form.email.trim().toLowerCase());
+  const emailIsVerified = Boolean(verifiedEmail && verifiedEmail === form.phone.trim());
 
   const sendVerificationCode = async () => {
-    const email = form.email.trim().toLowerCase();
-    if (!email || !/@.+\./.test(email)) {
-      toast({ title: "הזן אימייל תקין לפני שליחת קוד", variant: "destructive" });
+    const phone = form.phone.trim();
+    // Accept 05X-XXXXXXX, 0X-XXXXXXX, +972… formats. Strip non-digits and
+    // require 9–15 digits. The backend re-normalises before sending to Inforu.
+    const digits = phone.replace(/\D/g, "");
+    if (!phone || digits.length < 9 || digits.length > 15) {
+      toast({ title: "הזן מספר טלפון תקין לפני שליחת קוד", variant: "destructive" });
       return;
     }
     setSendingCode(true);
     try {
-      const res = await fetch(`${API_BASE}/auth/email/send-verification`, {
+      const res = await fetch(`${API_BASE}/auth/phone/send-verification`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email }),
+        body: JSON.stringify({ phone }),
       });
-      if (!res.ok) throw new Error("send_failed");
+      if (!res.ok) {
+        if (res.status === 429) {
+          toast({ title: "יותר מדי בקשות — נסה שוב בעוד כמה דקות", variant: "destructive" });
+          return;
+        }
+        throw new Error("send_failed");
+      }
       setCodeSent(true);
-      toast({ title: "הקוד נשלח", description: `בדקו את תיבת המייל של ${email}` });
+      toast({ title: "הקוד נשלח", description: `SMS נשלח אל ${phone}` });
     } catch {
       toast({ title: "שגיאה בשליחת קוד", variant: "destructive" });
     } finally {
@@ -400,22 +416,22 @@ function StepDetails({
   };
 
   const verifyEmailCode = async () => {
-    const email = form.email.trim().toLowerCase();
+    const phone = form.phone.trim();
     if (!verificationCode.trim()) {
-      toast({ title: "הזן את הקוד שהגיע במייל", variant: "destructive" });
+      toast({ title: "הזן את הקוד שהגיע ב-SMS", variant: "destructive" });
       return;
     }
     setVerifyingCode(true);
     try {
-      const res = await fetch(`${API_BASE}/auth/email/verify`, {
+      const res = await fetch(`${API_BASE}/auth/phone/verify`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, code: verificationCode.trim() }),
+        body: JSON.stringify({ phone, code: verificationCode.trim() }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "verify_failed");
-      setVerifiedEmail(email);
-      toast({ title: "האימייל אומת בהצלחה ✓" });
+      setVerifiedEmail(phone);
+      toast({ title: "מספר הטלפון אומת בהצלחה ✓" });
     } catch {
       toast({ title: "הקוד שגוי או פג תוקף", variant: "destructive" });
     } finally {

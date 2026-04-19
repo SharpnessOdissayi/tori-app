@@ -183,7 +183,35 @@ export async function sendOtp(phone: string, purpose: OtpPurpose = "generic"): P
   const code = String(Math.floor(100000 + Math.random() * 900000));
   otpStore.set(phone, { code, expiresAt: Date.now() + 5 * 60 * 1000, purpose });
 
-  // Authentication template: verify_code_1 — body + copy-code button both receive the OTP code
+  // OTP channel moved from WhatsApp → SMS (Inforu) per owner's decision:
+  //   · SMS arrives instantly without requiring a WhatsApp account
+  //   · not subject to Meta template-quality throttling
+  //   · no 24-hour session window to worry about
+  // Meta's "verify_code_1" template stays registered in our account but is
+  // no longer hit from this path. WhatsApp remains the channel for
+  // appointment confirmations / reminders / cancellation / reschedule.
+  const { sendSms, isInforuConfigured } = await import("./inforu");
+  if (isInforuConfigured()) {
+    const message = `קוד הכניסה שלך ל-Kavati: ${code}\nהקוד בתוקף ל-5 דקות.`;
+    const senderName = (process.env.INFORU_SENDER_NAME ?? "Kavati").trim() || "Kavati";
+    const result = await sendSms({
+      recipients: [phone],
+      message,
+      senderName,
+      customerMessageId: `otp-${purpose}-${Date.now()}`,
+    });
+    if (result.ok) return;
+    // If Inforu explicitly rejected the send (not configured ≠ rejected),
+    // log and fall through to the WhatsApp template so the user still gets
+    // a code. Missing credentials handled below.
+    if (result.configured) {
+      console.warn("[OTP] Inforu send rejected, falling back to WhatsApp template:", result.statusText);
+    }
+  }
+
+  // Fallback: if Inforu isn't configured yet (missing INFORU_USERNAME /
+  // INFORU_API_TOKEN env vars) keep the WhatsApp template path alive so
+  // logins don't break during the switchover window.
   await sendAuthTemplate(phone, "verify_code_1", [code], code);
 }
 

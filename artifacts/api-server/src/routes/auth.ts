@@ -374,6 +374,58 @@ router.post("/auth/email/send-verification", async (req, res): Promise<void> => 
   res.json({ success: true });
 });
 
+// ─── Phone-based signup verification ────────────────────────────────────────
+//
+// Owner decision: verify new business-owner signups via SMS (Inforu) instead
+// of email. Reuses the existing whatsapp.ts OTP store — same 6-digit code,
+// same 5-minute expiry, same per-phone rate limit. We tag the OTPs with
+// purpose="generic" so they don't get consumed by /client/verify-otp or the
+// forgot-password flow (those use different purposes).
+//
+// Flow:
+//   POST /auth/phone/send-verification  { phone }  → SMS with 6-digit code
+//   POST /auth/phone/verify             { phone, code }  → { success: true }
+
+router.post("/auth/phone/send-verification", async (req, res): Promise<void> => {
+  const { phone } = req.body ?? {};
+  if (!phone || typeof phone !== "string" || phone.trim().length < 9) {
+    res.status(400).json({ error: "Invalid phone" });
+    return;
+  }
+  const { sendOtp, OtpRateLimitError } = await import("../lib/whatsapp");
+  try {
+    await sendOtp(phone.trim(), "generic");
+    res.json({ success: true });
+  } catch (e: any) {
+    if (e instanceof OtpRateLimitError) {
+      res.status(429).json({ error: "יותר מדי בקשות — נסה שוב בעוד כמה דקות" });
+      return;
+    }
+    console.error("[phone/send-verification] send failed:", e?.message ?? e);
+    res.status(500).json({ error: "שגיאה בשליחת קוד" });
+  }
+});
+
+router.post("/auth/phone/verify", async (req, res): Promise<void> => {
+  const { phone, code } = req.body ?? {};
+  if (!phone || !code) {
+    res.status(400).json({ error: "Missing phone or code" });
+    return;
+  }
+  const { verifyOtp } = await import("../lib/whatsapp");
+  const ok = await verifyOtp(String(phone).trim(), String(code), "generic");
+  if (!ok) {
+    res.status(400).json({ error: "invalid_code", message: "הקוד שגוי או פג תוקף" });
+    return;
+  }
+  // Park a short-lived "phone is verified" token the registration endpoint
+  // can cross-check later, so a caller can't just POST /auth/business/register
+  // with any phone number without first solving the SMS OTP.
+  const { markPhoneVerified } = await import("../lib/otpStore");
+  markPhoneVerified(String(phone).trim());
+  res.json({ success: true });
+});
+
 // POST /auth/email/verify — exchange email + code for verification success
 router.post("/auth/email/verify", async (req, res): Promise<void> => {
   const { email, code } = req.body ?? {};
