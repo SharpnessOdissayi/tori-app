@@ -344,11 +344,21 @@ router.get("/u/:token", async (req, res): Promise<void> => {
   try {
     // Audit row — stored in the canonical 0-prefixed form so the
     // owner panel shows "0501234567" not "972501234567".
+    //
+    // ON CONFLICT behaviour: if the owner had previously removed the
+    // phone with source='manual_remove', the customer clicking the
+    // unsubscribe link UPGRADES that row to source='unsub_link' —
+    // the customer's explicit action is a stronger signal than the
+    // owner's, and should block the owner from later re-adding them.
+    // For conflicts where the existing source is already a customer-
+    // initiated one, DO NOTHING (idempotent re-click).
     const normalisedPhone = normalizeSubscriberPhone(decoded.phone);
     await db.execute(sql`
       INSERT INTO broadcast_unsubscribes (business_id, phone_number, source)
       VALUES (${decoded.businessId}, ${normalisedPhone}, 'unsub_link')
-      ON CONFLICT (business_id, phone_number) DO NOTHING
+      ON CONFLICT (business_id, phone_number)
+      DO UPDATE SET source = 'unsub_link'
+      WHERE broadcast_unsubscribes.source = 'manual_remove'
     `);
     // Match the active subscriber row in ANY stored format. Historically
     // broadcast_subscribers rows were written from bookings with

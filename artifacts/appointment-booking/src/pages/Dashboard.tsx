@@ -4837,7 +4837,14 @@ function BroadcastSubscriberPanel({ onOpenBroadcast, canOpenBroadcast = true }: 
         }
         throw new Error();
       }
-      toast({ title: "הוחזר לרשימה" });
+      toast({ title: "הוחזר לרשימה — עבר לטאב 'פעילים'" });
+      // Owner was viewing "לא מנויים" when they clicked — switching
+      // the filter after the row moves so they actually see it in the
+      // new tab instead of the list going silently empty. Previously
+      // the customer was correctly moved to active but disappeared
+      // from the current view, which made the whole thing feel like
+      // it didn't work.
+      setFilter("active");
       load();
     } catch {
       toast({ title: "שגיאה בהחזרה", variant: "destructive" });

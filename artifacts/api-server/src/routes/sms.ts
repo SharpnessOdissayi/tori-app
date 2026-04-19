@@ -380,7 +380,9 @@ router.post("/sms/send-bulk", async (req, res): Promise<void> => {
       await db.execute(sql`
         INSERT INTO broadcast_unsubscribes (business_id, phone_number, source)
         VALUES (${businessId}, ${normPhone}, 'inforu_self_link')
-        ON CONFLICT (business_id, phone_number) DO NOTHING
+        ON CONFLICT (business_id, phone_number)
+        DO UPDATE SET source = 'inforu_self_link'
+        WHERE broadcast_unsubscribes.source = 'manual_remove'
       `);
       await db.execute(sql`
         DELETE FROM broadcast_subscribers
@@ -745,7 +747,9 @@ router.post("/sms/inforu-webhook/reply", async (req, res): Promise<void> => {
     await db.execute(sql`
       INSERT INTO broadcast_unsubscribes (business_id, phone_number, source)
       VALUES (${businessId}, ${normalizedPhone}, 'reply')
-      ON CONFLICT (business_id, phone_number) DO NOTHING
+      ON CONFLICT (business_id, phone_number)
+      DO UPDATE SET source = 'reply'
+      WHERE broadcast_unsubscribes.source = 'manual_remove'
     `);
     await db.execute(sql`
       DELETE FROM broadcast_subscribers

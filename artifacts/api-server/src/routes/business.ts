@@ -1990,35 +1990,39 @@ router.post("/business/broadcast-subscribers", requireBusinessAuth, async (req, 
     res.status(400).json({ error: "מספר טלפון לא תקין" });
     return;
   }
-  // תיקון 40 guard: if the CUSTOMER opted out of this business (via the
-  // /api/u/ link, the "הסר" reply, or an Inforu-side link), the owner
-  // CANNOT override that decision by manually re-adding them. Only
-  // owner-initiated removals (source='manual_remove') can be reversed
-  // here, since the owner is just undoing their own action — not the
-  // customer's. A re-opt-in from the customer would need a fresh
-  // affirmative action they themselves take (phone call, booking,
-  // dedicated re-opt link — future work).
+  // תיקון 40 guard: only owner-initiated removals (source='manual_remove')
+  // can be reversed by the owner. EVERY other source is treated as
+  // customer-initiated and blocks the add. That list grows over time —
+  // we inventory it here instead of enumerating "forbidden" sources,
+  // because a missed one (e.g. 'reply_legacy' from the migration
+  // backfill) would silently let the owner re-add a protected phone
+  // and leave a stale audit row behind that blocks future sends.
   const digitsOnly = normalized.replace(/\D/g, "").replace(/^972/, "0");
-  const customerOptOut = await db.execute(sql`
+  const existingAudit = await db.execute(sql`
     SELECT source FROM broadcast_unsubscribes
     WHERE business_id = ${businessId}
       AND regexp_replace(regexp_replace(phone_number, '\D', '', 'g'), '^972', '0') = ${digitsOnly}
-      AND source IN ('unsub_link', 'reply', 'inforu_self_link')
     LIMIT 1
   `);
-  if (((customerOptOut as any).rows ?? []).length > 0) {
+  const existingSource = ((existingAudit as any).rows ?? [])[0]?.source as string | undefined;
+  if (existingSource && existingSource !== "manual_remove") {
     res.status(403).json({
       error: "customer_opted_out",
       message: "הלקוח ביקש להסיר את עצמו מרשימת התפוצה. לפי תיקון 40 בעל העסק לא יכול להוסיפו חזרה ללא הסכמה חדשה של הלקוח.",
     });
     return;
   }
-  // Owner's own prior removal — they can undo it.
+  // Owner's own prior removal (or no audit row at all) — clear any
+  // matching audit rows regardless of source value, since we just
+  // verified no customer-initiated sources exist. This is the fix for
+  // the "I clicked החזר and the customer doesn't actually receive
+  // broadcasts" bug: previously we only deleted rows where
+  // source='manual_remove', leaving 'reply_legacy' or similar rows
+  // behind to block the send filter.
   await db.execute(sql`
     DELETE FROM broadcast_unsubscribes
     WHERE business_id = ${businessId}
       AND regexp_replace(regexp_replace(phone_number, '\D', '', 'g'), '^972', '0') = ${digitsOnly}
-      AND source = 'manual_remove'
   `);
   await db.execute(sql`
     INSERT INTO broadcast_subscribers (business_id, phone_number, status, source)
@@ -2062,28 +2066,36 @@ router.post("/business/broadcast-subscribers/:phone/resubscribe", requireBusines
   if (!phone) { res.status(400).json({ error: "מספר טלפון נדרש" }); return; }
   const digitsOnly = phone.replace(/\D/g, "").replace(/^972/, "0");
 
-  // תיקון 40 guard — same logic as the manual-add endpoint. If the
-  // customer opted out themselves, the owner can't resurrect their
-  // subscription; only owner-initiated removals can be reversed.
-  const customerOptOut = await db.execute(sql`
+  // Same inventory logic as manual-add — only 'manual_remove' audit rows
+  // can be safely reversed by the owner. Previous version only DELETE'd
+  // source='manual_remove' audit rows, so resubscribing a customer whose
+  // audit row had source='reply_legacy' (from the migration backfill)
+  // would move them to broadcast_subscribers active BUT leave the
+  // audit row behind — and the send filter checks broadcast_unsubscribes
+  // by phone, so the next broadcast silently skipped the "resubscribed"
+  // customer. That's the "I clicked החזר and he's still not receiving"
+  // bug.
+  const existingAudit = await db.execute(sql`
     SELECT source FROM broadcast_unsubscribes
     WHERE business_id = ${businessId}
       AND regexp_replace(regexp_replace(phone_number, '\D', '', 'g'), '^972', '0') = ${digitsOnly}
-      AND source IN ('unsub_link', 'reply', 'inforu_self_link')
     LIMIT 1
   `);
-  if (((customerOptOut as any).rows ?? []).length > 0) {
+  const existingSource = ((existingAudit as any).rows ?? [])[0]?.source as string | undefined;
+  if (existingSource && existingSource !== "manual_remove") {
     res.status(403).json({
       error: "customer_opted_out",
       message: "הלקוח ביקש להסיר את עצמו מרשימת התפוצה. לפי תיקון 40 בעל העסק לא יכול להחזירו ללא הסכמה חדשה של הלקוח.",
     });
     return;
   }
+  // Safe to clear — we just verified no customer-initiated source
+  // exists. Wide DELETE (no source filter) so any straggler rows from
+  // future/unknown sources also get cleared.
   await db.execute(sql`
     DELETE FROM broadcast_unsubscribes
     WHERE business_id = ${businessId}
       AND regexp_replace(regexp_replace(phone_number, '\D', '', 'g'), '^972', '0') = ${digitsOnly}
-      AND source = 'manual_remove'
   `);
   await db.execute(sql`
     INSERT INTO broadcast_subscribers (business_id, phone_number, status, source)
