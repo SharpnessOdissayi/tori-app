@@ -25,21 +25,24 @@ export function MobileBottomNav({
   // Owner preference: approvals (w/ badge) on the right, בית in the
   // centre, תפריט on the far left. `staffAllowed` gates per-item
   // visibility so a staff JWT sees only the tabs they can actually use.
-  // "home" is hidden for staff because the Home tab shows a quick-action
-  // panel that links out to owner-only pages (settings, broadcast,
-  // billing). Dropping the button + the tab itself from staff navigation
-  // is the cleanest fix — their landing view becomes the calendar.
+  // Staff gets CALENDAR ONLY (Dibs-style minimal permission set). The
+  // owner manages everything else from their own view, including which
+  // services each staff member performs. All other bottom-nav buttons
+  // are hidden for staff, which collapses the nav to a single centred
+  // tab — serves as a clear "this is your only view" signal.
   const rawItems: Array<{ id: BottomTab; label: string; icon: React.ReactNode; badge?: number; staffAllowed: boolean }> = [
-    { id: "approvals", label: "אישור תורים", icon: <BadgeCheck className="w-5 h-5" />, badge: pendingCount, staffAllowed: true  },
+    { id: "approvals", label: "אישור תורים", icon: <BadgeCheck className="w-5 h-5" />, badge: pendingCount, staffAllowed: false },
     { id: "calendar",  label: "יומן",         icon: <CalendarClock className="w-5 h-5" />,                  staffAllowed: true  },
     { id: "home",      label: "בית",          icon: <Home className="w-5 h-5" />,                           staffAllowed: false },
     { id: "customers", label: "לקוחות",       icon: <UsersRound className="w-5 h-5" />,                     staffAllowed: false },
-    { id: "menu",      label: "תפריט",        icon: <LayoutGrid className="w-5 h-5" />,                     staffAllowed: true  },
+    { id: "menu",      label: "תפריט",        icon: <LayoutGrid className="w-5 h-5" />,                     staffAllowed: false },
   ];
   const items = rawItems.filter(it => !isStaffMode || it.staffAllowed);
   // Tailwind can't pick up dynamic class names, so we map explicitly.
-  const gridColsClass = items.length === 4 ? "grid-cols-4"
+  const gridColsClass = items.length === 1 ? "grid-cols-1"
+                      : items.length === 2 ? "grid-cols-2"
                       : items.length === 3 ? "grid-cols-3"
+                      : items.length === 4 ? "grid-cols-4"
                       : "grid-cols-5";
 
   return (

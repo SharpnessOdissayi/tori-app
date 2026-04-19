@@ -183,6 +183,12 @@ router.get("/business/profile", requireBusinessAuth, async (req, res): Promise<v
 });
 
 router.patch("/business/profile", requireBusinessAuth, async (req, res): Promise<void> => {
+  // Owner-only: staff tokens can view the profile tab but not mutate
+  // business-level settings. Frontend also gates the save button.
+  if (req.business!.staffMemberId) {
+    res.status(403).json({ error: "owner_only", message: "רק בעל/ת העסק יכול/ה לשנות את הגדרות העסק." });
+    return;
+  }
   const parsed = UpdateBusinessProfileBody.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: parsed.error.message });
@@ -334,6 +340,10 @@ router.patch("/business/profile", requireBusinessAuth, async (req, res): Promise
 });
 
 router.patch("/business/branding", requireBusinessAuth, async (req, res): Promise<void> => {
+  if (req.business!.staffMemberId) {
+    res.status(403).json({ error: "owner_only", message: "רק בעל/ת העסק יכול/ה לעדכן את העיצוב של עמוד העסק." });
+    return;
+  }
   const parsed = UpdateBusinessBrandingBody.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: parsed.error.message });
@@ -486,6 +496,10 @@ router.patch("/business/domain", requireBusinessAuth, async (req, res): Promise<
 });
 
 router.patch("/business/integrations", requireBusinessAuth, async (req, res): Promise<void> => {
+  if (req.business!.staffMemberId) {
+    res.status(403).json({ error: "owner_only", message: "רק בעל/ת העסק יכול/ה לשנות הגדרות הודעות ותזכורות." });
+    return;
+  }
   const parsed = UpdateBusinessIntegrationsBody.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: parsed.error.message });
