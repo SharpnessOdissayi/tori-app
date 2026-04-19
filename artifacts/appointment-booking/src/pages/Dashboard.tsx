@@ -876,8 +876,12 @@ export default function Dashboard() {
 
   // ─── Force-change-password modal state (staff first-login flow) ──────────
   // Shown the moment authMe.staff.mustChangePassword is true. Backend clears
-  // it after a successful POST /auth/business/change-password (staff branch).
-  const [forcePwForm, setForcePwForm] = useState({ current: "", next: "", confirm: "" });
+  // credentialsSentAt after a successful change, which flips the flag to
+  // false on every subsequent /auth/me — so the modal appears exactly once
+  // per staff member, regardless of which device they finished the change on.
+  // Body: only the new password + confirmation. Re-verifying the temp
+  // password is skipped because the JWT already proves identity.
+  const [forcePwForm, setForcePwForm] = useState({ next: "", confirm: "" });
   const [forcePwSaving, setForcePwSaving] = useState(false);
   const [forcePwError, setForcePwError] = useState<string | null>(null);
   const mustChangePassword = !!authMe?.staff?.mustChangePassword;
@@ -895,14 +899,14 @@ export default function Dashboard() {
       const res = await fetch("/api/auth/business/change-password", {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ currentPassword: forcePwForm.current, newPassword: forcePwForm.next }),
+        body: JSON.stringify({ newPassword: forcePwForm.next }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
         setForcePwError(data.message ?? "שגיאה בשינוי סיסמה");
         return;
       }
-      setForcePwForm({ current: "", next: "", confirm: "" });
+      setForcePwForm({ next: "", confirm: "" });
       await refreshAuthMe();
     } finally {
       setForcePwSaving(false);
@@ -1030,25 +1034,16 @@ export default function Dashboard() {
           <div className="bg-background rounded-2xl shadow-2xl p-6 w-full max-w-sm space-y-4" dir="rtl">
             <div className="text-center space-y-1">
               <div className="w-12 h-12 mx-auto rounded-full bg-amber-100 text-amber-700 flex items-center justify-center text-xl">🔐</div>
-              <h2 className="text-lg font-bold">שינוי סיסמה הראשון</h2>
+              <h2 className="text-lg font-bold">בחר/י סיסמה חדשה</h2>
               <p className="text-xs text-muted-foreground">
-                התחברת עם הסיסמה הזמנית. בחר/י סיסמה חדשה כדי להמשיך.
+                כדי לאבטח את החשבון, החלף/י את הסיסמה הזמנית בסיסמה משלך.
               </p>
             </div>
             <form onSubmit={handleForcePwSubmit} className="space-y-3">
               <div>
-                <Label className="text-xs">סיסמה זמנית (מהמייל)</Label>
-                <Input
-                  type="password" autoFocus dir="ltr"
-                  value={forcePwForm.current}
-                  onChange={e => setForcePwForm(p => ({ ...p, current: e.target.value }))}
-                  required
-                />
-              </div>
-              <div>
                 <Label className="text-xs">סיסמה חדשה (מינימום 6 תווים)</Label>
                 <Input
-                  type="password" dir="ltr"
+                  type="password" autoFocus dir="ltr"
                   value={forcePwForm.next}
                   onChange={e => setForcePwForm(p => ({ ...p, next: e.target.value }))}
                   required minLength={6}
@@ -1067,10 +1062,10 @@ export default function Dashboard() {
                 <div className="text-xs text-rose-600 bg-rose-50 border border-rose-200 rounded-lg px-3 py-2">{forcePwError}</div>
               )}
               <Button type="submit" disabled={forcePwSaving} className="w-full h-11">
-                {forcePwSaving ? "שומר..." : "החלף סיסמה והמשך"}
+                {forcePwSaving ? "שומר..." : "שמור והמשך"}
               </Button>
               <p className="text-[11px] text-center text-muted-foreground">
-                לא ניתן לסגור — חובה לעדכן סיסמה לפני המשך השימוש.
+                ההודעה הזו תופיע פעם אחת בלבד — לא תופיע שוב במכשירים אחרים.
               </p>
             </form>
           </div>

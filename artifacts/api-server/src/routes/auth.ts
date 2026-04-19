@@ -47,10 +47,17 @@ function parseBusinessRegisterBody(raw: any) {
 function parseChangePasswordBody(raw: any) {
   if (!raw || typeof raw !== "object") return { success: false as const };
   const { currentPassword, newPassword } = raw;
-  if (typeof currentPassword !== "string" || typeof newPassword !== "string" || newPassword.length === 0) {
+  // currentPassword is required only for owner-initiated changes from the
+  // settings tab. Staff first-login forced changes (auto-detected by
+  // mustChangePassword in the staff branch) skip it because the JWT
+  // already proves the staff knows the temp password.
+  if (typeof newPassword !== "string" || newPassword.length === 0) {
     return { success: false as const };
   }
-  return { success: true as const, data: { currentPassword, newPassword } };
+  if (currentPassword !== undefined && typeof currentPassword !== "string") {
+    return { success: false as const };
+  }
+  return { success: true as const, data: { currentPassword: currentPassword ?? "", newPassword } };
 }
 
 function buildLoginResponse(business: typeof businessesTable.$inferSelect, token: string) {
@@ -420,10 +427,18 @@ router.post("/auth/business/change-password", requireBusinessAuth, async (req, r
       res.status(404).json({ error: "Not found" });
       return;
     }
-    const valid = await bcrypt.compare(currentPassword, (staff as any).passwordHash);
-    if (!valid) {
-      res.status(401).json({ error: "wrong_password", message: "הסיסמה הנוכחית שגויה" });
-      return;
+    // Forced first-login change: when credentialsSentAt is still set, the
+    // staff is on the auto-mailed temp password. They already proved they
+    // know it by getting a valid JWT, so we skip the re-verify and let
+    // them set a new password directly. Once cleared (which we do below),
+    // any subsequent change must include the current password.
+    const isForcedFirstChange = !!(staff as any).credentialsSentAt;
+    if (!isForcedFirstChange) {
+      const valid = await bcrypt.compare(currentPassword, (staff as any).passwordHash);
+      if (!valid) {
+        res.status(401).json({ error: "wrong_password", message: "הסיסמה הנוכחית שגויה" });
+        return;
+      }
     }
     const passwordHash = await bcrypt.hash(newPassword, 10);
     await db
