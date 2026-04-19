@@ -23,14 +23,14 @@ const PHONE_SHOTS: ReadonlyArray<{
     bump:  false,
   },
   {
-    src: "/hero/lilash-2.png",
+    src: "/hero/lilash-2.jpeg",
     title: "יומן וניהול מהנייד",
     desc:  "יומן שבועי ותפריט מלא — פגישות, שירותים, קבלות, לקוחות, הגדרות, הכל ממקום אחד.",
     anim:  "kv-float-b",
     bump:  true,
   },
   {
-    src: "/hero/lilash-3.png",
+    src: "/hero/lilash-3.jpeg",
     title: "מאגר לקוחות חכם",
     desc:  "כל לקוח עם היסטוריית תורים והכנסות, וקיצורים ל-WhatsApp, חיוג והנפקת קבלה.",
     anim:  "kv-float-c",
