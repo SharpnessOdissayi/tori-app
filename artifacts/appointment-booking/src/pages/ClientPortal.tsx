@@ -296,7 +296,7 @@ function LoginScreen({ onLogin }: { onLogin: (token: string, name: string) => vo
             </div>
             <button onClick={sendOtp} disabled={loading}
               className="w-full py-3 rounded-xl bg-blue-500 text-white font-semibold text-sm hover:bg-blue-600 disabled:opacity-50 transition-all">
-              {loading ? "שולח..." : "שלח קוד אימות למייל"}
+              {loading ? "שולח..." : "המשך"}
             </button>
             <div className="flex items-center justify-between gap-2 mt-1">
               <label className="flex items-center gap-2 cursor-pointer select-none">

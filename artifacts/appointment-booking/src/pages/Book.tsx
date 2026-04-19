@@ -1218,7 +1218,7 @@ export default function Book({ slugOverride }: { slugOverride?: string } = {}) {
                 </div>
                 <Button className="w-full h-11" style={{ backgroundColor: primaryColor }}
                   onClick={handlePortalSendOtp} disabled={portalLoading || !portalPhone.trim() || !portalEmail.trim()}>
-                  {portalLoading ? "שולח..." : "שלח קוד אימות למייל"}
+                  {portalLoading ? "שולח..." : "המשך"}
                 </Button>
               </div>
             ) : (

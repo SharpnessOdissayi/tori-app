@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { logBusinessNotification, logClientNotification } from "./notifications";
 import { db, businessesTable, servicesTable, workingHoursTable, breakTimesTable, appointmentsTable, waitlistTable, timeOffTable, reviewsTable } from "@workspace/db";
-import { eq, and, gte, sql, count } from "drizzle-orm";
+import { eq, and, or, gte, sql, count } from "drizzle-orm";
 import { sendClientCancellation, sendClientReschedule, sendClientConfirmation, sendWhatsApp } from "../lib/whatsapp";
 import { isBusinessPro } from "../lib/plan";
 import {
@@ -1366,29 +1366,68 @@ router.delete("/business/waitlist/:id", requireBusinessAuth, async (req, res): P
 });
 
 // GET /business/time-off
+// Staff scoping: a staff caller (JWT carries staffMemberId) sees ONLY
+// constraints that apply to them — i.e. their own per-staff rows AND the
+// business-wide rows (staff_member_id IS NULL). Other staff's per-staff
+// rows stay hidden so a stylist's day-off doesn't clutter a barber's
+// calendar. Owner sees everything as before.
 router.get("/business/time-off", requireBusinessAuth, async (req, res): Promise<void> => {
+  const businessId = req.business!.businessId;
+  const staffMemberId = req.business!.staffMemberId ?? null;
+  const whereClause = staffMemberId
+    ? and(
+        eq(timeOffTable.businessId, businessId),
+        or(
+          sql`${(timeOffTable as any).staffMemberId} IS NULL`,
+          eq((timeOffTable as any).staffMemberId, staffMemberId),
+        ),
+      )
+    : eq(timeOffTable.businessId, businessId);
   const items = await db.select().from(timeOffTable)
-    .where(eq(timeOffTable.businessId, req.business!.businessId))
+    .where(whereClause)
     .orderBy(timeOffTable.date);
-  res.json(items.map(t => ({ id: t.id, date: t.date, startTime: t.startTime ?? null, endTime: t.endTime ?? null, fullDay: t.fullDay, note: t.note ?? null })));
+  res.json(items.map(t => ({
+    id: t.id,
+    date: t.date,
+    startTime: t.startTime ?? null,
+    endTime: t.endTime ?? null,
+    fullDay: t.fullDay,
+    note: t.note ?? null,
+    staffMemberId: (t as any).staffMemberId ?? null,
+  })));
 });
 
 // POST /business/time-off
+// staff token  → staff_member_id = caller (their personal day off)
+// owner token  → staff_member_id = NULL (business-wide closure)
 router.post("/business/time-off", requireBusinessAuth, async (req, res): Promise<void> => {
   const parsed = parseCreateTimeOffBody(req.body);
   if (!parsed.success) { res.status(400).json({ error: "Invalid data" }); return; }
+  const staffMemberId = req.business!.staffMemberId ?? null;
   const [item] = await db.insert(timeOffTable).values({
     businessId: req.business!.businessId,
+    staffMemberId: staffMemberId,
     date: parsed.data.date,
     startTime: parsed.data.startTime ?? undefined,
     endTime: parsed.data.endTime ?? undefined,
     fullDay: parsed.data.fullDay ?? true,
     note: parsed.data.note ?? undefined,
-  }).returning();
-  res.json({ id: item.id, date: item.date, startTime: item.startTime ?? null, endTime: item.endTime ?? null, fullDay: item.fullDay, note: item.note ?? null });
+  } as any).returning();
+  res.json({
+    id: item.id,
+    date: item.date,
+    startTime: item.startTime ?? null,
+    endTime: item.endTime ?? null,
+    fullDay: item.fullDay,
+    note: item.note ?? null,
+    staffMemberId: (item as any).staffMemberId ?? null,
+  });
 });
 
 // PATCH /business/time-off/:id — edit a scheduled day off / partial off.
+// Staff can only edit their OWN per-staff rows (staff_member_id = caller).
+// They cannot edit business-wide rows (NULL staff_member_id) or other
+// staff's rows; the where-clause silently rejects (404) if they try.
 router.patch("/business/time-off/:id", requireBusinessAuth, async (req, res): Promise<void> => {
   const id = Number(req.params.id);
   if (!id || isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
@@ -1403,20 +1442,48 @@ router.patch("/business/time-off/:id", requireBusinessAuth, async (req, res): Pr
   if (parsed.data.endTime  !== undefined) updates.endTime   = parsed.data.endTime;
   if (parsed.data.note     !== undefined) updates.note      = parsed.data.note;
 
+  const businessId = req.business!.businessId;
+  const staffMemberId = req.business!.staffMemberId ?? null;
+  const whereClause = staffMemberId
+    ? and(
+        eq(timeOffTable.id, id),
+        eq(timeOffTable.businessId, businessId),
+        eq((timeOffTable as any).staffMemberId, staffMemberId),
+      )
+    : and(eq(timeOffTable.id, id), eq(timeOffTable.businessId, businessId));
+
   const [updated] = await db.update(timeOffTable)
     .set(updates)
-    .where(and(eq(timeOffTable.id, id), eq(timeOffTable.businessId, req.business!.businessId)))
+    .where(whereClause)
     .returning();
 
   if (!updated) { res.status(404).json({ error: "Not found" }); return; }
-  res.json({ id: updated.id, date: updated.date, startTime: updated.startTime ?? null, endTime: updated.endTime ?? null, fullDay: updated.fullDay, note: updated.note ?? null });
+  res.json({
+    id: updated.id,
+    date: updated.date,
+    startTime: updated.startTime ?? null,
+    endTime: updated.endTime ?? null,
+    fullDay: updated.fullDay,
+    note: updated.note ?? null,
+    staffMemberId: (updated as any).staffMemberId ?? null,
+  });
 });
 
 // DELETE /business/time-off/:id
+// Same scoping as PATCH — staff can only delete their own rows.
 router.delete("/business/time-off/:id", requireBusinessAuth, async (req, res): Promise<void> => {
   const id = Number(req.params.id);
   if (!id || isNaN(id)) { res.status(400).json({ error: "id לא תקין" }); return; }
-  await db.delete(timeOffTable).where(and(eq(timeOffTable.id, id), eq(timeOffTable.businessId, req.business!.businessId)));
+  const businessId = req.business!.businessId;
+  const staffMemberId = req.business!.staffMemberId ?? null;
+  const whereClause = staffMemberId
+    ? and(
+        eq(timeOffTable.id, id),
+        eq(timeOffTable.businessId, businessId),
+        eq((timeOffTable as any).staffMemberId, staffMemberId),
+      )
+    : and(eq(timeOffTable.id, id), eq(timeOffTable.businessId, businessId));
+  await db.delete(timeOffTable).where(whereClause);
   res.json({ ok: true });
 });
 
