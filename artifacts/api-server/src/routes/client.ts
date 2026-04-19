@@ -3,11 +3,43 @@ import { logBusinessNotification } from "./notifications";
 import { db, appointmentsTable, businessesTable, clientSessionsTable, clientBusinessesTable } from "@workspace/db";
 import { eq, and, or, gt, desc, sql } from "drizzle-orm";
 import { sendOtp, verifyOtp, OtpRateLimitError } from "../lib/whatsapp";
+import { sendEmail } from "../lib/email";
 import { randomUUID } from "crypto";
 
 const router = Router();
 
 const SESSION_DAYS = 30;
+
+// ── Email OTP (interim — WhatsApp Auth template still pending Meta approval)
+// Once Meta approves the verify_code template for production, prefer the
+// WhatsApp flow (deliverability + UX) and keep email as the fallback only.
+const EMAIL_OTP_TTL_MS = 5 * 60 * 1000;
+const EMAIL_OTP_RATE_LIMIT_MAX = 5;
+const EMAIL_OTP_RATE_LIMIT_WINDOW_MS = 15 * 60 * 1000;
+const emailOtpStore = new Map<string, { code: string; expiresAt: number }>();
+const emailOtpRateLimit = new Map<string, { count: number; windowStart: number }>();
+function checkEmailOtpRateLimit(email: string): boolean {
+  const now = Date.now();
+  const existing = emailOtpRateLimit.get(email);
+  if (!existing || now - existing.windowStart > EMAIL_OTP_RATE_LIMIT_WINDOW_MS) {
+    emailOtpRateLimit.set(email, { count: 1, windowStart: now });
+    return true;
+  }
+  if (existing.count >= EMAIL_OTP_RATE_LIMIT_MAX) return false;
+  existing.count += 1;
+  return true;
+}
+// Periodic sweep so the in-memory maps don't grow forever (api-server runs
+// for weeks on Railway between restarts).
+setInterval(() => {
+  const now = Date.now();
+  for (const [email, entry] of emailOtpStore.entries()) {
+    if (now > entry.expiresAt) emailOtpStore.delete(email);
+  }
+  for (const [email, entry] of emailOtpRateLimit.entries()) {
+    if (now - entry.windowStart > EMAIL_OTP_RATE_LIMIT_WINDOW_MS) emailOtpRateLimit.delete(email);
+  }
+}, 5 * 60 * 1000).unref();
 
 // ─── Auth middleware ─────────────────────────────────────────────────────────
 
@@ -85,6 +117,85 @@ router.post("/client/verify-otp", async (req, res): Promise<void> => {
   });
 
   res.json({ token, clientName: "", phone: phone.trim() });
+});
+
+// ─── Email OTP (interim flow until WhatsApp Auth template is approved) ─────
+router.post("/client/send-email-otp", async (req, res): Promise<void> => {
+  const { email } = req.body;
+  if (!email || typeof email !== "string" || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
+    res.status(400).json({ error: "אימייל לא תקין" });
+    return;
+  }
+  const normalizedEmail = email.trim().toLowerCase();
+  if (!checkEmailOtpRateLimit(normalizedEmail)) {
+    res.status(429).json({ error: "יותר מדי בקשות — נסה שוב בעוד כמה דקות" });
+    return;
+  }
+  const code = String(Math.floor(100000 + Math.random() * 900000));
+  emailOtpStore.set(normalizedEmail, { code, expiresAt: Date.now() + EMAIL_OTP_TTL_MS });
+
+  try {
+    await sendEmail(
+      normalizedEmail,
+      "קבעתי — קוד אימות לכניסה לפורטל",
+      `<div dir="rtl" style="font-family:Arial,sans-serif;color:#1f2937;">
+        <h2 style="color:#3c92f0;margin:0 0 16px;font-size:20px;">קוד האימות שלך</h2>
+        <p style="font-size:14px;color:#4b5563;margin:0 0 12px;">הזן את הקוד הבא במסך הכניסה לפורטל הלקוחות:</p>
+        <div style="font-size:36px;font-weight:bold;letter-spacing:12px;text-align:center;color:#1e6fcf;background:#eff6ff;padding:18px 12px;border-radius:12px;margin:18px 0;font-family:'Courier New',monospace;">${code}</div>
+        <p style="font-size:12px;color:#6b7280;margin:0 0 6px;">הקוד תקף ל-5 דקות בלבד.</p>
+        <p style="font-size:12px;color:#6b7280;margin:0;">אם לא ביקשת קוד אימות, אפשר להתעלם מהמייל הזה.</p>
+      </div>`
+    );
+    res.json({ success: true });
+  } catch (e) {
+    res.status(500).json({ error: "שגיאה בשליחת קוד" });
+  }
+});
+
+router.post("/client/verify-email-otp", async (req, res): Promise<void> => {
+  const { email, phone, code, clientName } = req.body;
+  if (!email || !phone || !code) { res.status(400).json({ error: "שדות חסרים" }); return; }
+
+  const normalizedEmail = String(email).trim().toLowerCase();
+  const trimmedPhone = String(phone).trim();
+  const trimmedName = typeof clientName === "string" ? clientName.trim() : "";
+
+  const entry = emailOtpStore.get(normalizedEmail);
+  if (!entry) { res.status(400).json({ error: "קוד שגוי או פג תוקף" }); return; }
+  if (Date.now() > entry.expiresAt) {
+    emailOtpStore.delete(normalizedEmail);
+    res.status(400).json({ error: "קוד פג תוקף — שלח קוד חדש" });
+    return;
+  }
+  if (entry.code !== String(code).trim()) {
+    res.status(400).json({ error: "קוד שגוי" });
+    return;
+  }
+  emailOtpStore.delete(normalizedEmail);
+
+  // Carry over preferences from any prior session for this email so a
+  // returning user doesn't lose their gender / receiveNotifications choice.
+  const prior = await findPriorSession({ email: normalizedEmail });
+
+  const token = randomUUID();
+  const expiresAt = new Date(Date.now() + SESSION_DAYS * 24 * 60 * 60 * 1000);
+
+  await db.insert(clientSessionsTable).values({
+    token,
+    email: normalizedEmail,
+    phoneNumber: trimmedPhone,
+    clientName: trimmedName || prior?.clientName || "",
+    receiveNotifications: prior?.receiveNotifications ?? true,
+    gender: prior?.gender ?? undefined,
+    expiresAt,
+  });
+
+  res.json({
+    token,
+    clientName: trimmedName || prior?.clientName || "",
+    phone: trimmedPhone,
+    email: normalizedEmail,
+  });
 });
 
 // ─── Google OAuth ─────────────────────────────────────────────────────────────
