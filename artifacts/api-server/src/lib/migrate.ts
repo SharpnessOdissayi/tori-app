@@ -427,6 +427,23 @@ export async function runMigrations() {
       )
     `));
 
+    // ─── Broadcast opt-out list ─────────────────────────────────────
+    // Per Israeli spam law (תיקון 40 לחוק התקשורת) every marketing SMS
+    // must let the recipient opt out, and the opt-out must be honoured
+    // immediately. We append "להסרה, הגב 'הסר'" to every broadcast;
+    // Inforu calls our webhook when a client replies "הסר"; we insert
+    // a row here; subsequent broadcasts skip that (business_id, phone)
+    // pair at send-time.
+    await db.execute(sql.raw(`
+      CREATE TABLE IF NOT EXISTS broadcast_unsubscribes (
+        business_id    INTEGER NOT NULL,
+        phone_number   TEXT    NOT NULL,
+        unsubscribed_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        source         TEXT    NOT NULL DEFAULT 'reply',
+        PRIMARY KEY (business_id, phone_number)
+      )
+    `));
+
     // ─── Time-off normalisation backfill ──────────────────────────────
     // Any existing time_off row that's assigned to an isOwner=true staff
     // row is ACTUALLY a business-wide closure (the owner created it

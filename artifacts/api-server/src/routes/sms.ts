@@ -20,7 +20,7 @@
 
 import { Router } from "express";
 import { db, businessesTable, smsMessagesTable, smsPackPurchasesTable } from "@workspace/db";
-import { eq, and, desc } from "drizzle-orm";
+import { eq, and, desc, sql } from "drizzle-orm";
 import jwt from "jsonwebtoken";
 import crypto from "crypto";
 import { JWT_SECRET } from "../lib/auth";
@@ -511,6 +511,89 @@ router.post("/sms/inforu-webhook/delivery", async (req, res): Promise<void> => {
     logger.error({ err, body: req.body }, "[inforu-dlr] webhook handler error");
     // Always 200 — Inforu retries on non-2xx and there's nothing they can
     // do differently to make a bug in our handler go away.
+    res.json({ ok: true });
+  }
+});
+
+// ─── POST /api/sms/inforu-webhook/reply ───────────────────────────────────
+// Inforu's inbound-SMS webhook. When a recipient replies to one of our
+// broadcast messages, Inforu posts the reply here. If the reply body (after
+// trimming + lower-casing) contains any of the opt-out keywords below we
+// add the sender's phone to broadcast_unsubscribes for the originating
+// business, so the next campaign skips them automatically.
+//
+// Auth: NO bearer header. Inforu's webhook config doesn't let us send one,
+// and the opt-out table key is (businessId, phone) — we can't write a row
+// without knowing the exact business, so an anonymous caller can't forge a
+// useful entry.
+const OPT_OUT_KEYWORDS = [
+  "הסר", "הסרה", "הסירו", "הסירי", "מהסרה",
+  "stop", "unsubscribe", "remove",
+];
+
+router.post("/sms/inforu-webhook/reply", async (req, res): Promise<void> => {
+  try {
+    const body = req.body ?? {};
+    // Inforu's reply webhook body isn't pinned in the public docs — parse
+    // defensively so a key rename doesn't silently break opt-outs.
+    const rawPhone    = String(body?.Phone ?? body?.phone ?? body?.From ?? body?.from ?? "");
+    const rawMessage  = String(body?.Message ?? body?.message ?? body?.Text ?? body?.text ?? body?.Body ?? "").trim();
+    const rawCustomer = body?.CustomerMessageID ?? body?.CustomerMessageId ?? body?.customerMessageId ?? null;
+
+    if (!rawPhone || !rawMessage) {
+      logger.warn({ body }, "[inforu-reply] missing phone or message");
+      res.json({ ok: true });
+      return;
+    }
+
+    const lower = rawMessage.toLowerCase();
+    const isOptOut = OPT_OUT_KEYWORDS.some(k => lower === k || lower.startsWith(k + " ") || lower.endsWith(" " + k) || lower.includes(k));
+    if (!isOptOut) {
+      // Not an opt-out — just log and drop. Future: could forward to the
+      // business owner as an in-app notification so they see the reply.
+      logger.info({ phone: rawPhone, preview: rawMessage.slice(0, 40) }, "[inforu-reply] ignoring non-opt-out reply");
+      res.json({ ok: true });
+      return;
+    }
+
+    // Find which business this phone last got a broadcast from. We stored
+    // customerMessageId as `broadcast-<businessId>-<timestamp>` for every
+    // send, so the reply's echoed CustomerMessageID (if Inforu returns it)
+    // gives us the business immediately. Otherwise we fall back to the
+    // most recent sms_messages row for this recipient.
+    let businessId: number | null = null;
+    if (typeof rawCustomer === "string") {
+      const m = rawCustomer.match(/^broadcast-(\d+)-/);
+      if (m) businessId = parseInt(m[1], 10);
+    }
+    if (!businessId || isNaN(businessId)) {
+      const [row] = await db
+        .select({ businessId: smsMessagesTable.businessId })
+        .from(smsMessagesTable)
+        .where(eq(smsMessagesTable.recipientPhone, rawPhone))
+        .orderBy(desc(smsMessagesTable.createdAt))
+        .limit(1);
+      businessId = row?.businessId ?? null;
+    }
+
+    if (!businessId) {
+      logger.warn({ rawPhone }, "[inforu-reply] opt-out reply but no originating business — dropping");
+      res.json({ ok: true });
+      return;
+    }
+
+    // Normalise to Israeli local form to match what we store elsewhere.
+    const normalizedPhone = rawPhone.replace(/\D/g, "").replace(/^972/, "0");
+    await db.execute(sql`
+      INSERT INTO broadcast_unsubscribes (business_id, phone_number, source)
+      VALUES (${businessId}, ${normalizedPhone}, 'reply')
+      ON CONFLICT (business_id, phone_number) DO NOTHING
+    `);
+    logger.info({ businessId, phone: normalizedPhone }, "[inforu-reply] opt-out recorded");
+
+    res.json({ ok: true });
+  } catch (err) {
+    logger.error({ err, body: req.body }, "[inforu-reply] webhook handler error");
     res.json({ ok: true });
   }
 });

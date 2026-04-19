@@ -1286,6 +1286,25 @@ router.post("/business/broadcast", requireBusinessAuth, async (req, res): Promis
     phones = [...new Set(rows.map(r => r.phoneNumber).filter(Boolean))];
   }
 
+  // Drop anyone who already opted out of THIS business's broadcasts. Israeli
+  // spam law requires the opt-out to be honoured immediately and we maintain
+  // an internal blacklist independent of Inforu's so we can't accidentally
+  // re-send even if Inforu's side is out of sync.
+  if (phones.length > 0) {
+    const normalizedInputs = phones.map(p => p.replace(/\D/g, "").replace(/^972/, "0").replace(/^([^0])/, "0$1"));
+    const rowsUnsub = await db.execute(sql`
+      SELECT phone_number FROM broadcast_unsubscribes
+      WHERE business_id = ${businessId}
+    `);
+    const blockedSet = new Set<string>();
+    for (const r of (rowsUnsub as any).rows ?? []) {
+      const p = String(r.phone_number ?? "");
+      const norm = p.replace(/\D/g, "").replace(/^972/, "0");
+      if (norm) blockedSet.add(norm);
+    }
+    phones = phones.filter((_, i) => !blockedSet.has(normalizedInputs[i]));
+  }
+
   // Cap at remaining quota
   const remaining = BROADCAST_MONTHLY_LIMIT - sentThisMonth;
   const batch = phones.slice(0, remaining);
@@ -1300,16 +1319,35 @@ router.post("/business/broadcast", requireBusinessAuth, async (req, res): Promis
   // flip the per-phone loop to a single batched call — fewer API round
   // trips + we only pay one network cost per batch. Falls back to
   // WhatsApp if Inforu credentials aren't set yet.
+  //
+  // Message compose (required by Israeli spam law תיקון 40):
+  //   "<business name>:
+  //    <owner-authored message>
+  //
+  //    להסרה, הגב 'הסר'"
+  //
+  // The "להסרה, הגב 'הסר'" line + our inforu-reply webhook + our own
+  // broadcast_unsubscribes blacklist together implement the legally
+  // required immediate-unsubscribe flow.
+  const [biz2] = await db
+    .select({ name: businessesTable.name })
+    .from(businessesTable)
+    .where(eq(businessesTable.id, req.business!.businessId));
+  const ownerMessage  = message.trim();
+  const businessLabel = (biz2?.name ?? "").trim();
+  const composedMessage = [
+    businessLabel ? `${businessLabel}:` : null,
+    ownerMessage,
+    "",
+    "להסרה, הגב 'הסר'",
+  ].filter(Boolean).join("\n");
+
   const { sendSms: inforuSendSms, isInforuConfigured } = await import("../lib/inforu");
   if (isInforuConfigured() && batch.length > 0) {
-    const [biz2] = await db
-      .select({ name: businessesTable.name })
-      .from(businessesTable)
-      .where(eq(businessesTable.id, req.business!.businessId));
     const senderName = (process.env.INFORU_SENDER_NAME ?? biz2?.name ?? "Kavati").slice(0, 11);
     const result = await inforuSendSms({
       recipients: batch,
-      message: message.trim(),
+      message: composedMessage,
       senderName,
       customerMessageId: `broadcast-${req.business!.businessId}-${Date.now()}`,
     });
@@ -1323,7 +1361,7 @@ router.post("/business/broadcast", requireBusinessAuth, async (req, res): Promis
     // Fallback path: no Inforu creds → legacy WhatsApp per-phone loop.
     for (const phone of batch) {
       try {
-        await sendWhatsApp(phone, message.trim(), req.business!.businessId);
+        await sendWhatsApp(phone, composedMessage, req.business!.businessId);
         successCount++;
       } catch {
         failCount++;
