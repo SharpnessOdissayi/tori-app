@@ -767,6 +767,15 @@ router.post("/business/appointments", requireBusinessAuth, async (req, res): Pro
     .where(and(eq(servicesTable.id, svcIdNum), eq(servicesTable.businessId, businessId)));
   if (!service) { res.status(404).json({ error: "service_not_found" }); return; }
 
+  // Staff-scoping: when the caller's JWT carries a staffMemberId (i.e. a
+  // non-owner staff member pencilling in a tour for a client), stamp that
+  // id onto the new row. Without it the appointment lands with
+  // staff_member_id = NULL, which means:
+  //   · the staff's own GET /business/appointments filter excludes it
+  //     (WHERE staff_member_id = <caller>), AND
+  //   · the frontend aptList filter excludes it too.
+  // Owner callers leave it NULL (business-wide row, visible to everyone).
+  const callerStaffId = req.business!.staffMemberId ?? null;
   const [appointment] = await db
     .insert(appointmentsTable)
     .values({
@@ -780,7 +789,8 @@ router.post("/business/appointments", requireBusinessAuth, async (req, res): Pro
       durationMinutes: service.durationMinutes,
       status: "confirmed",
       notes: notes ? String(notes).slice(0, 1000) : undefined,
-    })
+      staffMemberId: callerStaffId,
+    } as any)
     .returning();
 
   logBusinessNotification({
