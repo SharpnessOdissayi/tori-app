@@ -16,7 +16,14 @@ import { computeAvailableSlots } from "../lib/availability";
 import { sendOtp, verifyOtp, notifyBusinessOwner, sendClientConfirmation, sendClientCancellation, sendTemplate, OtpRateLimitError } from "../lib/whatsapp";
 import { isPhoneVerified, consumeVerification, markPhoneVerified, normalizePhone } from "../lib/otpStore";
 import { signPhoneVerificationToken, verifyPhoneVerificationToken } from "../lib/phoneVerificationJwt";
-import { peekUnsubscribeToken, consumeUnsubscribeToken, normalizeSubscriberPhone } from "../lib/unsubscribeToken";
+import { peekUnsubscribeToken, consumeUnsubscribeToken, normalizeSubscriberPhone, verifyInviteBackToken } from "../lib/unsubscribeToken";
+import {
+  toCanonical,
+  upsertSubscribed,
+  markUnsubscribed,
+  autoSubscribeFromBooking,
+  getContact,
+} from "../lib/broadcastContacts";
 
 // Shared page shell for the public opt-in / opt-out HTML pages — keeps
 // one stylesheet so the two flows feel like the same brand.
@@ -110,6 +117,35 @@ router.get("/r/:businessSlug", async (req, res): Promise<void> => {
   const logoBlock = biz.logoUrl
     ? `<img class="biz-logo" src="${escapeHtmlPublic(biz.logoUrl)}" alt="${escapeHtmlPublic(biz.name)}"/>`
     : "";
+
+  // Tokenised invite path (`?i=<token>`): the owner triggered a
+  // re-opt-in for a specific phone. Receipt of the invite SMS already
+  // proves phone ownership, so we don't need another OTP — one click
+  // on "אשר" and they're back. Token wasn't valid → fall through to
+  // the generic OTP flow.
+  const inviteToken = typeof req.query?.i === "string" ? req.query.i : null;
+  if (inviteToken) {
+    const decoded = verifyInviteBackToken(inviteToken);
+    if (decoded && decoded.businessId === biz.id) {
+      res.status(200).set("Content-Type", "text/html; charset=utf-8").send(brandedPageShell(
+        `אישור חזרה ל-${biz.name}`,
+        `${logoBlock}
+         <h1>חזרה לרשימת התפוצה של ${escapeHtmlPublic(biz.name)}</h1>
+         <p>העסק הזמין אותך לחזור לקבלת הודעות שיווק ב-SMS.
+            לחץ/י על "אשר" כדי להירשם מחדש — זה הכל, בלי להזין טלפון או קוד.</p>
+         <form method="POST" action="/api/r/${encodeURIComponent(slug)}/confirm-invite">
+           <input type="hidden" name="token" value="${escapeHtmlPublic(inviteToken)}"/>
+           <button type="submit">אשר חזרה לרשימה</button>
+         </form>
+         <p class="muted" style="margin-top:14px;">ניתן להסיר בכל עת באמצעות הקישור שיופיע בכל הודעה.</p>`,
+        accent,
+      ));
+      return;
+    }
+    // Invalid token → fall through to the generic form, but let the
+    // user know in case they got there from a broken share.
+  }
+
   res.status(200).set("Content-Type", "text/html; charset=utf-8").send(brandedPageShell(
     `הרשמה להודעות מ-${biz.name}`,
     `${logoBlock}
@@ -126,6 +162,64 @@ router.get("/r/:businessSlug", async (req, res): Promise<void> => {
      </form>
      <p class="muted" style="margin-top:14px;">שירות ההודעות מופעל על ידי קבעתי בהתאם לתיקון 40 לחוק התקשורת.</p>`,
     accent,
+  ));
+});
+
+// Tokenised invite confirmation — one-click re-subscribe. Safe because
+// the invite-back SMS is addressed to a specific phone, so the token
+// reaching us proves the customer held that phone. NO additional OTP
+// here — owner asked for a single-SMS flow ("וקיבלתי 2 סמסים לאימות
+// משום מה וזה הזוי").
+router.post("/r/:businessSlug/confirm-invite", async (req, res): Promise<void> => {
+  const slug = String(req.params.businessSlug ?? "").trim();
+  const biz = await loadBusinessForOptIn(slug);
+  if (!biz) {
+    res.status(404).set("Content-Type", "text/html; charset=utf-8").send(brandedPageShell(
+      "לא נמצא",
+      `<div class="icon" style="background:#fee2e2;color:#dc2626">✕</div>
+       <h1>העסק לא נמצא</h1>`,
+      "#dc2626",
+    ));
+    return;
+  }
+  const token = String((req.body as any)?.token ?? "").trim();
+  const decoded = verifyInviteBackToken(token);
+  if (!decoded || decoded.businessId !== biz.id) {
+    res.status(400).set("Content-Type", "text/html; charset=utf-8").send(brandedPageShell(
+      "קישור לא תקין",
+      `<div class="icon" style="background:#fee2e2;color:#dc2626">✕</div>
+       <h1>קישור לא תקין או פג תוקף</h1>
+       <p>אם ההזמנה הגיעה אליך ב-SMS, לחצ/י על הקישור ישירות משם.</p>`,
+      "#dc2626",
+    ));
+    return;
+  }
+  try {
+    await upsertSubscribed({
+      businessId: decoded.businessId,
+      phone: decoded.phone,
+      source: "invite_accept",
+    });
+  } catch (e: any) {
+    console.error("[/api/r/confirm-invite] write failed:", e?.message ?? e);
+    res.status(500).set("Content-Type", "text/html; charset=utf-8").send(brandedPageShell(
+      "שגיאה",
+      `<div class="icon" style="background:#fee2e2;color:#dc2626">!</div>
+       <h1>אירעה שגיאה זמנית</h1>
+       <p>נסה/י שוב בעוד דקה.</p>`,
+      "#dc2626",
+    ));
+    return;
+  }
+  res.status(200).set("Content-Type", "text/html; charset=utf-8").send(brandedPageShell(
+    "ברוכ/ה השב/ה",
+    `<div class="icon">✓</div>
+     <h1>חזרת לרשימה</h1>
+     <p>מעכשיו תקבל/י שוב הודעות מ-<strong>${escapeHtmlPublic(biz.name)}</strong>.</p>
+     <p style="margin-top:14px;font-size:13px;color:#64748b;">
+       ניתן להסיר את עצמך בכל עת דרך הקישור שיופיע בכל הודעה.
+     </p>`,
+    biz.primaryColor ?? "#3c92f0",
   ));
 });
 
@@ -257,19 +351,13 @@ router.post("/r/:businessSlug/verify", async (req, res): Promise<void> => {
 
   try {
     // Verified positive consent — legal basis under תיקון 40 to OVERRIDE
-    // any prior opt-out for this specific business. Remove the audit
-    // row and add them as active.
-    await db.execute(sql`
-      DELETE FROM broadcast_unsubscribes
-      WHERE business_id = ${biz.id}
-        AND regexp_replace(regexp_replace(phone_number, '\D', '', 'g'), '^972', '0') = ${normalised}
-    `);
-    await db.execute(sql`
-      INSERT INTO broadcast_subscribers (business_id, phone_number, status, source)
-      VALUES (${biz.id}, ${normalised}, 'active', 'public_optin')
-      ON CONFLICT (business_id, phone_number)
-      DO UPDATE SET status = 'active', source = 'public_optin', updated_at = NOW()
-    `);
+    // any prior opt-out. `upsertSubscribed` handles clearing the
+    // opt-out metadata atomically in the single-table design.
+    await upsertSubscribed({
+      businessId: biz.id,
+      phone: normalised,
+      source: "public_optin",
+    });
   } catch (e: any) {
     console.error("[/api/r/verify] opt-in write failed:", e?.message ?? e);
     res.status(500).set("Content-Type", "text/html; charset=utf-8").send(brandedPageShell(
@@ -342,34 +430,14 @@ router.get("/u/:token", async (req, res): Promise<void> => {
   }
 
   try {
-    // Audit row — stored in the canonical 0-prefixed form so the
-    // owner panel shows "0501234567" not "972501234567".
-    //
-    // ON CONFLICT behaviour: if the owner had previously removed the
-    // phone with source='manual_remove', the customer clicking the
-    // unsubscribe link UPGRADES that row to source='unsub_link' —
-    // the customer's explicit action is a stronger signal than the
-    // owner's, and should block the owner from later re-adding them.
-    // For conflicts where the existing source is already a customer-
-    // initiated one, DO NOTHING (idempotent re-click).
-    const normalisedPhone = normalizeSubscriberPhone(decoded.phone);
-    await db.execute(sql`
-      INSERT INTO broadcast_unsubscribes (business_id, phone_number, source)
-      VALUES (${decoded.businessId}, ${normalisedPhone}, 'unsub_link')
-      ON CONFLICT (business_id, phone_number)
-      DO UPDATE SET source = 'unsub_link'
-      WHERE broadcast_unsubscribes.source = 'manual_remove'
-    `);
-    // Match the active subscriber row in ANY stored format. Historically
-    // broadcast_subscribers rows were written from bookings with
-    // whatever format the customer typed ("0501234567" / "+972-50-..."),
-    // so an exact-string DELETE missed rows that didn't match the
-    // token's phone form. regexp_replace normalises both sides.
-    await db.execute(sql`
-      DELETE FROM broadcast_subscribers
-      WHERE business_id = ${decoded.businessId}
-        AND regexp_replace(regexp_replace(phone_number, '\D', '', 'g'), '^972', '0') = ${normalisedPhone}
-    `);
+    // Customer-initiated opt-out via the SMS link. markUnsubscribed
+    // handles the canonical form + upgrades any prior owner-initiated
+    // row to the stronger customer signal.
+    await markUnsubscribed({
+      businessId: decoded.businessId,
+      phone: decoded.phone,
+      source: "unsub_link",
+    });
     await consumeUnsubscribeToken(token);
   } catch (e: any) {
     console.error("[/api/u] opt-out write failed:", e?.message ?? e);
@@ -1069,29 +1137,14 @@ router.post("/public/:businessSlug/appointments", async (req, res): Promise<void
 
   if (business.requirePhoneVerification) consumeVerification(phoneNumber);
 
-  // Auto-subscribe this phone to the business's broadcast list — unless
-  // they previously opted out (recorded in broadcast_unsubscribes). The
-  // opt-out audit row persists forever, so even after hard-delete of the
-  // subscriber row, a returning customer who once replied 'הסר' won't
-  // be re-added behind their back.
+  // Auto-subscribe on booking — the helper DOES NOT touch existing
+  // opted-out contacts, so a returning customer who once clicked the
+  // unsubscribe link won't be re-added behind their back.
   try {
-    const normalized = String(phoneNumber).replace(/\D/g, "").replace(/^972/, "0");
-    const optedOut = await db.execute(sql`
-      SELECT 1 FROM broadcast_unsubscribes
-      WHERE business_id = ${business.id} AND phone_number = ${normalized}
-      LIMIT 1
-    `);
-    const hasOptOut = ((optedOut as any).rows ?? []).length > 0;
-    if (!hasOptOut) {
-      await db.execute(sql`
-        INSERT INTO broadcast_subscribers (business_id, phone_number, status, source)
-        VALUES (${business.id}, ${phoneNumber}, 'active', 'booking')
-        ON CONFLICT (business_id, phone_number) DO NOTHING
-      `);
-    }
+    await autoSubscribeFromBooking({ businessId: business.id, phone: phoneNumber });
   } catch (e) {
     // Never let a subscriber-list write break booking confirmation.
-    console.warn("[broadcast_subscribers] auto-add failed:", (e as any)?.message ?? e);
+    console.warn("[broadcast_contacts] auto-subscribe failed:", (e as any)?.message ?? e);
   }
 
   const [, month, day] = appointmentDate.split("-");

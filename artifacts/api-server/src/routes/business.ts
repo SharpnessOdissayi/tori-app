@@ -4,7 +4,17 @@ import { db, businessesTable, servicesTable, workingHoursTable, breakTimesTable,
 import { eq, and, or, gte, sql, count } from "drizzle-orm";
 import { sendClientCancellation, sendClientReschedule, sendClientConfirmation, sendWhatsApp } from "../lib/whatsapp";
 import { isBusinessPro } from "../lib/plan";
-import { allocateUnsubscribeTokensBulk } from "../lib/unsubscribeToken";
+import { allocateUnsubscribeTokensBulk, signInviteBackToken } from "../lib/unsubscribeToken";
+import {
+  toCanonical,
+  upsertSubscribed,
+  markUnsubscribed,
+  getContact,
+  listContactsWithNames,
+  getUnsubscribedPhoneSet,
+  recordInviteSent,
+  isCustomerOptOut,
+} from "../lib/broadcastContacts";
 import {
   UpdateBusinessProfileBody,
   CreateBusinessServiceBody,
@@ -1333,23 +1343,13 @@ router.post("/business/broadcast", requireBusinessAuth, async (req, res): Promis
     phones = [...new Set(rows.map(r => r.phoneNumber).filter(Boolean))];
   }
 
-  // Block ONLY phones that explicitly opted out — audit lives in
-  // broadcast_unsubscribes (rows survive even after the subscriber row is
-  // hard-deleted). A phone that's missing from both tables is treated as
-  // implicitly allowed under the existing customer-relationship basis of
-  // תיקון 40. Normalisation handles 050 / 972 / +972 variants.
+  // Block recipients who are marked unsubscribed in broadcast_contacts.
+  // Everyone else is allowed — even if they have no row at all, which
+  // under תיקון 40 means they're a prior customer (relationship basis
+  // for transactional marketing).
   if (phones.length > 0) {
-    const normalize = (p: string) => p.replace(/\D/g, "").replace(/^972/, "0");
-    const normalizedInputs = phones.map(normalize);
-    const unsubRows = await db.execute(sql`
-      SELECT phone_number FROM broadcast_unsubscribes
-      WHERE business_id = ${businessId}
-    `);
-    const unsubSet = new Set<string>();
-    for (const r of (unsubRows as any).rows ?? []) {
-      const norm = normalize(String(r.phone_number ?? ""));
-      if (norm) unsubSet.add(norm);
-    }
+    const unsubSet = await getUnsubscribedPhoneSet(businessId);
+    const normalizedInputs = phones.map(toCanonical);
     phones = phones.filter((_, i) => !unsubSet.has(normalizedInputs[i]));
   }
 
@@ -1892,88 +1892,24 @@ router.get("/business/revenue", requireBusinessAuth, async (req, res): Promise<v
 
 router.get("/business/broadcast-subscribers", requireBusinessAuth, async (req, res): Promise<void> => {
   const businessId = req.business!.businessId;
-  // Return BOTH active subscribers and audit-trail opt-outs in one list.
-  // Every phone is NORMALISED (digits only, 972→0) for both display
-  // and join — legacy data has rows in mixed formats ("972501234567" /
-  // "+972-50-..." / "0501234567"), and without normalising the client
-  // name join misses and the UI shows a bare phone with no label.
-  //
-  // The "canonical_phone" column is what we show to the owner and what
-  // the name lookup joins on; the original phone_number is kept only
-  // to refer back to the underlying row if we ever need to.
-  const rows = await db.execute(sql`
-    WITH merged AS (
-      SELECT
-        regexp_replace(regexp_replace(phone_number, '\D', '', 'g'), '^972', '0') AS canonical_phone,
-        status,
-        source,
-        created_at,
-        updated_at
-      FROM broadcast_subscribers
-      WHERE business_id = ${businessId}
-      UNION ALL
-      SELECT
-        regexp_replace(regexp_replace(u.phone_number, '\D', '', 'g'), '^972', '0') AS canonical_phone,
-        'unsubscribed' AS status,
-        u.source,
-        u.unsubscribed_at AS created_at,
-        u.unsubscribed_at AS updated_at
-      FROM broadcast_unsubscribes u
-      WHERE u.business_id = ${businessId}
-        AND NOT EXISTS (
-          SELECT 1 FROM broadcast_subscribers s
-           WHERE s.business_id = ${businessId}
-             AND regexp_replace(regexp_replace(s.phone_number, '\D', '', 'g'), '^972', '0')
-               = regexp_replace(regexp_replace(u.phone_number, '\D', '', 'g'), '^972', '0')
-        )
-    ),
-    -- De-dup by canonical phone so the SAME phone stored in two
-    -- different formats doesn't render twice. First row wins.
-    deduped AS (
-      SELECT DISTINCT ON (canonical_phone)
-             canonical_phone, status, source, created_at, updated_at
-      FROM merged
-      ORDER BY canonical_phone, created_at DESC
-    )
-    SELECT
-      d.canonical_phone AS phone_number,
-      d.status,
-      d.source,
-      d.created_at,
-      d.updated_at,
-      COALESCE(
-        (SELECT a.client_name
-           FROM appointments a
-          WHERE a.business_id = ${businessId}
-            AND regexp_replace(regexp_replace(a.phone_number, '\D', '', 'g'), '^972', '0') = d.canonical_phone
-          ORDER BY a.appointment_date DESC
-          LIMIT 1),
-        (SELECT c.client_name
-           FROM client_sessions c
-          WHERE regexp_replace(regexp_replace(c.phone_number, '\D', '', 'g'), '^972', '0') = d.canonical_phone
-          ORDER BY c.created_at DESC
-          LIMIT 1)
-      ) AS client_name
-    FROM deduped d
-    ORDER BY d.created_at DESC
-  `);
-  const list = ((rows as any).rows ?? []).map((r: any) => ({
-    phoneNumber: r.phone_number,
-    clientName:  r.client_name ?? null,
-    status:      r.status,
-    source:      r.source,
-    createdAt:   r.created_at,
-    updatedAt:   r.updated_at,
+  // Single table, clean read. The response shape keeps `status` /
+  // `source` for UI back-compat — UI still branches on these.
+  const rawList = await listContactsWithNames(businessId);
+  const list = rawList.map(r => ({
+    phoneNumber: r.phoneNumber,
+    clientName:  r.clientName,
+    status:      r.subscribed ? "active" : "unsubscribed",
+    source:      r.subscribed ? (r.optInSource ?? "") : (r.optOutSource ?? ""),
+    createdAt:   r.createdAt,
+    updatedAt:   r.updatedAt,
   }));
-  const activeCount       = list.filter((r: any) => r.status === "active").length;
-  const unsubscribedCount = list.filter((r: any) => r.status === "unsubscribed").length;
+  const activeCount       = list.filter(r => r.status === "active").length;
+  const unsubscribedCount = list.filter(r => r.status === "unsubscribed").length;
   res.json({
     subscribers: list,
     total: list.length,
     active: activeCount,
-    // Explicit phone list for the UI to filter broadcast recipients
-    // against — avoids every caller re-implementing the status filter.
-    unsubscribedPhones: list.filter((r: any) => r.status === "unsubscribed").map((r: any) => r.phoneNumber),
+    unsubscribedPhones: list.filter(r => r.status === "unsubscribed").map(r => r.phoneNumber),
     unsubscribedCount,
   });
 });
@@ -1985,52 +1921,24 @@ router.post("/business/broadcast-subscribers", requireBusinessAuth, async (req, 
     res.status(400).json({ error: "מספר טלפון נדרש" });
     return;
   }
-  const normalized = phoneNumber.trim();
-  if (!/^\+?\d[\d\- ]{7,}$/.test(normalized)) {
+  if (!/^\+?\d[\d\- ]{7,}$/.test(phoneNumber.trim())) {
     res.status(400).json({ error: "מספר טלפון לא תקין" });
     return;
   }
-  // תיקון 40 guard: only owner-initiated removals (source='manual_remove')
-  // can be reversed by the owner. EVERY other source is treated as
-  // customer-initiated and blocks the add. That list grows over time —
-  // we inventory it here instead of enumerating "forbidden" sources,
-  // because a missed one (e.g. 'reply_legacy' from the migration
-  // backfill) would silently let the owner re-add a protected phone
-  // and leave a stale audit row behind that blocks future sends.
-  const digitsOnly = normalized.replace(/\D/g, "").replace(/^972/, "0");
-  const existingAudit = await db.execute(sql`
-    SELECT source FROM broadcast_unsubscribes
-    WHERE business_id = ${businessId}
-      AND regexp_replace(regexp_replace(phone_number, '\D', '', 'g'), '^972', '0') = ${digitsOnly}
-    LIMIT 1
-  `);
-  const existingSource = ((existingAudit as any).rows ?? [])[0]?.source as string | undefined;
-  if (existingSource && existingSource !== "manual_remove") {
+  const canonical = toCanonical(phoneNumber);
+  // תיקון 40 guard: if the CURRENT state is opted-out and the opt-out
+  // source is customer-initiated, the owner cannot override it. Only
+  // owner-initiated removals can be reversed here.
+  const contact = await getContact({ businessId, phone: canonical });
+  if (contact && !contact.subscribed && isCustomerOptOut(contact.optOutSource)) {
     res.status(403).json({
       error: "customer_opted_out",
       message: "הלקוח ביקש להסיר את עצמו מרשימת התפוצה. לפי תיקון 40 בעל העסק לא יכול להוסיפו חזרה ללא הסכמה חדשה של הלקוח.",
     });
     return;
   }
-  // Owner's own prior removal (or no audit row at all) — clear any
-  // matching audit rows regardless of source value, since we just
-  // verified no customer-initiated sources exist. This is the fix for
-  // the "I clicked החזר and the customer doesn't actually receive
-  // broadcasts" bug: previously we only deleted rows where
-  // source='manual_remove', leaving 'reply_legacy' or similar rows
-  // behind to block the send filter.
-  await db.execute(sql`
-    DELETE FROM broadcast_unsubscribes
-    WHERE business_id = ${businessId}
-      AND regexp_replace(regexp_replace(phone_number, '\D', '', 'g'), '^972', '0') = ${digitsOnly}
-  `);
-  await db.execute(sql`
-    INSERT INTO broadcast_subscribers (business_id, phone_number, status, source)
-    VALUES (${businessId}, ${digitsOnly}, 'active', 'manual_add')
-    ON CONFLICT (business_id, phone_number)
-    DO UPDATE SET status = 'active', source = 'manual_resubscribe', updated_at = NOW()
-  `);
-  res.json({ success: true, phoneNumber: digitsOnly, status: "active" });
+  await upsertSubscribed({ businessId, phone: canonical, source: "manual_add" });
+  res.json({ success: true, phoneNumber: canonical, status: "active" });
 });
 
 router.delete("/business/broadcast-subscribers/:phone", requireBusinessAuth, async (req, res): Promise<void> => {
@@ -2038,24 +1946,7 @@ router.delete("/business/broadcast-subscribers/:phone", requireBusinessAuth, asy
   const raw = Array.isArray(req.params.phone) ? req.params.phone[0] : req.params.phone;
   const phone = decodeURIComponent(String(raw ?? "")).trim();
   if (!phone) { res.status(400).json({ error: "מספר טלפון נדרש" }); return; }
-  // Hard remove from broadcast_subscribers so the owner's UI stops
-  // showing the row altogether. We still want an audit trail for תיקון 40
-  // compliance, so we record the opt-out in broadcast_unsubscribes before
-  // deleting — that table is checked by the send filters alongside the
-  // subscriber status column.
-  await db.execute(sql`
-    INSERT INTO broadcast_unsubscribes (business_id, phone_number, source)
-    VALUES (${businessId}, ${phone}, 'manual_remove')
-    ON CONFLICT (business_id, phone_number) DO NOTHING
-  `);
-  const result = await db.execute(sql`
-    DELETE FROM broadcast_subscribers
-    WHERE business_id = ${businessId} AND phone_number = ${phone}
-  `);
-  if ((result as any).rowCount === 0) {
-    res.status(404).json({ error: "לא נמצא ברשימת התפוצה" });
-    return;
-  }
+  await markUnsubscribed({ businessId, phone, source: "manual_remove" });
   res.json({ success: true });
 });
 
@@ -2064,113 +1955,57 @@ router.post("/business/broadcast-subscribers/:phone/resubscribe", requireBusines
   const raw = Array.isArray(req.params.phone) ? req.params.phone[0] : req.params.phone;
   const phone = decodeURIComponent(String(raw ?? "")).trim();
   if (!phone) { res.status(400).json({ error: "מספר טלפון נדרש" }); return; }
-  const digitsOnly = phone.replace(/\D/g, "").replace(/^972/, "0");
-
-  // Same inventory logic as manual-add — only 'manual_remove' audit rows
-  // can be safely reversed by the owner. Previous version only DELETE'd
-  // source='manual_remove' audit rows, so resubscribing a customer whose
-  // audit row had source='reply_legacy' (from the migration backfill)
-  // would move them to broadcast_subscribers active BUT leave the
-  // audit row behind — and the send filter checks broadcast_unsubscribes
-  // by phone, so the next broadcast silently skipped the "resubscribed"
-  // customer. That's the "I clicked החזר and he's still not receiving"
-  // bug.
-  const existingAudit = await db.execute(sql`
-    SELECT source FROM broadcast_unsubscribes
-    WHERE business_id = ${businessId}
-      AND regexp_replace(regexp_replace(phone_number, '\D', '', 'g'), '^972', '0') = ${digitsOnly}
-    LIMIT 1
-  `);
-  const existingSource = ((existingAudit as any).rows ?? [])[0]?.source as string | undefined;
-  if (existingSource && existingSource !== "manual_remove") {
+  const canonical = toCanonical(phone);
+  // תיקון 40 guard — same rule as manual-add: owner can only reverse
+  // their OWN prior removal.
+  const contact = await getContact({ businessId, phone: canonical });
+  if (contact && !contact.subscribed && isCustomerOptOut(contact.optOutSource)) {
     res.status(403).json({
       error: "customer_opted_out",
       message: "הלקוח ביקש להסיר את עצמו מרשימת התפוצה. לפי תיקון 40 בעל העסק לא יכול להחזירו ללא הסכמה חדשה של הלקוח.",
     });
     return;
   }
-  // Safe to clear — we just verified no customer-initiated source
-  // exists. Wide DELETE (no source filter) so any straggler rows from
-  // future/unknown sources also get cleared.
-  await db.execute(sql`
-    DELETE FROM broadcast_unsubscribes
-    WHERE business_id = ${businessId}
-      AND regexp_replace(regexp_replace(phone_number, '\D', '', 'g'), '^972', '0') = ${digitsOnly}
-  `);
-  await db.execute(sql`
-    INSERT INTO broadcast_subscribers (business_id, phone_number, status, source)
-    VALUES (${businessId}, ${digitsOnly}, 'active', 'manual_resubscribe')
-    ON CONFLICT (business_id, phone_number)
-    DO UPDATE SET status = 'active', source = 'manual_resubscribe', updated_at = NOW()
-  `);
+  await upsertSubscribed({ businessId, phone: canonical, source: "manual_resubscribe" });
   res.json({ success: true, status: "active" });
 });
 
 // ─── Broadcast re-opt-in invite (owner-triggered, SMS) ──────────────────
-// Owner clicks "הזמן בחזרה" on a row in "לא מנויים". We send a short
-// SMS to that phone with the public opt-in link — customer clicks it,
-// enters SMS OTP on /api/r/<slug>, and self-resubscribes.
+// Owner clicks "שלח הזמנה" on a row in "לא מנויים". We send ONE SMS to
+// that phone with a tokenised link — customer taps it, lands on a
+// confirmation page, taps "אשר" and re-subscribes. ONE SMS total,
+// no second OTP. The link token proves phone ownership (only the
+// device that received the SMS has the token), which is enough for
+// consent under תיקון 40.
 //
-// Legal framing: this is a transactional consent-request, not marketing.
-// We're ASKING if they want to come back, not pushing content. To keep
-// that framing defensible, we hard-cap to one invite every 7 days per
-// (business, phone) pair — otherwise an owner could spam an unsubscribed
-// customer with "please come back" messages, which would itself be
-// marketing under תיקון 40.
-const INVITE_BACK_COOLDOWN_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
-const inviteBackSentAt = new Map<string, number>();
-function inviteBackKey(businessId: number, phone: string) {
-  return `${businessId}:${phone}`;
-}
+// 7-day cooldown on the contact row (last_invite_sent_at) prevents
+// spamming — owner can't invite the same phone more than once per week.
+const INVITE_BACK_COOLDOWN_MS = 7 * 24 * 60 * 60 * 1000;
 
 router.post("/business/broadcast-subscribers/:phone/invite-back", requireBusinessAuth, async (req, res): Promise<void> => {
   const businessId = req.business!.businessId;
   const raw = Array.isArray(req.params.phone) ? req.params.phone[0] : req.params.phone;
   const phone = decodeURIComponent(String(raw ?? "")).trim();
   if (!phone) { res.status(400).json({ error: "מספר טלפון נדרש" }); return; }
-  const digitsOnly = phone.replace(/\D/g, "").replace(/^972/, "0");
+  const canonical = toCanonical(phone);
 
-  // Validate: this phone must currently be opted out. The UI's merged
-  // view treats "unsubscribed" as coming from EITHER table:
-  //   · broadcast_unsubscribes                       (new audit trail)
-  //   · broadcast_subscribers with status='unsubscribed'  (legacy rows
-  //     from the migration backfill — some rows never got ported to
-  //     the audit table). Without the OR, rows that only exist in the
-  //     legacy shape 404'd here with "הלקוח לא ברשימת המוסרים" even
-  //     though the UI clearly showed them as unsubscribed.
-  const inAudit = await db.execute(sql`
-    SELECT 1 FROM broadcast_unsubscribes
-    WHERE business_id = ${businessId}
-      AND regexp_replace(regexp_replace(phone_number, '\D', '', 'g'), '^972', '0') = ${digitsOnly}
-    LIMIT 1
-  `);
-  const inLegacySubs = await db.execute(sql`
-    SELECT 1 FROM broadcast_subscribers
-    WHERE business_id = ${businessId}
-      AND status = 'unsubscribed'
-      AND regexp_replace(regexp_replace(phone_number, '\D', '', 'g'), '^972', '0') = ${digitsOnly}
-    LIMIT 1
-  `);
-  const hasAudit  = ((inAudit as any).rows ?? []).length > 0;
-  const hasLegacy = ((inLegacySubs as any).rows ?? []).length > 0;
-  if (!hasAudit && !hasLegacy) {
+  const contact = await getContact({ businessId, phone: canonical });
+  if (!contact || contact.subscribed) {
     res.status(404).json({ error: "not_unsubscribed", message: "הלקוח לא ברשימת המוסרים." });
     return;
   }
 
-  // Cooldown check — in-memory map, one process per Railway replica.
-  // A multi-replica deploy would need Redis or a DB column; for now
-  // Kavati runs on a single replica so this is enough.
-  const key = inviteBackKey(businessId, digitsOnly);
-  const last = inviteBackSentAt.get(key);
-  if (last && Date.now() - last < INVITE_BACK_COOLDOWN_MS) {
-    const waitMs   = INVITE_BACK_COOLDOWN_MS - (Date.now() - last);
-    const waitDays = Math.ceil(waitMs / (24 * 60 * 60 * 1000));
-    res.status(429).json({
-      error: "invite_back_rate_limited",
-      message: `הזמנה כבר נשלחה. אפשר לשלוח שוב בעוד ${waitDays} ימים.`,
-    });
-    return;
+  // Cooldown — durable this time (stored on the contact row).
+  if (contact.lastInviteSentAt) {
+    const sinceMs = Date.now() - new Date(contact.lastInviteSentAt).getTime();
+    if (sinceMs < INVITE_BACK_COOLDOWN_MS) {
+      const waitDays = Math.ceil((INVITE_BACK_COOLDOWN_MS - sinceMs) / (24 * 60 * 60 * 1000));
+      res.status(429).json({
+        error: "invite_back_rate_limited",
+        message: `הזמנה כבר נשלחה. אפשר לשלוח שוב בעוד ${waitDays} ימים.`,
+      });
+      return;
+    }
   }
 
   const [biz] = await db
@@ -2179,14 +2014,16 @@ router.post("/business/broadcast-subscribers/:phone/invite-back", requireBusines
     .where(eq(businessesTable.id, businessId));
   if (!biz) { res.status(404).json({ error: "עסק לא נמצא" }); return; }
 
+  // Tokenised URL — customer clicks ONCE and re-subscribes. Receipt of
+  // the invite SMS is the phone-ownership proof; no additional OTP.
   const host = (process.env.KAVATI_HOST ?? "www.kavati.net").replace(/^https?:\/\//, "").replace(/\/$/, "");
-  const optInUrl = `https://${host}/api/r/${encodeURIComponent(biz.slug)}`;
+  const inviteToken = signInviteBackToken(businessId, canonical);
+  const inviteUrl = `https://${host}/api/r/${encodeURIComponent(biz.slug)}?i=${inviteToken}`;
   const businessLabel = (biz.name ?? "").trim();
   const inviteMessage = [
     businessLabel ? `${businessLabel}:` : null,
     `נשמח לחזור להיות בקשר.`,
-    `להרשמה מחודשת לרשימת התפוצה שלנו:`,
-    optInUrl,
+    `לאישור חזרה לרשימת התפוצה: ${inviteUrl}`,
   ].filter(Boolean).join("\n");
 
   const { sendSms, isInforuConfigured } = await import("../lib/inforu");
@@ -2196,7 +2033,7 @@ router.post("/business/broadcast-subscribers/:phone/invite-back", requireBusines
   }
   const senderName = (process.env.INFORU_SENDER_NAME ?? biz.name ?? "Kavati").slice(0, 11);
   const result = await sendSms({
-    recipients: [digitsOnly],
+    recipients: [canonical],
     message: inviteMessage,
     senderName,
     customerMessageId: `invite-back-${businessId}-${Date.now()}`,
@@ -2209,8 +2046,8 @@ router.post("/business/broadcast-subscribers/:phone/invite-back", requireBusines
     return;
   }
 
-  inviteBackSentAt.set(key, Date.now());
-  res.json({ success: true, sentTo: digitsOnly });
+  await recordInviteSent({ businessId, phone: canonical });
+  res.json({ success: true, sentTo: canonical });
 });
 
 export default router;

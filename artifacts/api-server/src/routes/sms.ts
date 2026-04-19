@@ -34,6 +34,7 @@ import {
 } from "../lib/smsQuota";
 import { chargeTokenOneOff } from "../lib/tranzilaCharge";
 import { allocateUnsubscribeTokensBulk } from "../lib/unsubscribeToken";
+import { getUnsubscribedPhoneSet, markUnsubscribed, toCanonical } from "../lib/broadcastContacts";
 
 const router = Router();
 
@@ -152,25 +153,12 @@ router.post("/sms/send-bulk", async (req, res): Promise<void> => {
     return;
   }
 
-  // Block ONLY recipients who explicitly unsubscribed (replied 'הסר',
-  // clicked Inforu's opt-out link, or were removed manually by the owner).
-  // The opt-out audit lives in broadcast_unsubscribes (rows persist even
-  // after we hard-delete the subscriber row, so recent opt-outs still
-  // block sends). Missing rows → implicitly allowed — existing customer
-  // relationship provides legal basis under תיקון 40 for relationship
-  // marketing.
-  const normalizeForSub = (p: string) => p.replace(/\D/g, "").replace(/^972/, "0");
-  const unsubRows = await db.execute(sql`
-    SELECT phone_number FROM broadcast_unsubscribes
-    WHERE business_id = ${businessId}
-  `);
-  const unsubSet = new Set<string>();
-  for (const r of ((unsubRows as any).rows ?? [])) {
-    const norm = normalizeForSub(String((r as any).phone_number ?? ""));
-    if (norm) unsubSet.add(norm);
-  }
+  // Block recipients marked unsubscribed in broadcast_contacts. Missing
+  // contacts are implicitly allowed (prior customer relationship under
+  // תיקון 40).
+  const unsubSet = await getUnsubscribedPhoneSet(businessId);
   const recipients = recipientsBeforeFilter.filter(
-    p => !unsubSet.has(normalizeForSub(p)),
+    p => !unsubSet.has(toCanonical(p)),
   );
   const droppedForOptOut = recipientsBeforeFilter.length - recipients.length;
 
@@ -377,17 +365,7 @@ router.post("/sms/send-bulk", async (req, res): Promise<void> => {
       if (!looksLikeOptOut) continue;
       const normPhone = normalizeForSync(r.phone);
       if (!normPhone) continue;
-      await db.execute(sql`
-        INSERT INTO broadcast_unsubscribes (business_id, phone_number, source)
-        VALUES (${businessId}, ${normPhone}, 'inforu_self_link')
-        ON CONFLICT (business_id, phone_number)
-        DO UPDATE SET source = 'inforu_self_link'
-        WHERE broadcast_unsubscribes.source = 'manual_remove'
-      `);
-      await db.execute(sql`
-        DELETE FROM broadcast_subscribers
-        WHERE business_id = ${businessId} AND phone_number = ${normPhone}
-      `);
+      await markUnsubscribed({ businessId, phone: normPhone, source: "inforu_self_link" });
       logger.info({ businessId, phone: normPhone }, "[send-bulk] synced Inforu-side opt-out to local list");
     }
   } catch (syncErr) {
@@ -740,21 +718,10 @@ router.post("/sms/inforu-webhook/reply", async (req, res): Promise<void> => {
     // Normalise to Israeli local form to match what we store elsewhere.
     const normalizedPhone = rawPhone.replace(/\D/g, "").replace(/^972/, "0");
 
-    // Audit the opt-out in broadcast_unsubscribes first (checked by send
-    // filters), then hard-delete the subscriber row so the owner's UI
-    // stops showing the number. Per owner's request: "תסיר את מי שעשה
-    // unsubscribe מהרשימת תפוצה שלנו".
-    await db.execute(sql`
-      INSERT INTO broadcast_unsubscribes (business_id, phone_number, source)
-      VALUES (${businessId}, ${normalizedPhone}, 'reply')
-      ON CONFLICT (business_id, phone_number)
-      DO UPDATE SET source = 'reply'
-      WHERE broadcast_unsubscribes.source = 'manual_remove'
-    `);
-    await db.execute(sql`
-      DELETE FROM broadcast_subscribers
-      WHERE business_id = ${businessId} AND phone_number = ${normalizedPhone}
-    `);
+    // Customer replied "הסר" — mark unsubscribed in broadcast_contacts.
+    // Customer-initiated source UPGRADES any prior owner removal so the
+    // owner can't later re-add them.
+    await markUnsubscribed({ businessId, phone: normalizedPhone, source: "reply" });
     logger.info({ businessId, phone: normalizedPhone }, "[inforu-reply] opt-out recorded");
 
     res.json({ ok: true });

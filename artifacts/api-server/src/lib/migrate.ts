@@ -469,6 +469,87 @@ export async function runMigrations() {
        ON broadcast_subscribers (business_id, status)`
     ));
 
+    // ─── Broadcast contacts (v2 — single source of truth) ──────────────
+    // Replaces the earlier two-table design (broadcast_subscribers +
+    // broadcast_unsubscribes) with ONE row per (business, phone). Owner
+    // hit too many UX bugs from the reconciliation — dual tables, format
+    // drift between them, stale rows that blocked sends silently, etc.
+    // The new design keeps a single boolean `subscribed` column and
+    // remembers both sides of the history (opt_in_source, opt_out_source)
+    // so we still know WHO initiated the last state change.
+    //
+    // Phone is stored in the canonical 0-prefixed form ("0501234567") —
+    // no more regexp_replace on every comparison.
+    await db.execute(sql.raw(`
+      CREATE TABLE IF NOT EXISTS broadcast_contacts (
+        business_id          INTEGER     NOT NULL,
+        phone_number         TEXT        NOT NULL,
+        subscribed           BOOLEAN     NOT NULL DEFAULT TRUE,
+        opt_in_source        TEXT,
+        opt_out_source       TEXT,
+        opt_out_at           TIMESTAMPTZ,
+        last_invite_sent_at  TIMESTAMPTZ,
+        created_at           TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        updated_at           TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        PRIMARY KEY (business_id, phone_number)
+      )
+    `));
+    await db.execute(sql.raw(
+      `CREATE INDEX IF NOT EXISTS broadcast_contacts_biz_subscribed_idx
+       ON broadcast_contacts (business_id, subscribed)`
+    ));
+
+    // One-time backfill from the legacy tables into the v2 table.
+    // Idempotent via ON CONFLICT — re-running the migration on an
+    // already-populated DB is a no-op. `opt_out_source` wins over
+    // `opt_in_source` when both tables had entries for the same phone
+    // (a customer who explicitly opted out shouldn't be silently
+    // re-subscribed by a stale 'active' row from the subscribers table).
+    try {
+      await db.execute(sql.raw(`
+        INSERT INTO broadcast_contacts (
+          business_id, phone_number, subscribed, opt_in_source,
+          opt_out_source, opt_out_at, created_at, updated_at
+        )
+        SELECT
+          business_id,
+          regexp_replace(regexp_replace(phone_number, '\\D', '', 'g'), '^972', '0') AS canonical_phone,
+          (status = 'active')                                                        AS subscribed,
+          CASE WHEN status = 'active'       THEN source ELSE NULL END                AS opt_in_source,
+          CASE WHEN status = 'unsubscribed' THEN source ELSE NULL END                AS opt_out_source,
+          CASE WHEN status = 'unsubscribed' THEN updated_at ELSE NULL END            AS opt_out_at,
+          created_at,
+          updated_at
+        FROM broadcast_subscribers
+        ON CONFLICT (business_id, phone_number) DO NOTHING
+      `));
+      // Then merge in anyone who's in broadcast_unsubscribes but didn't
+      // already get a row above. Force them to unsubscribed regardless
+      // of any stale 'active' row — the audit table is authoritative.
+      await db.execute(sql.raw(`
+        INSERT INTO broadcast_contacts (
+          business_id, phone_number, subscribed,
+          opt_out_source, opt_out_at, created_at, updated_at
+        )
+        SELECT
+          business_id,
+          regexp_replace(regexp_replace(phone_number, '\\D', '', 'g'), '^972', '0') AS canonical_phone,
+          FALSE,
+          source,
+          unsubscribed_at,
+          unsubscribed_at,
+          unsubscribed_at
+        FROM broadcast_unsubscribes
+        ON CONFLICT (business_id, phone_number) DO UPDATE SET
+          subscribed     = FALSE,
+          opt_out_source = EXCLUDED.opt_out_source,
+          opt_out_at     = COALESCE(EXCLUDED.opt_out_at, broadcast_contacts.opt_out_at),
+          updated_at     = NOW()
+      `));
+    } catch (contactsBackfillErr) {
+      console.warn("[Migrate] broadcast_contacts backfill skipped:", (contactsBackfillErr as any)?.message ?? contactsBackfillErr);
+    }
+
     // ─── Broadcast opt-out tokens (per-SMS) ──────────────────────────────
     // Each recipient of a bulk SMS gets a short random token baked into
     // the "להסרה" URL. Click → look up this row → hard-delete from

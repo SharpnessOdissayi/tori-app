@@ -19,9 +19,10 @@
  * protected by the PRIMARY KEY anyway — on a collision we just retry.
  */
 
-import { randomBytes } from "crypto";
+import { randomBytes, createHmac, timingSafeEqual } from "crypto";
 import { db } from "@workspace/db";
 import { sql } from "drizzle-orm";
+import { JWT_SECRET } from "./auth";
 
 const ALPHABET = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
 const TOKEN_LEN = 6;
@@ -149,4 +150,59 @@ export async function consumeUnsubscribeToken(token: string): Promise<void> {
   await db.execute(sql`
     DELETE FROM broadcast_opt_out_tokens WHERE token = ${token}
   `);
+}
+
+// ─── Invite-back tokens (stateless HMAC, no DB) ─────────────────────────
+// Used when the OWNER sends an invite SMS to a customer who previously
+// opted out. The customer clicks the tokenised link, we decode the
+// token, and they re-subscribe in ONE click — no additional SMS OTP,
+// because receipt of our invite SMS already proves they hold the phone.
+//
+// Stateless HMAC (not DB-backed) because:
+//   · Volume is low enough we don't want another DB round-trip
+//   · Tokens are single-purpose; invalidating isn't needed
+//   · Keeps the URL compact (2+ chars shorter than DB-backed)
+//
+// Payload shape: "<businessId>|<canonicalPhone>". The signature is
+// 10 bytes of HMAC-SHA256 prefixed with a domain tag so these tokens
+// cannot be confused with the opt-out ones.
+function b64urlEncode(buf: Buffer): string {
+  return buf.toString("base64").replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+}
+function b64urlDecode(str: string): Buffer {
+  let s = str.replace(/-/g, "+").replace(/_/g, "/");
+  while (s.length % 4) s += "=";
+  return Buffer.from(s, "base64");
+}
+function inviteSignature(payloadB64: string): Buffer {
+  return createHmac("sha256", JWT_SECRET)
+    .update(`kavati-invite:${payloadB64}`)
+    .digest();
+}
+
+export function signInviteBackToken(businessId: number, phone: string): string {
+  const canonical = String(phone ?? "").replace(/\D/g, "").replace(/^972/, "0");
+  const payloadStr = `${businessId}|${canonical}`;
+  const payloadB64 = b64urlEncode(Buffer.from(payloadStr, "utf8"));
+  const sigB64 = b64urlEncode(inviteSignature(payloadB64).subarray(0, 10));
+  return `${payloadB64}.${sigB64}`;
+}
+
+export function verifyInviteBackToken(token: string): { businessId: number; phone: string } | null {
+  if (typeof token !== "string" || !token.includes(".")) return null;
+  const [payloadB64, sigB64] = token.split(".");
+  if (!payloadB64 || !sigB64) return null;
+  const expectedSig = inviteSignature(payloadB64).subarray(0, 10);
+  let gotSig: Buffer;
+  try { gotSig = b64urlDecode(sigB64); } catch { return null; }
+  if (expectedSig.length !== gotSig.length) return null;
+  if (!timingSafeEqual(expectedSig, gotSig)) return null;
+  let payloadStr: string;
+  try { payloadStr = b64urlDecode(payloadB64).toString("utf8"); } catch { return null; }
+  const sep = payloadStr.indexOf("|");
+  if (sep <= 0) return null;
+  const businessId = Number(payloadStr.slice(0, sep));
+  const phone = payloadStr.slice(sep + 1);
+  if (!Number.isInteger(businessId) || businessId <= 0 || !phone) return null;
+  return { businessId, phone };
 }
