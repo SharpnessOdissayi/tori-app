@@ -188,14 +188,18 @@ router.post("/sms/send-bulk", async (req, res): Promise<void> => {
   // Compose the SMS: business name on the first line, owner's message in
   // the middle, the legally-required opt-out footer at the end. Mirrors
   // the shape in /business/broadcast so every broadcast SMS out of Kavati
-  // reads the same way regardless of which UI composed it.
+  // reads the same way regardless of which UI composed it. The opt-out
+  // link is Inforu's own auto-unsubscribe short URL — when the recipient
+  // clicks it, Inforu removes them from the account-level subscriber
+  // list and rejects subsequent sends to that phone in Errors[].
   const ownerMessage  = (messageRaw as string).trim();
   const businessLabel = (biz.name ?? "").trim();
+  const unsubscribeUrl = (process.env.INFORU_UNSUBSCRIBE_URL ?? "https://l5k.me/zCjo4").trim();
   const message = [
     businessLabel ? `${businessLabel}:` : null,
     ownerMessage,
     "",
-    "להסרה השב הסר",
+    `להסרה ${unsubscribeUrl}`,
   ].filter(Boolean).join("\n");
 
   // ─── Reserve quota BEFORE calling Inforu ────────────────────────────────

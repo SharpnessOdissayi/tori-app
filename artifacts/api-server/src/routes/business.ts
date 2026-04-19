@@ -1365,11 +1365,17 @@ router.post("/business/broadcast", requireBusinessAuth, async (req, res): Promis
     .where(eq(businessesTable.id, req.business!.businessId));
   const ownerMessage  = message.trim();
   const businessLabel = (biz2?.name ?? "").trim();
+  // Opt-out link comes from Inforu's own UI — each account has a short
+  // link that auto-unsubscribes the clicker on Inforu's side, so we
+  // don't need to run our own "reply הסר" pipeline. Overridable per
+  // deploy via INFORU_UNSUBSCRIBE_URL; fallback is the account-level
+  // link Kavati's Inforu Shai provisioned on 19/04/2026.
+  const unsubscribeUrl = (process.env.INFORU_UNSUBSCRIBE_URL ?? "https://l5k.me/zCjo4").trim();
   const composedMessage = [
     businessLabel ? `${businessLabel}:` : null,
     ownerMessage,
     "",
-    "להסרה השב הסר",
+    `להסרה ${unsubscribeUrl}`,
   ].filter(Boolean).join("\n");
 
   const { sendSms: inforuSendSms, isInforuConfigured } = await import("../lib/inforu");
