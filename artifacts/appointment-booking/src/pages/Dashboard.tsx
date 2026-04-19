@@ -5008,6 +5008,25 @@ function CustomersTab() {
   const [extraPhones, setExtraPhones] = useState<string[]>([]);
   const [newPhoneInput, setNewPhoneInput] = useState("");
   const [recipientSearch, setRecipientSearch] = useState("");
+
+  // Unsubscribed phones — fetched so the broadcast dialog can hide
+  // recipients who already opted out. Before this, the UI showed them as
+  // "will send to N" but the server silently dropped them at send time,
+  // leaving the owner confused why the count didn't match what arrived.
+  const [unsubscribedSet, setUnsubscribedSet] = useState<Set<string>>(new Set());
+  useEffect(() => {
+    if (!showBroadcast || !token) return;
+    let cancelled = false;
+    fetch("/api/business/broadcast-subscribers", { headers: { Authorization: `Bearer ${token}` } })
+      .then(r => r.ok ? r.json() : null)
+      .then(json => {
+        if (cancelled || !json) return;
+        const phones: string[] = Array.isArray(json?.unsubscribedPhones) ? json.unsubscribedPhones : [];
+        setUnsubscribedSet(new Set(phones.map((p: string) => normalizePhone(p))));
+      })
+      .catch(() => { /* Non-fatal — filter just won't exclude opt-outs. */ });
+    return () => { cancelled = true; };
+  }, [showBroadcast, token]);
   // Owner request: the directory used to be visible by default and sorted by
   // visits — they wanted it hidden behind a "פתח מאגר לקוחות" button, paged
   // 5-at-a-time, and sorted strictly alphabetically (no sort toggle UI).
@@ -5150,16 +5169,23 @@ function CustomersTab() {
         const customerPhones = scopedCustomers.map(c => normalizePhone(c.phoneNumber));
         const includedCustomerPhones = customerPhones.filter(p => !excludedPhones.has(p));
         const extraNormalized = extraPhones.map(normalizePhone);
-        const recipientPhones = [...new Set([...includedCustomerPhones, ...extraNormalized])];
+        // Drop anyone who opted out — the server filters these out at send
+        // time anyway, but showing a count that mismatches what arrives
+        // confused the owner ("UI said 5, only 4 got it"). Source of truth:
+        // unsubscribedSet fetched from /business/broadcast-subscribers.
+        const recipientPhones = [...new Set([...includedCustomerPhones, ...extraNormalized])]
+          .filter(p => !unsubscribedSet.has(p));
 
         const recipientSearchLower = recipientSearch.trim().toLowerCase();
         const recipientSearchDigits = recipientSearchLower.replace(/\D/g, "");
-        const visibleCustomers = customerList.filter(c => {
-          if (!recipientSearchLower) return true;
-          if (c.clientName.toLowerCase().includes(recipientSearchLower)) return true;
-          if (recipientSearchDigits && c.phoneNumber.replace(/\D/g, "").includes(recipientSearchDigits)) return true;
-          return false;
-        });
+        const visibleCustomers = customerList
+          .filter(c => !unsubscribedSet.has(normalizePhone(c.phoneNumber)))
+          .filter(c => {
+            if (!recipientSearchLower) return true;
+            if (c.clientName.toLowerCase().includes(recipientSearchLower)) return true;
+            if (recipientSearchDigits && c.phoneNumber.replace(/\D/g, "").includes(recipientSearchDigits)) return true;
+            return false;
+          });
 
         const tryAddPhone = () => {
           const trimmed = newPhoneInput.trim();

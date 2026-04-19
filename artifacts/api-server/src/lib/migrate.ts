@@ -469,6 +469,25 @@ export async function runMigrations() {
        ON broadcast_subscribers (business_id, status)`
     ));
 
+    // ─── Broadcast opt-out tokens (per-SMS) ──────────────────────────────
+    // Each recipient of a bulk SMS gets a short random token baked into
+    // the "להסרה" URL. Click → look up this row → hard-delete from
+    // broadcast_subscribers + insert into broadcast_unsubscribes +
+    // delete this token row (one-time use). Short (6 chars) so the SMS
+    // URL stays compact (crucial for SMS billing).
+    await db.execute(sql.raw(`
+      CREATE TABLE IF NOT EXISTS broadcast_opt_out_tokens (
+        token         TEXT    PRIMARY KEY,
+        business_id   INTEGER NOT NULL,
+        phone_number  TEXT    NOT NULL,
+        created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      )
+    `));
+    await db.execute(sql.raw(
+      `CREATE INDEX IF NOT EXISTS broadcast_opt_out_tokens_biz_phone_idx
+       ON broadcast_opt_out_tokens (business_id, phone_number)`
+    ));
+
     // Backfill: every customer with a non-cancelled appointment becomes
     // an active subscriber. Idempotent via ON CONFLICT.
     try {

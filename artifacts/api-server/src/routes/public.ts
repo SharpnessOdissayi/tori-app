@@ -16,8 +16,96 @@ import { computeAvailableSlots } from "../lib/availability";
 import { sendOtp, verifyOtp, notifyBusinessOwner, sendClientConfirmation, sendClientCancellation, sendTemplate, OtpRateLimitError } from "../lib/whatsapp";
 import { isPhoneVerified, consumeVerification, markPhoneVerified, normalizePhone } from "../lib/otpStore";
 import { signPhoneVerificationToken, verifyPhoneVerificationToken } from "../lib/phoneVerificationJwt";
+import { peekUnsubscribeToken, consumeUnsubscribeToken } from "../lib/unsubscribeToken";
 
 const router = Router();
+
+// ─── Broadcast unsubscribe (tokenised link in bulk SMS) ──────────────────
+// URL: https://<host>/api/u/<token> — mounted under /api/ because Railway's
+// edge routes only /api/* to this service; a top-level /u/ would hit the
+// SPA's static bucket instead.
+//
+// One-tap opt-out: we look up the token → record the opt-out → delete the
+// subscriber row → consume the token (one-time use). Returns a branded
+// HTML confirmation page rather than JSON because this URL is clicked
+// directly from SMS on a mobile browser, not called from the SPA.
+router.get("/u/:token", async (req, res): Promise<void> => {
+  const token = String(req.params.token ?? "");
+  const pageShell = (title: string, body: string, accent = "#3c92f0") => `<!doctype html>
+<html lang="he" dir="rtl"><head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <meta name="robots" content="noindex,nofollow"/>
+  <title>${title} — קבעתי</title>
+  <style>
+    body{margin:0;min-height:100vh;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Rubik,Arial,sans-serif;
+         display:flex;align-items:center;justify-content:center;background:#f8fafc;color:#0f172a;padding:24px;}
+    .card{background:#fff;border-radius:20px;box-shadow:0 10px 30px rgba(15,23,42,.08);
+          padding:32px 28px;max-width:420px;width:100%;text-align:center;}
+    .icon{width:64px;height:64px;border-radius:50%;display:inline-flex;align-items:center;
+          justify-content:center;margin-bottom:16px;background:${accent}15;color:${accent};font-size:30px;}
+    h1{font-size:20px;margin:8px 0 12px;font-weight:700;}
+    p{font-size:15px;line-height:1.55;color:#475569;margin:6px 0;}
+    .brand{margin-top:24px;font-size:12px;color:#94a3b8;}
+    a{color:${accent};text-decoration:none;font-weight:600;}
+  </style>
+</head><body><div class="card">${body}<div class="brand">הסרה מרשימת תפוצה · <a href="https://www.kavati.net">קבעתי</a></div></div></body></html>`;
+
+  const escapeHtml = (raw: string): string => raw
+    .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+
+  const decoded = await peekUnsubscribeToken(token);
+  if (!decoded) {
+    res.status(400).set("Content-Type", "text/html; charset=utf-8").send(pageShell(
+      "קישור לא תקין",
+      `<div class="icon" style="background:#fee2e2;color:#dc2626">✕</div>
+       <h1>הקישור לא תקין או פג תוקף</h1>
+       <p>ייתכן שהקישור כבר בשימוש או נפגם בהעתקה. אם ההודעה הגיעה אליך ב-SMS,
+          לחצ/י על הקישור ישירות מההודעה.</p>`,
+      "#dc2626"));
+    return;
+  }
+
+  try {
+    // Audit row first so a DELETE failure below still records the intent.
+    await db.execute(sql`
+      INSERT INTO broadcast_unsubscribes (business_id, phone_number, source)
+      VALUES (${decoded.businessId}, ${decoded.phone}, 'unsub_link')
+      ON CONFLICT (business_id, phone_number) DO NOTHING
+    `);
+    await db.execute(sql`
+      DELETE FROM broadcast_subscribers
+      WHERE business_id = ${decoded.businessId} AND phone_number = ${decoded.phone}
+    `);
+    await consumeUnsubscribeToken(token);
+  } catch (e: any) {
+    console.error("[/api/u] opt-out write failed:", e?.message ?? e);
+    res.status(500).set("Content-Type", "text/html; charset=utf-8").send(pageShell(
+      "אירעה שגיאה",
+      `<div class="icon" style="background:#fee2e2;color:#dc2626">!</div>
+       <h1>אירעה שגיאה זמנית</h1>
+       <p>לא הצלחנו להסיר אותך ברגע זה. נסה שוב בעוד דקה.</p>`,
+      "#dc2626"));
+    return;
+  }
+
+  const [biz] = await db
+    .select({ name: businessesTable.name })
+    .from(businessesTable)
+    .where(eq(businessesTable.id, decoded.businessId));
+  const bizName = biz?.name ?? "העסק";
+
+  res.status(200).set("Content-Type", "text/html; charset=utf-8").send(pageShell(
+    "הוסרת מרשימת התפוצה",
+    `<div class="icon">✓</div>
+     <h1>הוסרת בהצלחה</h1>
+     <p>לא תקבל/י יותר הודעות תפוצה מ-<strong>${escapeHtml(bizName)}</strong>.</p>
+     <p style="margin-top:14px;font-size:13px;color:#64748b;">
+       זה משפיע רק על העסק הזה — שאר העסקים שאת/ה לקוח/ה שלהם ימשיכו לשלוח כרגיל.
+     </p>`,
+  ));
+});
 
 // Thrown from inside db.transaction() when the requested slot is already
 // gone by the time we hold the advisory lock. Caught one frame out to

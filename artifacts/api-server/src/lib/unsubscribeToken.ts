@@ -1,89 +1,128 @@
 /**
- * Self-contained unsubscribe-token signer/verifier.
+ * Broadcast unsubscribe tokens — short random strings backed by a DB row.
  *
  * Each bulk SMS we send out includes a "להסרה <url>" footer that points at
- * `https://<host>/u/<token>`. The token encodes `(businessId, phone)` so the
- * handler can resolve exactly which subscriber to drop without needing a
- * database lookup to identify the recipient — just a signature check.
+ * `https://<host>/api/u/<token>`. The token is a 6-character base62 string
+ * that maps to a `broadcast_opt_out_tokens` row holding (businessId, phone).
  *
- * Why not JWT: a JWT header alone is ~30 chars before any payload, and the
- * default "jsonwebtoken" encoding tacks on issuer/aud/etc. in a ~150-char
- * string. SMS billing is per 160 chars, so we want the URL as short as we
- * can make it while keeping cryptographic integrity. This uses a compact
- * custom scheme:
+ * Why DB-backed instead of a signed HMAC:
+ *   · SMS URLs cost money per 160 chars. 6 chars beats any signed-payload
+ *     scheme (which needs at least ~20 chars just for the signature).
+ *   · The audit trail is the DB row. No secret-rotation anxiety if we ever
+ *     change JWT_SECRET.
+ *   · Tokens are single-use — once clicked, the row is deleted, so
+ *     guessing an already-used token buys nothing.
  *
- *   payload = `${businessId}|${phone}`   (e.g. "1|0501234567")
- *   sig     = first 10 bytes of HMAC-SHA256(JWT_SECRET, base64url(payload))
- *   token   = base64url(payload) + "." + base64url(sig)
- *
- * Net URL length for a 10-digit phone + 1-digit business id:
- *   ~46 characters for the token → ~70 including https://kavati.net/u/.
- *
- * 10-byte / 80-bit signature is plenty — attackers only get one guess per
- * click before the URL 400s. Brute-forcing a valid signature via rate-
- * limited HTTP requests is infeasible.
- *
- * Note: tokens DO NOT expire. The law (תיקון 40) grants the user a
- * permanent right to opt out; a year-old SMS should still work.
+ * 6 chars of base62 = 62^6 ≈ 5.7×10^10 combinations. At 300 messages/
+ * month × 1000 businesses × 5 years = 1.8×10^7 rows ever. Birthday
+ * collision probability is vanishingly small and each insert is
+ * protected by the PRIMARY KEY anyway — on a collision we just retry.
  */
 
-import { createHmac, timingSafeEqual } from "crypto";
-import { JWT_SECRET } from "./auth";
+import { randomBytes } from "crypto";
+import { db } from "@workspace/db";
+import { sql } from "drizzle-orm";
 
-function b64urlEncode(buf: Buffer): string {
-  return buf.toString("base64").replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
-}
+const ALPHABET = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+const TOKEN_LEN = 6;
 
-function b64urlDecode(str: string): Buffer {
-  let s = str.replace(/-/g, "+").replace(/_/g, "/");
-  while (s.length % 4) s += "=";
-  return Buffer.from(s, "base64");
-}
-
-function computeSignature(payloadB64: string): Buffer {
-  // Domain-separate the HMAC with a fixed prefix so an attacker can't take
-  // a signature produced by another caller of JWT_SECRET (e.g. the phone-
-  // verification JWT) and reuse it here.
-  return createHmac("sha256", JWT_SECRET)
-    .update(`kavati-unsub:${payloadB64}`)
-    .digest();
-}
-
-export function signUnsubscribeToken(businessId: number, phone: string): string {
-  if (!Number.isInteger(businessId) || businessId <= 0) {
-    throw new Error("signUnsubscribeToken: invalid businessId");
+function generateRandomToken(): string {
+  // Buffer of exactly TOKEN_LEN bytes. We use `% 62` per byte — the
+  // modulo bias is ~1.5% which is negligible for our volume.
+  const buf = randomBytes(TOKEN_LEN);
+  let out = "";
+  for (let i = 0; i < TOKEN_LEN; i++) {
+    out += ALPHABET[buf[i] % ALPHABET.length];
   }
-  if (!phone || phone.includes("|")) {
-    // "|" is the payload separator — strip it defensively. A normal Israeli
-    // phone string never contains it, so this branch is a guard rail.
-    throw new Error("signUnsubscribeToken: invalid phone");
-  }
-  const payloadStr = `${businessId}|${phone}`;
-  const payloadB64 = b64urlEncode(Buffer.from(payloadStr, "utf8"));
-  const sigB64 = b64urlEncode(computeSignature(payloadB64).subarray(0, 10));
-  return `${payloadB64}.${sigB64}`;
+  return out;
 }
 
-export function verifyUnsubscribeToken(token: string): { businessId: number; phone: string } | null {
-  if (typeof token !== "string" || token.length === 0) return null;
-  const parts = token.split(".");
-  if (parts.length !== 2) return null;
-  const [payloadB64, sigB64] = parts;
-  if (!payloadB64 || !sigB64) return null;
+/**
+ * Allocate a fresh opt-out token for the given (businessId, phone) pair.
+ *
+ * Writes a row to `broadcast_opt_out_tokens` and returns the token string
+ * for embedding in the SMS URL. If we ever hit a token collision (cosmic
+ * bad luck) we retry up to 5 times.
+ */
+export async function allocateUnsubscribeToken(
+  businessId: number,
+  phone: string,
+): Promise<string> {
+  for (let attempt = 0; attempt < 5; attempt++) {
+    const token = generateRandomToken();
+    try {
+      await db.execute(sql`
+        INSERT INTO broadcast_opt_out_tokens (token, business_id, phone_number)
+        VALUES (${token}, ${businessId}, ${phone})
+      `);
+      return token;
+    } catch (e: any) {
+      // Duplicate-key error → retry with a fresh token.
+      // Postgres error code 23505 = unique_violation.
+      const code = (e?.code ?? e?.cause?.code ?? "").toString();
+      if (code === "23505") continue;
+      throw e;
+    }
+  }
+  throw new Error("allocateUnsubscribeToken: ran out of retries");
+}
 
-  const expectedSig = computeSignature(payloadB64).subarray(0, 10);
-  let gotSig: Buffer;
-  try { gotSig = b64urlDecode(sigB64); } catch { return null; }
-  if (expectedSig.length !== gotSig.length) return null;
-  if (!timingSafeEqual(expectedSig, gotSig)) return null;
+/**
+ * Batch-allocate tokens for an entire broadcast at once — saves N round
+ * trips when a campaign has hundreds of recipients. Returns the tokens in
+ * the same order as the input phones.
+ */
+export async function allocateUnsubscribeTokensBulk(
+  businessId: number,
+  phones: string[],
+): Promise<string[]> {
+  if (phones.length === 0) return [];
+  // Try once with all unique tokens. If we collide (which is rare) we
+  // fall back to the per-row path for just the collisions. Keeps the
+  // happy path a single INSERT per broadcast.
+  const tokens = phones.map(() => generateRandomToken());
+  try {
+    await db.execute(sql`
+      INSERT INTO broadcast_opt_out_tokens (token, business_id, phone_number)
+      SELECT * FROM UNNEST(
+        ${sql.raw(`ARRAY[${tokens.map(t => `'${t}'`).join(",")}]`)}::TEXT[],
+        ${sql.raw(`ARRAY[${phones.map(() => businessId).join(",")}]`)}::INTEGER[],
+        ${sql.raw(`ARRAY[${phones.map(p => `'${p.replace(/'/g, "''")}'`).join(",")}]`)}::TEXT[]
+      ) AS t(token, business_id, phone_number)
+    `);
+    return tokens;
+  } catch {
+    // Collision or malformed input — do it the slow reliable way.
+    const out: string[] = [];
+    for (const p of phones) out.push(await allocateUnsubscribeToken(businessId, p));
+    return out;
+  }
+}
 
-  let payloadStr: string;
-  try { payloadStr = b64urlDecode(payloadB64).toString("utf8"); } catch { return null; }
-  const sep = payloadStr.indexOf("|");
-  if (sep <= 0) return null;
-  const bidStr = payloadStr.slice(0, sep);
-  const phone  = payloadStr.slice(sep + 1);
-  const businessId = Number(bidStr);
-  if (!Number.isInteger(businessId) || businessId <= 0 || !phone) return null;
-  return { businessId, phone };
+/**
+ * Look up an opt-out token. Returns null if unknown (bad / already-used
+ * link). Does NOT delete the row — caller does that after committing
+ * the opt-out so a DB failure on INSERT broadcast_unsubscribes doesn't
+ * lose the token in a way that prevents retry.
+ */
+export async function peekUnsubscribeToken(token: string): Promise<{ businessId: number; phone: string } | null> {
+  if (typeof token !== "string" || token.length !== TOKEN_LEN) return null;
+  const rows = await db.execute(sql`
+    SELECT business_id, phone_number FROM broadcast_opt_out_tokens
+    WHERE token = ${token}
+    LIMIT 1
+  `);
+  const row = ((rows as any).rows ?? [])[0];
+  if (!row) return null;
+  return { businessId: Number(row.business_id), phone: String(row.phone_number) };
+}
+
+/**
+ * Delete a consumed token so refreshing the page doesn't re-trigger the
+ * write path. Safe to call even if the token is already gone.
+ */
+export async function consumeUnsubscribeToken(token: string): Promise<void> {
+  await db.execute(sql`
+    DELETE FROM broadcast_opt_out_tokens WHERE token = ${token}
+  `);
 }

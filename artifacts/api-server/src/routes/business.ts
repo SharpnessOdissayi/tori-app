@@ -4,7 +4,7 @@ import { db, businessesTable, servicesTable, workingHoursTable, breakTimesTable,
 import { eq, and, or, gte, sql, count } from "drizzle-orm";
 import { sendClientCancellation, sendClientReschedule, sendClientConfirmation, sendWhatsApp } from "../lib/whatsapp";
 import { isBusinessPro } from "../lib/plan";
-import { signUnsubscribeToken } from "../lib/unsubscribeToken";
+import { allocateUnsubscribeTokensBulk } from "../lib/unsubscribeToken";
 import {
   UpdateBusinessProfileBody,
   CreateBusinessServiceBody,
@@ -1383,34 +1383,34 @@ router.post("/business/broadcast", requireBusinessAuth, async (req, res): Promis
     .where(eq(businessesTable.id, req.business!.businessId));
   const ownerMessage  = message.trim();
   const businessLabel = (biz2?.name ?? "").trim();
-  // Opt-out link is our own — replaces the prior Inforu-hosted short URL.
-  // Per recipient so one click auto-resolves who to drop, no further input.
-  // KAVATI_HOST is overridable per deploy in case we ever move off kavati.net;
-  // defaults to www.kavati.net (the canonical production host).
+  // Short tokenised opt-out URL — /api/u/<6-char-token>. Routed under
+  // /api/ because Railway's edge only forwards /api/* to this service.
+  // KAVATI_HOST overridable per deploy; default www.kavati.net.
   const host = (process.env.KAVATI_HOST ?? "www.kavati.net").replace(/^https?:\/\//, "").replace(/\/$/, "");
-  const composeMessage = (recipientPhone: string) => {
-    const token = signUnsubscribeToken(req.business!.businessId, recipientPhone);
-    return [
+  // Pre-allocate one token per recipient so the URL stays short (no
+  // signed payload, just a random 6-char DB key). Done in a single bulk
+  // INSERT so a 200-recipient broadcast adds one DB round-trip, not 200.
+  const tokens = batch.length > 0
+    ? await allocateUnsubscribeTokensBulk(req.business!.businessId, batch)
+    : [];
+  const composeMessage = (recipientPhone: string, token: string) =>
+    [
       businessLabel ? `${businessLabel}:` : null,
       ownerMessage,
       "",
-      `להסרה https://${host}/u/${token}`,
+      `להסרה https://${host}/api/u/${token}`,
     ].filter(Boolean).join("\n");
-  };
 
   const { sendSms: inforuSendSms, isInforuConfigured } = await import("../lib/inforu");
   if (isInforuConfigured() && batch.length > 0) {
     const senderName = (process.env.INFORU_SENDER_NAME ?? biz2?.name ?? "Kavati").slice(0, 11);
-    // Per-recipient send — each SMS carries its own tokenised opt-out URL.
-    // Runs in parallel so a 200-message broadcast still completes in a few
-    // seconds instead of a few minutes. Inforu handles concurrent API calls
-    // fine; if we ever start getting throttled we can chunk this with
-    // p-limit.
+    // Per-recipient send in parallel; each SMS carries its own opt-out
+    // URL. Inforu handles concurrent calls fine for our volume.
     const results = await Promise.allSettled(
-      batch.map(phone =>
+      batch.map((phone, i) =>
         inforuSendSms({
           recipients: [phone],
-          message: composeMessage(phone),
+          message: composeMessage(phone, tokens[i]),
           senderName,
           customerMessageId: `broadcast-${req.business!.businessId}-${Date.now()}-${phone.slice(-4)}`,
         }),
@@ -1425,9 +1425,10 @@ router.post("/business/broadcast", requireBusinessAuth, async (req, res): Promis
   } else {
     // Fallback path: no Inforu creds → WhatsApp per-phone loop (also gets
     // a tokenised Kavati opt-out URL).
-    for (const phone of batch) {
+    for (let i = 0; i < batch.length; i++) {
+      const phone = batch[i];
       try {
-        await sendWhatsApp(phone, composeMessage(phone), req.business!.businessId);
+        await sendWhatsApp(phone, composeMessage(phone, tokens[i]), req.business!.businessId);
         successCount++;
       } catch {
         failCount++;
@@ -1855,34 +1856,56 @@ router.get("/business/revenue", requireBusinessAuth, async (req, res): Promise<v
 
 router.get("/business/broadcast-subscribers", requireBusinessAuth, async (req, res): Promise<void> => {
   const businessId = req.business!.businessId;
-  // Join in the most recent client name we have for each phone — first
-  // try an appointment row for THIS business (most authoritative — the
-  // name the client typed on their last booking), then fall back to the
-  // client_sessions row so portal-only users (no bookings yet) still
-  // show up by name instead of a bare phone number.
+  // Return BOTH active subscribers (broadcast_subscribers) and the
+  // audit-trail of opt-outs (broadcast_unsubscribes) unioned as one list.
+  // UNION prevents double-counting in the rare case a phone ended up in
+  // both tables; the subscriber row wins if present so we always reflect
+  // the "current" status, not a stale audit row.
+  //
+  // The LEFT JOIN adds the most recent client name: first try an
+  // appointment row for THIS business (the name the client typed on
+  // their last booking), then fall back to the client_sessions row so
+  // portal-only users (no bookings) still show up by name.
   const rows = await db.execute(sql`
+    WITH merged AS (
+      SELECT phone_number, status, source, created_at, updated_at
+        FROM broadcast_subscribers
+       WHERE business_id = ${businessId}
+      UNION ALL
+      SELECT u.phone_number,
+             'unsubscribed' AS status,
+             u.source,
+             u.unsubscribed_at AS created_at,
+             u.unsubscribed_at AS updated_at
+        FROM broadcast_unsubscribes u
+       WHERE u.business_id = ${businessId}
+         AND NOT EXISTS (
+           SELECT 1 FROM broadcast_subscribers s
+            WHERE s.business_id = ${businessId}
+              AND s.phone_number = u.phone_number
+         )
+    )
     SELECT
-      s.phone_number,
-      s.status,
-      s.source,
-      s.created_at,
-      s.updated_at,
+      m.phone_number,
+      m.status,
+      m.source,
+      m.created_at,
+      m.updated_at,
       COALESCE(
         (SELECT a.client_name
            FROM appointments a
           WHERE a.business_id = ${businessId}
-            AND a.phone_number = s.phone_number
+            AND a.phone_number = m.phone_number
           ORDER BY a.appointment_date DESC
           LIMIT 1),
         (SELECT c.client_name
            FROM client_sessions c
-          WHERE c.phone_number = s.phone_number
+          WHERE c.phone_number = m.phone_number
           ORDER BY c.created_at DESC
           LIMIT 1)
       ) AS client_name
-    FROM broadcast_subscribers s
-    WHERE s.business_id = ${businessId}
-    ORDER BY s.created_at DESC
+    FROM merged m
+    ORDER BY m.created_at DESC
   `);
   const list = ((rows as any).rows ?? []).map((r: any) => ({
     phoneNumber: r.phone_number,
@@ -1892,8 +1915,17 @@ router.get("/business/broadcast-subscribers", requireBusinessAuth, async (req, r
     createdAt:   r.created_at,
     updatedAt:   r.updated_at,
   }));
-  const activeCount = list.filter((r: any) => r.status === "active").length;
-  res.json({ subscribers: list, total: list.length, active: activeCount });
+  const activeCount       = list.filter((r: any) => r.status === "active").length;
+  const unsubscribedCount = list.filter((r: any) => r.status === "unsubscribed").length;
+  res.json({
+    subscribers: list,
+    total: list.length,
+    active: activeCount,
+    // Explicit phone list for the UI to filter broadcast recipients
+    // against — avoids every caller re-implementing the status filter.
+    unsubscribedPhones: list.filter((r: any) => r.status === "unsubscribed").map((r: any) => r.phoneNumber),
+    unsubscribedCount,
+  });
 });
 
 router.post("/business/broadcast-subscribers", requireBusinessAuth, async (req, res): Promise<void> => {
@@ -1911,6 +1943,13 @@ router.post("/business/broadcast-subscribers", requireBusinessAuth, async (req, 
   // Idempotent: insert or flip back to active if they were previously
   // unsubscribed. source="manual_add" distinguishes owner-added rows
   // from auto-subscribed booking rows for analytics/debugging.
+  // Also clear any prior audit row in broadcast_unsubscribes — the owner
+  // is explicitly overriding the opt-out, otherwise the send filters
+  // would block the manually-added phone.
+  await db.execute(sql`
+    DELETE FROM broadcast_unsubscribes
+    WHERE business_id = ${businessId} AND phone_number = ${normalized}
+  `);
   await db.execute(sql`
     INSERT INTO broadcast_subscribers (business_id, phone_number, status, source)
     VALUES (${businessId}, ${normalized}, 'active', 'manual_add')
@@ -1951,6 +1990,14 @@ router.post("/business/broadcast-subscribers/:phone/resubscribe", requireBusines
   const raw = Array.isArray(req.params.phone) ? req.params.phone[0] : req.params.phone;
   const phone = decodeURIComponent(String(raw ?? "")).trim();
   if (!phone) { res.status(400).json({ error: "מספר טלפון נדרש" }); return; }
+  // Clear the audit row first — the send-time filter checks
+  // broadcast_unsubscribes, so if we leave it in place this resubscribe
+  // would write an active row but the next broadcast would still skip
+  // the phone silently.
+  await db.execute(sql`
+    DELETE FROM broadcast_unsubscribes
+    WHERE business_id = ${businessId} AND phone_number = ${phone}
+  `);
   await db.execute(sql`
     INSERT INTO broadcast_subscribers (business_id, phone_number, status, source)
     VALUES (${businessId}, ${phone}, 'active', 'manual_resubscribe')

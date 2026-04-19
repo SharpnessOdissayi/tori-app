@@ -33,7 +33,7 @@ import {
   addExtraBalance,
 } from "../lib/smsQuota";
 import { chargeTokenOneOff } from "../lib/tranzilaCharge";
-import { signUnsubscribeToken } from "../lib/unsubscribeToken";
+import { allocateUnsubscribeTokensBulk } from "../lib/unsubscribeToken";
 
 const router = Router();
 
@@ -190,22 +190,22 @@ router.post("/sms/send-bulk", async (req, res): Promise<void> => {
   }
 
   // Compose the SMS: business name first, owner's message in the middle,
-  // our own per-recipient opt-out footer at the end. The "להסרה <url>"
-  // URL encodes (businessId, phone) as a signed token so one click on the
-  // link lands the clicker in broadcast_unsubscribes + drops them from
-  // broadcast_subscribers — no Inforu dependency.
+  // our own per-recipient opt-out footer at the end. Each recipient gets
+  // a short DB-backed token baked into /api/u/<token> — the /api/ prefix
+  // is required because only /api/* is routed to this server on Railway.
   const ownerMessage  = (messageRaw as string).trim();
   const businessLabel = (biz.name ?? "").trim();
   const host = (process.env.KAVATI_HOST ?? "www.kavati.net").replace(/^https?:\/\//, "").replace(/\/$/, "");
-  const composeMessage = (recipientPhone: string): string => {
-    const token = signUnsubscribeToken(businessId, recipientPhone);
-    return [
+  // Bulk-allocate one token per recipient in a single INSERT so we don't
+  // do N round trips before the first SMS even goes out.
+  const tokens = await allocateUnsubscribeTokensBulk(businessId, recipients);
+  const composeMessage = (recipientPhone: string, token: string): string =>
+    [
       businessLabel ? `${businessLabel}:` : null,
       ownerMessage,
       "",
-      `להסרה https://${host}/u/${token}`,
+      `להסרה https://${host}/api/u/${token}`,
     ].filter(Boolean).join("\n");
-  };
 
   // ─── Reserve quota BEFORE calling Inforu ────────────────────────────────
   const count = recipients.length;
@@ -252,7 +252,7 @@ router.post("/sms/send-bulk", async (req, res): Promise<void> => {
   };
   const sendResults: PerSend[] = await Promise.all(
     recipients.map(async (phone, i): Promise<PerSend> => {
-      const body = composeMessage(phone);
+      const body = composeMessage(phone, tokens[i]);
       const bodyId = `${customerMessageIdBase}-${i}`;
       try {
         const r = await inforuSendSms({
