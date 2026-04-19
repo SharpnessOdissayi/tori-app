@@ -869,7 +869,17 @@ router.patch("/business/appointments/:id/reschedule", requireBusinessAuth, async
   const [, month, day] = newDate.split("-");
   const formattedDate = `${day}/${month}`;
   if (sendNotification === true && await isBusinessPro(req.business!.businessId)) {
-    sendClientReschedule(appt.phoneNumber, appt.clientName, formattedDate, newTime, req.business!.businessId).catch(() => {});
+    // Meta-approved template "appointment_rescheduled" expects 4 params:
+    // {{1}} client, {{2}} new date/time label, {{3}} service, {{4}} confirmation#.
+    const newDateTimeLabel = `${formattedDate} בשעה ${newTime}`;
+    sendClientReschedule(
+      appt.phoneNumber,
+      appt.clientName,
+      newDateTimeLabel,
+      (appt as any).serviceName ?? "",
+      String(appt.id),
+      req.business!.businessId,
+    ).catch(() => {});
   }
 
   // Log notification for business + client

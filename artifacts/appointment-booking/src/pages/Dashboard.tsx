@@ -3117,6 +3117,12 @@ function PendingApprovalsTab() {
   const { toast } = useToast();
   const [approvingId, setApprovingId] = useState<number | null>(null);
   const [rejectingId, setRejectingId] = useState<number | null>(null);
+  // Reject confirm dialog — opened when the owner clicks "דחה". Holds the
+  // appointment being rejected + a per-row "send WA cancellation" toggle
+  // (defaults ON because a rejected booking needs to reach the client so
+  // they can re-book, but we let the owner opt out on a case-by-case basis).
+  const [rejectTarget, setRejectTarget] = useState<{ id: number; clientName: string } | null>(null);
+  const [rejectNotify, setRejectNotify] = useState(true);
 
   const pending = (Array.isArray(appointments) ? appointments : []).filter(a => a.status === "pending");
 
@@ -3151,17 +3157,25 @@ function PendingApprovalsTab() {
     }
   };
 
-  const reject = async (id: number) => {
+  const openRejectDialog = (apt: { id: number; clientName: string }) => {
+    setRejectTarget(apt);
+    setRejectNotify(true);
+  };
+
+  const confirmReject = async () => {
+    if (!rejectTarget) return;
+    const id = rejectTarget.id;
     setRejectingId(id);
     try {
       const r = await fetch(`/api/business/appointments/${id}`, {
         method: "DELETE",
         headers: { Authorization: `Bearer ${token()}`, "Content-Type": "application/json" },
-        body: JSON.stringify({ cancelReason: "לקוח התחרט" }),
+        body: JSON.stringify({ cancelReason: "בעל העסק דחה", notify: rejectNotify }),
       });
       if (!r.ok) throw new Error();
-      toast({ title: "התור נדחה" });
+      toast({ title: rejectNotify ? "התור נדחה והודעה נשלחה ללקוח" : "התור נדחה (ללא הודעה)" });
       queryClient.invalidateQueries({ queryKey: getListBusinessAppointmentsQueryKey() });
+      setRejectTarget(null);
     } catch {
       toast({ title: "שגיאה", description: "לא ניתן לדחות", variant: "destructive" });
     } finally {
@@ -3186,6 +3200,45 @@ function PendingApprovalsTab() {
           </CardDescription>
         </CardHeader>
         <CardContent>
+          {/* Reject-confirm dialog with notify toggle. Opens from the inline
+              "דחה" button on each pending row. */}
+          <Dialog open={!!rejectTarget} onOpenChange={(open) => { if (!open) setRejectTarget(null); }}>
+            <DialogContent dir="rtl" className="max-w-sm">
+              <DialogHeader>
+                <DialogTitle>דחיית תור</DialogTitle>
+                <DialogDescription>
+                  {rejectTarget ? `לדחות את התור של ${rejectTarget.clientName}?` : "לדחות את התור?"}
+                </DialogDescription>
+              </DialogHeader>
+              <label className="flex items-start gap-3 p-3 rounded-xl border bg-muted/40 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={rejectNotify}
+                  onChange={e => setRejectNotify(e.target.checked)}
+                  className="mt-0.5 w-4 h-4 accent-primary"
+                />
+                <div className="flex-1 text-sm">
+                  <div className="font-medium">שלח הודעת דחייה ללקוח בוואטסאפ</div>
+                  <div className="text-xs text-muted-foreground mt-0.5">
+                    מומלץ להשאיר מסומן — הלקוח צריך לדעת שהתור נדחה כדי לקבוע מחדש
+                  </div>
+                </div>
+              </label>
+              <div className="flex gap-2 pt-2">
+                <Button variant="outline" className="flex-1" onClick={() => setRejectTarget(null)}>
+                  ביטול
+                </Button>
+                <Button
+                  className="flex-1 bg-red-600 hover:bg-red-700 text-white"
+                  disabled={rejectingId !== null}
+                  onClick={confirmReject}
+                >
+                  {rejectingId !== null ? "דוחה..." : "דחה את התור"}
+                </Button>
+              </div>
+            </DialogContent>
+          </Dialog>
+
           {pending.length === 0 ? (
             <EmptyState text="אין תורים ממתינים לאישור 🎉" />
           ) : (
@@ -3223,7 +3276,7 @@ function PendingApprovalsTab() {
                         {approvingId === apt.id ? "מאשר..." : "אשר"}
                       </button>
                       <button
-                        onClick={() => reject(apt.id)}
+                        onClick={() => openRejectDialog({ id: apt.id, clientName: apt.clientName })}
                         disabled={rejectingId === apt.id}
                         className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl text-sm font-medium bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 transition disabled:opacity-60"
                       >

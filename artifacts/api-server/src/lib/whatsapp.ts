@@ -269,36 +269,48 @@ export async function sendClientConfirmation(
 }
 
 // ── Reschedule notification to client ──────────────────────────────────────
-// Pre-approved template: appointment_rescheduled — 3 params: clientName, date, time
-// "שלום {{1}}, התור שלך שונה לתאריך {{2}} בשעה {{3}}."
+// Pre-approved template: appointment_rescheduled — 4 params per Meta console:
+//   "היי {{1}}, הפגישה שלך נדחתה ל{{2}}. שירות: {{3}} מספר אישור: {{4}}"
+// Call sites were passing 3 params which made the Cloud API 400 silently —
+// the param-count mismatch is the single most common reason rescheduled
+// notifications "disappeared" in the logs.
 export async function sendClientReschedule(
   phone: string,
   clientName: string,
-  date: string,
-  time: string,
+  newDateTimeLabel: string,   // {{2}} — freeform "21/04 ב-15:00" style label
+  serviceName: string,        // {{3}}
+  confirmationCode: string,   // {{4}} — appointment id or tranzila ref
   businessId?: number
 ): Promise<void> {
   if (!(await clientWantsNotifications(phone))) return;
-  await sendTemplate(phone, "appointment_rescheduled", [clientName, date, time], undefined, businessId);
+  await sendTemplate(phone, "appointment_rescheduled", [
+    clientName,
+    newDateTimeLabel,
+    serviceName,
+    confirmationCode,
+  ], undefined, businessId);
 }
 
 // ── Cancellation notification to client ────────────────────────────────────
-// Pre-approved template: appointment_cancelled
-// "שלום {{1}}, התור שלך עם {{2}} ב{{3}} בשעה {{4}} בוטל."
+// Pre-approved template: appointment_cancelled — 2 params per Meta console:
+//   "היי {{1}}, הפגישה שלך ב{{2}} בוטלה. מקווים לראות אותך בפעם אחרת."
+// Previously this helper sent 4 params (clientName, businessName, date, time)
+// which caused Meta's Cloud API to reject the send with a
+// "Invalid Parameter count" error — the owner saw every cancellation go
+// through silently without the client ever receiving a WhatsApp.
 export async function sendClientCancellation(
   phone: string,
   clientName: string,
-  businessName: string,
+  businessName: string,        // no longer injected into the template body
   date: string,
   time: string,
   businessId?: number
 ): Promise<void> {
   if (!(await clientWantsNotifications(phone))) return;
+  const dateTimeLabel = `${date} בשעה ${time}${businessName ? ` (${businessName})` : ""}`;
   await sendTemplate(phone, "appointment_cancelled", [
     clientName,
-    businessName,
-    date,
-    time,
+    dateTimeLabel,
   ], undefined, businessId);
 }
 
