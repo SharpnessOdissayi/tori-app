@@ -2682,11 +2682,23 @@ function AppointmentsTab({ mobileFocus }: { mobileFocus?: "calendar" | "approval
   // in the calendar or any list: if the customer hasn't paid, the booking
   // simply doesn't exist from the owner's POV. Abandoned/expired rows
   // auto-clean via the pending-payment cleanup cron.
+  //
+  // Per-staff isolation (reported bug: "when I'm logged in as owner AND
+  // as a staff via the account switcher and I book something, it shows
+  // in both users"). Each account now gets a strictly private view:
+  //   · Owner unfiltered (no staff filter set)
+  //         → only NULL-tagged rows (their own / unassigned)
+  //   · Owner filtered to staff X ("צפה ביומן של X")
+  //         → only X's rows
+  //   · Staff session (filter locked to own id, set at login)
+  //         → only own rows (the backend already filters too, so this
+  //           is defence in depth against stale cache / backend drift)
   const aptList = (Array.isArray(appointments) ? appointments : [])
     .filter(a => a.status !== "pending_payment")
-    .filter(a => staffFilterId == null
-      ? true
-      : ((a as any).staffMemberId ?? null) === staffFilterId);
+    .filter(a => {
+      const aid = (a as any).staffMemberId ?? null;
+      return staffFilterId == null ? aid === null : aid === staffFilterId;
+    });
   const pending = aptList.filter(a => a.status === "pending");
   const upcoming = aptList.filter(a => a.appointmentDate >= now && a.status !== "pending" && a.status !== "cancelled");
   const past = aptList.filter(a => a.appointmentDate < now && a.status !== "cancelled");
@@ -3301,8 +3313,20 @@ function HomeTab({ onJump }: { onJump: (tab: string) => void }) {
 
   // Same pending_payment invisibility rule as AppointmentsTab: server-side
   // placeholders never surface in the owner UI.
+  // Per-account isolation (same rule as AppointmentsTab) — each saved
+  // account in the multi-login switcher has a strictly private Home:
+  //   · Owner unfiltered → only NULL-tagged rows (their own clients)
+  //   · Filter active (owner-viewing-X or staff-locked-to-self) → only
+  //     rows where staffMemberId matches the filter id.
+  const homeStaffFilterId = typeof window !== "undefined"
+    ? (Number(sessionStorage.getItem("kavati_staff_filter_id") ?? "") || null)
+    : null;
   const aptList = (Array.isArray(appointments) ? appointments : [])
-    .filter(a => a.status !== "pending_payment");
+    .filter(a => a.status !== "pending_payment")
+    .filter(a => {
+      const aid = (a as any).staffMemberId ?? null;
+      return homeStaffFilterId == null ? aid === null : aid === homeStaffFilterId;
+    });
   const now = new Date().toISOString().split("T")[0];
   const pending = aptList.filter(a => a.status === "pending");
   // Show more of them on Home than before — the rich card paginates so

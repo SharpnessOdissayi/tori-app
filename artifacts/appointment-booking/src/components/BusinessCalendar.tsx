@@ -1581,14 +1581,20 @@ export function BusinessCalendar({
     setStaffFilter(null);
   }
   // Apply the staff filter to the appointments array before it reaches
-  // TimeGrid/MonthView. Appointments with no staffMemberId fall back to
-  // "the owner" — so if the filter selects an owner-row staff id, we
-  // match any appointment where staffMemberId === id OR null.
-  // For non-owner staff, we match only exact id.
+  // TimeGrid/MonthView. Strict per-account isolation (reported bug:
+  // "owner and staff both saw the same bookings after switching"):
+  //   · No staff filter (owner's private calendar)
+  //         → only NULL-tagged rows (the owner's own clients / unassigned)
+  //   · staffFilter set (owner viewing staff X, or staff locked to self)
+  //         → only rows where staff_member_id === filter.id
+  // Previously the unfiltered branch showed every row, which meant the
+  // owner's overview was a union of all staff's appointments. After
+  // account-switching, that looked like data-leak between the two
+  // saved sessions.
   const filteredAppointments = useMemo(() => {
-    if (!staffFilter) return appointments;
     return appointments.filter(a => {
       const aid = a.staffMemberId ?? null;
+      if (!staffFilter) return aid === null;
       return aid === staffFilter.id;
     });
   }, [appointments, staffFilter]);
