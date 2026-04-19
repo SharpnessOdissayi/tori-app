@@ -2078,6 +2078,11 @@ function AppointmentsTab({ mobileFocus }: { mobileFocus?: "calendar" | "approval
   const [approvingId, setApprovingId] = useState<number | null>(null);
   const [cancelModal, setCancelModal] = useState<{ id: number } | null>(null);
   const [cancelReason, setCancelReason] = useState("");
+  // Per-cancellation override of the business-wide notifyOnCancel preference.
+  // Initialised to the business default each time the dialog opens so the
+  // owner sees their saved choice highlighted and can flip it for a single
+  // cancellation without changing settings.
+  const [cancelNotify, setCancelNotify] = useState(false);
   const [deletingId, setDeletingId] = useState<number | null>(null);
   // Appointment-click edit dialog (opened by tapping a card inside the
   // new calendar view). Holds the selected appointment so we can show
@@ -2151,6 +2156,10 @@ function AppointmentsTab({ mobileFocus }: { mobileFocus?: "calendar" | "approval
 
   const handleCancel = (id: number) => {
     setCancelReason("");
+    // Seed the per-cancellation toggle with the business-wide preference,
+    // so owners who never opted in to "notify on cancel" don't have to
+    // toggle it OFF every time.
+    setCancelNotify(!!(profile as any)?.notifyOnCancel);
     setCancelModal({ id });
   };
 
@@ -2160,10 +2169,10 @@ function AppointmentsTab({ mobileFocus }: { mobileFocus?: "calendar" | "approval
     fetch(`/api/business/appointments/${cancelModal.id}`, {
       method: "DELETE",
       headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-      body: JSON.stringify({ cancelReason }),
+      body: JSON.stringify({ cancelReason, notify: cancelNotify }),
     }).then(r => {
       if (!r.ok) throw new Error();
-      toast({ title: "הפגישה בוטלה" });
+      toast({ title: cancelNotify ? "הפגישה בוטלה — נשלחה הודעה ללקוח" : "הפגישה בוטלה" });
       queryClient.invalidateQueries({ queryKey: getListBusinessAppointmentsQueryKey() });
       queryClient.invalidateQueries({ queryKey: getGetBusinessStatsQueryKey() });
       setCancelModal(null);
@@ -2739,6 +2748,16 @@ function AppointmentsTab({ mobileFocus }: { mobileFocus?: "calendar" | "approval
                 {r === "ברז" ? "🚫 דפק ברז — לא הגיע" : r === "לקוח התחרט" ? "↩️ לקוח התחרט" : "💬 אחר"}
               </button>
             ))}
+            {/* Per-cancellation WA notification toggle. Default mirrors the
+                global notifyOnCancel preference; owner can flip it for this
+                one cancellation only — no settings page round-trip. */}
+            <div className="flex items-center justify-between gap-3 px-3 py-3 rounded-xl border bg-muted/30 mt-1">
+              <div className="flex-1 min-w-0">
+                <div className="text-sm font-medium">שלח הודעת ביטול ללקוח</div>
+                <div className="text-[11px] text-muted-foreground">תישלח הודעת WhatsApp עם פרטי התור שבוטל</div>
+              </div>
+              <Switch checked={cancelNotify} onCheckedChange={setCancelNotify} />
+            </div>
             <div className="flex gap-2 pt-2">
               <Button variant="outline" className="flex-1" onClick={() => setCancelModal(null)}>ביטול</Button>
               <Button className="flex-1 bg-red-600 hover:bg-red-700 text-white" onClick={confirmCancel} disabled={!cancelReason}>

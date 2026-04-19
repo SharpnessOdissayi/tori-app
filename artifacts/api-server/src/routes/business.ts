@@ -955,19 +955,26 @@ router.delete("/business/appointments/:id", requireBusinessAuth, async (req, res
     .where(eq(appointmentsTable.id, appt.id));
 
   // Notify client via WhatsApp (non-blocking) — paid plan only.
-  // A "pending" appointment being cancelled is really a REJECTION, and the
-  // client always needs to know so they can re-book — so we bypass the
-  // notifyOnCancel opt-in there. For "confirmed" appointments the owner
-  // can still prefer to call the customer manually, so notifyOnCancel
-  // (default off) gates those.
+  // Decision tree:
+  //   1. Per-cancellation `notify` flag in the body (set by the cancel
+  //      dialog's "שלח הודעת ביטול ללקוח" switch) wins outright when
+  //      provided — owner is making an explicit per-row choice.
+  //   2. A "pending" appointment being cancelled is really a REJECTION,
+  //      and the client always needs to know so they can re-book — bypass
+  //      the global notifyOnCancel there.
+  //   3. Otherwise fall back to the business-wide notifyOnCancel preference.
   const [, month, day] = appt.appointmentDate.split("-");
   const formattedDate = `${day}/${month}`;
+  const explicitNotify = typeof req.body?.notify === "boolean" ? req.body.notify : null;
   const [bizCancelPref] = await db
     .select({ notifyOnCancel: (businessesTable as any).notifyOnCancel })
     .from(businessesTable)
     .where(eq(businessesTable.id, req.business!.businessId));
   const isRejection = appt.status === "pending";
-  const shouldNotify = isRejection || !!bizCancelPref?.notifyOnCancel;
+  const shouldNotify =
+    explicitNotify !== null
+      ? explicitNotify
+      : isRejection || !!bizCancelPref?.notifyOnCancel;
   const paid = await isBusinessPro(req.business!.businessId);
   if (shouldNotify && paid) {
     sendClientCancellation(appt.phoneNumber, appt.clientName, req.business!.businessName, formattedDate, appt.appointmentTime, req.business!.businessId)
