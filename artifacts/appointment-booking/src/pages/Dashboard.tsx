@@ -1769,14 +1769,15 @@ function Login({ onLogin }: { onLogin: (t: string) => void }) {
     }
   };
 
-  const handleSmsVerify = async () => {
-    if (!smsCode.trim()) return;
+  const handleSmsVerify = async (codeOverride?: string) => {
+    const codeToUse = (codeOverride ?? smsCode).trim();
+    if (!codeToUse) return;
     setSmsVerifying(true);
     try {
       const res = await fetch("/api/auth/business/sms-login/verify", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ phone: smsPhone.trim(), code: smsCode.trim() }),
+        body: JSON.stringify({ phone: smsPhone.trim(), code: codeToUse }),
       });
       const data = await res.json();
       if (!res.ok) { toast({ title: data?.error ?? "קוד שגוי", variant: "destructive" }); return; }
@@ -1796,6 +1797,30 @@ function Login({ onLogin }: { onLogin: (t: string) => void }) {
     }
   };
 
+  // WebOTP API: on Android Chrome, reading the incoming SMS that ends with
+  // `@kavati.net #123456` surfaces a "From Messages" suggestion right in the
+  // keyboard. Calling navigator.credentials.get here also lets us auto-submit
+  // once the user taps it — no manual typing at all.
+  // iOS Safari already handles this via the native QuickType bar from any
+  // `autocomplete="one-time-code"` input, so we only need this branch.
+  useEffect(() => {
+    if (smsStep !== "code") return;
+    if (typeof window === "undefined") return;
+    if (!("OTPCredential" in window)) return;
+    const ac = new AbortController();
+    (navigator.credentials as any)
+      .get({ otp: { transport: ["sms"] }, signal: ac.signal })
+      .then((otp: any) => {
+        if (otp?.code) {
+          setSmsCode(otp.code);
+          void handleSmsVerify(otp.code);
+        }
+      })
+      .catch(() => { /* user dismissed or timed out — silent */ });
+    return () => ac.abort();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [smsStep]);
+
   return (
     <div className="min-h-screen flex flex-col bg-muted/30" dir="rtl">
       <Navbar />
@@ -1810,68 +1835,80 @@ function Login({ onLogin }: { onLogin: (t: string) => void }) {
             <CardDescription>הזנת מספר טלפון ואימות בקוד SMS</CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="space-y-4">
-              {smsStep === "phone" ? (
-                <>
-                  <div className="space-y-2">
-                    <Label>מספר טלפון</Label>
-                    <Input
-                      type="tel"
-                      value={smsPhone}
-                      onChange={e => setSmsPhone(e.target.value)}
-                      dir="ltr"
-                      placeholder="0501234567"
-                      inputMode="tel"
-                      autoComplete="tel"
-                      onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); handleSmsSendCode(); } }}
-                    />
-                    <p className="text-xs text-muted-foreground">קוד חד-פעמי יישלח ב-SMS לטלפון הרשום בעסק.</p>
-                  </div>
-                  <div className="flex items-center gap-2 py-1">
-                    <input
-                      type="checkbox"
-                      id="remember-me-sms"
-                      checked={rememberMe}
-                      onChange={e => setRememberMe(e.target.checked)}
-                      className="w-4 h-4 rounded border-border accent-primary cursor-pointer"
-                    />
-                    <label htmlFor="remember-me-sms" className="text-sm text-muted-foreground cursor-pointer select-none">
-                      זכור אותי במכשיר זה
-                    </label>
-                  </div>
-                  <Button type="button" className="w-full h-11" disabled={smsSending} onClick={handleSmsSendCode}>
-                    {smsSending ? "שולח..." : "שלח קוד"}
-                  </Button>
-                </>
-              ) : (
-                <>
-                  <div className="space-y-2">
-                    <Label>קוד אימות</Label>
-                    <Input
-                      value={smsCode}
-                      onChange={e => setSmsCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
-                      dir="ltr"
-                      placeholder="123456"
-                      inputMode="numeric"
-                      autoComplete="one-time-code"
-                      maxLength={6}
-                      onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); handleSmsVerify(); } }}
-                    />
-                    <p className="text-xs text-muted-foreground">נשלח ל-{smsPhone}</p>
-                  </div>
-                  <Button type="button" className="w-full h-11" disabled={smsVerifying || smsCode.length < 6} onClick={handleSmsVerify}>
-                    {smsVerifying ? "מאמת..." : "כניסה"}
-                  </Button>
-                  <button
-                    type="button"
-                    className="text-xs text-primary underline"
-                    onClick={() => { setSmsStep("phone"); setSmsCode(""); }}
-                  >
-                    שלח שוב / שנה מספר
-                  </button>
-                </>
-              )}
-            </div>
+            {smsStep === "phone" ? (
+              // Wrapped in <form> with name/autoComplete so Chrome/Safari/1Password
+              // detect it as a login form and offer saved phone numbers.
+              <form
+                className="space-y-4"
+                onSubmit={e => { e.preventDefault(); handleSmsSendCode(); }}
+                noValidate
+              >
+                <div className="space-y-2">
+                  <Label htmlFor="kavati-biz-phone">מספר טלפון</Label>
+                  <Input
+                    id="kavati-biz-phone"
+                    name="kavati-biz-phone"
+                    type="tel"
+                    value={smsPhone}
+                    onChange={e => setSmsPhone(e.target.value)}
+                    dir="ltr"
+                    placeholder="0501234567"
+                    inputMode="tel"
+                    autoComplete="tel"
+                    required
+                  />
+                  <p className="text-xs text-muted-foreground">קוד חד-פעמי יישלח ב-SMS לטלפון הרשום בעסק.</p>
+                </div>
+                <div className="flex items-center gap-2 py-1">
+                  <input
+                    type="checkbox"
+                    id="remember-me-sms"
+                    checked={rememberMe}
+                    onChange={e => setRememberMe(e.target.checked)}
+                    className="w-4 h-4 rounded border-border accent-primary cursor-pointer"
+                  />
+                  <label htmlFor="remember-me-sms" className="text-sm text-muted-foreground cursor-pointer select-none">
+                    זכור אותי במכשיר זה
+                  </label>
+                </div>
+                <Button type="submit" className="w-full h-11" disabled={smsSending}>
+                  {smsSending ? "שולח..." : "שלח קוד"}
+                </Button>
+              </form>
+            ) : (
+              <form
+                className="space-y-4"
+                onSubmit={e => { e.preventDefault(); handleSmsVerify(); }}
+                noValidate
+              >
+                <div className="space-y-2">
+                  <Label htmlFor="kavati-biz-otp">קוד אימות</Label>
+                  <Input
+                    id="kavati-biz-otp"
+                    name="kavati-biz-otp"
+                    value={smsCode}
+                    onChange={e => setSmsCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
+                    dir="ltr"
+                    placeholder="123456"
+                    inputMode="numeric"
+                    autoComplete="one-time-code"
+                    maxLength={6}
+                    required
+                  />
+                  <p className="text-xs text-muted-foreground">נשלח ל-{smsPhone}</p>
+                </div>
+                <Button type="submit" className="w-full h-11" disabled={smsVerifying || smsCode.length < 6}>
+                  {smsVerifying ? "מאמת..." : "כניסה"}
+                </Button>
+                <button
+                  type="button"
+                  className="text-xs text-primary underline"
+                  onClick={() => { setSmsStep("phone"); setSmsCode(""); }}
+                >
+                  שלח שוב / שנה מספר
+                </button>
+              </form>
+            )}
             <div className="mt-5 text-center">
               <span className="text-sm text-muted-foreground">עדיין אין לך חשבון? </span>
               <button

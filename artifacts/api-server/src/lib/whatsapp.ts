@@ -192,7 +192,13 @@ export async function sendOtp(phone: string, purpose: OtpPurpose = "generic"): P
   // appointment confirmations / reminders / cancellation / reschedule.
   const { sendSms, isInforuConfigured } = await import("./inforu");
   if (isInforuConfigured()) {
-    const message = `קוד הכניסה שלך ל-Kavati: ${code}\nהקוד בתוקף ל-5 דקות.`;
+    // Last line `@host #code` is the WebOTP API binding — Android Chrome
+    // reads it and auto-fills the <input autocomplete="one-time-code"> when
+    // the page calls navigator.credentials.get({ otp: ... }). iOS Safari
+    // auto-fills from any 4–8 digit sequence regardless of footer.
+    // Host must match the production origin exactly or Chrome ignores it.
+    const webOtpHost = (process.env.WEB_OTP_HOST ?? "kavati.net").trim() || "kavati.net";
+    const message = `קוד הכניסה שלך ל-Kavati: ${code}\nהקוד בתוקף ל-5 דקות.\n\n@${webOtpHost} #${code}`;
     const senderName = (process.env.INFORU_SENDER_NAME ?? "Kavati").trim() || "Kavati";
     const result = await sendSms({
       recipients: [phone],
