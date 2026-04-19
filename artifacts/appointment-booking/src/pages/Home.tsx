@@ -98,7 +98,7 @@ export default function Home() {
 
             <div className="flex items-center justify-center gap-2 text-sm text-muted-foreground pt-1">
               <Check className="w-4 h-4 text-emerald-500" />
-              בלי להתקין כלום · שיתוף לינק ללקוחות תוך 3 דקות
+              בלי להתקין כלום · שיתוף לינק ללקוחות תוך כמה רגעים
             </div>
           </motion.section>
 
