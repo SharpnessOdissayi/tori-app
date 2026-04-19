@@ -16,7 +16,7 @@ import { computeAvailableSlots } from "../lib/availability";
 import { sendOtp, verifyOtp, notifyBusinessOwner, sendClientConfirmation, sendClientCancellation, sendTemplate, OtpRateLimitError } from "../lib/whatsapp";
 import { isPhoneVerified, consumeVerification, markPhoneVerified, normalizePhone } from "../lib/otpStore";
 import { signPhoneVerificationToken, verifyPhoneVerificationToken } from "../lib/phoneVerificationJwt";
-import { peekUnsubscribeToken, consumeUnsubscribeToken } from "../lib/unsubscribeToken";
+import { peekUnsubscribeToken, consumeUnsubscribeToken, normalizeSubscriberPhone } from "../lib/unsubscribeToken";
 
 const router = Router();
 
@@ -68,15 +68,23 @@ router.get("/u/:token", async (req, res): Promise<void> => {
   }
 
   try {
-    // Audit row first so a DELETE failure below still records the intent.
+    // Audit row — stored in the canonical 0-prefixed form so the
+    // owner panel shows "0501234567" not "972501234567".
+    const normalisedPhone = normalizeSubscriberPhone(decoded.phone);
     await db.execute(sql`
       INSERT INTO broadcast_unsubscribes (business_id, phone_number, source)
-      VALUES (${decoded.businessId}, ${decoded.phone}, 'unsub_link')
+      VALUES (${decoded.businessId}, ${normalisedPhone}, 'unsub_link')
       ON CONFLICT (business_id, phone_number) DO NOTHING
     `);
+    // Match the active subscriber row in ANY stored format. Historically
+    // broadcast_subscribers rows were written from bookings with
+    // whatever format the customer typed ("0501234567" / "+972-50-..."),
+    // so an exact-string DELETE missed rows that didn't match the
+    // token's phone form. regexp_replace normalises both sides.
     await db.execute(sql`
       DELETE FROM broadcast_subscribers
-      WHERE business_id = ${decoded.businessId} AND phone_number = ${decoded.phone}
+      WHERE business_id = ${decoded.businessId}
+        AND regexp_replace(regexp_replace(phone_number, '\D', '', 'g'), '^972', '0') = ${normalisedPhone}
     `);
     await consumeUnsubscribeToken(token);
   } catch (e: any) {

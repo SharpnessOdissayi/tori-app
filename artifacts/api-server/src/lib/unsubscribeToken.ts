@@ -38,6 +38,26 @@ function generateRandomToken(): string {
 }
 
 /**
+ * Normalise an Israeli phone to the canonical local form ("0501234567").
+ *
+ * The broadcast subscriber table stores phones in whatever shape the
+ * booking endpoint first received them — that has historically meant
+ * a mix of 0-prefixed, 972-prefixed, and +972-prefixed rows for the
+ * same real phone. Without normalisation, the unsubscribe flow writes
+ * a token with "972...", tries to DELETE a subscriber row that's
+ * stored as "05...", finds no match, and the "active" row stays put.
+ *
+ * Every write into broadcast_opt_out_tokens / broadcast_subscribers /
+ * broadcast_unsubscribes runs through this helper so every comparison
+ * downstream can do an exact string match on the normalised form.
+ */
+export function normalizeSubscriberPhone(raw: string): string {
+  const digits = String(raw ?? "").replace(/\D/g, "");
+  if (digits.startsWith("972")) return "0" + digits.slice(3);
+  return digits;
+}
+
+/**
  * Allocate a fresh opt-out token for the given (businessId, phone) pair.
  *
  * Writes a row to `broadcast_opt_out_tokens` and returns the token string
@@ -48,12 +68,13 @@ export async function allocateUnsubscribeToken(
   businessId: number,
   phone: string,
 ): Promise<string> {
+  const normalized = normalizeSubscriberPhone(phone);
   for (let attempt = 0; attempt < 5; attempt++) {
     const token = generateRandomToken();
     try {
       await db.execute(sql`
         INSERT INTO broadcast_opt_out_tokens (token, business_id, phone_number)
-        VALUES (${token}, ${businessId}, ${phone})
+        VALUES (${token}, ${businessId}, ${normalized})
       `);
       return token;
     } catch (e: any) {
@@ -77,6 +98,9 @@ export async function allocateUnsubscribeTokensBulk(
   phones: string[],
 ): Promise<string[]> {
   if (phones.length === 0) return [];
+  // Normalise every phone before storage so the /u/ handler has a
+  // consistent key to DELETE against broadcast_subscribers downstream.
+  const normalisedPhones = phones.map(normalizeSubscriberPhone);
   // Try once with all unique tokens. If we collide (which is rare) we
   // fall back to the per-row path for just the collisions. Keeps the
   // happy path a single INSERT per broadcast.
@@ -87,7 +111,7 @@ export async function allocateUnsubscribeTokensBulk(
       SELECT * FROM UNNEST(
         ${sql.raw(`ARRAY[${tokens.map(t => `'${t}'`).join(",")}]`)}::TEXT[],
         ${sql.raw(`ARRAY[${phones.map(() => businessId).join(",")}]`)}::INTEGER[],
-        ${sql.raw(`ARRAY[${phones.map(p => `'${p.replace(/'/g, "''")}'`).join(",")}]`)}::TEXT[]
+        ${sql.raw(`ARRAY[${normalisedPhones.map(p => `'${p.replace(/'/g, "''")}'`).join(",")}]`)}::TEXT[]
       ) AS t(token, business_id, phone_number)
     `);
     return tokens;

@@ -4771,7 +4771,14 @@ function BroadcastSubscriberPanel({ onOpenBroadcast, canOpenBroadcast = true }: 
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
         body: JSON.stringify({ phoneNumber: phone }),
       });
-      if (!res.ok) throw new Error();
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        if (res.status === 403 && data?.error === "customer_opted_out") {
+          toast({ title: "לא ניתן להוסיף", description: data.message, variant: "destructive" });
+          return;
+        }
+        throw new Error();
+      }
       toast({ title: "נוסף לרשימה" });
       setAddInput("");
       load();
@@ -4802,7 +4809,17 @@ function BroadcastSubscriberPanel({ onOpenBroadcast, canOpenBroadcast = true }: 
         method: "POST",
         headers: { Authorization: `Bearer ${token}` },
       });
-      if (!res.ok) throw new Error();
+      if (!res.ok) {
+        // תיקון 40 block: customer opted out themselves, owner can't
+        // override. Surface the server's Hebrew explanation so the
+        // owner understands why the button didn't work.
+        const data = await res.json().catch(() => ({}));
+        if (res.status === 403 && data?.error === "customer_opted_out") {
+          toast({ title: "לא ניתן להחזיר", description: data.message, variant: "destructive" });
+          return;
+        }
+        throw new Error();
+      }
       toast({ title: "הוחזר לרשימה" });
       load();
     } catch {
@@ -4941,13 +4958,26 @@ function BroadcastSubscriberPanel({ onOpenBroadcast, canOpenBroadcast = true }: 
                     <div className="text-[11px] text-muted-foreground font-mono" dir="ltr">
                       {s.phoneNumber}
                     </div>
+                    {/* When the customer opted out themselves we explain
+                        why "החזר" isn't offered — owners kept clicking
+                        the button and getting a 403 without context. */}
+                    {s.status === "unsubscribed" && ["unsub_link", "reply", "inforu_self_link"].includes(s.source) && (
+                      <div className="text-[10px] text-amber-700 mt-0.5">
+                        הלקוח ביקש הסרה · לא ניתן להחזיר (תיקון 40)
+                      </div>
+                    )}
                   </div>
                 </div>
                 {s.status === "active" ? (
                   <Button type="button" size="sm" variant="outline" onClick={() => handleRemove(s.phoneNumber)} className="shrink-0 text-destructive border-destructive/30 hover:bg-destructive/5">
                     הסר
                   </Button>
+                ) : ["unsub_link", "reply", "inforu_self_link"].includes(s.source) ? (
+                  // Customer-initiated opt-out — no "החזר" button at all.
+                  // Legal (תיקון 40) bar on owner reversal.
+                  null
                 ) : (
+                  // Owner's own manual_remove — owner can undo.
                   <Button type="button" size="sm" variant="outline" onClick={() => handleResubscribe(s.phoneNumber)} className="shrink-0">
                     החזר
                   </Button>

@@ -1892,56 +1892,70 @@ router.get("/business/revenue", requireBusinessAuth, async (req, res): Promise<v
 
 router.get("/business/broadcast-subscribers", requireBusinessAuth, async (req, res): Promise<void> => {
   const businessId = req.business!.businessId;
-  // Return BOTH active subscribers (broadcast_subscribers) and the
-  // audit-trail of opt-outs (broadcast_unsubscribes) unioned as one list.
-  // UNION prevents double-counting in the rare case a phone ended up in
-  // both tables; the subscriber row wins if present so we always reflect
-  // the "current" status, not a stale audit row.
+  // Return BOTH active subscribers and audit-trail opt-outs in one list.
+  // Every phone is NORMALISED (digits only, 972→0) for both display
+  // and join — legacy data has rows in mixed formats ("972501234567" /
+  // "+972-50-..." / "0501234567"), and without normalising the client
+  // name join misses and the UI shows a bare phone with no label.
   //
-  // The LEFT JOIN adds the most recent client name: first try an
-  // appointment row for THIS business (the name the client typed on
-  // their last booking), then fall back to the client_sessions row so
-  // portal-only users (no bookings) still show up by name.
+  // The "canonical_phone" column is what we show to the owner and what
+  // the name lookup joins on; the original phone_number is kept only
+  // to refer back to the underlying row if we ever need to.
   const rows = await db.execute(sql`
     WITH merged AS (
-      SELECT phone_number, status, source, created_at, updated_at
-        FROM broadcast_subscribers
-       WHERE business_id = ${businessId}
+      SELECT
+        regexp_replace(regexp_replace(phone_number, '\D', '', 'g'), '^972', '0') AS canonical_phone,
+        status,
+        source,
+        created_at,
+        updated_at
+      FROM broadcast_subscribers
+      WHERE business_id = ${businessId}
       UNION ALL
-      SELECT u.phone_number,
-             'unsubscribed' AS status,
-             u.source,
-             u.unsubscribed_at AS created_at,
-             u.unsubscribed_at AS updated_at
-        FROM broadcast_unsubscribes u
-       WHERE u.business_id = ${businessId}
-         AND NOT EXISTS (
-           SELECT 1 FROM broadcast_subscribers s
-            WHERE s.business_id = ${businessId}
-              AND s.phone_number = u.phone_number
-         )
+      SELECT
+        regexp_replace(regexp_replace(u.phone_number, '\D', '', 'g'), '^972', '0') AS canonical_phone,
+        'unsubscribed' AS status,
+        u.source,
+        u.unsubscribed_at AS created_at,
+        u.unsubscribed_at AS updated_at
+      FROM broadcast_unsubscribes u
+      WHERE u.business_id = ${businessId}
+        AND NOT EXISTS (
+          SELECT 1 FROM broadcast_subscribers s
+           WHERE s.business_id = ${businessId}
+             AND regexp_replace(regexp_replace(s.phone_number, '\D', '', 'g'), '^972', '0')
+               = regexp_replace(regexp_replace(u.phone_number, '\D', '', 'g'), '^972', '0')
+        )
+    ),
+    -- De-dup by canonical phone so the SAME phone stored in two
+    -- different formats doesn't render twice. First row wins.
+    deduped AS (
+      SELECT DISTINCT ON (canonical_phone)
+             canonical_phone, status, source, created_at, updated_at
+      FROM merged
+      ORDER BY canonical_phone, created_at DESC
     )
     SELECT
-      m.phone_number,
-      m.status,
-      m.source,
-      m.created_at,
-      m.updated_at,
+      d.canonical_phone AS phone_number,
+      d.status,
+      d.source,
+      d.created_at,
+      d.updated_at,
       COALESCE(
         (SELECT a.client_name
            FROM appointments a
           WHERE a.business_id = ${businessId}
-            AND a.phone_number = m.phone_number
+            AND regexp_replace(regexp_replace(a.phone_number, '\D', '', 'g'), '^972', '0') = d.canonical_phone
           ORDER BY a.appointment_date DESC
           LIMIT 1),
         (SELECT c.client_name
            FROM client_sessions c
-          WHERE c.phone_number = m.phone_number
+          WHERE regexp_replace(regexp_replace(c.phone_number, '\D', '', 'g'), '^972', '0') = d.canonical_phone
           ORDER BY c.created_at DESC
           LIMIT 1)
       ) AS client_name
-    FROM merged m
-    ORDER BY m.created_at DESC
+    FROM deduped d
+    ORDER BY d.created_at DESC
   `);
   const list = ((rows as any).rows ?? []).map((r: any) => ({
     phoneNumber: r.phone_number,
@@ -1976,29 +1990,43 @@ router.post("/business/broadcast-subscribers", requireBusinessAuth, async (req, 
     res.status(400).json({ error: "מספר טלפון לא תקין" });
     return;
   }
-  // Idempotent: insert or flip back to active if they were previously
-  // unsubscribed. source="manual_add" distinguishes owner-added rows
-  // from auto-subscribed booking rows for analytics/debugging.
-  // Also clear any prior audit row in broadcast_unsubscribes — the owner
-  // is explicitly overriding the opt-out, otherwise the send filters
-  // would block the manually-added phone. Match on normalised digits
-  // so "0501234567" / "972501234567" / "+972-50-123-4567" all resolve
-  // to the same audit row — format drift between the /u/ token writer
-  // and the UI displayer caused resubscribes to silently leave old
-  // unsubscribe rows behind, blocking future SMS to the re-added phone.
+  // תיקון 40 guard: if the CUSTOMER opted out of this business (via the
+  // /api/u/ link, the "הסר" reply, or an Inforu-side link), the owner
+  // CANNOT override that decision by manually re-adding them. Only
+  // owner-initiated removals (source='manual_remove') can be reversed
+  // here, since the owner is just undoing their own action — not the
+  // customer's. A re-opt-in from the customer would need a fresh
+  // affirmative action they themselves take (phone call, booking,
+  // dedicated re-opt link — future work).
   const digitsOnly = normalized.replace(/\D/g, "").replace(/^972/, "0");
+  const customerOptOut = await db.execute(sql`
+    SELECT source FROM broadcast_unsubscribes
+    WHERE business_id = ${businessId}
+      AND regexp_replace(regexp_replace(phone_number, '\D', '', 'g'), '^972', '0') = ${digitsOnly}
+      AND source IN ('unsub_link', 'reply', 'inforu_self_link')
+    LIMIT 1
+  `);
+  if (((customerOptOut as any).rows ?? []).length > 0) {
+    res.status(403).json({
+      error: "customer_opted_out",
+      message: "הלקוח ביקש להסיר את עצמו מרשימת התפוצה. לפי תיקון 40 בעל העסק לא יכול להוסיפו חזרה ללא הסכמה חדשה של הלקוח.",
+    });
+    return;
+  }
+  // Owner's own prior removal — they can undo it.
   await db.execute(sql`
     DELETE FROM broadcast_unsubscribes
     WHERE business_id = ${businessId}
       AND regexp_replace(regexp_replace(phone_number, '\D', '', 'g'), '^972', '0') = ${digitsOnly}
+      AND source = 'manual_remove'
   `);
   await db.execute(sql`
     INSERT INTO broadcast_subscribers (business_id, phone_number, status, source)
-    VALUES (${businessId}, ${normalized}, 'active', 'manual_add')
+    VALUES (${businessId}, ${digitsOnly}, 'active', 'manual_add')
     ON CONFLICT (business_id, phone_number)
     DO UPDATE SET status = 'active', source = 'manual_resubscribe', updated_at = NOW()
   `);
-  res.json({ success: true, phoneNumber: normalized, status: "active" });
+  res.json({ success: true, phoneNumber: digitsOnly, status: "active" });
 });
 
 router.delete("/business/broadcast-subscribers/:phone", requireBusinessAuth, async (req, res): Promise<void> => {
@@ -2032,17 +2060,34 @@ router.post("/business/broadcast-subscribers/:phone/resubscribe", requireBusines
   const raw = Array.isArray(req.params.phone) ? req.params.phone[0] : req.params.phone;
   const phone = decodeURIComponent(String(raw ?? "")).trim();
   if (!phone) { res.status(400).json({ error: "מספר טלפון נדרש" }); return; }
-  // Clear the audit row first — the send-time filter checks
-  // broadcast_unsubscribes, so if we leave it in place this resubscribe
-  // would write an active row but the next broadcast would still skip
-  // the phone silently.
+  const digitsOnly = phone.replace(/\D/g, "").replace(/^972/, "0");
+
+  // תיקון 40 guard — same logic as the manual-add endpoint. If the
+  // customer opted out themselves, the owner can't resurrect their
+  // subscription; only owner-initiated removals can be reversed.
+  const customerOptOut = await db.execute(sql`
+    SELECT source FROM broadcast_unsubscribes
+    WHERE business_id = ${businessId}
+      AND regexp_replace(regexp_replace(phone_number, '\D', '', 'g'), '^972', '0') = ${digitsOnly}
+      AND source IN ('unsub_link', 'reply', 'inforu_self_link')
+    LIMIT 1
+  `);
+  if (((customerOptOut as any).rows ?? []).length > 0) {
+    res.status(403).json({
+      error: "customer_opted_out",
+      message: "הלקוח ביקש להסיר את עצמו מרשימת התפוצה. לפי תיקון 40 בעל העסק לא יכול להחזירו ללא הסכמה חדשה של הלקוח.",
+    });
+    return;
+  }
   await db.execute(sql`
     DELETE FROM broadcast_unsubscribes
-    WHERE business_id = ${businessId} AND phone_number = ${phone}
+    WHERE business_id = ${businessId}
+      AND regexp_replace(regexp_replace(phone_number, '\D', '', 'g'), '^972', '0') = ${digitsOnly}
+      AND source = 'manual_remove'
   `);
   await db.execute(sql`
     INSERT INTO broadcast_subscribers (business_id, phone_number, status, source)
-    VALUES (${businessId}, ${phone}, 'active', 'manual_resubscribe')
+    VALUES (${businessId}, ${digitsOnly}, 'active', 'manual_resubscribe')
     ON CONFLICT (business_id, phone_number)
     DO UPDATE SET status = 'active', source = 'manual_resubscribe', updated_at = NOW()
   `);
