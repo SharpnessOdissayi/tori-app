@@ -8086,7 +8086,7 @@ function SettingsTab({ isStaffMode = false }: { isStaffMode?: boolean }) {
               <div className="flex items-center justify-between p-4 border rounded-xl bg-muted/30">
                 <div>
                   <div className="font-medium text-sm">אימות טלפון בקביעת תור</div>
-                  <div className="text-xs text-muted-foreground mt-0.5" dir="rtl">דלוק = לקוח חייב לאמת מספר טלפון בקוד <span dir="ltr">WhatsApp</span> לפני קביעת תור</div>
+                  <div className="text-xs text-muted-foreground mt-0.5" dir="rtl">דלוק = לקוח חייב לאמת מספר טלפון בקוד <span dir="ltr">SMS</span> לפני קביעת תור</div>
                 </div>
                 <Switch checked={form.requirePhoneVerification} onCheckedChange={v => setForm(p => ({ ...p, requirePhoneVerification: v }))} />
               </div>

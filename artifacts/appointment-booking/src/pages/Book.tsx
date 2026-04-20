@@ -1341,7 +1341,7 @@ export default function Book({ slugOverride }: { slugOverride?: string } = {}) {
       });
       if (!res.ok) throw new Error();
       setOtpSent(true);
-      toast({ title: "קוד נשלח לנייד שלך בWhatsApp" });
+      toast({ title: "קוד נשלח לנייד שלך ב-SMS" });
     } catch {
       toast({ title: "שגיאה בשליחת הקוד", variant: "destructive" });
     } finally {
