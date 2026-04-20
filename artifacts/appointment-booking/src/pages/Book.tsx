@@ -386,6 +386,10 @@ export default function Book({ slugOverride }: { slugOverride?: string } = {}) {
   const [reviewRating, setReviewRating] = useState(5);
   const [reviewText, setReviewText] = useState("");
   const [reviewSubmitting, setReviewSubmitting] = useState(false);
+  // Guest-name input used by the composer. Pre-filled from the logged-
+  // in client's display name when available; otherwise blank and the
+  // visitor types their own. Required field server-side.
+  const [reviewGuestName, setReviewGuestName] = useState("");
   // Owner-side moderation — null when no delete is pending, otherwise
   // the review about to be wiped. The dialog confirms before firing
   // the DELETE so an errant tap doesn't nuke a review.
@@ -781,16 +785,12 @@ export default function Book({ slugOverride }: { slugOverride?: string } = {}) {
   // submission overwrites rather than adds.
   const myReview = reviews.find(r => (r as any).mine);
 
-  // Leave-review click handler — gates through login → phone → composer.
-  // Each step hands off to an existing flow: the shared login gate
-  // (Google / Facebook / OTP), the PATCH /client/me phone-attach, and
-  // finally the composer dialog defined below.
+  // Leave-review click handler — opens the composer directly. Login
+  // and phone-attach are NO longer required per the owner's spec:
+  // 'שלא יהיה חובה להתחבר עם חשבון גוגל כדי להשאיר ביקורת, מספיק שם
+  // מלא'. If the client IS logged in we pre-fill the name field from
+  // their session; anonymous visitors fill it in themselves.
   const onLeaveReview = () => {
-    if (!clientToken) { setShowLoginGate(true); return; }
-    if (!clientData.phone) { setPhonePopupInput(""); setPhonePopupOpen(true); return; }
-    // If the client already has a review, pre-fill the composer with
-    // the existing rating + text so "שינוי" feels like editing rather
-    // than starting from scratch.
     if (myReview) {
       setReviewRating(myReview.rating ?? 5);
       setReviewText(myReview.text ?? "");
@@ -798,6 +798,9 @@ export default function Book({ slugOverride }: { slugOverride?: string } = {}) {
       setReviewRating(5);
       setReviewText("");
     }
+    // Guest-name input defaults to the logged-in client's display
+    // name if we have one; otherwise starts blank for anonymous.
+    setReviewGuestName(clientData.name ?? "");
     setReviewComposerOpen(true);
   };
 
@@ -820,18 +823,28 @@ export default function Book({ slugOverride }: { slugOverride?: string } = {}) {
   };
 
   const submitReview = async () => {
+    const nameToSend = (reviewGuestName || clientData.name || "").trim();
+    if (!nameToSend) {
+      toast({ title: "נא להזין שם מלא", variant: "destructive" });
+      return;
+    }
     setReviewSubmitting(true);
     try {
       // Pull avatar/name from the logged-in client's Google payload
-      // if we have it in localStorage, else fall back to clientData.
+      // if we have it in localStorage, else fall back to the guest name.
       const avatarUrl = (clientData as any).avatarUrl || null;
+      const headers: Record<string, string> = { "Content-Type": "application/json" };
+      // Only attach the token when the visitor is actually logged in —
+      // anonymous reviewers hit the endpoint without auth. The backend
+      // handles both cases.
+      if (clientToken) headers["x-client-token"] = clientToken;
       const res = await fetch(`${API_BASE}/public/${businessSlug}/reviews`, {
         method: "POST",
-        headers: { "Content-Type": "application/json", "x-client-token": clientToken! },
+        headers,
         body: JSON.stringify({
           rating: reviewRating,
           text: reviewText.trim() || null,
-          clientName: clientData.name || null,
+          clientName: nameToSend,
           avatarUrl,
         }),
       });
@@ -2428,6 +2441,22 @@ export default function Book({ slugOverride }: { slugOverride?: string } = {}) {
                   ★
                 </button>
               ))}
+            </div>
+            {/* Name input — required field. Pre-filled from the logged-
+                in client's display name when available (Google sign-in),
+                otherwise blank. The only mandatory text field; everything
+                else (email, phone, login) is optional per owner spec. */}
+            <div className="space-y-1">
+              <label className="text-sm font-medium text-foreground">שם מלא *</label>
+              <input
+                type="text"
+                value={reviewGuestName}
+                onChange={e => setReviewGuestName(e.target.value.slice(0, 120))}
+                placeholder="למשל: לילך כהן"
+                className="w-full rounded-xl border border-input px-3 py-2 text-sm focus:outline-none"
+                dir="auto"
+                required
+              />
             </div>
             <textarea
               value={reviewText}

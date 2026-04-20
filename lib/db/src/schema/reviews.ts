@@ -1,14 +1,16 @@
 import { pgTable, serial, text, integer, timestamp, uniqueIndex } from "drizzle-orm/pg-core";
 
-// One public review per (business, client_email).
-// Owner asked: customers log in with email (Google), attach a phone
-// via popup, then leave a review. Name + avatar pulled from the
-// Google profile at the time of review so they match what the
-// customer sees on their own Google card.
+// Public reviews. Anonymous reviews supported — clientEmail is
+// nullable so a visitor with just a full name can still leave a
+// review. When an email IS present (Google-signed-in visitor) the
+// (businessId, clientEmail) unique index dedups: a second submission
+// overwrites the first. Anonymous rows with NULL email are NOT
+// deduped (Postgres treats each NULL as distinct in unique indexes
+// by default), so the owner moderates spam via per-review delete.
 export const reviewsTable = pgTable("reviews", {
   id: serial("id").primaryKey(),
   businessId: integer("business_id").notNull(),
-  clientEmail: text("client_email").notNull(),
+  clientEmail: text("client_email"),
   clientPhone: text("client_phone"),
   clientName: text("client_name").notNull(),
   avatarUrl: text("avatar_url"),

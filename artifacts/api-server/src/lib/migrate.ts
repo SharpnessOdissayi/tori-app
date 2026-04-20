@@ -278,6 +278,14 @@ export async function runMigrations() {
       // 500s every GET /business/time-off call (and cascades to break
       // the dashboard Customers tab via its time-off query). Idempotent.
       "ALTER TABLE time_off       ADD COLUMN IF NOT EXISTS staff_member_id INTEGER",
+      // Anonymous reviews — drop the NOT NULL on reviews.client_email so
+      // visitors who didn't log in with Google can still leave a review
+      // with just their name. Unique (business_id, client_email) index
+      // stays; Postgres treats NULLs as distinct so multiple anonymous
+      // rows for one business coexist fine. Owner moderates via
+      // per-review delete. Idempotent — DROP NOT NULL on an already-
+      // nullable column is a no-op.
+      "ALTER TABLE reviews        ALTER COLUMN client_email DROP NOT NULL",
       // ─── Staff logins (v2) ───────────────────────────────────────────
       // Added to the pre-existing staff_members table. Nullable — legacy
       // rows + owner-seeded rows keep having no hash and can't log in.
