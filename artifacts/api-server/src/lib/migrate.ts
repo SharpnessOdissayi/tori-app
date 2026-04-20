@@ -626,6 +626,48 @@ export async function runMigrations() {
       console.warn("[Migrate] time_off backfill skipped:", (backfillErr as any)?.message ?? backfillErr);
     }
 
+    // ─── Broadcast quota reconciliation (one-shot) ──────────────────────
+    // Before commit b3cd4e8 the /business/broadcast endpoint deducted
+    // from broadcast_sent_this_month — a column that NO other quota path
+    // touched. The SMS balance card, in contrast, reads sms_used_this_
+    // period + sms_extra_balance. Effect: broadcasts sent BEFORE the
+    // fix didn't reduce the visible quota, so a user could (in
+    // principle) blast indefinitely.
+    //
+    // This migration moves the untracked debt into sms_used_this_period
+    // once. Idempotency is provided by reconciled_at: we set it to NOW()
+    // after the first reconciliation and the UPDATE is gated on
+    // reconciled_at IS NULL, so rebooting the server can't re-apply the
+    // same debt a second time. Cap at sms_monthly_quota so a business
+    // whose debt exceeds the cap ends up at "fully used" rather than
+    // overflowing (extra_balance should NOT be drained by legacy debt —
+    // those are paid packs).
+    try {
+      // Idempotency column — added first, then the UPDATE that gates on
+      // it IS NULL. Separate try blocks so a rerun on a DB that already
+      // has the column doesn't abort the reconciliation.
+      await db.execute(sql.raw(`
+        ALTER TABLE businesses
+        ADD COLUMN IF NOT EXISTS broadcast_debt_reconciled_at TIMESTAMPTZ
+      `));
+      const result = await db.execute(sql.raw(`
+        UPDATE businesses
+        SET sms_used_this_period = LEAST(
+              sms_monthly_quota,
+              sms_used_this_period + COALESCE(broadcast_sent_this_month, 0)
+            ),
+            broadcast_debt_reconciled_at = NOW()
+        WHERE broadcast_debt_reconciled_at IS NULL
+          AND COALESCE(broadcast_sent_this_month, 0) > 0
+      `));
+      const count: number = (result as any)?.rowCount ?? (result as any)?.count ?? 0;
+      if (count > 0) {
+        console.log(`[Migrate] broadcast debt reconciled for ${count} business(es) — broadcast_sent_this_month rolled into sms_used_this_period (capped at sms_monthly_quota).`);
+      }
+    } catch (reconcileErr) {
+      console.warn("[Migrate] broadcast debt reconciliation skipped:", (reconcileErr as any)?.message ?? reconcileErr);
+    }
+
     // ─── One-shot seed: import existing businesses + clients ────────────
     // Idempotent via ON CONFLICT DO NOTHING. Safe to run every boot.
     await seedUsersFromExistingData();
