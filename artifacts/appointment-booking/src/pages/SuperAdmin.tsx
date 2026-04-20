@@ -61,7 +61,11 @@ export default function SuperAdmin() {
   const [editForm, setEditForm] = useState<EditFormData>({ name: "", slug: "", username: "", ownerName: "", email: "", password: "", phone: "", address: "", city: "", websiteUrl: "", instagramHandle: "", businessDescription: "", subscriptionPlan: "free" });
   const [showEditPassword, setShowEditPassword] = useState(false);
   const [grantProBusiness, setGrantProBusiness] = useState<AdminBusinessSummary | null>(null);
+  // Free-text number of days; null = unlimited. Admin types any value (1 day,
+  // 42 days, 800 days — whatever). Previous fixed presets were replaced per
+  // owner's request ('instead of week/month/year, let me type how many days').
   const [grantProDays, setGrantProDays] = useState<number | null>(30);
+  const [grantProPlan, setGrantProPlan] = useState<"pro" | "pro-plus">("pro");
   const [grantProLoading, setGrantProLoading] = useState(false);
 
   const [loginAttempted, setLoginAttempted] = useState(false);
@@ -248,11 +252,16 @@ export default function SuperAdmin() {
       const res = await fetch(`/api/super-admin/businesses/${grantProBusiness.id}/grant-pro`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ adminPassword: password, durationDays: grantProDays }),
+        body: JSON.stringify({
+          adminPassword: password,
+          durationDays: grantProDays,
+          targetPlan: grantProPlan,
+        }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "שגיאה");
-      toast({ title: "מנוי פרו הוענק בהצלחה!", description: grantProDays ? `עד ${new Date(data.renewDate).toLocaleDateString("he-IL")}` : "ללא הגבלת זמן" });
+      const planLabel = grantProPlan === "pro-plus" ? "עסקי" : "פרו";
+      toast({ title: `מנוי ${planLabel} הוענק בהצלחה!`, description: grantProDays ? `עד ${new Date(data.renewDate).toLocaleDateString("he-IL")}` : "ללא הגבלת זמן" });
       setGrantProBusiness(null);
       invalidate();
     } catch (err: any) {
@@ -606,33 +615,62 @@ export default function SuperAdmin() {
       </Dialog>
       </div>
 
-      {/* Grant Pro Dialog */}
+      {/* Grant paid-subscription dialog — פרו or עסקי (pro-plus), with
+          admin-typed duration in days (or unlimited). */}
       <Dialog open={!!grantProBusiness} onOpenChange={v => { if (!v) setGrantProBusiness(null); }}>
         <DialogContent dir="rtl" className="max-w-sm">
           <DialogHeader>
-            <DialogTitle>הענק מנוי פרו — {grantProBusiness?.name}</DialogTitle>
+            <DialogTitle>הענק מנוי — {grantProBusiness?.name}</DialogTitle>
           </DialogHeader>
           <div className="space-y-4 pt-2">
+            {/* Plan picker — two pills. Both tiers share unlimited
+                services/appointments; only the SMS quota + plan label
+                differ (pro=100, pro-plus=300). */}
             <div className="space-y-2">
-              <Label>משך המנוי</Label>
-              <div className="grid grid-cols-3 gap-2">
-                {[7, 30, 90, 180, 365].map(d => (
-                  <button key={d} type="button"
-                    onClick={() => setGrantProDays(d)}
-                    className={`py-2 text-sm rounded-lg border font-medium transition-all ${grantProDays === d ? "border-primary bg-primary/5 text-primary" : "border-border hover:border-primary/40"}`}>
-                    {d} ימים
-                  </button>
-                ))}
+              <Label>סוג מנוי</Label>
+              <div className="grid grid-cols-2 gap-2">
                 <button type="button"
-                  onClick={() => setGrantProDays(null)}
-                  className={`py-2 text-sm rounded-lg border font-medium transition-all col-span-3 ${grantProDays === null ? "border-blue-500 bg-blue-50 text-blue-600" : "border-border hover:border-blue-300"}`}>
-                  ♾️ ללא הגבלת זמן
+                  onClick={() => setGrantProPlan("pro")}
+                  className={`py-2 text-sm rounded-lg border font-medium transition-all ${grantProPlan === "pro" ? "border-emerald-500 bg-emerald-50 text-emerald-700" : "border-border hover:border-emerald-400"}`}>
+                  פרו
+                </button>
+                <button type="button"
+                  onClick={() => setGrantProPlan("pro-plus")}
+                  className={`py-2 text-sm rounded-lg border font-medium transition-all ${grantProPlan === "pro-plus" ? "border-blue-500 bg-blue-50 text-blue-700" : "border-border hover:border-blue-400"}`}>
+                  עסקי
                 </button>
               </div>
             </div>
+
+            {/* Free-text duration. Admin types ANY integer for days; the
+                'ללא הגבלת זמן' toggle below swaps to unlimited and disables
+                the number field visually. */}
+            <div className="space-y-2">
+              <Label>משך המנוי (בימים)</Label>
+              <Input
+                type="number"
+                min={1}
+                value={grantProDays ?? ""}
+                onChange={e => {
+                  const v = e.target.value.trim();
+                  if (!v) { setGrantProDays(null); return; }
+                  const n = Math.max(1, Math.floor(Number(v) || 1));
+                  setGrantProDays(n);
+                }}
+                disabled={grantProDays === null}
+                placeholder="למשל: 30"
+                className="text-center"
+              />
+              <button type="button"
+                onClick={() => setGrantProDays(d => d === null ? 30 : null)}
+                className={`w-full py-2 text-sm rounded-lg border font-medium transition-all ${grantProDays === null ? "border-blue-500 bg-blue-50 text-blue-600" : "border-border hover:border-blue-300"}`}>
+                {grantProDays === null ? "♾️ ללא הגבלת זמן (פעיל)" : "לחץ לבחירת ללא הגבלת זמן"}
+              </button>
+            </div>
+
             <Button className="w-full bg-blue-500 hover:bg-blue-600 text-white"
-              onClick={handleGrantPro} disabled={grantProLoading}>
-              {grantProLoading ? "מעניק..." : "הענק מנוי פרו"}
+              onClick={handleGrantPro} disabled={grantProLoading || (grantProDays !== null && grantProDays < 1)}>
+              {grantProLoading ? "מעניק..." : `הענק מנוי ${grantProPlan === "pro-plus" ? "עסקי" : "פרו"}`}
             </Button>
           </div>
         </DialogContent>

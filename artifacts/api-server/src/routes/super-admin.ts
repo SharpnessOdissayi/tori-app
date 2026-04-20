@@ -245,12 +245,23 @@ router.delete("/super-admin/businesses/:id", async (req, res): Promise<void> => 
   res.json({ success: true, message: "Business deleted" });
 });
 
-// POST /super-admin/businesses/:id/grant-pro — grant/revoke Pro subscription
+// POST /super-admin/businesses/:id/grant-pro — grant a paid subscription.
+// Accepts:
+//   · targetPlan: "pro" | "pro-plus"   (default "pro" for backward-compat)
+//   · durationDays: number | null      (null = unlimited)
+// Paid tiers share the same unlimited services/appointments caps; only
+// the SMS quota + plan label differ, which the caller can flip at will
+// (a fresh grant always clears any prior cancellation flag).
 router.post("/super-admin/businesses/:id/grant-pro", async (req, res): Promise<void> => {
-  const { durationDays } = req.body ?? {};
+  const { durationDays, targetPlan } = req.body ?? {};
 
   const id = Number(req.params.id);
   if (!id || isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
+
+  const plan: "pro" | "pro-plus" = targetPlan === "pro-plus" ? "pro-plus" : "pro";
+  // SMS quota default per plan — pro-plus = 300, pro = 100. Owner can
+  // still bump it via the edit dialog afterwards if they want extras.
+  const smsQuota = plan === "pro-plus" ? 300 : 100;
 
   const renewDate = durationDays
     ? new Date(Date.now() + Number(durationDays) * 24 * 60 * 60 * 1000)
@@ -259,9 +270,10 @@ router.post("/super-admin/businesses/:id/grant-pro", async (req, res): Promise<v
   const [updated] = await db
     .update(businessesTable)
     .set({
-      subscriptionPlan: "pro",
+      subscriptionPlan: plan,
       maxServicesAllowed: 999,
       maxAppointmentsPerMonth: 9999,
+      smsMonthlyQuota: smsQuota,
       subscriptionRenewDate: renewDate,
       subscriptionCancelledAt: null,
     } as any)
@@ -270,7 +282,7 @@ router.post("/super-admin/businesses/:id/grant-pro", async (req, res): Promise<v
 
   if (!updated) { res.status(404).json({ error: "Business not found" }); return; }
 
-  res.json({ success: true, renewDate: renewDate?.toISOString() ?? null });
+  res.json({ success: true, plan, renewDate: renewDate?.toISOString() ?? null });
 });
 
 // POST /super-admin/businesses/:id/revoke-pro — revert to free
