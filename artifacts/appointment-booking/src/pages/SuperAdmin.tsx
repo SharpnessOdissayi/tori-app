@@ -595,8 +595,24 @@ export default function SuperAdmin() {
               <p className="text-xs text-muted-foreground">השאר ריק כדי לא לשנות</p>
               <div className="flex gap-2">
                 <div className="relative flex-1">
-                  <Input value={editForm.password} onChange={e => setEditForm(p => ({ ...p, password: e.target.value }))}
-                    dir="ltr" placeholder="סיסמה חדשה" type={showEditPassword ? "text" : "password"} className="pl-10" />
+                  {/* autoComplete='new-password' + an always-random name
+                      stops Chrome / Safari from autofilling the admin's
+                      OWN saved password into this field (which would
+                      silently rewrite every edited business's password
+                      on save — the owner reported seeing their personal
+                      password 'Ofekiko132' prefilled on every edit). */}
+                  <Input
+                    value={editForm.password}
+                    onChange={e => setEditForm(p => ({ ...p, password: e.target.value }))}
+                    dir="ltr"
+                    placeholder="סיסמה חדשה"
+                    type={showEditPassword ? "text" : "password"}
+                    className="pl-10"
+                    autoComplete="new-password"
+                    name={`admin-edit-pwd-${Math.random().toString(36).slice(2)}`}
+                    data-lpignore="true"
+                    data-1p-ignore="true"
+                  />
                   <button type="button" onClick={() => setShowEditPassword(prev => !prev)}
                     className="absolute left-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
                     {showEditPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}

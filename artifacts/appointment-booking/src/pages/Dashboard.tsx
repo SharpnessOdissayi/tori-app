@@ -819,7 +819,24 @@ export default function Dashboard() {
     (async () => {
       try {
         const res = await fetch("/api/auth/me", { headers: { Authorization: `Bearer ${token}` } });
-        if (!res.ok) { if (!cancelled) setAuthMe(null); return; }
+        if (!res.ok) {
+          // Invalid / expired / revoked token — wipe it and kick the
+          // user back to the login screen instead of leaving the
+          // dashboard in a half-rendered state where every downstream
+          // query 401s in a loop (which then cascades into React
+          // errors further in the tree). Previously we only cleared
+          // authMe, but the token stayed, so React Query kept retrying
+          // and the dashboard kept trying to render with no data.
+          if (!cancelled) {
+            try {
+              localStorage.removeItem("biz_token");
+              sessionStorage.removeItem("biz_token");
+            } catch {}
+            setToken(null);
+            setAuthMe(null);
+          }
+          return;
+        }
         const json = await res.json();
         if (cancelled) return;
         setAuthMe(json);
