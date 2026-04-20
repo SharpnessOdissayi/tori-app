@@ -1409,20 +1409,13 @@ router.get("/business/customers", requireBusinessAuth, async (req, res): Promise
   res.json(enriched);
 });
 
-// POST /business/broadcast — send SMS broadcast to all customers.
-// Per-plan monthly caps — עסקי (pro-plus) = 300, פרו (pro) = 100,
-// free = 0 (also blocked by isBusinessPro). Kept in sync with
-// smsMonthlyQuota across super-admin.ts, auth.ts, lib/smsQuota.ts and
-// the Dashboard card copy so owners see one consistent number.
-const BROADCAST_LIMIT_BY_PLAN: Record<string, number> = {
-  "pro-plus": 300,
-  "pro":      100,
-  "basic":    100, // legacy plan-name alias for pro
-  "free":       0,
-};
-function broadcastLimitFor(plan: string | undefined | null): number {
-  return BROADCAST_LIMIT_BY_PLAN[(plan ?? "").toLowerCase()] ?? 0;
-}
+// POST /business/broadcast — send SMS broadcast to subscribers.
+// Quota enforcement is now unified with /api/sms/send-bulk via
+// reserveQuota/refundQuota (see lib/smsQuota.ts). The per-plan caps
+// are stored in businesses.sms_monthly_quota and set at grant-pro
+// time (super-admin.ts): pro=100, pro-plus=300. Legacy accounts may
+// carry different values; the UI reads the actual DB value from
+// /api/sms/balance so owners see the right number.
 
 router.post("/business/broadcast", requireBusinessAuth, async (req, res): Promise<void> => {
   const businessId = req.business!.businessId;
@@ -1445,31 +1438,23 @@ router.post("/business/broadcast", requireBusinessAuth, async (req, res): Promis
     return;
   }
 
-  // Check / reset monthly quota — limit depends on the owner's plan.
-  const [biz] = await db
-    .select({
-      broadcastSentThisMonth: businessesTable.broadcastSentThisMonth,
-      broadcastMonthKey:      businessesTable.broadcastMonthKey,
-      subscriptionPlan:       businessesTable.subscriptionPlan,
-    })
-    .from(businessesTable)
-    .where(eq(businessesTable.id, businessId));
-
-  if (!biz) { res.status(404).json({ error: "עסק לא נמצא" }); return; }
-
-  const monthlyLimit = broadcastLimitFor(biz.subscriptionPlan);
-  const currentMonth = new Date().toISOString().slice(0, 7); // "YYYY-MM"
-  const sentThisMonth = biz.broadcastMonthKey === currentMonth ? (biz.broadcastSentThisMonth ?? 0) : 0;
-
-  if (sentThisMonth >= monthlyLimit) {
-    res.status(429).json({
-      error: "quota_exceeded",
-      message: `הגעת למגבלת ההודעות החודשית (${monthlyLimit} הודעות). תוכל לשלוח שוב בחודש הבא.`,
-      sent: sentThisMonth,
-      limit: monthlyLimit,
-    });
-    return;
-  }
+  // Quota enforcement — UNIFIED with /api/sms/send-bulk. Previously this
+  // route kept a separate counter (broadcastSentThisMonth) which was
+  // never reflected in the 'יתרת SMS' card the owner sees, so broadcasts
+  // appeared free while bulk sends deducted normally. Now both paths
+  // reserve from the SAME DB columns (sms_used_this_period +
+  // sms_extra_balance) atomically via reserveQuota.
+  //
+  // CRITICAL invariants this flow enforces:
+  //   1. Can't overshoot the quota — reserveQuota fails early if
+  //      count > totalAvailable, so we refuse the WHOLE send rather
+  //      than silently truncating.
+  //   2. Race-safe — reserveQuota's UPDATE guards on the current
+  //      counter values; two concurrent broadcasts can't both succeed
+  //      if only one slot is left.
+  //   3. Refund on Inforu failures — if only M of N actually went out,
+  //      we refund (N - M) credits to the correct bucket (monthly or
+  //      extra) so a failed send doesn't permanently consume quota.
 
   // Recipient list: caller can pass an explicit `phoneNumbers` array (the
   // owner edited the list — removed customers, added custom phones, etc.).
@@ -1527,9 +1512,28 @@ router.post("/business/broadcast", requireBusinessAuth, async (req, res): Promis
     phones = phones.filter((_, i) => !unsubSet.has(normalizedInputs[i]));
   }
 
-  // Cap at remaining quota
-  const remaining = monthlyLimit - sentThisMonth;
-  const batch = phones.slice(0, remaining);
+  // Reserve the entire batch before touching Inforu. If the reservation
+  // fails (not enough credits), refuse the whole send — don't silently
+  // truncate — so the owner knows they exceeded the quota and the
+  // client-side hard-cap already-shown warning was right. The old code
+  // here used `phones.slice(0, remaining)` which lied to the owner
+  // ('200 recipients → you see 100 sent' with no explanation).
+  const { reserveQuota: _reserveQuota, refundQuota: _refundQuota } = await import("../lib/smsQuota");
+  if (phones.length === 0) {
+    res.json({ success: true, sent: 0, failed: 0, total: 0, failures: [] });
+    return;
+  }
+  const reservation = await _reserveQuota(businessId, phones.length);
+  if (!reservation.ok) {
+    res.status(402).json({
+      error: "insufficient_sms_credits",
+      required: phones.length,
+      available: reservation.available,
+      message: `יש לך רק ${reservation.available} קרדיטים זמינים — ${phones.length} נמענים נבחרו. ההודעות לא נשלחו. רכוש חבילה נוספת או הסר נמענים.`,
+    });
+    return;
+  }
+  const batch = phones;
 
   let successCount = 0;
   let failCount = 0;
@@ -1642,21 +1646,78 @@ router.post("/business/broadcast", requireBusinessAuth, async (req, res): Promis
     }
   }
 
-  // Update monthly counter
-  await db
-    .update(businessesTable)
-    .set({
-      broadcastSentThisMonth: sentThisMonth + successCount,
-      broadcastMonthKey: currentMonth,
-    })
-    .where(eq(businessesTable.id, businessId));
+  // Refund credits for any SMS that DIDN'T actually go out (Inforu
+  // rejected per-phone, or our fallback WhatsApp call threw). We
+  // reserved `batch.length` upfront; now refund the delta so the
+  // business isn't charged for messages the carrier didn't accept.
+  //
+  // Refund order: walk the original reservation IN REVERSE so we
+  // refund the 'extra' bucket first (it was drained LAST by the
+  // monthly-first reservation order). Math: reservation[] has at
+  // most two entries — { fromSource: 'monthly', n1 } and then
+  // { fromSource: 'extra', n2 }. Refunding in reverse returns credits
+  // to the same buckets they came from.
+  if (failCount > 0) {
+    try {
+      const partials: { fromSource: "monthly" | "extra"; reservedCount: number }[] = [];
+      let remainingToRefund = failCount;
+      for (let i = reservation.reservations.length - 1; i >= 0 && remainingToRefund > 0; i--) {
+        const r = reservation.reservations[i];
+        const refundFromThis = Math.min(r.reservedCount, remainingToRefund);
+        if (refundFromThis > 0) {
+          partials.push({ fromSource: r.fromSource, reservedCount: refundFromThis });
+          remainingToRefund -= refundFromThis;
+        }
+      }
+      await _refundQuota(businessId, partials);
+    } catch (refundErr) {
+      // Non-blocking: the owner's quota may be slightly overstated for
+      // a short window, but the original send already happened and
+      // reporting it is more important than a clean books.
+      console.error("[broadcast] refund failed, continuing:", refundErr);
+    }
+  }
+
+  // Bookkeeping — keep broadcastSentThisMonth updated for any code
+  // (historic dashboards, internal reports) that still reads it. NOT
+  // used for quota enforcement anymore; that's reserveQuota's job.
+  const currentMonth = new Date().toISOString().slice(0, 7);
+  try {
+    await db
+      .update(businessesTable)
+      .set({
+        broadcastSentThisMonth: sql`
+          CASE WHEN ${businessesTable.broadcastMonthKey} = ${currentMonth}
+               THEN COALESCE(${businessesTable.broadcastSentThisMonth}, 0) + ${successCount}
+               ELSE ${successCount}
+          END
+        `,
+        broadcastMonthKey: currentMonth,
+      })
+      .where(eq(businessesTable.id, businessId));
+  } catch {
+    // Stats bookkeeping — not worth failing the send for.
+  }
+
+  // Fetch the fresh post-send quota snapshot so the UI can update the
+  // balance card without a second round-trip to /sms/balance.
+  let postSnapshot: { totalAvailable: number; monthlyRemaining: number } | null = null;
+  try {
+    const { getQuotaSnapshot } = await import("../lib/smsQuota");
+    const snap = await getQuotaSnapshot(businessId);
+    postSnapshot = {
+      totalAvailable:   snap.totalAvailable,
+      monthlyRemaining: snap.monthlyRemaining,
+    };
+  } catch { /* non-critical */ }
 
   res.json({
     success: true,
     sent: successCount,
     failed: failCount,
     total: batch.length,
-    remainingThisMonth: monthlyLimit - sentThisMonth - successCount,
+    remainingThisMonth: postSnapshot?.monthlyRemaining ?? null,
+    totalAvailable:     postSnapshot?.totalAvailable   ?? null,
     // Only include failure details when there actually were failures —
     // keeps the happy-path payload small and lets the UI branch on the
     // presence of this field to show an error toast with the reason.
@@ -1666,21 +1727,25 @@ router.post("/business/broadcast", requireBusinessAuth, async (req, res): Promis
 
 router.get("/business/broadcast/quota", requireBusinessAuth, async (req, res): Promise<void> => {
   const businessId = req.business!.businessId;
-  const [biz] = await db
-    .select({
-      broadcastSentThisMonth: businessesTable.broadcastSentThisMonth,
-      broadcastMonthKey:      businessesTable.broadcastMonthKey,
-      subscriptionPlan:       businessesTable.subscriptionPlan,
-    })
-    .from(businessesTable)
-    .where(eq(businessesTable.id, businessId));
-
-  if (!biz) { res.status(404).json({ error: "עסק לא נמצא" }); return; }
-
-  const currentMonth = new Date().toISOString().slice(0, 7);
-  const sent = biz.broadcastMonthKey === currentMonth ? (biz.broadcastSentThisMonth ?? 0) : 0;
-  const limit = broadcastLimitFor(biz.subscriptionPlan);
-  res.json({ sent, limit, remaining: limit - sent });
+  // Source of truth for broadcast quota is now the SMS quota system —
+  // monthly_quota - monthly_used + extra_balance. Previously this
+  // endpoint read broadcastSentThisMonth, which lived in a separate
+  // column that wasn't updated by /api/sms/send-bulk and looked stale
+  // as soon as the owner sent anything via the SMS tab. Keeping this
+  // endpoint around for backwards-compat with the CustomersTab legacy
+  // modal, but the shape now matches what the frontend expects (sent,
+  // limit, remaining) computed from the unified counters.
+  try {
+    const { getQuotaSnapshot } = await import("../lib/smsQuota");
+    const snap = await getQuotaSnapshot(businessId);
+    res.json({
+      sent:      snap.monthlyUsed,
+      limit:     snap.monthlyQuota,
+      remaining: snap.totalAvailable, // includes extra_balance purchased
+    });
+  } catch {
+    res.status(500).json({ error: "quota_read_failed" });
+  }
 });
 
 router.get("/business/waitlist", requireBusinessAuth, async (req, res): Promise<void> => {
