@@ -464,6 +464,41 @@ router.patch("/staff/:id", async (req, res): Promise<void> => {
 });
 
 // ─── DELETE /api/staff/:id ─────────────────────────────────────────────────
+// ─── DELETE /api/staff/me ──────────────────────────────────────────────────
+// Staff self-delete. Reads the caller's staffMemberId out of the JWT and
+// removes their own row + related data. Owners (no staffMemberId in the
+// JWT) get 403 — they have their own DELETE /auth/business/account flow.
+// is_owner=true staff rows are also blocked (that row is structural).
+//
+// Matches the owner's spec: button → confirm → wipe → logout. No request
+// queue, no async 'we'll process it' — immediate deletion.
+router.delete("/staff/me", async (req, res): Promise<void> => {
+  const businessId = getBusinessId(req.headers.authorization ?? "");
+  if (!businessId) { res.status(401).json({ error: "Unauthorized" }); return; }
+  const staffId = getStaffMemberId(req.headers.authorization ?? "");
+  if (!staffId) { res.status(403).json({ error: "owners_use_account_delete" }); return; }
+
+  const [row] = await db
+    .select()
+    .from(staffMembersTable)
+    .where(and(
+      eq(staffMembersTable.id, staffId),
+      eq(staffMembersTable.businessId, businessId),
+    ));
+  if (!row) { res.status(404).json({ error: "Staff not found" }); return; }
+  if (row.isOwner) { res.status(403).json({ error: "cannot_delete_owner" }); return; }
+
+  // staff_services is keyed on staff_member_id — clear first so the
+  // owner-row bridge isn't left with dangling foreign keys.
+  try { await db.delete(staffServicesTable).where(eq(staffServicesTable.staffMemberId, staffId)); } catch {}
+  // Appointments keep their history: the read path treats a missing
+  // staff_members row as 'assigned to the owner', so the owner still
+  // sees past bookings even after the staff leaves.
+  await db.delete(staffMembersTable).where(eq(staffMembersTable.id, staffId));
+  res.json({ ok: true });
+});
+
+// ─── DELETE /api/staff/:id ─────────────────────────────────────────────────
 // Blocked for is_owner rows — the owner row is structural and shouldn't be
 // removable. Deleting a non-owner clears the FK on appointments (set to NULL
 // = falls back to "the owner" everywhere).

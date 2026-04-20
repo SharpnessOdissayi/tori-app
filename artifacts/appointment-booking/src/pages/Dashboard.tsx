@@ -8336,29 +8336,12 @@ function StaffSettingsPanel() {
         </CardContent>
       </Card>
 
-      {/* Delete account — Google Play requirement. Staff request removal
-          of their own staff-member record + personal data; business-level
-          data belongs to the owner and isn't affected. */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-destructive">מחיקת חשבון ונתונים</CardTitle>
-          <CardDescription>
-            בקשה להסרת הפרופיל האישי שלך מהמערכת (שם, טלפון, אימייל, היסטוריית גישה).
-            הפעולה סופית ואינה ניתנת לשחזור.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <a
-            href="/delete-account"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="inline-flex items-center gap-2 rounded-lg border border-destructive/40 bg-destructive/5 px-4 py-2 text-sm font-medium text-destructive hover:bg-destructive/10 transition-colors"
-          >
-            <Trash2 className="w-4 h-4" />
-            הגשת בקשה למחיקה
-          </a>
-        </CardContent>
-      </Card>
+      {/* Delete own staff account. Matches the owner/client flow —
+          inline button → confirm dialog → immediate server wipe →
+          logout. Deletes the staff's staff_members row + staff_services
+          links; appointments keep their history (they fall back to
+          'owner' in the read path when the staff row is gone). */}
+      <DeleteStaffAccountCard />
 
       <FloatingSaveBar visible={isToggleDirty} onClick={saveToggle} saving={updateMutation.isPending} />
     </div>
@@ -8446,6 +8429,97 @@ function DeleteBusinessAccountCard() {
             <DialogTitle className="text-destructive">האם אתה בטוח שברצונך למחוק את החשבון?</DialogTitle>
             <DialogDescription>
               הפעולה תמחק לתמיד את החשבון, הלקוחות, התורים, אנשי הצוות וכל הנתונים. לא ניתן לבטל.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex gap-2 justify-end pt-2">
+            <Button type="button" variant="outline" onClick={() => setConfirmOpen(false)} disabled={deleting}>
+              ביטול
+            </Button>
+            <Button
+              type="button"
+              onClick={doDelete}
+              disabled={deleting}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {deleting ? "מוחק..." : "כן, מחק"}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+    </>
+  );
+}
+
+// ─── Delete staff-account card ────────────────────────────────────────────
+// Staff-mode counterpart to DeleteBusinessAccountCard. Hits
+// DELETE /api/staff/me — server pulls staffMemberId out of the caller's
+// JWT and removes that row + staff_services links. The business itself
+// stays; the staff is just removed from it.
+function DeleteStaffAccountCard() {
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const { toast } = useToast();
+
+  const doDelete = async () => {
+    setDeleting(true);
+    const token = typeof window !== "undefined"
+      ? (localStorage.getItem("biz_token") ?? sessionStorage.getItem("biz_token") ?? "")
+      : "";
+    try {
+      const res = await fetch("/api/staff/me", {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        toast({
+          title: "שגיאה במחיקה",
+          description: data?.message ?? "נסה שוב עוד כמה רגעים",
+          variant: "destructive",
+        });
+        setDeleting(false);
+        return;
+      }
+      try {
+        localStorage.removeItem("biz_token");
+        sessionStorage.removeItem("biz_token");
+        sessionStorage.removeItem("kavati_staff_filter_id");
+        sessionStorage.removeItem("kavati_staff_filter_name");
+      } catch {}
+      window.location.href = "/";
+    } catch {
+      toast({ title: "שגיאת רשת", variant: "destructive" });
+      setDeleting(false);
+    }
+  };
+
+  return (
+    <>
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-destructive">מחיקת חשבון</CardTitle>
+          <CardDescription>
+            הסרה סופית של החשבון האישי שלך מהמערכת (שם, טלפון, אימייל, היסטוריית הגישה). העסק עצמו נשאר; רק הפרופיל שלך כאיש צוות יימחק. לא ניתן לשחזר.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => setConfirmOpen(true)}
+            className="border-destructive/50 text-destructive hover:bg-destructive/10"
+          >
+            <Trash2 className="w-4 h-4 ms-1" /> מחק את החשבון שלי
+          </Button>
+        </CardContent>
+      </Card>
+
+      <Dialog open={confirmOpen} onOpenChange={setConfirmOpen}>
+        <DialogContent dir="rtl">
+          <DialogHeader>
+            <DialogTitle className="text-destructive">האם אתה בטוח שברצונך למחוק את החשבון?</DialogTitle>
+            <DialogDescription>
+              הפעולה תמחק את הפרופיל שלך כאיש צוות ואת כל הנתונים המקושרים — לא ניתן לבטל.
             </DialogDescription>
           </DialogHeader>
           <div className="flex gap-2 justify-end pt-2">
