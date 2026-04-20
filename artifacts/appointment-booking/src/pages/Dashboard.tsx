@@ -1739,11 +1739,12 @@ function Login({ onLogin }: { onLogin: (t: string) => void }) {
   const { toast } = useToast();
   const [, navigate] = useLocation();
 
-  // Login method toggle — phone-OTP (default), email-OTP, or static
-  // password (reviewer-only path for Google Play review, gated behind
-  // GOOGLE_REVIEWER_* env vars on the server). Both OTP paths mint
-  // the same JWT as the password path.
-  const [loginMethod, setLoginMethod] = useState<"phone" | "email" | "password">("phone");
+  // Login method toggle — phone-OTP (default) or email (OTP + optional
+  // static password in the same form). The email tab has a password
+  // field below the email input; if the user fills it we try the
+  // reviewer-login backdoor (env-gated on the server), otherwise we
+  // fall through to the regular email-OTP flow.
+  const [loginMethod, setLoginMethod] = useState<"phone" | "email">("phone");
 
   // Phone-only OTP login. Pre-fill the phone from the last "remember me"-
   // checked login to this same screen. Stored under a BUSINESS-SPECIFIC
@@ -2023,53 +2024,46 @@ function Login({ onLogin }: { onLogin: (t: string) => void }) {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            {/* Method-toggle pill — three tabs that swap the form body.
-                Hidden once the user is mid-OTP (step === code) so the
-                viewport stays focused on entering the digits. The
-                "סיסמה" tab is visible to everyone but only works with
-                the reviewer credentials configured server-side. */}
-            {(loginMethod === "phone" ? smsStep : loginMethod === "email" ? emailStep : "password") === (loginMethod === "phone" ? "phone" : loginMethod === "email" ? "email" : "password") && (
+            {/* Method-toggle pill — two tabs: phone (OTP) vs email (password).
+                Hidden once the user is mid-OTP on phone so the viewport
+                stays focused on entering the digits. */}
+            {(loginMethod === "phone" ? smsStep : "email") === (loginMethod === "phone" ? "phone" : "email") && (
               <div className="flex items-center gap-1 p-1 rounded-xl bg-muted/40 border border-border mb-4">
                 <button
                   type="button"
                   onClick={() => setLoginMethod("phone")}
-                  className={`flex-1 py-2 rounded-lg text-xs sm:text-sm font-medium transition-all ${loginMethod === "phone" ? "bg-white shadow text-foreground" : "text-muted-foreground hover:text-foreground"}`}
+                  className={`flex-1 py-2 rounded-lg text-sm font-medium transition-all ${loginMethod === "phone" ? "bg-white shadow text-foreground" : "text-muted-foreground hover:text-foreground"}`}
                 >
                   📱 טלפון
                 </button>
                 <button
                   type="button"
                   onClick={() => setLoginMethod("email")}
-                  className={`flex-1 py-2 rounded-lg text-xs sm:text-sm font-medium transition-all ${loginMethod === "email" ? "bg-white shadow text-foreground" : "text-muted-foreground hover:text-foreground"}`}
+                  className={`flex-1 py-2 rounded-lg text-sm font-medium transition-all ${loginMethod === "email" ? "bg-white shadow text-foreground" : "text-muted-foreground hover:text-foreground"}`}
                 >
-                  📧 אימייל
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setLoginMethod("password")}
-                  className={`flex-1 py-2 rounded-lg text-xs sm:text-sm font-medium transition-all ${loginMethod === "password" ? "bg-white shadow text-foreground" : "text-muted-foreground hover:text-foreground"}`}
-                >
-                  🔑 סיסמה
+                  📧 אימייל + סיסמה
                 </button>
               </div>
             )}
 
-            {loginMethod === "password" ? (
+            {loginMethod === "email" ? (
               <form
                 className="space-y-4"
                 onSubmit={e => { e.preventDefault(); handlePasswordLogin(); }}
                 noValidate
               >
                 <div className="space-y-2">
-                  <Label htmlFor="kavati-biz-username">שם משתמש / אימייל</Label>
+                  <Label htmlFor="kavati-biz-email">כתובת אימייל</Label>
                   <Input
-                    id="kavati-biz-username"
+                    id="kavati-biz-email"
                     name="username"
-                    type="text"
-                    value={pwUsername}
-                    onChange={e => setPwUsername(e.target.value)}
+                    type="email"
+                    value={emailAddr}
+                    onChange={e => { setEmailAddr(e.target.value); setPwUsername(e.target.value); }}
                     dir="ltr"
-                    autoComplete="username"
+                    placeholder="you@example.com"
+                    inputMode="email"
+                    autoComplete="email"
                     required
                   />
                 </div>
@@ -2103,80 +2097,6 @@ function Login({ onLogin }: { onLogin: (t: string) => void }) {
                   {pwSubmitting ? "מתחבר..." : "כניסה"}
                 </Button>
               </form>
-            ) : loginMethod === "email" ? (
-              emailStep === "email" ? (
-                <form
-                  className="space-y-4"
-                  onSubmit={e => { e.preventDefault(); handleEmailSendCode(); }}
-                  noValidate
-                >
-                  <div className="space-y-2">
-                    <Label htmlFor="kavati-biz-email">כתובת אימייל</Label>
-                    <Input
-                      id="kavati-biz-email"
-                      name="kavati-biz-email"
-                      type="email"
-                      value={emailAddr}
-                      onChange={e => setEmailAddr(e.target.value)}
-                      dir="ltr"
-                      placeholder="you@example.com"
-                      inputMode="email"
-                      autoComplete="email"
-                      required
-                    />
-                    <p className="text-xs text-muted-foreground">קוד חד-פעמי יישלח לכתובת האימייל שהעסק/המנהל/ת רשמו עבורך.</p>
-                  </div>
-                  <label className="flex items-center gap-2 cursor-pointer select-none py-1">
-                    <span className="text-sm text-muted-foreground">זכור אותי במכשיר זה</span>
-                    <div
-                      onClick={() => setRememberMe(v => !v)}
-                      className="relative w-10 h-5 rounded-full transition-colors duration-200 flex-shrink-0"
-                      style={{ background: rememberMe ? "#3c92f0" : "#d1d5db" }}
-                    >
-                      <div
-                        className="absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-all duration-200"
-                        style={{ right: rememberMe ? "2px" : "auto", left: rememberMe ? "auto" : "2px" }}
-                      />
-                    </div>
-                  </label>
-                  <Button type="submit" className="w-full h-11" disabled={emailSending}>
-                    {emailSending ? "שולח..." : "שלח קוד"}
-                  </Button>
-                </form>
-              ) : (
-                <form
-                  className="space-y-4"
-                  onSubmit={e => { e.preventDefault(); handleEmailVerify(); }}
-                  noValidate
-                >
-                  <div className="space-y-2">
-                    <Label htmlFor="kavati-biz-email-otp">קוד אימות</Label>
-                    <Input
-                      id="kavati-biz-email-otp"
-                      name="kavati-biz-email-otp"
-                      value={emailCode}
-                      onChange={e => setEmailCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
-                      dir="ltr"
-                      placeholder="123456"
-                      inputMode="numeric"
-                      autoComplete="one-time-code"
-                      maxLength={6}
-                      required
-                    />
-                    <p className="text-xs text-muted-foreground">נשלח ל-<span dir="ltr">{emailAddr}</span></p>
-                  </div>
-                  <Button type="submit" className="w-full h-11" disabled={emailVerifying || emailCode.length < 6}>
-                    {emailVerifying ? "מאמת..." : "כניסה"}
-                  </Button>
-                  <button
-                    type="button"
-                    className="text-xs text-primary underline"
-                    onClick={() => { setEmailStep("email"); setEmailCode(""); }}
-                  >
-                    שלח שוב / שנה אימייל
-                  </button>
-                </form>
-              )
             ) : smsStep === "phone" ? (
               // Wrapped in <form> with name/autoComplete so Chrome/Safari/1Password
               // detect it as a login form and offer saved phone numbers.
