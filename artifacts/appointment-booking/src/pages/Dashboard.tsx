@@ -1891,9 +1891,11 @@ function Login({ onLogin }: { onLogin: (t: string) => void }) {
     }
   };
 
-  // Static-password login handler — reviewer only. Server rejects (404)
-  // unless GOOGLE_REVIEWER_EMAIL + GOOGLE_REVIEWER_PASSWORD env vars are
-  // set, so this endpoint is inert on dev / local builds.
+  // Email + password login — hits the regular /auth/business/login
+  // endpoint which does bcrypt.compare against businesses.password_hash
+  // (and staff_members.password_hash as a fallback). Works for any
+  // registered business with a password, including the one the owner
+  // registered for Google Play review via super-admin.
   const handlePasswordLogin = async () => {
     if (!pwUsername.trim() || !pwPassword) {
       toast({ title: "נא למלא שם משתמש וסיסמה", variant: "destructive" });
@@ -1901,13 +1903,22 @@ function Login({ onLogin }: { onLogin: (t: string) => void }) {
     }
     setPwSubmitting(true);
     try {
-      const res = await fetch("/api/auth/business/reviewer-login", {
+      const res = await fetch("/api/auth/business/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ username: pwUsername.trim(), password: pwPassword }),
+        // The backend field is named `email` but the handler also
+        // accepts phone + username as identifiers, so pasting any of
+        // those into the first field works.
+        body: JSON.stringify({ email: pwUsername.trim(), password: pwPassword }),
       });
       const data = await res.json().catch(() => ({}));
-      if (!res.ok) { toast({ title: "פרטי כניסה שגויים", variant: "destructive" }); return; }
+      if (!res.ok) {
+        toast({
+          title: data?.message ?? "פרטי כניסה שגויים",
+          variant: "destructive",
+        });
+        return;
+      }
       if (rememberMe) {
         localStorage.setItem("biz_token", data.token);
         sessionStorage.removeItem("biz_token");
