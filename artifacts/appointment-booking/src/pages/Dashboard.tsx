@@ -1430,7 +1430,7 @@ function SubscriptionCrown() {
   const isBusiness = profile.subscriptionPlan === "pro-plus";
 
   // Tier-driven palette so the crown matches the register page + plan cards.
-  //   Pro   → emerald (green = "growth")
+  //   Pro   → purple (distinct accent)
   //   עסקי  → blue (flagship brand color)
   // Register page uses exactly this split; reuse it so the dashboard crown
   // and the plan comparison are visually consistent.
@@ -1444,12 +1444,12 @@ function SubscriptionCrown() {
     timerDefault: "text-blue-600",
   } : {
     planLabel:    "פרו",
-    iconClass:    "text-emerald-600",
-    panelBorder:  "border-emerald-200",
-    headerBg:     "bg-gradient-to-l from-emerald-50 to-emerald-50/60",
-    headerBorder: "border-emerald-100",
-    titleText:    "text-emerald-800",
-    timerDefault: "text-emerald-600",
+    iconClass:    "text-purple-600",
+    panelBorder:  "border-purple-200",
+    headerBg:     "bg-gradient-to-l from-purple-50 to-purple-50/60",
+    headerBorder: "border-purple-100",
+    titleText:    "text-purple-800",
+    timerDefault: "text-purple-600",
   };
 
   const renewDate: Date | null = (profile as any)?.subscriptionRenewDate

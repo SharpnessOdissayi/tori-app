@@ -140,23 +140,23 @@ function StepPlan({ onNext }: { onNext: (plan: Plan) => void }) {
 
         {/* Pro Plan — 14-day trial, credit card required, auto-billed after.
             Solo tier: 1 calendar, no extra-worker option.
-            Emerald palette so it's visually distinct from עסקי (blue). */}
+            Purple palette so it's visually distinct from עסקי (blue). */}
         <button
           onClick={() => onNext("pro")}
-          className="text-right border-2 border-emerald-400 rounded-2xl p-6 bg-emerald-50 hover:bg-emerald-100 hover:border-emerald-500 transition-all group relative focus:outline-none focus:ring-2 focus:ring-emerald-500 flex flex-col"
+          className="text-right border-2 border-purple-400 rounded-2xl p-6 bg-purple-50 hover:bg-purple-100 hover:border-purple-500 transition-all group relative focus:outline-none focus:ring-2 focus:ring-purple-500 flex flex-col"
         >
           <div className="flex items-center gap-2 mb-3">
-            <Crown className="w-5 h-5 text-emerald-600" />
-            <span className="font-bold text-lg text-emerald-800">פרו</span>
+            <Crown className="w-5 h-5 text-purple-600" />
+            <span className="font-bold text-lg text-purple-800">פרו</span>
           </div>
           <div className="flex items-baseline gap-2 mb-2 flex-wrap">
-            <span className="text-3xl font-bold text-emerald-800">₪100</span>
-            <span className="text-sm text-emerald-700">/חודש</span>
+            <span className="text-3xl font-bold text-purple-800">₪100</span>
+            <span className="text-sm text-purple-700">/חודש</span>
           </div>
-          <div className="text-sm text-emerald-700 flex-1">
+          <div className="text-sm text-purple-700 flex-1">
             14 ימי ניסיון חינם — חיוב אוטומטי אחרי ימי הניסיון, ביטול בכל עת
           </div>
-          <div className="mt-5 w-full py-2.5 rounded-xl bg-emerald-600 text-white font-bold text-sm text-center group-hover:bg-emerald-700 transition-colors shadow-sm">
+          <div className="mt-5 w-full py-2.5 rounded-xl bg-purple-600 text-white font-bold text-sm text-center group-hover:bg-purple-700 transition-colors shadow-sm">
             התחל 14 ימי ניסיון ←
           </div>
         </button>
@@ -172,7 +172,7 @@ function StepPlan({ onNext }: { onNext: (plan: Plan) => void }) {
             <Badge className="bg-blue-600 text-white px-3 py-1 shadow-md">מומלץ לצוותים</Badge>
           </div>
           <div className="flex items-center gap-2 mb-3">
-            <Sparkles className="w-5 h-5 text-blue-600" />
+            <Crown className="w-5 h-5 text-blue-600" />
             <span className="font-bold text-lg text-blue-800">עסקי</span>
           </div>
           <div className="flex items-baseline gap-2 mb-2 flex-wrap">
@@ -208,14 +208,14 @@ function StepPlan({ onNext }: { onNext: (plan: Plan) => void }) {
               <li className="flex items-start gap-2"><CheckCircle className="w-4 h-4 text-green-500 shrink-0 mt-0.5" /> פורטל לקוחות</li>
             </ul>
           </div>
-          {/* Pro column — emerald to match the Pro card */}
-          <div className="rounded-2xl border-2 border-emerald-400 p-5 bg-emerald-50">
-            <div className="flex items-center gap-2 mb-3 pb-3 border-b border-emerald-200">
-              <Crown className="w-5 h-5 text-emerald-600" />
-              <span className="font-bold text-emerald-800">פרו</span>
+          {/* Pro column — purple to match the Pro card */}
+          <div className="rounded-2xl border-2 border-purple-400 p-5 bg-purple-50">
+            <div className="flex items-center gap-2 mb-3 pb-3 border-b border-purple-200">
+              <Crown className="w-5 h-5 text-purple-600" />
+              <span className="font-bold text-purple-800">פרו</span>
             </div>
-            <p className="text-xs text-emerald-700 -mt-2 mb-2">כל מה שבחינמי, ובנוסף:</p>
-            <ul className="space-y-2 text-sm text-emerald-900">
+            <p className="text-xs text-purple-700 -mt-2 mb-2">כל מה שבחינמי, ובנוסף:</p>
+            <ul className="space-y-2 text-sm text-purple-900">
               <li className="flex items-start gap-2"><CheckCircle className="w-4 h-4 text-green-500 shrink-0 mt-0.5" /> שירותים ללא הגבלה</li>
               <li className="flex items-start gap-2"><CheckCircle className="w-4 h-4 text-green-500 shrink-0 mt-0.5" /> לקוחות ללא הגבלה</li>
               <li className="flex items-start gap-2"><CheckCircle className="w-4 h-4 text-green-500 shrink-0 mt-0.5" /> עיצוב מותאם אישית (לוגו, צבעים, באנר)</li>
@@ -230,7 +230,7 @@ function StepPlan({ onNext }: { onNext: (plan: Plan) => void }) {
           {/* עסקי column — flagship blue, matches the עסקי card */}
           <div className="rounded-2xl border-2 border-blue-500 p-5 bg-gradient-to-br from-blue-50 to-sky-50">
             <div className="flex items-center gap-2 mb-3 pb-3 border-b border-blue-200">
-              <Sparkles className="w-5 h-5 text-blue-600" />
+              <Crown className="w-5 h-5 text-blue-600" />
               <span className="font-bold text-blue-800">עסקי</span>
             </div>
             <p className="text-xs text-blue-700 -mt-2 mb-2">כל מה שבפרו, ובנוסף:</p>
