@@ -8108,6 +8108,29 @@ function SettingsTab({ isStaffMode = false }: { isStaffMode?: boolean }) {
       {/* Subscription status card — shown for both free and pro */}
       {profile && <SubscriptionStatusCard />}
 
+      {/* Delete account — Google Play requirement: users must be able to
+          reach an account/data-deletion flow from within the app. */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-destructive">מחיקת חשבון ונתונים</CardTitle>
+          <CardDescription>
+            בקשה למחיקה מוחלטת של החשבון, פרטי העסק, רשימות הלקוחות והתורים.
+            הפעולה סופית ואינה ניתנת לשחזור.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <a
+            href="/delete-account"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-2 rounded-lg border border-destructive/40 bg-destructive/5 px-4 py-2 text-sm font-medium text-destructive hover:bg-destructive/10 transition-colors"
+          >
+            <Trash2 className="w-4 h-4" />
+            הגשת בקשה למחיקה
+          </a>
+        </CardContent>
+      </Card>
+
       {/* Save exposed only via the floating bar — no inline footer row,
           no "בטל עריכה". The bar appears when the form is dirty.
           Password change has its own submit button inside the card because
@@ -8328,6 +8351,31 @@ function StaffSettingsPanel() {
           </div>
         </CardContent>
       </Card>
+
+      {/* Delete account — Google Play requirement. Staff request removal
+          of their own staff-member record + personal data; business-level
+          data belongs to the owner and isn't affected. */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-destructive">מחיקת חשבון ונתונים</CardTitle>
+          <CardDescription>
+            בקשה להסרת הפרופיל האישי שלך מהמערכת (שם, טלפון, אימייל, היסטוריית גישה).
+            הפעולה סופית ואינה ניתנת לשחזור.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <a
+            href="/delete-account"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-2 rounded-lg border border-destructive/40 bg-destructive/5 px-4 py-2 text-sm font-medium text-destructive hover:bg-destructive/10 transition-colors"
+          >
+            <Trash2 className="w-4 h-4" />
+            הגשת בקשה למחיקה
+          </a>
+        </CardContent>
+      </Card>
+
       <FloatingSaveBar visible={isToggleDirty} onClick={saveToggle} saving={updateMutation.isPending} />
     </div>
   );

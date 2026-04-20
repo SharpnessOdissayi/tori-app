@@ -14,6 +14,7 @@ import Details from "@/pages/Details";
 import Contact from "@/pages/Contact";
 import Privacy from "@/pages/Privacy";
 import Terms from "@/pages/Terms";
+import DeleteAccount from "@/pages/DeleteAccount";
 import PaymentSuccess from "@/pages/PaymentSuccess";
 import PaymentFail from "@/pages/PaymentFail";
 import InstallApp from "@/pages/InstallApp";
@@ -66,6 +67,7 @@ function Router() {
       <Route path="/portal" component={ClientPortal} />
       <Route path="/privacy" component={Privacy} />
       <Route path="/terms" component={Terms} />
+      <Route path="/delete-account" component={DeleteAccount} />
       <Route path="/payment/success" component={PaymentSuccess} />
       <Route path="/payment/fail" component={PaymentFail} />
       <Route path="/install-app" component={InstallApp} />

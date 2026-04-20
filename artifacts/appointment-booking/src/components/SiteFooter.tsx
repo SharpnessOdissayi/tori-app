@@ -24,6 +24,9 @@ export default function SiteFooter() {
           <Link href="/terms" className="hover:text-foreground transition-colors">
             תנאי שימוש
           </Link>
+          <Link href="/delete-account" className="hover:text-foreground transition-colors">
+            מחיקת חשבון
+          </Link>
         </nav>
 
         {/* Copyright */}

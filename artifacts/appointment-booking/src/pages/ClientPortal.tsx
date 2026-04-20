@@ -1047,6 +1047,20 @@ export default function ClientPortal() {
               className="w-full py-3 rounded-xl bg-blue-500 text-white font-semibold text-sm hover:bg-blue-600 disabled:opacity-50 transition">
               {loading ? "שומר..." : "שמור"}
             </button>
+
+            {/* Delete account — Google Play requirement: an in-app path
+                for users to request deletion of their account + data. */}
+            <div className="pt-3 mt-2 border-t border-gray-100">
+              <a
+                href="/delete-account"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center justify-center gap-2 w-full py-2.5 rounded-xl border border-red-200 bg-red-50 text-red-600 text-sm font-medium hover:bg-red-100 transition"
+              >
+                <Trash2 className="w-4 h-4" />
+                מחיקת חשבון ונתונים
+              </a>
+            </div>
           </div>
         </div>
       )}

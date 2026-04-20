@@ -1598,12 +1598,10 @@ export function BusinessCalendar({
       const [y, m, d] = match.appointmentDate.split("-").map(Number);
       setCursor(new Date(y, (m || 1) - 1, d || 1));
     } catch {}
-    setView("day");
+    setView("week");
     setHighlightApptId(id);
     sessionStorage.removeItem("kavati_cal_highlight_id");
-    // Clear the highlight after 3 seconds so the pulse doesn't loop
-    // forever — the owner has seen where it is.
-    const t = setTimeout(() => setHighlightApptId(null), 3000);
+    const t = setTimeout(() => setHighlightApptId(null), 5000);
     return () => clearTimeout(t);
   }, [appointments]);
   // Optional staff filter — read from sessionStorage when the owner
