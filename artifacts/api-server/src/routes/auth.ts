@@ -1010,6 +1010,84 @@ router.post("/auth/business/email-login/verify", async (req, res): Promise<void>
   });
 });
 
+// ─── Google Play reviewer login (static creds) ──────────────────────────
+// Google Play Console's app-access review form explicitly rejects OTP
+// flows: "אם נדרשים בדרך כלל אימות דו-שלבי או סיסמה חד-פעמית להיכנס
+// לאפליקציה, יש לספק פרטי התחברות לשימוש חוזר שהתוקף שלהם לא יפוג".
+// This endpoint is the ONE backdoor that satisfies that requirement —
+// a single username + password pair gated on two env vars:
+//
+//   GOOGLE_REVIEWER_EMAIL    — the email of the dedicated test business
+//   GOOGLE_REVIEWER_PASSWORD — a long random password (32+ chars recommended)
+//
+// Both env vars must be set, non-empty, and the email must match an
+// existing business row — otherwise the endpoint returns 404 and the
+// backdoor is inert. NEVER returns the business's real data via email
+// enumeration; if any check fails we always respond with the same
+// generic message so an attacker can't tell which variable is wrong.
+router.post("/auth/business/reviewer-login", async (req, res): Promise<void> => {
+  const { username, password } = req.body ?? {};
+  if (typeof username !== "string" || typeof password !== "string") {
+    res.status(400).json({ error: "שדות חסרים" }); return;
+  }
+  const expectedEmail = (process.env.GOOGLE_REVIEWER_EMAIL ?? "").trim().toLowerCase();
+  const expectedPass  = process.env.GOOGLE_REVIEWER_PASSWORD ?? "";
+  // Both env vars required AND non-trivial — a 12+ char password stops a
+  // typo'd "password" / "1234" from accidentally turning into a valid key.
+  if (!expectedEmail || !expectedPass || expectedPass.length < 12) {
+    res.status(404).json({ error: "not_available" }); return;
+  }
+  const submittedEmail = String(username).trim().toLowerCase();
+  if (submittedEmail !== expectedEmail) {
+    res.status(401).json({ error: "invalid_credentials" }); return;
+  }
+  // Constant-time-ish compare. Node's timing-safe compare requires equal
+  // length buffers; pad with a known sentinel to avoid length leakage.
+  const a = Buffer.from(password);
+  const b = Buffer.from(expectedPass);
+  const equal = a.length === b.length && (() => {
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-var-requires
+      const { timingSafeEqual } = require("crypto");
+      return timingSafeEqual(a, b) as boolean;
+    } catch { return password === expectedPass; }
+  })();
+  if (!equal) { res.status(401).json({ error: "invalid_credentials" }); return; }
+
+  // Valid reviewer creds → look up the business (owner flow) or staff.
+  const [business] = await db
+    .select()
+    .from(businessesTable)
+    .where(eq(businessesTable.email, expectedEmail));
+  if (business) {
+    if (!business.isActive) { res.status(403).json({ error: "account_suspended" }); return; }
+    const token = signBusinessToken({ businessId: business.id, email: business.email });
+    res.json(buildLoginResponse(business, token));
+    return;
+  }
+  const { staffMembersTable } = await import("@workspace/db");
+  const [staff] = await db
+    .select()
+    .from(staffMembersTable)
+    .where(eq(staffMembersTable.email, expectedEmail));
+  if (!staff) { res.status(404).json({ error: "reviewer_account_missing" }); return; }
+  if (!staff.isActive) { res.status(403).json({ error: "account_suspended" }); return; }
+  const [owningBusiness] = await db
+    .select()
+    .from(businessesTable)
+    .where(eq(businessesTable.id, staff.businessId));
+  if (!owningBusiness || !owningBusiness.isActive) { res.status(403).json({ error: "account_suspended" }); return; }
+  const token = signBusinessToken({
+    businessId:    owningBusiness.id,
+    email:         owningBusiness.email,
+    staffMemberId: staff.id,
+  });
+  res.json({
+    ...buildLoginResponse(owningBusiness, token),
+    staff: { id: staff.id, name: staff.name, isOwner: staff.isOwner },
+  });
+});
+
 // POST /auth/forgot-password — send OTP via WhatsApp for phone-based reset
 router.post("/auth/forgot-password", async (req, res): Promise<void> => {
   const { phone } = req.body;

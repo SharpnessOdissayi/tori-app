@@ -1739,10 +1739,11 @@ function Login({ onLogin }: { onLogin: (t: string) => void }) {
   const { toast } = useToast();
   const [, navigate] = useLocation();
 
-  // Login method toggle — phone-OTP (default) or email-OTP. Staff that
-  // don't have a personal SMS-capable line use the email path; owners
-  // can use either. Both paths mint the same JWT via auth.ts endpoints.
-  const [loginMethod, setLoginMethod] = useState<"phone" | "email">("phone");
+  // Login method toggle — phone-OTP (default), email-OTP, or static
+  // password (reviewer-only path for Google Play review, gated behind
+  // GOOGLE_REVIEWER_* env vars on the server). Both OTP paths mint
+  // the same JWT as the password path.
+  const [loginMethod, setLoginMethod] = useState<"phone" | "email" | "password">("phone");
 
   // Phone-only OTP login. Pre-fill the phone from the last "remember me"-
   // checked login to this same screen. Stored under a BUSINESS-SPECIFIC
@@ -1766,6 +1767,14 @@ function Login({ onLogin }: { onLogin: (t: string) => void }) {
   const [emailStep, setEmailStep] = useState<"email" | "code">("email");
   const [emailSending, setEmailSending] = useState(false);
   const [emailVerifying, setEmailVerifying] = useState(false);
+
+  // Static-password login — for Google Play reviewers. Backend endpoint
+  // /auth/business/reviewer-login is a narrow, env-gated backdoor that
+  // only accepts ONE pre-configured username+password pair. Regular
+  // users don't have passwords, so this tab is harmless to expose.
+  const [pwUsername, setPwUsername] = useState("");
+  const [pwPassword, setPwPassword] = useState("");
+  const [pwSubmitting, setPwSubmitting] = useState(false);
 
   const handleSmsSendCode = async () => {
     if (!smsPhone.trim()) { toast({ title: "הזן מספר טלפון", variant: "destructive" }); return; }
@@ -1881,6 +1890,38 @@ function Login({ onLogin }: { onLogin: (t: string) => void }) {
     }
   };
 
+  // Static-password login handler — reviewer only. Server rejects (404)
+  // unless GOOGLE_REVIEWER_EMAIL + GOOGLE_REVIEWER_PASSWORD env vars are
+  // set, so this endpoint is inert on dev / local builds.
+  const handlePasswordLogin = async () => {
+    if (!pwUsername.trim() || !pwPassword) {
+      toast({ title: "נא למלא שם משתמש וסיסמה", variant: "destructive" });
+      return;
+    }
+    setPwSubmitting(true);
+    try {
+      const res = await fetch("/api/auth/business/reviewer-login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ username: pwUsername.trim(), password: pwPassword }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) { toast({ title: "פרטי כניסה שגויים", variant: "destructive" }); return; }
+      if (rememberMe) {
+        localStorage.setItem("biz_token", data.token);
+        sessionStorage.removeItem("biz_token");
+      } else {
+        sessionStorage.setItem("biz_token", data.token);
+        localStorage.removeItem("biz_token");
+      }
+      onLogin(data.token);
+    } catch {
+      toast({ title: "שגיאת רשת", variant: "destructive" });
+    } finally {
+      setPwSubmitting(false);
+    }
+  };
+
   // WebOTP API: on Android Chrome, reading the incoming SMS that ends with
   // `@kavati.net #123456` surfaces a "From Messages" suggestion right in the
   // keyboard. Calling navigator.credentials.get here also lets us auto-submit
@@ -1982,29 +2023,87 @@ function Login({ onLogin }: { onLogin: (t: string) => void }) {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            {/* Method-toggle pill — two tabs that swap the form body.
-                Hidden once the user has already sent the code (step === code)
-                so the viewport stays focused on entering the digits. */}
-            {(loginMethod === "phone" ? smsStep : emailStep) === (loginMethod === "phone" ? "phone" : "email") && (
+            {/* Method-toggle pill — three tabs that swap the form body.
+                Hidden once the user is mid-OTP (step === code) so the
+                viewport stays focused on entering the digits. The
+                "סיסמה" tab is visible to everyone but only works with
+                the reviewer credentials configured server-side. */}
+            {(loginMethod === "phone" ? smsStep : loginMethod === "email" ? emailStep : "password") === (loginMethod === "phone" ? "phone" : loginMethod === "email" ? "email" : "password") && (
               <div className="flex items-center gap-1 p-1 rounded-xl bg-muted/40 border border-border mb-4">
                 <button
                   type="button"
                   onClick={() => setLoginMethod("phone")}
-                  className={`flex-1 py-2 rounded-lg text-sm font-medium transition-all ${loginMethod === "phone" ? "bg-white shadow text-foreground" : "text-muted-foreground hover:text-foreground"}`}
+                  className={`flex-1 py-2 rounded-lg text-xs sm:text-sm font-medium transition-all ${loginMethod === "phone" ? "bg-white shadow text-foreground" : "text-muted-foreground hover:text-foreground"}`}
                 >
                   📱 טלפון
                 </button>
                 <button
                   type="button"
                   onClick={() => setLoginMethod("email")}
-                  className={`flex-1 py-2 rounded-lg text-sm font-medium transition-all ${loginMethod === "email" ? "bg-white shadow text-foreground" : "text-muted-foreground hover:text-foreground"}`}
+                  className={`flex-1 py-2 rounded-lg text-xs sm:text-sm font-medium transition-all ${loginMethod === "email" ? "bg-white shadow text-foreground" : "text-muted-foreground hover:text-foreground"}`}
                 >
                   📧 אימייל
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setLoginMethod("password")}
+                  className={`flex-1 py-2 rounded-lg text-xs sm:text-sm font-medium transition-all ${loginMethod === "password" ? "bg-white shadow text-foreground" : "text-muted-foreground hover:text-foreground"}`}
+                >
+                  🔑 סיסמה
                 </button>
               </div>
             )}
 
-            {loginMethod === "email" ? (
+            {loginMethod === "password" ? (
+              <form
+                className="space-y-4"
+                onSubmit={e => { e.preventDefault(); handlePasswordLogin(); }}
+                noValidate
+              >
+                <div className="space-y-2">
+                  <Label htmlFor="kavati-biz-username">שם משתמש / אימייל</Label>
+                  <Input
+                    id="kavati-biz-username"
+                    name="username"
+                    type="text"
+                    value={pwUsername}
+                    onChange={e => setPwUsername(e.target.value)}
+                    dir="ltr"
+                    autoComplete="username"
+                    required
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="kavati-biz-password">סיסמה</Label>
+                  <Input
+                    id="kavati-biz-password"
+                    name="password"
+                    type="password"
+                    value={pwPassword}
+                    onChange={e => setPwPassword(e.target.value)}
+                    dir="ltr"
+                    autoComplete="current-password"
+                    required
+                  />
+                </div>
+                <label className="flex items-center gap-2 cursor-pointer select-none py-1">
+                  <span className="text-sm text-muted-foreground">זכור אותי במכשיר זה</span>
+                  <div
+                    onClick={() => setRememberMe(v => !v)}
+                    className="relative w-10 h-5 rounded-full transition-colors duration-200 flex-shrink-0"
+                    style={{ background: rememberMe ? "#3c92f0" : "#d1d5db" }}
+                  >
+                    <div
+                      className="absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-all duration-200"
+                      style={{ right: rememberMe ? "2px" : "auto", left: rememberMe ? "auto" : "2px" }}
+                    />
+                  </div>
+                </label>
+                <Button type="submit" className="w-full h-11" disabled={pwSubmitting}>
+                  {pwSubmitting ? "מתחבר..." : "כניסה"}
+                </Button>
+              </form>
+            ) : loginMethod === "email" ? (
               emailStep === "email" ? (
                 <form
                   className="space-y-4"
