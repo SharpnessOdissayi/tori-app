@@ -404,6 +404,8 @@ export default function ClientPortal() {
   });
   const [editMode, setEditMode] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const [profileName, setProfileName] = useState("");
   const [profilePhone, setProfilePhone] = useState("");
   const [profileReceiveNotifications, setProfileReceiveNotifications] = useState(true);
@@ -1048,18 +1050,76 @@ export default function ClientPortal() {
               {loading ? "שומר..." : "שמור"}
             </button>
 
-            {/* Delete account — Google Play requirement: an in-app path
-                for users to request deletion of their account + data. */}
+            {/* Delete account — self-service, in-app. Opens a confirm
+                dialog; on confirm, hits DELETE /client/account which
+                cascades every phone-scoped row on the server. Clears
+                the local token and forces a reload to the login screen. */}
             <div className="pt-3 mt-2 border-t border-gray-100">
-              <a
-                href="/delete-account"
-                target="_blank"
-                rel="noopener noreferrer"
+              <button
+                type="button"
+                onClick={() => setDeleteConfirmOpen(true)}
                 className="flex items-center justify-center gap-2 w-full py-2.5 rounded-xl border border-red-200 bg-red-50 text-red-600 text-sm font-medium hover:bg-red-100 transition"
               >
                 <Trash2 className="w-4 h-4" />
-                מחיקת חשבון ונתונים
-              </a>
+                מחק את החשבון שלי
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── DELETE-CONFIRM DIALOG ── */}
+      {deleteConfirmOpen && (
+        <div
+          className="fixed inset-0 z-[80] flex items-center justify-center bg-black/40 p-4"
+          onClick={() => { if (!deleting) setDeleteConfirmOpen(false); }}
+        >
+          <div
+            className="w-full max-w-sm bg-white rounded-2xl p-6 space-y-4 shadow-2xl"
+            onClick={e => e.stopPropagation()}
+          >
+            <h3 className="font-bold text-lg text-red-600">האם אתה בטוח שברצונך למחוק את החשבון?</h3>
+            <p className="text-sm text-gray-600 leading-relaxed">
+              הפעולה תמחק לתמיד את החשבון שלך, את כל התורים, ההיסטוריה ופרטי העסקים המשויכים. לא ניתן לבטל.
+            </p>
+            <div className="flex gap-2 justify-end pt-1">
+              <button
+                type="button"
+                onClick={() => setDeleteConfirmOpen(false)}
+                disabled={deleting}
+                className="px-4 py-2 rounded-lg text-sm font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 transition disabled:opacity-50"
+              >
+                ביטול
+              </button>
+              <button
+                type="button"
+                disabled={deleting}
+                onClick={async () => {
+                  setDeleting(true);
+                  try {
+                    const res = await fetch(`${API}/client/account`, {
+                      method: "DELETE",
+                      headers: { ...authHeaders() },
+                    });
+                    if (!res.ok) {
+                      toast({ title: "שגיאה במחיקה", variant: "destructive" });
+                      setDeleting(false);
+                      return;
+                    }
+                    try {
+                      localStorage.removeItem(TOKEN_KEY);
+                      sessionStorage.removeItem(TOKEN_KEY);
+                    } catch {}
+                    window.location.href = "/";
+                  } catch {
+                    toast({ title: "שגיאת רשת", variant: "destructive" });
+                    setDeleting(false);
+                  }
+                }}
+                className="px-4 py-2 rounded-lg text-sm font-medium text-white bg-red-600 hover:bg-red-700 transition disabled:opacity-50"
+              >
+                {deleting ? "מוחק..." : "כן, מחק"}
+              </button>
             </div>
           </div>
         </div>

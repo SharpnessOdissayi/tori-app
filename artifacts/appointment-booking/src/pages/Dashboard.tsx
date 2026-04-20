@@ -8108,28 +8108,12 @@ function SettingsTab({ isStaffMode = false }: { isStaffMode?: boolean }) {
       {/* Subscription status card — shown for both free and pro */}
       {profile && <SubscriptionStatusCard />}
 
-      {/* Delete account — Google Play requirement: users must be able to
-          reach an account/data-deletion flow from within the app. */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-destructive">מחיקת חשבון ונתונים</CardTitle>
-          <CardDescription>
-            בקשה למחיקה מוחלטת של החשבון, פרטי העסק, רשימות הלקוחות והתורים.
-            הפעולה סופית ואינה ניתנת לשחזור.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <a
-            href="/delete-account"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="inline-flex items-center gap-2 rounded-lg border border-destructive/40 bg-destructive/5 px-4 py-2 text-sm font-medium text-destructive hover:bg-destructive/10 transition-colors"
-          >
-            <Trash2 className="w-4 h-4" />
-            הגשת בקשה למחיקה
-          </a>
-        </CardContent>
-      </Card>
+      {/* Delete account — self-service, in-app. Hits
+          DELETE /api/auth/business/account which cascades every
+          business-scoped table on the server. Gated behind a confirm
+          dialog so a misclick doesn't nuke the business. */}
+      <DeleteBusinessAccountCard />
+
 
       {/* Save exposed only via the floating bar — no inline footer row,
           no "בטל עריכה". The bar appears when the form is dirty.
@@ -8378,6 +8362,108 @@ function StaffSettingsPanel() {
 
       <FloatingSaveBar visible={isToggleDirty} onClick={saveToggle} saving={updateMutation.isPending} />
     </div>
+  );
+}
+
+// ─── Delete business account card ─────────────────────────────────────────
+// Self-service irreversible account deletion. Stands at the bottom of the
+// owner's SettingsTab; hits DELETE /api/auth/business/account which
+// cascades every business-scoped table on the server.
+//
+// UX pattern the owner asked for:
+//   [button] → confirm dialog ("are you sure?") → yes → wipe → redirect home
+//
+// We clear biz_token before the network round-trip completes so the login
+// screen takes over the moment the delete fires — if the server 500s we
+// toast the error and the owner is just logged out (safer than leaving
+// them on a half-wiped session pointing at an id that may no longer exist).
+function DeleteBusinessAccountCard() {
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const { toast } = useToast();
+
+  const doDelete = async () => {
+    setDeleting(true);
+    const token = typeof window !== "undefined"
+      ? (localStorage.getItem("biz_token") ?? sessionStorage.getItem("biz_token") ?? "")
+      : "";
+    try {
+      const res = await fetch("/api/auth/business/account", {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        toast({
+          title: "שגיאה במחיקה",
+          description: data?.message ?? "נסה שוב עוד כמה רגעים",
+          variant: "destructive",
+        });
+        setDeleting(false);
+        return;
+      }
+      // Wipe every client-side cache + token and force a hard reload to
+      // the login screen. Any in-memory React Query state would hold
+      // stale pointers to the deleted business otherwise.
+      try {
+        localStorage.removeItem("biz_token");
+        sessionStorage.removeItem("biz_token");
+        localStorage.removeItem("kavati_biz_last_identifier");
+        sessionStorage.removeItem("kavati_staff_filter_id");
+        sessionStorage.removeItem("kavati_staff_filter_name");
+      } catch {}
+      window.location.href = "/";
+    } catch {
+      toast({ title: "שגיאת רשת", variant: "destructive" });
+      setDeleting(false);
+    }
+  };
+
+  return (
+    <>
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-destructive">מחיקת חשבון</CardTitle>
+          <CardDescription>
+            מחיקה סופית של החשבון וכל הנתונים שלו — תורים, לקוחות, הגדרות, שירותים, אנשי צוות והודעות. לא ניתן לשחזר לאחר המחיקה.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => setConfirmOpen(true)}
+            className="border-destructive/50 text-destructive hover:bg-destructive/10"
+          >
+            <Trash2 className="w-4 h-4 ms-1" /> מחק את החשבון שלי
+          </Button>
+        </CardContent>
+      </Card>
+
+      <Dialog open={confirmOpen} onOpenChange={setConfirmOpen}>
+        <DialogContent dir="rtl">
+          <DialogHeader>
+            <DialogTitle className="text-destructive">האם אתה בטוח שברצונך למחוק את החשבון?</DialogTitle>
+            <DialogDescription>
+              הפעולה תמחק לתמיד את החשבון, הלקוחות, התורים, אנשי הצוות וכל הנתונים. לא ניתן לבטל.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex gap-2 justify-end pt-2">
+            <Button type="button" variant="outline" onClick={() => setConfirmOpen(false)} disabled={deleting}>
+              ביטול
+            </Button>
+            <Button
+              type="button"
+              onClick={doDelete}
+              disabled={deleting}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {deleting ? "מוחק..." : "כן, מחק"}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }
 

@@ -609,4 +609,44 @@ router.patch("/client/appointments/:id/cancel", requireClientAuth, async (req, r
   res.json({ success: true });
 });
 
+// ─── Self-service account deletion ─────────────────────────────────────────
+// DELETE /client/account — the logged-in client removes their own account
+// and every scrap of data keyed to their phone number. No confirmation on
+// the server side (the UI dialog is the gate); matches the owner-delete
+// endpoint's semantics.
+router.delete("/client/account", requireClientAuth, async (req, res): Promise<void> => {
+  const session = (req as any).clientSession as typeof clientSessionsTable.$inferSelect | undefined;
+  if (!session) { res.status(401).json({ error: "unauthenticated" }); return; }
+  const phone = session.phoneNumber;
+  if (!phone) { res.status(400).json({ error: "missing_phone" }); return; }
+
+  const safe = async (fn: () => Promise<unknown>, label: string) => {
+    try { await fn(); } catch (e: any) { console.warn(`[client/delete] ${label} skipped:`, e?.message ?? e); }
+  };
+
+  try {
+    await safe(() => db.delete(appointmentsTable).where(eq(appointmentsTable.phoneNumber, phone)), "appointments");
+    await safe(() => db.delete(clientBusinessesTable).where(eq(clientBusinessesTable.phoneNumber, phone)), "client_businesses");
+    // Waitlist also keys on phone_number — lazy import so this route
+    // file doesn't keep an unused top-level import.
+    await safe(async () => {
+      const { waitlistTable } = await import("@workspace/db");
+      await db.delete(waitlistTable).where(eq((waitlistTable as any).phoneNumber, phone));
+    }, "waitlist");
+    // Raw-SQL tables (not yet in the drizzle schema package).
+    await safe(() => db.execute(sql`DELETE FROM client_notifications WHERE phone_number = ${phone}`), "client_notifications");
+    await safe(() => db.execute(sql`DELETE FROM broadcast_contacts WHERE phone_number = ${phone}`), "broadcast_contacts");
+    await safe(() => db.execute(sql`DELETE FROM broadcast_subscribers WHERE phone_number = ${phone}`), "broadcast_subscribers");
+    await safe(() => db.execute(sql`DELETE FROM broadcast_unsubscribes WHERE phone_number = ${phone}`), "broadcast_unsubscribes");
+    await safe(() => db.execute(sql`DELETE FROM broadcast_opt_out_tokens WHERE phone_number = ${phone}`), "broadcast_opt_out_tokens");
+    // Every client_sessions row for this phone (owner of one-or-more
+    // OAuth-linked sessions, legacy phone-only, all of it).
+    await db.delete(clientSessionsTable).where(eq(clientSessionsTable.phoneNumber, phone));
+    res.json({ ok: true });
+  } catch (e: any) {
+    console.error("[client/delete] failed:", e?.message ?? e);
+    res.status(500).json({ error: "delete_failed" });
+  }
+});
+
 export default router;

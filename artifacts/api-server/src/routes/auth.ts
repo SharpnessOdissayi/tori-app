@@ -1140,4 +1140,74 @@ router.post("/auth/reset-password", async (req, res): Promise<void> => {
   res.json({ ok: true });
 });
 
+// ─── Self-service account deletion ─────────────────────────────────────────
+// DELETE /auth/business/account — business OWNER deletes their own account.
+// Staff tokens are rejected (staff leave by asking the owner to remove them
+// from the team). Cascades every business-scoped table so no orphan rows
+// linger in the DB.
+router.delete("/auth/business/account", requireBusinessAuth, async (req, res): Promise<void> => {
+  const callerStaffId = (req.business as any)?.staffMemberId;
+  if (callerStaffId) {
+    res.status(403).json({ error: "forbidden", message: "הפעולה אינה זמינה." });
+    return;
+  }
+  const businessId = req.business!.businessId;
+
+  try {
+    const {
+      appointmentsTable, servicesTable, staffMembersTable, staffServicesTable,
+      timeOffTable, breakTimesTable, waitlistTable, reviewsTable,
+      smsMessagesTable, smsPackPurchasesTable, clientBusinessesTable,
+    } = await import("@workspace/db");
+
+    // Run each delete independently so a missing/legacy table (e.g. a table
+    // added in a later migration that hasn't rolled out yet) doesn't abort
+    // the whole cascade. The final businessesTable delete is inside the
+    // main try so its failure still surfaces to the caller.
+    const safe = async (fn: () => Promise<unknown>, label: string) => {
+      try { await fn(); } catch (e: any) { console.warn(`[delete-account] ${label} skipped:`, e?.message ?? e); }
+    };
+
+    await safe(() => db.delete(appointmentsTable).where(eq(appointmentsTable.businessId, businessId)), "appointments");
+    // staff_services keys on staff_member_id — grab the ids first, then purge.
+    await safe(async () => {
+      const rows = await db.select({ id: staffMembersTable.id }).from(staffMembersTable).where(eq(staffMembersTable.businessId, businessId));
+      if (rows.length > 0) {
+        for (const r of rows) {
+          await db.delete(staffServicesTable).where(eq(staffServicesTable.staffMemberId, r.id));
+        }
+      }
+    }, "staff_services");
+    await safe(() => db.delete(staffMembersTable).where(eq(staffMembersTable.businessId, businessId)), "staff_members");
+    await safe(() => db.delete(servicesTable).where(eq(servicesTable.businessId, businessId)), "services");
+    await safe(() => db.delete(workingHoursTable).where(eq(workingHoursTable.businessId, businessId)), "working_hours");
+    await safe(() => db.delete(timeOffTable).where(eq(timeOffTable.businessId, businessId)), "time_off");
+    await safe(() => db.delete(breakTimesTable).where(eq(breakTimesTable.businessId, businessId)), "break_times");
+    await safe(() => db.delete(waitlistTable).where(eq(waitlistTable.businessId, businessId)), "waitlist");
+    await safe(() => db.delete(reviewsTable).where(eq(reviewsTable.businessId, businessId)), "reviews");
+    await safe(() => db.delete(smsMessagesTable).where(eq(smsMessagesTable.businessId, businessId)), "sms_messages");
+    await safe(() => db.delete(smsPackPurchasesTable).where(eq(smsPackPurchasesTable.businessId, businessId)), "sms_pack_purchases");
+    await safe(() => db.delete(clientBusinessesTable).where(eq(clientBusinessesTable.businessId, businessId)), "client_businesses");
+
+    // Raw-SQL tables the Drizzle schema doesn't know about yet —
+    // notifications, broadcast_contacts, broadcast_subscribers,
+    // broadcast_unsubscribes, broadcast_opt_out_tokens, receipts.
+    // Wrapped in safe() so a missing table doesn't abort the row drop.
+    await safe(() => db.execute(sql`DELETE FROM notifications WHERE business_id = ${businessId}`), "notifications");
+    await safe(() => db.execute(sql`DELETE FROM broadcast_contacts WHERE business_id = ${businessId}`), "broadcast_contacts");
+    await safe(() => db.execute(sql`DELETE FROM broadcast_subscribers WHERE business_id = ${businessId}`), "broadcast_subscribers");
+    await safe(() => db.execute(sql`DELETE FROM broadcast_unsubscribes WHERE business_id = ${businessId}`), "broadcast_unsubscribes");
+    await safe(() => db.execute(sql`DELETE FROM broadcast_opt_out_tokens WHERE business_id = ${businessId}`), "broadcast_opt_out_tokens");
+    await safe(() => db.execute(sql`DELETE FROM receipts WHERE business_id = ${businessId}`), "receipts");
+
+    // Finally the row itself. This one is NOT wrapped in safe() — if it
+    // fails, the caller needs to know.
+    await db.delete(businessesTable).where(eq(businessesTable.id, businessId));
+    res.json({ ok: true });
+  } catch (e: any) {
+    console.error("[delete-account] failed:", e?.message ?? e);
+    res.status(500).json({ error: "delete_failed" });
+  }
+});
+
 export default router;
