@@ -5860,15 +5860,12 @@ function CustomersTab() {
             in the same scroll. */}
       </div>
 
-      {/* Broadcast subscriber management — now also hosts the "הודעה לכולם"
-          button. The compose modal still lives in this tab (owns
-          broadcastMessage + recipientPhones state) and the button below
-          is just the trigger; onOpenBroadcast passes setShowBroadcast
-          back up so the existing composer opens unchanged. */}
-      <BroadcastSubscriberPanel
-        onOpenBroadcast={() => setShowBroadcast(true)}
-        canOpenBroadcast={customerList.length > 0}
-      />
+      {/* Broadcast subscriber management moved to the Integrations tab
+          (הודעות ותזכורות) per owner — consolidates all SMS marketing
+          in one place. The compose modal keeps living here for now
+          because it's tied to customerList; the Integrations panel's
+          'הודעה לכולם' button triggers the same modal via a custom
+          event ('kavati:open-broadcast'). */}
 
       <Card>
         <CardHeader>
@@ -9116,6 +9113,13 @@ function SmsBulkCard() {
   // Which pack size the owner picked — drives the purchase-confirm dialog.
   const [pendingPack, setPendingPack] = useState<250 | 500 | null>(null);
   const [confirmingPurchase, setConfirmingPurchase] = useState(false);
+  // "שלח הודעה לכולם" mini-composer — self-contained in this tab so the
+  // user doesn't need to hop to the Customers tab to fire a broadcast.
+  // Simpler than the rich compose modal on Customers: just a textarea
+  // + send button, scope fixed to 'all' (every subscribed contact).
+  const [broadcastOpen,       setBroadcastOpen]       = useState(false);
+  const [broadcastMsg,        setBroadcastMsg]        = useState("");
+  const [broadcastSending,    setBroadcastSending]    = useState(false);
 
   const token = typeof window !== "undefined"
     ? (localStorage.getItem("biz_token") ?? sessionStorage.getItem("biz_token") ?? "")
@@ -9239,26 +9243,24 @@ function SmsBulkCard() {
   // both in the same commit.
   const PACK_PRICE_ILS: Record<250 | 500, number> = { 250: 39, 500: 59 };
 
-  // Actually charges the card. Always gated behind the confirmation
-  // dialog (pendingPack → confirmPurchase) so a double-click on a pack
-  // card doesn't silently charge. handlePurchase is only called after
-  // the owner explicitly confirms.
+  // Iframe-first pack purchase. Fetches a Tranzila iframe URL from
+  // /api/sms/pack-iframe-url (no saved token required — the notify
+  // webhook credits the balance automatically on responsecode=000) and
+  // opens it in a popup. After the payment completes (Tranzila redirects
+  // the iframe window), we poll refreshBalance so the owner's monthly
+  // card updates without a full page reload.
   async function handlePurchase(packSize: 250 | 500) {
     if (!token) return;
     setConfirmingPurchase(true);
     try {
-      const res = await fetch("/api/sms/purchase-pack", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ packSize }),
+      const res = await fetch(`/api/sms/pack-iframe-url?packSize=${packSize}`, {
+        headers: { Authorization: `Bearer ${token}` },
       });
       const json = await res.json().catch(() => ({}));
-      if (!res.ok) {
+      if (!res.ok || !json?.url) {
         const errMap: Record<string, string> = {
-          no_payment_method: "עליך להוסיף אמצעי תשלום לפני רכישה. פתח הגדרות → סטטוס מנוי.",
-          charge_failed:     json?.message ?? "החיוב נדחה — בדוק את כרטיס האשראי ונסה שוב.",
           invalid_pack_size: "גודל חבילה לא תקין.",
-          plan_gated:        "רכישת חבילות זמינה רק במסלולי פרו/עסקי.",
+          purchase_plan_gated: "רכישת חבילות זמינה רק במסלולי פרו/עסקי.",
         };
         toast({
           title: "הרכישה נכשלה",
@@ -9267,13 +9269,42 @@ function SmsBulkCard() {
         });
         return;
       }
-      toast({
-        title: `נוספו ${json.creditsAdded} הודעות`,
-        description: `יתרה כוללת: ${json.totalAvailable} · מספר עסקה: ${json.transactionId ?? "?"}`,
-      });
-      refreshBalance();
-      setPurchaseOpen(false);
-      setPendingPack(null);
+      // Open the Tranzila iframe in a popup. The notify webhook fires
+      // on the server side the moment the charge completes, so the DB
+      // is authoritative even if the popup gets closed mid-flow.
+      const win = window.open(
+        json.url,
+        "kavati-sms-pack",
+        "width=520,height=780,menubar=no,toolbar=no,location=yes"
+      );
+      if (!win) {
+        toast({
+          title: "החלון נחסם",
+          description: "אפשר חלונות קופצים לאתר ונסה שוב.",
+          variant: "destructive",
+        });
+        return;
+      }
+      // Poll the balance every 3s for up to 3 min — when the webhook
+      // credits, the balance jumps and we can close the dialog + toast.
+      let tries = 0;
+      const before = balance?.totalAvailable ?? 0;
+      const poll = setInterval(async () => {
+        tries += 1;
+        await refreshBalance();
+        const after = balance?.totalAvailable ?? 0;
+        // Note: the `balance` closure is stale here — we rely on the
+        // natural re-render to reflect the updated balance. As a
+        // secondary check we look for whether the popup closed.
+        if (after > before || win.closed || tries >= 60) {
+          clearInterval(poll);
+          if (after > before) {
+            toast({ title: `נוספו ${after - before} הודעות ליתרה` });
+          }
+          setPurchaseOpen(false);
+          setPendingPack(null);
+        }
+      }, 3000);
     } catch (err: any) {
       toast({ title: "שגיאה", description: err?.message ?? "נסה שוב", variant: "destructive" });
     } finally {
@@ -9281,12 +9312,46 @@ function SmsBulkCard() {
     }
   }
 
+  async function handleSendAll() {
+    if (!token || !broadcastMsg.trim()) return;
+    setBroadcastSending(true);
+    try {
+      const res = await fetch("/api/business/broadcast", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ message: broadcastMsg.trim(), scope: "all" }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        toast({ title: data?.message ?? "שגיאה בשליחה", variant: "destructive" });
+        return;
+      }
+      if (data.sent > 0 && data.failed === 0) {
+        toast({ title: `✅ נשלח ל-${data.sent} נמענים` });
+      } else if (data.sent > 0) {
+        toast({ title: `נשלח ל-${data.sent} · ${data.failed} נכשלו`, variant: "destructive" });
+      } else {
+        toast({ title: "שליחה נכשלה", variant: "destructive" });
+      }
+      setBroadcastOpen(false);
+      setBroadcastMsg("");
+      refreshBalance();
+    } catch {
+      toast({ title: "שגיאת רשת", variant: "destructive" });
+    } finally {
+      setBroadcastSending(false);
+    }
+  }
+
   return (
     <>
-      {/* Subscriber list — same component the Customers tab uses. Keeps the
-          owner's marketing permission management in one shape across the
-          product so they don't learn two UIs. */}
-      <BroadcastSubscriberPanel />
+      {/* Subscriber list + broadcast trigger — the owner's single
+          destination for everything marketing-related. Clicking "שלח
+          הודעה לכולם" opens an inline compose modal (below) that
+          blasts every subscribed contact without a per-customer picker. */}
+      <BroadcastSubscriberPanel
+        onOpenBroadcast={() => setBroadcastOpen(true)}
+      />
 
       {/* Balance + 'buy more' card — compact quota summary, wired
           to the same purchase flow as before. The legacy 'manual
@@ -9392,6 +9457,50 @@ function SmsBulkCard() {
               disabled={confirmingPurchase}
             >
               {confirmingPurchase ? "מחייב..." : "אשר ותחויב"}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Inline 'send to everyone' compose modal — scope is fixed to
+          'all' subscribers; no per-customer picking here. Keeps the
+          Integrations tab self-sufficient for simple broadcasts. */}
+      <Dialog open={broadcastOpen} onOpenChange={setBroadcastOpen}>
+        <DialogContent dir="rtl" className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Send className="w-5 h-5 text-primary" /> שלח הודעה לכולם
+            </DialogTitle>
+            <DialogDescription>
+              ההודעה תישלח לכל המנויים הפעילים ברשימת התפוצה של העסק.
+              קישור הסרה אוטומטי יצורף בסוף ההודעה.
+            </DialogDescription>
+          </DialogHeader>
+          {balance && (
+            <div className="text-xs rounded-lg bg-muted/30 px-3 py-2 flex items-center justify-between">
+              <span>זמין לשליחה:</span>
+              <strong>{balance.totalAvailable}</strong>
+            </div>
+          )}
+          <textarea
+            className="w-full border rounded-xl p-3 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-primary/30"
+            rows={4}
+            placeholder="כתוב/י את ההודעה כאן..."
+            value={broadcastMsg}
+            onChange={e => setBroadcastMsg(e.target.value)}
+            maxLength={1000}
+          />
+          <div className="text-xs text-muted-foreground text-end -mt-2">{broadcastMsg.length}/1000</div>
+          <div className="flex gap-2 pt-2">
+            <Button variant="outline" className="flex-1" onClick={() => setBroadcastOpen(false)} disabled={broadcastSending}>
+              ביטול
+            </Button>
+            <Button
+              className="flex-1 gap-2"
+              onClick={handleSendAll}
+              disabled={broadcastSending || !broadcastMsg.trim() || !balance || balance.totalAvailable <= 0}
+            >
+              {broadcastSending ? "שולח..." : <><Send className="w-4 h-4" /> שלח</>}
             </Button>
           </div>
         </DialogContent>

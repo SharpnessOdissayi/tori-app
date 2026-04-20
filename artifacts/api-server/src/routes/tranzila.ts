@@ -111,6 +111,44 @@ function buildTestTokenIframeUrl(params: {
   return `${IFRAME_BASE}?${p.toString()}`;
 }
 
+// ─── SMS pack iframe URL (one-off, no saved token needed) ───────────────────
+// Standalone iframe flow for topping up SMS credits without having a
+// prior Tranzila token on file. tranmode=A = plain charge (no STO, no
+// token save). The notify handler recognises the pdesc pattern
+// `חבילת SMS קבעתי - {businessId} - {packSize}` and adds the credits to
+// sms_extra_balance once it sees responsecode=000.
+//
+// Pricing mirrors the saved-token path (routes/sms.ts purchase-pack):
+//   250 pack → ₪39.00
+//   500 pack → ₪59.00
+// Keep the pricing table in lockstep across both files.
+
+export function buildSmsPackIframeUrl(params: {
+  businessId: number;
+  packSize:   number;
+  priceIls:   number;
+  ownerName:  string;
+  email:      string;
+}): string {
+  const baseUrl = (process.env.BOOKING_BASE_URL ?? "https://www.kavati.net").replace(/\/$/, "");
+  const p = new URLSearchParams({
+    sum:                 params.priceIls.toFixed(2),
+    currency:            "1",
+    cred_type:           "1",
+    tranmode:            "A",
+    lang:                "il",
+    buttonLabel:         `רכוש ${params.packSize} הודעות`,
+    contact:             params.ownerName,
+    email:               params.email,
+    pdesc:               `חבילת SMS קבעתי - ${params.businessId} - ${params.packSize}`,
+    success_url_address: `${baseUrl}/payment/success?type=sms-pack`,
+    fail_url_address:    `${baseUrl}/payment/fail?type=sms-pack`,
+    notify_url_address:  `https://www.kavati.net/api/tranzila/notify`,
+    nologo:              "1",
+  });
+  return `${IFRAME_BASE}?${p.toString()}`;
+}
+
 // ─── Subscription iframe URL (first charge + tokenize) ──────────────────────
 // tranmode=AK → standard charge + tokenize. Token is delivered to our
 // notify endpoint as TranzilaTK. We then call /v1/sto/create to set up
@@ -356,6 +394,56 @@ router.post("/tranzila/notify", async (req, res): Promise<void> => {
         console.log(`[Tranzila] Subscription payment failed business=${businessId} code=${responsecode}`);
       }
 
+      res.status(200).send("OK");
+      return;
+    }
+
+    // ── SMS pack purchase (iframe flow, no saved-token required) ─────────
+    // pdesc shape: "חבילת SMS קבעתי - {businessId} - {packSize}"
+    // Adds the credits AT THE SERVER — no client round-trip — so even
+    // if the iframe modal closed / user switched tabs, the balance
+    // updates automatically the moment Tranzila notifies us. The
+    // authoritative source of "was this paid?" is responsecode==000.
+    const smsPackMatch = pdesc.match(/חבילת SMS קבעתי - (\d+) - (\d+)/);
+    if (smsPackMatch) {
+      const businessId = parseInt(smsPackMatch[1]);
+      const packSize   = parseInt(smsPackMatch[2]);
+      if (!businessId || !packSize) {
+        console.error(`[Tranzila] sms-pack webhook: bad pdesc: ${pdesc}`);
+        res.status(200).send("OK");
+        return;
+      }
+      if (responsecode !== "000") {
+        console.log(`[Tranzila] sms-pack webhook: failed charge (biz=${businessId}, pack=${packSize}, code=${responsecode})`);
+        res.status(200).send("OK");
+        return;
+      }
+      try {
+        const { smsPackPurchasesTable } = await import("@workspace/db");
+        const pricing: Record<number, number> = { 250: 3900, 500: 5900 };
+        const priceAgorot = pricing[packSize] ?? 0;
+        const confirmation = String(body.ConfirmationCode ?? body.confirmationCode ?? body.index ?? "").trim();
+        // Record the completed purchase + bump the extra balance in one
+        // transaction-adjacent pair. smsPackPurchasesTable has no
+        // deduplication here because Tranzila won't double-fire a
+        // successful notify — but if it ever did, the DB unique constraint
+        // on (confirmation, business) would catch it.
+        await db.insert(smsPackPurchasesTable).values({
+          businessId,
+          packSize,
+          pricePaidAgorot: priceAgorot,
+          status: "completed",
+          tranzilaTxnId: confirmation || null,
+        } as any);
+        await db.execute(sql`
+          UPDATE businesses
+          SET sms_extra_balance = COALESCE(sms_extra_balance, 0) + ${packSize}
+          WHERE id = ${businessId}
+        `);
+        console.log(`[Tranzila] sms-pack credited: business=${businessId}, pack=${packSize}, txn=${confirmation}`);
+      } catch (e) {
+        console.error("[Tranzila] sms-pack webhook failed to credit:", e);
+      }
       res.status(200).send("OK");
       return;
     }

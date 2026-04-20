@@ -396,6 +396,43 @@ function pickBucketForIndex(
   return "extra"; // fallback — shouldn't happen
 }
 
+// ─── GET /api/sms/pack-iframe-url ─────────────────────────────────────────
+// Query: ?packSize=250|500
+//
+// Iframe-based one-off purchase — works for businesses that DON'T have a
+// saved Tranzila token yet (new Pro/עסקי accounts that want to buy an
+// SMS pack without first completing a full subscription iframe). The
+// notify webhook recognises pdesc `חבילת SMS קבעתי - {id} - {pack}` and
+// credits the extra balance automatically once responsecode=000 arrives.
+router.get("/sms/pack-iframe-url", async (req, res): Promise<void> => {
+  const businessId = getBusinessId(req.headers.authorization ?? "");
+  if (!businessId) { res.status(401).json({ error: "Unauthorized" }); return; }
+
+  const biz = await loadBusiness(businessId);
+  if (!biz) { res.status(404).json({ error: "Business not found" }); return; }
+  if (!isBulkSmsAllowed(biz.subscriptionPlan)) {
+    res.status(403).json({ error: "purchase_plan_gated", plan: biz.subscriptionPlan });
+    return;
+  }
+
+  const packSize = Number(req.query.packSize);
+  const pricing: Record<number, number> = { 250: 39, 500: 59 }; // ILS
+  if (!pricing[packSize]) {
+    res.status(400).json({ error: "invalid_pack_size", allowed: Object.keys(pricing) });
+    return;
+  }
+
+  const { buildSmsPackIframeUrl } = await import("./tranzila");
+  const url = buildSmsPackIframeUrl({
+    businessId,
+    packSize,
+    priceIls: pricing[packSize],
+    ownerName: biz.ownerName ?? biz.name ?? "",
+    email: biz.email ?? "",
+  });
+  res.json({ url });
+});
+
 // ─── POST /api/sms/purchase-pack ──────────────────────────────────────────
 // Body: { packSize: 250 | 500 }
 //
