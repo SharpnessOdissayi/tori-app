@@ -9452,22 +9452,67 @@ function SmsBulkCard() {
     if (!token || !broadcastMsg.trim()) return;
     setBroadcastSending(true);
     try {
+      // Pull the list of ACTIVE broadcast-subscribers (the people the
+      // owner explicitly signed up — the rows that show in the panel
+      // above). The backend's scope='all' on /business/broadcast
+      // queries appointments, which is wrong for this flow: a business
+      // could have subscribers who never booked, AND bookers who never
+      // opted into marketing (which would violate תיקון 40). So we
+      // resolve the list here client-side and pass phoneNumbers
+      // explicitly to /broadcast.
+      const subsRes = await fetch("/api/business/broadcast-subscribers", {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!subsRes.ok) {
+        toast({ title: "שגיאה בטעינת רשימת תפוצה", variant: "destructive" });
+        return;
+      }
+      const subsJson = await subsRes.json();
+      type SubRow = { phoneNumber?: string; status?: string };
+      const subs: SubRow[] = Array.isArray(subsJson?.subscribers) ? subsJson.subscribers : [];
+      const phoneNumbers = subs
+        .filter(s => s.status === "active" && s.phoneNumber)
+        .map(s => String(s.phoneNumber));
+
+      if (phoneNumbers.length === 0) {
+        toast({
+          title: "אין מנויים פעילים ברשימת התפוצה",
+          description: "הוסף מספרים ברשימת התפוצה שמעל לפני ששולחים הודעת תפוצה.",
+          variant: "destructive",
+        });
+        return;
+      }
+
       const res = await fetch("/api/business/broadcast", {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ message: broadcastMsg.trim(), scope: "all" }),
+        body: JSON.stringify({ message: broadcastMsg.trim(), phoneNumbers }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        toast({ title: data?.message ?? "שגיאה בשליחה", variant: "destructive" });
+        toast({ title: data?.message ?? data?.error ?? "שגיאה בשליחה", variant: "destructive" });
         return;
       }
       if (data.sent > 0 && data.failed === 0) {
         toast({ title: `✅ נשלח ל-${data.sent} נמענים` });
       } else if (data.sent > 0) {
-        toast({ title: `נשלח ל-${data.sent} · ${data.failed} נכשלו`, variant: "destructive" });
+        // Bubble up Inforu's per-phone reason so 'failed' isn't opaque.
+        const failures = Array.isArray(data.failures) ? data.failures : [];
+        const sample = failures.slice(0, 1).map((f: any) => `${f.phone}: ${f.reason}`).join("");
+        toast({
+          title: `נשלח ל-${data.sent} · ${data.failed} נכשלו`,
+          description: sample || undefined,
+          variant: "destructive",
+        });
       } else {
-        toast({ title: "שליחה נכשלה", variant: "destructive" });
+        const firstReason = Array.isArray(data.failures) && data.failures[0]?.reason
+          ? `סיבה: ${data.failures[0].reason}`
+          : undefined;
+        toast({
+          title: "שליחה נכשלה",
+          description: firstReason,
+          variant: "destructive",
+        });
       }
       setBroadcastOpen(false);
       setBroadcastMsg("");
