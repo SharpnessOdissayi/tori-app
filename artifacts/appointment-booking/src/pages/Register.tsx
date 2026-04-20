@@ -508,9 +508,11 @@ function StepDetails({
           username: form.username.trim() || undefined,
           ownerName: form.ownerName,
           phone: form.phone,
-          // email intentionally omitted — the register form no longer
-          // collects one. Backend generates a placeholder from the slug
-          // to satisfy the NOT NULL constraint on businesses.email.
+          // Email is optional. When empty the backend synthesises a
+          // placeholder from the slug (see auth.ts emailForInsert).
+          // When filled it's used as-is — no email-OTP check on
+          // register; the phone SMS-OTP above is the anti-spam gate.
+          email: form.email.trim() || undefined,
           password: form.password,
           // Backend accepts all three tiers now (auth.ts allow-list +
           // businesses.subscriptionPlan column). The Tranzila notify
@@ -676,6 +678,28 @@ function StepDetails({
             <User className="w-4 h-4 text-muted-foreground" /> שם מלא של בעל העסק
           </Label>
           <Input required value={form.ownerName} onChange={set("ownerName")} />
+        </div>
+
+        {/* Email — optional. Lets the owner log in via '📧 אימייל + סיסמה'
+            tab later, and enables Google Sign-In for the matching
+            Google account. Leaving it empty is fine; the backend
+            generates a placeholder so the UNIQUE+NOT NULL DB
+            constraint still passes. */}
+        <div className="space-y-2">
+          <Label className="flex items-center gap-1.5">
+            <User className="w-4 h-4 text-muted-foreground" /> כתובת אימייל
+            <span className="text-xs text-muted-foreground font-normal">(אופציונלי)</span>
+          </Label>
+          <Input
+            type="email"
+            dir="ltr"
+            inputMode="email"
+            autoComplete="email"
+            value={form.email}
+            onChange={set("email")}
+            placeholder="you@example.com"
+          />
+          <p className="text-xs text-muted-foreground">משמש לכניסה באימייל + סיסמה, להתחברות דרך Google ולהתראות מהמערכת.</p>
         </div>
 
         {/* Phone + SMS verification */}
