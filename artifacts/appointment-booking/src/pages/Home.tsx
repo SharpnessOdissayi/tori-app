@@ -127,7 +127,7 @@ export default function Home() {
           {/* "איך זה עובד" — 3 steps */}
           <section className="mt-24">
             <h2 className="text-center text-3xl md:text-4xl font-extrabold tracking-tight text-foreground">איך זה עובד?</h2>
-            <p className="text-center text-muted-foreground mt-2">3 שלבים. חצי שעה. ואתם באוויר.</p>
+            <p className="text-center text-muted-foreground mt-2">3 שלבים. כמה דקות ואתם באוויר.</p>
 
             <div className="grid md:grid-cols-3 gap-5 mt-10">
               {[
