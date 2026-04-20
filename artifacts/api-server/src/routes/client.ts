@@ -341,13 +341,30 @@ router.get("/client/me", requireClientAuth, async (req, res): Promise<void> => {
 
 router.patch("/client/me", requireClientAuth, async (req, res): Promise<void> => {
   const session = (req as any).clientSession;
-  const { clientName, phone, receiveNotifications, gender } = req.body;
+  const { clientName, phone, email, receiveNotifications, gender } = req.body;
   const updates: any = {};
   if (clientName && typeof clientName === "string") updates.clientName = clientName.trim();
-  if (phone && typeof phone === "string") updates.phoneNumber = phone.trim();
+  // phone / email accept string (update), null / empty (clear), or
+  // undefined (leave untouched). Owner spec: at least ONE of them
+  // must remain set on the session — clients identify themselves by
+  // phone OR email, and dropping both would strand the row.
+  if (phone === null || phone === "") updates.phoneNumber = null;
+  else if (typeof phone === "string") updates.phoneNumber = phone.trim() || null;
+  if (email === null || email === "") updates.email = null;
+  else if (typeof email === "string") updates.email = email.trim().toLowerCase() || null;
   if (typeof receiveNotifications === "boolean") updates.receiveNotifications = receiveNotifications;
   if (gender && ["male", "female", "other"].includes(gender)) updates.gender = gender;
   if (Object.keys(updates).length === 0) { res.status(400).json({ error: "אין שינויים" }); return; }
+
+  // At-least-one-contact guard. Read the final state (incoming values
+  // take precedence over the current session) and reject the PATCH if
+  // BOTH phone and email would end up empty.
+  const finalPhone = updates.phoneNumber !== undefined ? updates.phoneNumber : session.phoneNumber;
+  const finalEmail = updates.email       !== undefined ? updates.email       : session.email;
+  if (!finalPhone && !finalEmail) {
+    res.status(400).json({ error: "missing_contact", message: "יש להשאיר לפחות אחד — טלפון או אימייל" });
+    return;
+  }
 
   // 1. Update the current session (may include a phone-number change).
   await db.update(clientSessionsTable).set(updates).where(eq(clientSessionsTable.token, session.token));

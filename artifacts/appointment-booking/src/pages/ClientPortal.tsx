@@ -408,6 +408,7 @@ export default function ClientPortal() {
   const [deleting, setDeleting] = useState(false);
   const [profileName, setProfileName] = useState("");
   const [profilePhone, setProfilePhone] = useState("");
+  const [profileEmail, setProfileEmail] = useState("");
   const [profileReceiveNotifications, setProfileReceiveNotifications] = useState(true);
   const [notifOpen, setNotifOpen] = useState(false);
   const [clientNotifs, setClientNotifs] = useState<any[]>([]);
@@ -472,17 +473,20 @@ export default function ClientPortal() {
         setSession(data);
         setProfileName(data.clientName ?? "");
         setProfilePhone(data.phone ?? "");
+        setProfileEmail(data.email ?? "");
         setProfileReceiveNotifications(data.receiveNotifications ?? true);
         // Default new clients to "male" — "other" is no longer offered
         // and the column used to default there. Any legacy "other"
         // reads back as male here until the client edits Settings.
         setProfileGender(data.gender === "female" ? "female" : "male");
-        // First-time welcome: a freshly-logged-in client has no name
-        // or phone on their row yet. Open the welcome modal to collect
-        // both before letting them use the portal.
+        // First-time welcome: require a name + at least ONE contact
+        // (phone OR email). Owner's spec: 'חובה אחד מהשתיים או אימייל
+        // או מס פלאפון'. Previously we forced phone even for Google
+        // sign-ins, which already have an email attached.
         const missingName = !data.clientName || !String(data.clientName).trim();
-        const missingPhone = !data.phone || !String(data.phone).trim();
-        if (missingName || missingPhone) {
+        const hasPhone = !!(data.phone && String(data.phone).trim());
+        const hasEmail = !!(data.email && String(data.email).trim());
+        if (missingName || (!hasPhone && !hasEmail)) {
           setWelcomeOpen(true);
         }
       })
@@ -586,30 +590,65 @@ export default function ClientPortal() {
   };
 
   const saveWelcome = async () => {
-    if (!profileName.trim() || !profilePhone.trim()) {
-      toast({ title: "יש למלא שם מלא ומספר טלפון", variant: "destructive" });
+    const name = profileName.trim();
+    const phone = profilePhone.trim();
+    const email = profileEmail.trim().toLowerCase();
+    if (!name) {
+      toast({ title: "יש למלא שם מלא", variant: "destructive" });
+      return;
+    }
+    // Owner's spec: 'חובה אחד מהשתיים או אימייל או מס פלאפון' — require
+    // at least ONE contact method; both is welcome but not required.
+    if (!phone && !email) {
+      toast({ title: "יש להזין מספר טלפון או אימייל (לפחות אחד)", variant: "destructive" });
+      return;
+    }
+    if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      toast({ title: "כתובת אימייל לא תקינה", variant: "destructive" });
       return;
     }
     setWelcomeSaving(true);
     const res = await fetch(`${API}/client/me`, {
       method: "PATCH", headers: { "Content-Type": "application/json", ...authHeaders() },
-      body: JSON.stringify({ clientName: profileName.trim(), phone: profilePhone.trim(), receiveNotifications: profileReceiveNotifications, gender: profileGender }),
+      body: JSON.stringify({
+        clientName: name,
+        phone: phone || null,
+        email: email || null,
+        receiveNotifications: profileReceiveNotifications,
+        gender: profileGender,
+      }),
     });
     setWelcomeSaving(false);
     if (res.ok) {
-      toast({ title: `ברוך/ה הבא/ה, ${profileName.trim()}!` });
+      toast({ title: `ברוך/ה הבא/ה, ${name}!` });
       setWelcomeOpen(false);
-      setSession(s => s ? { ...s, clientName: profileName.trim(), phone: profilePhone.trim(), receiveNotifications: profileReceiveNotifications, gender: profileGender } : s);
+      setSession(s => s ? { ...s, clientName: name, phone: phone || null, email: email || s.email || null, receiveNotifications: profileReceiveNotifications, gender: profileGender } : s);
     } else {
       toast({ title: "שגיאה בשמירת הפרטים", variant: "destructive" });
     }
   };
 
   const saveProfile = async () => {
+    const phone = profilePhone.trim();
+    const email = profileEmail.trim().toLowerCase();
+    if (!phone && !email) {
+      toast({ title: "יש להשאיר לפחות אחד — טלפון או אימייל", variant: "destructive" });
+      return;
+    }
+    if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      toast({ title: "כתובת אימייל לא תקינה", variant: "destructive" });
+      return;
+    }
     setLoading(true);
     const res = await fetch(`${API}/client/me`, {
       method: "PATCH", headers: { "Content-Type": "application/json", ...authHeaders() },
-      body: JSON.stringify({ clientName: profileName, phone: profilePhone, receiveNotifications: profileReceiveNotifications, gender: profileGender }),
+      body: JSON.stringify({
+        clientName: profileName,
+        phone: phone || null,
+        email: email || null,
+        receiveNotifications: profileReceiveNotifications,
+        gender: profileGender,
+      }),
     });
     setLoading(false);
     if (res.ok) { toast({ title: "פרטים עודכנו" }); setProfileOpen(false); setSession(s => s ? { ...s, clientName: profileName, phone: profilePhone || s.phone, receiveNotifications: profileReceiveNotifications, gender: profileGender } : s); }
@@ -957,7 +996,7 @@ export default function ClientPortal() {
           <div className="w-full max-w-md bg-white rounded-t-3xl p-6 space-y-5" onClick={e => e.stopPropagation()}>
             <div>
               <h3 className="font-extrabold text-xl text-gray-900">ברוכים הבאים לקבעתי! 🎉</h3>
-              <p className="text-sm text-gray-500 mt-1">כדי להתחיל, ספר/י לנו איך לפנות אליך — השם והטלפון ישמשו את העסקים אצלם תקבע/י תור.</p>
+              <p className="text-sm text-gray-500 mt-1">כדי להתחיל, ספר/י לנו איך לפנות אליך. מספיק להזין <strong>טלפון</strong> או <strong>אימייל</strong> — לא חייב שניהם.</p>
             </div>
             <div className="space-y-3">
               <div className="space-y-1.5">
@@ -970,7 +1009,7 @@ export default function ClientPortal() {
                 />
               </div>
               <div className="space-y-1.5">
-                <label className="text-sm font-medium text-gray-700">טלפון *</label>
+                <label className="text-sm font-medium text-gray-700">טלפון</label>
                 <input
                   type="tel"
                   dir="ltr"
@@ -980,6 +1019,18 @@ export default function ClientPortal() {
                   className="w-full rounded-xl border border-gray-200 px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 text-right"
                 />
               </div>
+              <div className="space-y-1.5">
+                <label className="text-sm font-medium text-gray-700">אימייל</label>
+                <input
+                  type="email"
+                  dir="ltr"
+                  value={profileEmail}
+                  onChange={e => setProfileEmail(e.target.value)}
+                  placeholder="you@example.com"
+                  className="w-full rounded-xl border border-gray-200 px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 text-right"
+                />
+              </div>
+              <p className="text-xs text-gray-500">חובה להזין לפחות אחד — טלפון או אימייל.</p>
             </div>
             <button
               onClick={saveWelcome}
@@ -1011,6 +1062,13 @@ export default function ClientPortal() {
                 <label className="text-sm font-medium text-gray-700">טלפון</label>
                 <input type="tel" dir="ltr" value={profilePhone} onChange={e => setProfilePhone(e.target.value)}
                   className="w-full rounded-xl border border-gray-200 px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 text-right" />
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-sm font-medium text-gray-700">אימייל</label>
+                <input type="email" dir="ltr" value={profileEmail} onChange={e => setProfileEmail(e.target.value)}
+                  placeholder="you@example.com"
+                  className="w-full rounded-xl border border-gray-200 px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 text-right" />
+                <p className="text-xs text-gray-400">חובה להשאיר לפחות אחד — טלפון או אימייל.</p>
               </div>
               <div className="space-y-1.5">
                 <label className="text-sm font-medium text-gray-700">מין</label>

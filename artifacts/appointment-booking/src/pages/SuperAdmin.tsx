@@ -17,7 +17,7 @@ import { Switch } from "@/components/ui/switch";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
-import { Plus, Trash2, Edit, ExternalLink, Shield, Eye, EyeOff, RefreshCw, BarChart3, Users, Globe, FolderTree, FileDown, TrendingUp, TrendingDown, AlertTriangle, DollarSign } from "lucide-react";
+import { Plus, Trash2, Edit, ExternalLink, Shield, Eye, EyeOff, RefreshCw, BarChart3, Users, Globe, FolderTree, FileDown, TrendingUp, TrendingDown, AlertTriangle, DollarSign, X } from "lucide-react";
 import Navbar from "@/components/Navbar";
 
 const PLANS = [
@@ -545,8 +545,41 @@ export default function SuperAdmin() {
               <Input required type="email" value={editForm.email} onChange={e => setEditForm(p => ({ ...p, email: e.target.value }))} dir="ltr" />
             </div>
             <div className="space-y-2">
-              <Label>מספר טלפון</Label>
-              <Input type="tel" value={editForm.phone} onChange={e => setEditForm(p => ({ ...p, phone: e.target.value }))} dir="ltr" placeholder="" />
+              <Label className="flex items-center justify-between">
+                <span>מספר טלפון</span>
+                {editForm.phone && (
+                  <button
+                    type="button"
+                    onClick={() => setEditForm(p => ({ ...p, phone: "" }))}
+                    className="text-xs text-destructive hover:underline"
+                  >
+                    מחק מספר
+                  </button>
+                )}
+              </Label>
+              <div className="flex gap-2">
+                <Input
+                  type="tel"
+                  value={editForm.phone}
+                  onChange={e => setEditForm(p => ({ ...p, phone: e.target.value }))}
+                  dir="ltr"
+                  placeholder=""
+                  className="flex-1"
+                />
+                {editForm.phone && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="icon"
+                    onClick={() => setEditForm(p => ({ ...p, phone: "" }))}
+                    className="shrink-0 text-destructive hover:bg-destructive/10"
+                    title="מחק את המספר"
+                  >
+                    <X className="w-4 h-4" />
+                  </Button>
+                )}
+              </div>
+              <p className="text-xs text-muted-foreground">השאר ריק כדי לנתק את מספר הטלפון מהחשבון.</p>
             </div>
             <div className="space-y-2">
               <Label>מנוי</Label>
