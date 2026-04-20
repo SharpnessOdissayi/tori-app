@@ -5445,6 +5445,21 @@ function CustomersTab() {
 
   const handleBroadcast = async (recipients: string[]) => {
     if (!broadcastMessage.trim() || recipients.length === 0) return;
+    // Hard-cap client-side: if the owner selected more recipients than
+    // their current quota allows, reject the whole send. Matches the
+    // owner's spec — 'if they tried 400 and have 300, tell them they're
+    // over by 100, messages won't be sent'. The backend ALSO enforces
+    // this (reserveQuota returns 402 'insufficient_sms_credits') so the
+    // check here is purely for a clearer, up-front UX.
+    const remaining = quota?.remaining ?? 0;
+    if (recipients.length > remaining) {
+      toast({
+        title: `אתה חורג ב-${recipients.length - remaining} הודעות — ההודעות לא יישלחו`,
+        description: `בחרת ${recipients.length} נמענים · נותרו ${remaining}`,
+        variant: "destructive",
+      });
+      return;
+    }
     setBroadcastLoading(true);
     try {
       const res = await fetch("/api/business/broadcast", {
@@ -5779,11 +5794,26 @@ function CustomersTab() {
                 />
                 <div className="text-xs text-muted-foreground text-end mt-1">{broadcastMessage.length}/1000</div>
               </div>
+              {/* Hard-cap warning — if the selected recipients exceed the
+                  remaining quota, show the exact overage inline so the
+                  owner knows BEFORE trying to send (the send button is
+                  also disabled in that case). */}
+              {quota && recipientPhones.length > quota.remaining && (
+                <div className="rounded-xl border-2 border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">
+                  אתה חורג ב-<strong>{recipientPhones.length - quota.remaining}</strong> הודעות — ההודעות לא יישלחו. רכוש חבילה נוספת או הסר נמענים.
+                </div>
+              )}
               <div className="flex gap-2">
                 <Button variant="outline" className="flex-1" onClick={() => setShowBroadcast(false)}>ביטול</Button>
                 <Button
                   className="flex-1 gap-2"
-                  disabled={!broadcastMessage.trim() || broadcastLoading || (quota?.remaining ?? 1) <= 0 || recipientPhones.length === 0}
+                  disabled={
+                    !broadcastMessage.trim()
+                    || broadcastLoading
+                    || (quota?.remaining ?? 1) <= 0
+                    || recipientPhones.length === 0
+                    || (!!quota && recipientPhones.length > quota.remaining)
+                  }
                   onClick={() => handleBroadcast(recipientPhones)}
                 >
                   {broadcastLoading ? "שולח..." : <><Send className="w-4 h-4" /> שלח ל-{recipientPhones.length}</>}
@@ -9241,21 +9271,26 @@ function SmsBulkCard() {
           product so they don't learn two UIs. */}
       <BroadcastSubscriberPanel />
 
+      {/* Balance + 'buy more' card — compact quota summary, wired
+          to the same purchase flow as before. The legacy 'manual
+          send' composer below was removed per the owner — broadcasts
+          now run exclusively through the rich compose modal on the
+          Customers tab, which already handles per-customer picking,
+          scope filters, and the hard quota gate. */}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <span className="text-xl">📱</span> הודעות SMS תפוצה
+            <span className="text-xl">📱</span> יתרת SMS
           </CardTitle>
           <CardDescription>
-            שלח הודעות שיווקיות ללקוחות. שם השולח = שם העסק שלך.
+            מעקב אחרי הודעות התפוצה החודשיות + חבילות נוספות שרכשת.
           </CardDescription>
         </CardHeader>
-        <CardContent className="space-y-4">
-          {/* Balance summary */}
+        <CardContent>
           <div className="rounded-xl border bg-blue-50/50 border-blue-200 p-4">
             <div className="flex items-center justify-between gap-3 flex-wrap">
               <div>
-                <div className="text-xs text-blue-700 font-medium">יתרה החודש</div>
+                <div className="text-xs text-blue-700 font-medium">נותרו החודש</div>
                 <div className="text-2xl font-bold text-blue-800">
                   {balance ? `${balance.monthlyRemaining}/${balance.monthlyQuota}` : "—"}
                 </div>
@@ -9272,77 +9307,7 @@ function SmsBulkCard() {
                 רכוש חבילה נוספת
               </Button>
             </div>
-            {!((profile as any)?.hasTranzilaToken) && (
-              <div className="mt-3 pt-3 border-t border-blue-200/60 text-[11px] text-blue-600/80">
-                💳 אין טוקן שמור — רכישת חבילה תדרוש תחילה תשלום ראשון דרך ה-iframe של המנוי.
-              </div>
-            )}
           </div>
-
-          {/* Composer */}
-          <div className="space-y-2">
-            <Label>רשימת נמענים</Label>
-            <div className="flex gap-2 flex-wrap">
-              <Button size="sm" variant={recipientScope === "manual" ? "default" : "outline"}
-                onClick={() => setRecipientScope("manual")}>
-                בחירה ידנית
-              </Button>
-              <Button size="sm" variant={recipientScope === "all" ? "default" : "outline"}
-                onClick={() => setRecipientScope("all")} disabled>
-                כל הלקוחות (בקרוב)
-              </Button>
-              <Button size="sm" variant={recipientScope === "dormant_30" ? "default" : "outline"}
-                onClick={() => setRecipientScope("dormant_30")} disabled>
-                לא הזמינו ב-30 יום (בקרוב)
-              </Button>
-            </div>
-            {recipientScope === "manual" && (
-              <Textarea
-                rows={3}
-                placeholder="0501234567, 0547654321, 0533334444"
-                value={manualRecipients}
-                onChange={e => setManualRecipients(e.target.value)}
-                className="font-mono text-sm"
-                dir="ltr"
-              />
-            )}
-          </div>
-
-          <div className="space-y-2">
-            <Label>הודעה</Label>
-            <Textarea
-              rows={4}
-              maxLength={160}
-              placeholder="הי! יש לנו הטבה חדשה החודש..."
-              value={messageText}
-              onChange={e => setMessageText(e.target.value)}
-            />
-            <div className="text-xs text-muted-foreground flex justify-between">
-              <span>{messageText.length}/160 תווים</span>
-              <span>נמענים: {recipientCount}</span>
-            </div>
-          </div>
-
-          {overQuota && (
-            <div className="rounded-xl border-2 border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">
-              אתה שולח יותר מהכמות שנשארה לך לרכוש, רכוש סמסים נוספים{" "}
-              <button
-                type="button"
-                onClick={() => setPurchaseOpen(true)}
-                className="underline font-semibold text-amber-700 hover:text-amber-900"
-              >
-                לחץ כאן
-              </button>
-            </div>
-          )}
-
-          <Button
-            className="w-full"
-            onClick={handleSend}
-            disabled={sending || overQuota || recipientCount === 0 || !messageText.trim()}
-          >
-            {sending ? "שולח..." : `שלח ל-${recipientCount} נמענים`}
-          </Button>
         </CardContent>
       </Card>
 
