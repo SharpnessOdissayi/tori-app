@@ -3740,13 +3740,79 @@ function ServicesTab() {
 
   const activeServices = Array.isArray(services) ? services.filter(s => s.isActive) : [];
   const isPro = profile?.subscriptionPlan !== "free";
+  const isProPlusPlan = profile?.subscriptionPlan === "pro-plus";
   const atLimit = !isPro && activeServices.length >= FREE_SERVICE_LIMIT;
+
+  // Staff-assignment state — עסקי only. Owner picks which staff perform
+  // the service via a checkbox list in the form. Empty set = every staff
+  // can perform (matches the backend fallback in GET /services).
+  const bizToken = typeof window !== "undefined"
+    ? (localStorage.getItem("biz_token") ?? sessionStorage.getItem("biz_token") ?? "")
+    : "";
+  const [allStaff, setAllStaff] = useState<Array<{ id: number; name: string; isOwner: boolean; isActive: boolean }>>([]);
+  const [selectedStaffIds, setSelectedStaffIds] = useState<Set<number>>(new Set());
+
+  // Load the staff roster once when the form opens for the first time
+  // on this render of the tab — cheap to leave in a useEffect that
+  // only fires while the form is visible.
+  useEffect(() => {
+    if (!(isAdding || editingId) || !isProPlusPlan || !bizToken) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch("/api/staff", { headers: { Authorization: `Bearer ${bizToken}` } });
+        if (!res.ok) return;
+        const json = await res.json();
+        if (cancelled) return;
+        setAllStaff(Array.isArray(json) ? json : []);
+      } catch {}
+    })();
+    return () => { cancelled = true; };
+  }, [isAdding, editingId, isProPlusPlan, bizToken]);
+
+  // When the owner opens the EDIT form, fetch the current staff list
+  // for that service so the checkboxes start in the right state.
+  useEffect(() => {
+    if (!editingId || !isProPlusPlan || !bizToken) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch(`/api/business/services/${editingId}/staff`, {
+          headers: { Authorization: `Bearer ${bizToken}` },
+        });
+        if (!res.ok) return;
+        const json = await res.json();
+        if (cancelled) return;
+        const ids: number[] = Array.isArray(json?.staffIds) ? json.staffIds : [];
+        setSelectedStaffIds(new Set(ids));
+      } catch {}
+    })();
+    return () => { cancelled = true; };
+  }, [editingId, isProPlusPlan, bizToken]);
 
   const reset = () => {
     setForm({ name: "", price: "", priceStartsFrom: false, durationHours: "0", durationMinutes: "30", bufferMinutes: "0", isActive: true, imageUrl: "", description: "", color: "" });
     setIsAdding(false);
     setEditingId(null);
+    setSelectedStaffIds(new Set());
     imageUpload.reset?.();
+  };
+
+  // Fire the service→staff link sync after a successful create/update.
+  // Fire-and-forget at the UI level; the backend replaces the whole
+  // set in one call so partial failures are impossible.
+  const syncServiceStaff = async (serviceId: number) => {
+    if (!isProPlusPlan || !bizToken) return;
+    try {
+      await fetch(`/api/business/services/${serviceId}/staff`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${bizToken}` },
+        body: JSON.stringify({ staffIds: Array.from(selectedStaffIds) }),
+      });
+    } catch {
+      // non-blocking; the service itself was already saved.
+      toast({ title: "אזהרה", description: "שמירת רשימת אנשי הצוות נכשלה — נסה/י שוב מחלון העריכה.", variant: "destructive" });
+    }
   };
 
   const handleSave = async (e: React.FormEvent) => {
@@ -3767,6 +3833,9 @@ function ServicesTab() {
     if (editingId) {
       updateMutation.mutate({ id: editingId, data: { ...data, isActive: form.isActive } as any }, {
         onSuccess: async () => {
+          // Sync the staff link-set right after the row is updated.
+          // Fire-and-forget; parity with create flow below.
+          await syncServiceStaff(editingId);
           toast({ title: "עודכן" });
           await queryClient.invalidateQueries({ queryKey: getListBusinessServicesQueryKey(), refetchType: "active" });
           reset();
@@ -3781,7 +3850,13 @@ function ServicesTab() {
       });
     } else {
       createMutation.mutate({ data }, {
-        onSuccess: () => { toast({ title: "נוסף" }); queryClient.invalidateQueries({ queryKey: getListBusinessServicesQueryKey() }); reset(); },
+        onSuccess: async (created: any) => {
+          // New service has an id now — push the staff links through.
+          if (created?.id) await syncServiceStaff(created.id);
+          toast({ title: "נוסף" });
+          queryClient.invalidateQueries({ queryKey: getListBusinessServicesQueryKey() });
+          reset();
+        },
         onError: (err: any) => {
           const msg = err?.response?.data?.message ?? "שגיאה בהוספת שירות";
           toast({ title: "לא ניתן להוסיף שירות", description: msg, variant: "destructive" });
@@ -3967,6 +4042,67 @@ function ServicesTab() {
                 </div>
               )}
             </div>
+
+            {/* Staff-assignment multi-select — עסקי only. Owner picks
+                which team members perform this service. Empty = every
+                staff can perform it (matches the server-side fallback
+                in GET /services when no per-staff rows exist). */}
+            {isProPlusPlan && allStaff.filter(s => s.isActive && !s.isOwner).length > 0 && (
+              <div className="space-y-2 sm:col-span-2 pt-3 border-t">
+                <div className="flex items-center justify-between">
+                  <Label>אנשי צוות שמבצעים את השירות</Label>
+                  <div className="flex items-center gap-2 text-xs">
+                    <button
+                      type="button"
+                      onClick={() => setSelectedStaffIds(new Set(allStaff.filter(s => s.isActive && !s.isOwner).map(s => s.id)))}
+                      className="text-primary hover:underline"
+                    >
+                      סמן הכל
+                    </button>
+                    <span className="text-muted-foreground">·</span>
+                    <button
+                      type="button"
+                      onClick={() => setSelectedStaffIds(new Set())}
+                      className="text-muted-foreground hover:underline"
+                    >
+                      נקה
+                    </button>
+                  </div>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 max-h-48 overflow-y-auto border rounded-xl p-2 bg-background">
+                  {allStaff
+                    .filter(s => s.isActive && !s.isOwner)
+                    .map(s => {
+                      const checked = selectedStaffIds.has(s.id);
+                      return (
+                        <label
+                          key={s.id}
+                          className="flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-muted/40 cursor-pointer"
+                        >
+                          <input
+                            type="checkbox"
+                            checked={checked}
+                            onChange={() => {
+                              setSelectedStaffIds(prev => {
+                                const next = new Set(prev);
+                                if (next.has(s.id)) next.delete(s.id);
+                                else next.add(s.id);
+                                return next;
+                              });
+                            }}
+                            className="w-4 h-4 accent-primary cursor-pointer"
+                          />
+                          <span className="text-sm flex-1 truncate" dir="auto">{s.name}</span>
+                        </label>
+                      );
+                    })}
+                </div>
+                <p className="text-[11px] text-muted-foreground">
+                  ריק = כל הצוות יכול לבצע את השירות. סמן/י כדי להגביל לאנשי צוות ספציפיים.
+                </p>
+              </div>
+            )}
+
             <div className="flex gap-2 justify-end pt-2">
               <button type="button" onClick={reset}
                 className="px-4 py-2 rounded-xl text-sm font-medium border border-border bg-muted/40 hover:bg-muted text-muted-foreground transition-all">

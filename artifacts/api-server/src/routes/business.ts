@@ -601,6 +601,75 @@ router.post("/business/services", requireBusinessAuth, async (req, res): Promise
   res.status(201).json({ ...service, createdAt: service.createdAt.toISOString() });
 });
 
+// ─── GET  /business/services/:id/staff ────────────────────────────────────
+// ─── POST /business/services/:id/staff ────────────────────────────────────
+// Inverse of /api/staff/:id/services — instead of 'set the services
+// this staff performs', this is 'set which staff perform this service'.
+// Owner-only; body is { staffIds: number[] }. Empty array = 'every
+// staff can perform this service' (matches the staff-side fallback in
+// GET /services).
+router.get("/business/services/:id/staff", requireBusinessAuth, async (req, res): Promise<void> => {
+  const serviceId = Number(req.params.id);
+  if (!serviceId || isNaN(serviceId)) { res.status(400).json({ error: "Invalid id" }); return; }
+  // Verify service belongs to this business before leaking links.
+  const [svc] = await db.select({ id: servicesTable.id }).from(servicesTable)
+    .where(and(eq(servicesTable.id, serviceId), eq(servicesTable.businessId, req.business!.businessId)));
+  if (!svc) { res.status(404).json({ error: "Service not found" }); return; }
+  const { staffServicesTable } = await import("@workspace/db");
+  const links = await db
+    .select({ staffMemberId: staffServicesTable.staffMemberId })
+    .from(staffServicesTable)
+    .where(eq(staffServicesTable.serviceId, serviceId));
+  res.json({ staffIds: links.map(l => l.staffMemberId) });
+});
+
+router.post("/business/services/:id/staff", requireBusinessAuth, async (req, res): Promise<void> => {
+  if (req.business!.staffMemberId) {
+    res.status(403).json({ error: "owner_only", message: "הפעולה אינה זמינה." });
+    return;
+  }
+  const serviceId = Number(req.params.id);
+  if (!serviceId || isNaN(serviceId)) { res.status(400).json({ error: "Invalid id" }); return; }
+  const body = req.body as { staffIds?: unknown };
+  const staffIds = Array.isArray(body?.staffIds)
+    ? (body!.staffIds as unknown[]).filter((x): x is number => typeof x === "number" && x > 0)
+    : null;
+  if (staffIds === null) { res.status(400).json({ error: "Invalid body" }); return; }
+
+  // Verify service belongs to this business.
+  const [svc] = await db.select({ id: servicesTable.id }).from(servicesTable)
+    .where(and(eq(servicesTable.id, serviceId), eq(servicesTable.businessId, req.business!.businessId)));
+  if (!svc) { res.status(404).json({ error: "Service not found" }); return; }
+
+  const { staffServicesTable, staffMembersTable } = await import("@workspace/db");
+  // Only accept staff ids that actually belong to this business —
+  // rejects a spoof that submits a staffId from another business.
+  if (staffIds.length > 0) {
+    const valid = await db
+      .select({ id: staffMembersTable.id })
+      .from(staffMembersTable)
+      .where(and(
+        eq(staffMembersTable.businessId, req.business!.businessId),
+      ));
+    const validSet = new Set(valid.map(r => r.id));
+    for (const sid of staffIds) {
+      if (!validSet.has(sid)) {
+        res.status(400).json({ error: "Invalid staff id", staffMemberId: sid });
+        return;
+      }
+    }
+  }
+
+  // Replace: wipe all existing links for this service, insert the new set.
+  await db.delete(staffServicesTable).where(eq(staffServicesTable.serviceId, serviceId));
+  if (staffIds.length > 0) {
+    await db.insert(staffServicesTable).values(
+      staffIds.map(sid => ({ serviceId, staffMemberId: sid }))
+    );
+  }
+  res.json({ ok: true, staffIds });
+});
+
 router.patch("/business/services/:id", requireBusinessAuth, async (req, res): Promise<void> => {
   if (req.business!.staffMemberId) {
     res.status(403).json({ error: "owner_only", message: "הפעולה אינה זמינה." });
