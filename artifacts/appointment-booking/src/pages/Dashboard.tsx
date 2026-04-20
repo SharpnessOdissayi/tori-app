@@ -2393,7 +2393,7 @@ function WeeklyCalendar({ appointments }: { appointments: WeeklyAppt[] }) {
 // is scannable and the rest is one tap away.
 const UPCOMING_PAGE_SIZE = 3;
 function UpcomingAppointmentsCard({
-  items, genderByPhone, onCancel, cancelling,
+  items, genderByPhone, onCancel, cancelling, onAppointmentClick,
 }: {
   items: Array<{
     id: number;
@@ -2408,6 +2408,12 @@ function UpcomingAppointmentsCard({
   genderByPhone: Map<string, string>;
   onCancel: (id: number) => void;
   cancelling: boolean;
+  // Optional: when the whole card (not the × cancel button) is
+  // clicked, the owner probably wants to "see this on the calendar".
+  // Parent wires this to jump to the appointments tab and pulse the
+  // matching slot in BusinessCalendar so the owner immediately spots
+  // it among the week's bookings.
+  onAppointmentClick?: (id: number, date: string) => void;
 }) {
   const [page, setPage] = useState(0);
   const totalPages = Math.max(1, Math.ceil(items.length / UPCOMING_PAGE_SIZE));
@@ -2431,7 +2437,12 @@ function UpcomingAppointmentsCard({
         {pageItems.length ? (
           <div className="space-y-3">
             {pageItems.map(apt => (
-              <div key={apt.id} className="flex flex-col sm:flex-row justify-between items-start sm:items-center p-4 border rounded-xl bg-card gap-3 hover:border-primary/40 transition-colors">
+              <div
+                key={apt.id}
+                className={`flex flex-col sm:flex-row justify-between items-start sm:items-center p-4 border rounded-xl bg-card gap-3 hover:border-primary/40 transition-colors ${onAppointmentClick ? "cursor-pointer" : ""}`}
+                onClick={() => onAppointmentClick?.(apt.id, apt.appointmentDate)}
+                role={onAppointmentClick ? "button" : undefined}
+              >
                 <div className="flex-1 min-w-0">
                   <div className="font-semibold flex items-center gap-2 flex-wrap">
                     <GenderMark gender={genderByPhone.get(apt.phoneNumber)} />
@@ -2450,7 +2461,7 @@ function UpcomingAppointmentsCard({
                   )}
                 </div>
                 <button
-                  onClick={() => onCancel(apt.id)} disabled={cancelling}
+                  onClick={e => { e.stopPropagation(); onCancel(apt.id); }} disabled={cancelling}
                   className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-red-50 hover:bg-red-100 text-red-500 border border-red-100 transition-all disabled:opacity-60"
                 >
                   <X className="w-3.5 h-3.5" /> ביטול
@@ -3416,6 +3427,17 @@ function HomeTab({ onJump }: { onJump: (tab: string) => void }) {
         genderByPhone={genderByPhone}
         onCancel={handleCancel}
         cancelling={cancelMutation.isPending}
+        onAppointmentClick={(id) => {
+          // Park the id in sessionStorage; BusinessCalendar picks it
+          // up on mount (triggered by the tab switch below), jumps the
+          // cursor to the appointment's date, scrolls to the matching
+          // slot, and pulses the card for 3 seconds so the owner
+          // instantly sees where it sits in the week.
+          try {
+            sessionStorage.setItem("kavati_cal_highlight_id", String(id));
+          } catch {}
+          onJump("appointments");
+        }}
       />
 
       {/* Pending approvals shortcut */}

@@ -813,7 +813,7 @@ function laneRect(lane: number, laneCount: number) {
 }
 
 function ApptCard({
-  appt, top, height, isDragging, onPointerDown, onClick, serviceColor, lane = 0, laneCount = 1,
+  appt, top, height, isDragging, onPointerDown, onClick, serviceColor, lane = 0, laneCount = 1, isHighlighted = false,
 }: {
   appt: CalAppt;
   top: number;
@@ -824,7 +824,19 @@ function ApptCard({
   serviceColor?: string | null;
   lane?: number;
   laneCount?: number;
+  // When true, renders with a pulsing primary-coloured ring and
+  // scrolls itself into view — triggered by the home-tab "jump to
+  // this appointment in the calendar" click.
+  isHighlighted?: boolean;
 }) {
+  // Scroll-into-view on the first render where the highlight is on.
+  // Centres the card in the scrolling calendar container so the owner
+  // sees it immediately regardless of where the cursor was before.
+  const selfRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!isHighlighted) return;
+    selfRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+  }, [isHighlighted]);
   const tone = statusTone(appt.status);
 
   // A resolved service colour wins over the status-tone default for
@@ -866,11 +878,12 @@ function ApptCard({
 
   return (
     <div
+      ref={selfRef}
       role="button"
       data-cal-drag="1"
       onPointerDown={onPointerDown}
       onClick={onClick}
-      className={`${className} ${isDragging ? "opacity-70 ring-2 ring-primary" : ""}`}
+      className={`${className} ${isDragging ? "opacity-70 ring-2 ring-primary" : ""} ${isHighlighted ? "ring-4 ring-primary/80 ring-offset-2 animate-pulse" : ""}`}
       style={customStyle}
     >
       {/* Let names + service + time wrap to multiple lines — owner
@@ -1027,7 +1040,7 @@ function TimeOffBlock({
 }
 
 function TimeGrid({
-  days, appts, timeOff, workingHours, onApptClick, onReschedule, serviceColors, onPickSlot, onTimeOffClick, onTimeOffReschedule,
+  days, appts, timeOff, workingHours, onApptClick, onReschedule, serviceColors, onPickSlot, onTimeOffClick, onTimeOffReschedule, highlightApptId,
 }: {
   days: Date[];
   appts: CalAppt[];
@@ -1048,6 +1061,10 @@ function TimeGrid({
   // Called after the owner drags a time-off block to a new date/time.
   // newStartTime/newEndTime are null for full-day items (date only).
   onTimeOffReschedule?: (t: TimeOffItem, newDate: string, newStartTime: string | null, newEndTime: string | null) => void;
+  // When set, the ApptCard whose id matches renders with a pulsing
+  // ring + scroll-into-view (driven by the home-tab "jump to
+  // calendar" click). Cleared by the parent after ~3s.
+  highlightApptId?: number | null;
 }) {
   const holidays = useHolidaysInRange(days[0], days[days.length - 1]);
   const today = new Date();
@@ -1305,6 +1322,7 @@ function TimeGrid({
                     serviceColor={a.serviceId != null ? serviceColors?.[a.serviceId] : null}
                     onPointerDown={e => onPointerDown(e, a, null)}
                     onClick={e => { if (isDragging) return; e.stopPropagation(); onApptClick(a); }}
+                    isHighlighted={highlightApptId != null && a.id === highlightApptId}
                   />
                 );
               })}
@@ -1557,6 +1575,37 @@ export function BusinessCalendar({
 }) {
   const [view, setView] = useState<View>("week");
   const [cursor, setCursor] = useState<Date>(new Date());
+
+  // "Highlight an appointment on the calendar" — set by the home tab
+  // when the owner taps an upcoming-appointment row. We read the id
+  // out of sessionStorage on mount (the tab switch would otherwise
+  // remount this component with no direct prop from the home tab),
+  // jump the cursor to the matching date, and keep the id in state
+  // for 3 seconds so the matching card can render with a pulse ring.
+  const [highlightApptId, setHighlightApptId] = useState<number | null>(null);
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const idRaw = sessionStorage.getItem("kavati_cal_highlight_id");
+    if (!idRaw) return;
+    const id = Number(idRaw);
+    if (!Number.isFinite(id)) { sessionStorage.removeItem("kavati_cal_highlight_id"); return; }
+    // Find the appointment in the current list; if it's not there
+    // yet (data still loading) bail out — the effect will retry on
+    // the next `appointments` change thanks to the dep array below.
+    const match = appointments.find(a => a.id === id);
+    if (!match) return;
+    try {
+      const [y, m, d] = match.appointmentDate.split("-").map(Number);
+      setCursor(new Date(y, (m || 1) - 1, d || 1));
+    } catch {}
+    setView("day");
+    setHighlightApptId(id);
+    sessionStorage.removeItem("kavati_cal_highlight_id");
+    // Clear the highlight after 3 seconds so the pulse doesn't loop
+    // forever — the owner has seen where it is.
+    const t = setTimeout(() => setHighlightApptId(null), 3000);
+    return () => clearTimeout(t);
+  }, [appointments]);
   // Optional staff filter — read from sessionStorage when the owner
   // clicked "צפה ביומן של X" in StaffTab. A filter chip sits above the
   // calendar header; tapping the × removes it. We reread on mount only
@@ -1846,6 +1895,7 @@ export function BusinessCalendar({
             onTimeOffReschedule={onTimeOffReschedule ? (item, nd, nst, net) => setPendingTimeOffReschedule({ item, newDate: nd, newStartTime: nst, newEndTime: net }) : undefined}
             onReschedule={(a, nd, nt) => setPendingReschedule({ appt: a, newDate: nd, newTime: nt })}
             onPickSlot={onNewAppointment ? (date, time) => onNewAppointment({ date, time }) : undefined}
+            highlightApptId={highlightApptId}
           />
         )}
         {view === "day" && (
@@ -1860,6 +1910,7 @@ export function BusinessCalendar({
             onTimeOffReschedule={onTimeOffReschedule ? (item, nd, nst, net) => setPendingTimeOffReschedule({ item, newDate: nd, newStartTime: nst, newEndTime: net }) : undefined}
             onReschedule={(a, nd, nt) => setPendingReschedule({ appt: a, newDate: nd, newTime: nt })}
             onPickSlot={onNewAppointment ? (date, time) => onNewAppointment({ date, time }) : undefined}
+            highlightApptId={highlightApptId}
           />
         )}
       </div>

@@ -10,9 +10,14 @@ export const BusinessRegisterBody = zod.object({
   username: zod.string().optional(),
   ownerName: zod.string(),
   phone: zod.string(),
-  email: zod.string(),
+  // Email is optional — phone-based SMS-OTP registration is the
+  // primary flow and owners can attach a real email later from
+  // Settings → Profile. Backend synthesises a unique placeholder
+  // from the slug when none is provided (see auth.ts:309).
+  email: zod.string().optional(),
   password: zod.string().min(1),
-  subscriptionPlan: zod.enum(["free", "pro"]),
+  // 'pro-plus' is the עסקי tier; the signup form can choose it too.
+  subscriptionPlan: zod.enum(["free", "pro", "pro-plus"]),
   businessCategories: zod.array(zod.string()).optional(),
   address: zod.string().optional(),
   websiteUrl: zod.string().optional(),
