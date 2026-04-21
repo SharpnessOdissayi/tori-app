@@ -1705,18 +1705,21 @@ export default function Book({ slugOverride }: { slugOverride?: string } = {}) {
           </DialogContent>
         </Dialog>
 
-        {/* Hero banner — mobile shows the image edge-to-edge at its own
-            aspect ratio so nothing gets cropped. On desktop the banner
-            used to stretch to the full viewport (1920px+) which made
-            huge uploads look absurd; we now cap it at max-w-3xl and
-            max-h-[340px] with object-cover so wide/tall uploads still
-            look like a hero rather than a full-page poster. */}
+        {/* Hero banner — always rendered at the image's natural aspect
+            ratio (w-full + h-auto) so nothing gets cropped, regardless
+            of what the owner uploaded (portrait, square, wide). On
+            desktop we cap the width at max-w-3xl + centered so the
+            banner doesn't stretch across a 1920px viewport and look
+            absurd; the height follows from the aspect ratio. An earlier
+            attempt at object-cover + max-h inside this viewport cropped
+            the top of portrait banners (reported bug — the subject's
+            head disappeared on desktop), so the height cap is gone. */}
         <div className="relative sm:max-w-3xl sm:mx-auto">
           {showBanner && bannerUrl ? (
             <img
               src={bannerUrl}
               alt={business.name}
-              className="w-full h-auto sm:max-h-[340px] sm:object-cover"
+              className="w-full h-auto"
               style={{ objectPosition: bannerPosition }}
             />
           ) : (
