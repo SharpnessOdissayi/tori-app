@@ -164,7 +164,7 @@ router.patch("/super-admin/businesses/:id", async (req, res): Promise<void> => {
     updates.subscriptionPlan = bodyParsed.data.subscriptionPlan;
     // Realign the SMS quota to the new tier. Doesn't reset the cycle —
     // an owner on Pro (100/month) upgraded to עסקי mid-cycle should see
-    // the extra 400 credits immediately without waiting for the next
+    // the extra 200 credits immediately without waiting for the next
     // reset. Downgrades keep the overage usable for the rest of the
     // cycle (standard: don't claw back mid-period).
     if (bodyParsed.data.subscriptionPlan === "pro-plus") {

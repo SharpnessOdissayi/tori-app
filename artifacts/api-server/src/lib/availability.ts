@@ -1,4 +1,4 @@
-import { db, workingHoursTable, breakTimesTable, appointmentsTable, timeOffTable } from "@workspace/db";
+import { db, workingHoursTable, breakTimesTable, appointmentsTable, timeOffTable, staffMembersTable } from "@workspace/db";
 import { eq, and, or, isNull, sql } from "drizzle-orm";
 
 function timeToMinutes(time: string): number {
@@ -25,6 +25,46 @@ function dayOfWeekFromISO(dateStr: string): number {
   return new Date(Date.UTC(y, (m ?? 1) - 1, d ?? 1)).getUTCDay();
 }
 
+/**
+ * Compute which rotation week (1..weeksCount) a target date falls on,
+ * given the staff's rotation anchor.
+ *
+ * The anchor_date defines a reference week whose rotation index is
+ * `anchorWeekIndex`. Weeks advance by 1 each Sunday → Saturday boundary,
+ * and wrap back to 1 after `weeksCount`.
+ *
+ * Both anchor and target are normalised to the Sunday of their week so
+ * a mid-week anchor (e.g. "I set this up on Wednesday of week 3")
+ * still yields the correct rotation week for every day of that week.
+ *
+ * Example: anchor=2026-04-22 (a Wednesday), anchorWeekIndex=3, weeksCount=4
+ *   · target 2026-04-20 (Mon of same week) → 3
+ *   · target 2026-04-26 (Sun of next week) → 4
+ *   · target 2026-05-03 (two weeks out)    → 1
+ *   · target 2026-05-17 (four weeks out)   → 3 (cycle repeats)
+ */
+export function computeRotationWeekIndex(
+  targetDate: string,
+  anchorDate: string,
+  anchorWeekIndex: number,
+  weeksCount: number,
+): number {
+  const parse = (s: string) => {
+    const [y, m, d] = s.split("-").map(Number);
+    return Date.UTC(y, (m ?? 1) - 1, d ?? 1);
+  };
+  const DAY_MS = 86_400_000;
+  const anchorUTC = parse(anchorDate);
+  const targetUTC = parse(targetDate);
+  // Normalise both to Sunday-of-week (Sunday = getUTCDay 0 in the ISO week we use).
+  const anchorSunday = anchorUTC - new Date(anchorUTC).getUTCDay() * DAY_MS;
+  const targetSunday = targetUTC - new Date(targetUTC).getUTCDay() * DAY_MS;
+  const weeksDiff = Math.round((targetSunday - anchorSunday) / (7 * DAY_MS));
+  // (anchorIdx - 1 + diff) mod N, then +1 back to 1-based; handle negatives.
+  const zeroBased = ((anchorWeekIndex - 1 + weeksDiff) % weeksCount + weeksCount) % weeksCount;
+  return zeroBased + 1;
+}
+
 export async function computeAvailableSlots(
   businessId: number,
   date: string,
@@ -42,10 +82,53 @@ export async function computeAvailableSlots(
 ): Promise<{ time: string; available: boolean }[]> {
   const dayOfWeek = dayOfWeekFromISO(date);
 
+  // If the staff has a rotation configured, figure out which week of the
+  // cycle the target date falls on — working_hours rows tagged with that
+  // rotation_week_index win over the non-rotation fallback rows.
+  let rotationWeekIndex: number | null = null;
+  if (staffMemberId) {
+    const [staff] = await db
+      .select({
+        weeksCount:     (staffMembersTable as any).rotationWeeksCount,
+        anchorDate:     (staffMembersTable as any).rotationAnchorDate,
+        anchorWeekIdx:  (staffMembersTable as any).rotationAnchorWeekIndex,
+      })
+      .from(staffMembersTable)
+      .where(eq(staffMembersTable.id, staffMemberId));
+    if (staff?.weeksCount && staff?.anchorDate && staff?.anchorWeekIdx) {
+      rotationWeekIndex = computeRotationWeekIndex(
+        date, staff.anchorDate, staff.anchorWeekIdx, staff.weeksCount,
+      );
+    }
+  }
+
   // Prefer per-staff hours when a staff is specified. If none exist for
   // this day, fall back to the business-level row (staff_member_id IS NULL).
+  // When rotation is active we first look for a row tagged with the current
+  // rotation_week_index; failing that we use the staff's non-rotation row
+  // (NULL rotation_week_index), then the business-level default.
   let workingHour: typeof workingHoursTable.$inferSelect | undefined;
-  if (staffMemberId) {
+  if (staffMemberId && rotationWeekIndex != null) {
+    const [rotHour] = await db
+      .select()
+      .from(workingHoursTable)
+      .where(
+        and(
+          eq(workingHoursTable.businessId, businessId),
+          eq(workingHoursTable.dayOfWeek, dayOfWeek),
+          eq((workingHoursTable as any).staffMemberId, staffMemberId),
+          eq((workingHoursTable as any).rotationWeekIndex, rotationWeekIndex),
+        )
+      );
+    workingHour = rotHour;
+  }
+  // Only fall back to the staff's non-rotation row when rotation ISN'T
+  // active. If rotation is active the PUT endpoint always inserts all
+  // 7×N rows, so a miss on the rotation query means "this day is a day
+  // off in that week" — NOT "use the staff's standard hours". Falling
+  // back here would re-open a day the owner explicitly disabled in the
+  // rotation editor.
+  if (!workingHour && staffMemberId && rotationWeekIndex == null) {
     const [staffHour] = await db
       .select()
       .from(workingHoursTable)
@@ -54,11 +137,16 @@ export async function computeAvailableSlots(
           eq(workingHoursTable.businessId, businessId),
           eq(workingHoursTable.dayOfWeek, dayOfWeek),
           eq((workingHoursTable as any).staffMemberId, staffMemberId),
+          isNull((workingHoursTable as any).rotationWeekIndex),
         )
       );
     workingHour = staffHour;
   }
-  if (!workingHour) {
+  // Business-level default fallback — same gating as the staff row
+  // fallback above. When rotation is active the staff's rotation rows
+  // are authoritative: missing data there means "closed", not "use the
+  // business default".
+  if (!workingHour && rotationWeekIndex == null) {
     const [defaultHour] = await db
       .select()
       .from(workingHoursTable)
@@ -67,6 +155,7 @@ export async function computeAvailableSlots(
           eq(workingHoursTable.businessId, businessId),
           eq(workingHoursTable.dayOfWeek, dayOfWeek),
           isNull((workingHoursTable as any).staffMemberId),
+          isNull((workingHoursTable as any).rotationWeekIndex),
         )
       );
     workingHour = defaultHour;

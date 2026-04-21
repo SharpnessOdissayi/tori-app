@@ -140,7 +140,7 @@ export const businessesTable = pgTable("businesses", {
   latitude:  text("latitude"),
   longitude: text("longitude"),
   // ─── Bulk-SMS (Inforu) quota ─────────────────────────────────────────────
-  // Each paid tier includes a monthly SMS allotment (Pro = 100, עסקי = 500);
+  // Each paid tier includes a monthly SMS allotment (Pro = 100, עסקי = 300);
   // Free has 0 but can't send bulk anyway. `smsUsedThisPeriod` increments
   // on every successful send, resets when `smsResetDate` passes.
   // `smsExtraBalance` is topped up by pack purchases and carries over

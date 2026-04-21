@@ -50,6 +50,22 @@ export const staffMembersTable = pgTable("staff_members", {
   // Timestamp of the last time we sent the welcome email (for "resend
   // credentials" idempotency + rate-limit on the owner-UI side).
   credentialsSentAt: timestamp("credentials_sent_at", { withTimezone: true }),
+  // ─── Rotation schedule (optional N-week repeating cycle) ─────────────
+  // Three columns that together describe "which rotation week is week X"
+  // for a given target date — see availability.ts for the math.
+  //   · rotationWeeksCount     : N (2, 3, 4…). NULL = rotation disabled.
+  //   · rotationAnchorDate     : a YYYY-MM-DD date (the Sunday of the
+  //                              week that anchorWeekIndex refers to).
+  //                              Usually today's Sunday at setup time.
+  //   · rotationAnchorWeekIndex: 1..N — which rotation week the anchor
+  //                              week is. Lets the owner say "I'm
+  //                              currently in week 3 of a 4-week cycle".
+  // Corresponding hours live on working_hours rows keyed by
+  // rotation_week_index (1..N). All three must be non-NULL for
+  // rotation to be considered active.
+  rotationWeeksCount:      integer("rotation_weeks_count"),
+  rotationAnchorDate:      text("rotation_anchor_date"),
+  rotationAnchorWeekIndex: integer("rotation_anchor_week_index"),
   createdAt:  timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 

@@ -1724,16 +1724,18 @@ export default function Book({ slugOverride }: { slugOverride?: string } = {}) {
           </DialogContent>
         </Dialog>
 
-        {/* Hero banner — image shows at its own aspect ratio (w-full + h-auto)
-            so no content gets cropped on mobile. Placeholder falls back to
-            the old 224px strip since there's no intrinsic height to pull
-            from when no banner has been uploaded. */}
-        <div className="relative">
+        {/* Hero banner — mobile shows the image edge-to-edge at its own
+            aspect ratio so nothing gets cropped. On desktop the banner
+            used to stretch to the full viewport (1920px+) which made
+            huge uploads look absurd; we now cap it at max-w-3xl and
+            max-h-[340px] with object-cover so wide/tall uploads still
+            look like a hero rather than a full-page poster. */}
+        <div className="relative sm:max-w-3xl sm:mx-auto">
           {showBanner && bannerUrl ? (
             <img
               src={bannerUrl}
               alt={business.name}
-              className="w-full h-auto"
+              className="w-full h-auto sm:max-h-[340px] sm:object-cover"
               style={{ objectPosition: bannerPosition }}
             />
           ) : (

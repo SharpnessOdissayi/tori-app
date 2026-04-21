@@ -286,7 +286,7 @@ router.post("/tranzila/notify", async (req, res): Promise<void> => {
 
         // Trial → paid conversion: bump the bulk-SMS monthly quota from
         // the trial-time 50 up to the paid-tier allowance (100 for פרו,
-        // 500 for עסקי). Don't touch if they've already paid — that
+        // 300 for עסקי). Don't touch if they've already paid — that
         // case re-enters this block from a recurring monthly charge and
         // the quota is already correct.
         const [bizBefore] = await db

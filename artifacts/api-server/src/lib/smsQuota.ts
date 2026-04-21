@@ -2,7 +2,7 @@
  * SMS quota management — Pro/עסקי monthly allotment + purchased packs.
  *
  * Lifecycle per business:
- *   - Tier upgrade / signup: quota = 0 (Free) | 100 (Pro) | 500 (עסקי).
+ *   - Tier upgrade / signup: quota = 0 (Free) | 100 (Pro) | 300 (עסקי).
  *     smsResetDate = subscriptionStartDate + 30 days.
  *   - Every send: we burn monthly first (smsUsedThisPeriod++), only falling
  *     back to smsExtraBalance once the monthly is exhausted.

@@ -319,7 +319,7 @@ router.post("/auth/business/register", async (req, res): Promise<void> => {
       passwordHash,
       // Record the tier the owner actually picked so the Tranzila notify
       // webhook (when trial → paid) knows whether to bump SMS quota to
-      // 100 (פרו) or 500 (עסקי). Earlier every signup was hard-coded
+      // 100 (פרו) or 300 (עסקי). Earlier every signup was hard-coded
       // "pro" regardless of choice, which collapsed עסקי registrations
       // down to Pro silently.
       subscriptionPlan:
@@ -332,7 +332,7 @@ router.post("/auth/business/register", async (req, res): Promise<void> => {
       subscriptionRenewDate: trialEndsAt,
       // Trial allowance = 50 bulk SMS for the 14-day window. When the
       // trial converts to a paid tier (Tranzila notify webhook), the
-      // quota is bumped to 100 (פרו) or 500 (עסקי). When the trial
+      // quota is bumped to 100 (פרו) or 300 (עסקי). When the trial
       // lapses to free, the cron sets it to 0.
       smsMonthlyQuota: 50,
       smsResetDate: trialEndsAt,

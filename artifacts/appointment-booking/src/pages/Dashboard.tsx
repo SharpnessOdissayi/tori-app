@@ -2614,6 +2614,12 @@ function AppointmentsTab({ mobileFocus }: { mobileFocus?: "calendar" | "approval
   // button in the calendar header (empty defaults) or by clicking an
   // empty slot in the day/week grid (prefilled date + time).
   const [newApptDialog, setNewApptDialog] = useState<{ open: boolean; date?: string; time?: string; tab?: "appointment" | "timeoff" }>({ open: false });
+  // Staff-only sheet for "my upcoming appointments". The card used to
+  // sit inline here for everyone, but now the calendar page is a pure
+  // calendar surface — owners see upcoming on Home. Staff has no Home
+  // tab, so they get a compact trigger that opens the same card inside
+  // a bottom sheet. `tabIsStaffMode` gates both the trigger and the sheet.
+  const [staffUpcomingOpen, setStaffUpcomingOpen] = useState(false);
 
   // Reschedule via drag: PATCH server, invalidate cache, optionally open
   // the owner's personal WhatsApp with a pre-filled message (per owner
@@ -2828,19 +2834,47 @@ function AppointmentsTab({ mobileFocus }: { mobileFocus?: "calendar" | "approval
           the Tranzila webhook either confirms them or the 15-minute
           cleanup cron cancels abandoned checkouts. */}
 
-      {/* Upcoming-appointments card. On desktop everyone sees it here;
-          on mobile the owner gets it on Home (keeps יומן a pure
-          calendar surface), but STAFF has no Home tab — so we show the
-          card here on mobile too for staff. Without this, a staff on
-          a phone had no list view of their upcoming appointments. */}
-      <div className={tabIsStaffMode ? "" : "hidden sm:block"}>
-        <UpcomingAppointmentsCard
-          items={upcoming}
-          genderByPhone={genderByPhone}
-          onCancel={handleCancel}
-          cancelling={cancelMutation.isPending}
-        />
-      </div>
+      {/* Upcoming-appointments card used to sit here for everyone.
+          Owners / admins now see it on Home only — this page is a pure
+          calendar surface. Staff has no Home tab, so we give them a
+          compact staff-only pill that opens the same card inside a
+          bottom sheet, keeping the upcoming list one tap away without
+          cluttering the calendar for anyone else. */}
+      {tabIsStaffMode && (
+        <>
+          <button
+            type="button"
+            onClick={() => setStaffUpcomingOpen(true)}
+            className="w-full flex items-center justify-between gap-2 px-4 py-3 rounded-2xl border bg-card hover:bg-accent/50 transition-colors text-right"
+          >
+            <div className="flex items-center gap-2">
+              <ListOrdered className="w-5 h-5 text-primary" />
+              <span className="font-semibold text-sm">הפגישות שלי הקרובות</span>
+              {upcoming.length > 0 && (
+                <span className="text-xs font-bold bg-primary/10 text-primary px-2 py-0.5 rounded-full">
+                  {upcoming.length}
+                </span>
+              )}
+            </div>
+            <ChevronLeft className="w-4 h-4 text-muted-foreground" />
+          </button>
+          <Sheet open={staffUpcomingOpen} onOpenChange={setStaffUpcomingOpen}>
+            <SheetContent side="bottom" className="max-h-[85vh] overflow-y-auto rounded-t-2xl" dir="rtl">
+              <SheetHeader>
+                <SheetTitle>הפגישות שלי הקרובות</SheetTitle>
+              </SheetHeader>
+              <div className="mt-4">
+                <UpcomingAppointmentsCard
+                  items={upcoming}
+                  genderByPhone={genderByPhone}
+                  onCancel={handleCancel}
+                  cancelling={cancelMutation.isPending}
+                />
+              </div>
+            </SheetContent>
+          </Sheet>
+        </>
+      )}
 
       {/* Weekly calendar — 7-day overview with Israeli holidays */}
       {/* New business calendar — month / week / day with drag-to-reschedule.
@@ -4351,6 +4385,384 @@ function BookingRestrictionsCard() {
   );
 }
 
+// ─── Rotation schedule types ──────────────────────────────────────────
+// Shared between RotationScheduleDialog, RotationConflictsDialog and
+// WorkingHoursTab. Mirrors the server's /working-hours-rotation shape.
+type RotationHourRow = { dayOfWeek: number; startTime: string; endTime: string; isEnabled: boolean };
+type RotationConfig = {
+  enabled: boolean;
+  weeksCount: number | null;
+  anchorDate: string | null;
+  anchorWeekIndex: number | null;
+  hoursByWeek: Record<string, RotationHourRow[]>;
+};
+type RotationConflict = {
+  id: number;
+  clientName: string;
+  phoneNumber: string;
+  appointmentDate: string;
+  appointmentTime: string;
+  serviceName: string;
+  rotationWeekIndex: number;
+  reason: "day_off" | "out_of_hours";
+};
+
+// Compute the Sunday of the current week as YYYY-MM-DD. Used as the
+// default anchor date when the owner first enables rotation.
+function thisSundayISO(): string {
+  const now = new Date();
+  const day = now.getDay(); // 0 = Sunday in JS
+  const sunday = new Date(now.getFullYear(), now.getMonth(), now.getDate() - day);
+  const y = sunday.getFullYear();
+  const m = String(sunday.getMonth() + 1).padStart(2, "0");
+  const d = String(sunday.getDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
+}
+
+// Build a default 7-day block for a single rotation week. Matches the
+// shape the server expects and the standard hours default (09:00–18:00,
+// Sunday–Thursday enabled).
+function defaultWeekHours(): RotationHourRow[] {
+  return [0, 1, 2, 3, 4, 5, 6].map(d => ({
+    dayOfWeek: d,
+    startTime: "09:00",
+    endTime:   "18:00",
+    isEnabled: [0, 1, 2, 3, 4].includes(d),
+  }));
+}
+
+// Dialog: configure rotation (weeks count, current week, per-week hours).
+// Controlled via `open` prop. On save, calls PUT /working-hours-rotation
+// and hands back the conflict list so the parent can surface the
+// conflicts modal.
+function RotationScheduleDialog({
+  open, onOpenChange, initial, onSaved,
+}: {
+  open: boolean;
+  onOpenChange: (v: boolean) => void;
+  initial: RotationConfig | null;
+  onSaved: (conflicts: RotationConflict[]) => void;
+}) {
+  const { toast } = useToast();
+  const [weeksCount, setWeeksCount]         = useState(2);
+  const [anchorWeekIndex, setAnchorWeekIdx] = useState(1);
+  const [anchorDate, setAnchorDate]         = useState(thisSundayISO());
+  const [hoursByWeek, setHoursByWeek]       = useState<Record<number, RotationHourRow[]>>({});
+  const [activeWeek, setActiveWeek]         = useState(1);
+  const [saving, setSaving]                 = useState(false);
+
+  // When the dialog opens, seed state from the server's current config
+  // (if any) — otherwise start from the 2-week default.
+  useEffect(() => {
+    if (!open) return;
+    const wc    = initial?.weeksCount ?? 2;
+    const awi   = initial?.anchorWeekIndex ?? 1;
+    const adate = initial?.anchorDate ?? thisSundayISO();
+    const seed: Record<number, RotationHourRow[]> = {};
+    for (let w = 1; w <= wc; w++) {
+      const existing = initial?.hoursByWeek?.[String(w)];
+      if (existing && existing.length) {
+        // Fill any missing days so the editor always shows all 7.
+        const byDay = new Map(existing.map(r => [r.dayOfWeek, r]));
+        seed[w] = [0, 1, 2, 3, 4, 5, 6].map(d => byDay.get(d) ?? {
+          dayOfWeek: d, startTime: "09:00", endTime: "18:00", isEnabled: false,
+        });
+      } else {
+        seed[w] = defaultWeekHours();
+      }
+    }
+    setWeeksCount(wc);
+    setAnchorWeekIdx(awi);
+    setAnchorDate(adate);
+    setHoursByWeek(seed);
+    setActiveWeek(1);
+  }, [open, initial]);
+
+  // When weeksCount shrinks or grows, add/drop weeks without losing
+  // the owner's work on weeks that still exist.
+  const handleWeeksCountChange = (n: number) => {
+    setWeeksCount(n);
+    setHoursByWeek(prev => {
+      const next: Record<number, RotationHourRow[]> = {};
+      for (let w = 1; w <= n; w++) next[w] = prev[w] ?? defaultWeekHours();
+      return next;
+    });
+    if (anchorWeekIndex > n) setAnchorWeekIdx(n);
+    if (activeWeek > n)      setActiveWeek(n);
+  };
+
+  const updateHour = (week: number, dow: number, patch: Partial<RotationHourRow>) => {
+    setHoursByWeek(prev => {
+      const rows = prev[week] ? [...prev[week]] : defaultWeekHours();
+      const idx = rows.findIndex(r => r.dayOfWeek === dow);
+      if (idx >= 0) rows[idx] = { ...rows[idx], ...patch };
+      return { ...prev, [week]: rows };
+    });
+  };
+
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      const token = localStorage.getItem("biz_token") || sessionStorage.getItem("biz_token");
+      const payload: any = {
+        weeksCount,
+        anchorDate,
+        anchorWeekIndex,
+        hoursByWeek: Object.fromEntries(
+          Object.entries(hoursByWeek).map(([w, rows]) => [w, rows])
+        ),
+      };
+      const res = await fetch("/api/business/working-hours-rotation", {
+        method: "PUT",
+        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err?.error ?? "שגיאה בשמירה");
+      }
+      const data = await res.json();
+      toast({ title: "הסידור המשתנה נשמר" });
+      onOpenChange(false);
+      onSaved((data?.conflicts ?? []) as RotationConflict[]);
+    } catch (e: any) {
+      toast({ title: "שגיאה", description: e?.message ?? "לא ניתן לשמור", variant: "destructive" });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const rows = hoursByWeek[activeWeek] ?? defaultWeekHours();
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto" dir="rtl">
+        <DialogHeader>
+          <DialogTitle>סידור עבודה משתנה</DialogTitle>
+          <DialogDescription>
+            הגדירו לו"ז חוזר של מספר שבועות. אחרי שהגעתם לשבוע האחרון, הסידור חוזר להתחלה אוטומטית.
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="space-y-4 pt-2">
+          {/* Weeks count */}
+          <div className="space-y-2">
+            <Label>מספר שבועות במחזור</Label>
+            <div className="flex flex-wrap gap-2">
+              {[2, 3, 4, 5, 6, 7, 8].map(n => (
+                <button
+                  key={n}
+                  type="button"
+                  onClick={() => handleWeeksCountChange(n)}
+                  className={`w-11 h-10 rounded-lg border text-sm font-semibold transition-colors ${
+                    weeksCount === n ? "bg-primary text-primary-foreground border-primary" : "bg-card hover:bg-accent"
+                  }`}
+                >
+                  {n}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Anchor: where in the cycle are we right now */}
+          <div className="space-y-2 p-3 rounded-xl border bg-muted/30">
+            <Label>באיזה שבוע של המחזור אתם נמצאים כרגע?</Label>
+            <div className="flex flex-wrap gap-2">
+              {Array.from({ length: weeksCount }, (_, i) => i + 1).map(w => (
+                <button
+                  key={w}
+                  type="button"
+                  onClick={() => setAnchorWeekIdx(w)}
+                  className={`px-4 h-10 rounded-lg border text-sm font-semibold transition-colors ${
+                    anchorWeekIndex === w ? "bg-primary text-primary-foreground border-primary" : "bg-card hover:bg-accent"
+                  }`}
+                >
+                  שבוע {w}
+                </button>
+              ))}
+            </div>
+            <div className="pt-2 space-y-1">
+              <Label className="text-xs text-muted-foreground">מתחיל מיום ראשון בתאריך</Label>
+              <Input
+                type="date"
+                value={anchorDate}
+                onChange={e => setAnchorDate(e.target.value)}
+                dir="ltr"
+                className="w-44"
+              />
+              <p className="text-xs text-muted-foreground">
+                ברירת מחדל: יום ראשון של השבוע הנוכחי. אפשר לשנות אם הסידור מתחיל בתאריך אחר.
+              </p>
+            </div>
+          </div>
+
+          {/* Week tabs */}
+          <div className="flex flex-wrap gap-1.5 border-b pb-2">
+            {Array.from({ length: weeksCount }, (_, i) => i + 1).map(w => (
+              <button
+                key={w}
+                type="button"
+                onClick={() => setActiveWeek(w)}
+                className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
+                  activeWeek === w ? "bg-primary text-primary-foreground" : "bg-muted hover:bg-accent"
+                }`}
+              >
+                שבוע {w}{anchorWeekIndex === w ? " • עכשיו" : ""}
+              </button>
+            ))}
+          </div>
+
+          {/* Hours editor for the active week */}
+          <div className="space-y-2">
+            {rows.map((h, i) => (
+              <div key={h.dayOfWeek} dir="rtl" className="flex flex-wrap items-center gap-3 p-3 border rounded-xl bg-card">
+                <span className="font-medium w-14 shrink-0">{DAYS[h.dayOfWeek]}</span>
+                {h.isEnabled ? (
+                  <div className="flex items-center gap-2">
+                    <Input
+                      type="time"
+                      value={h.startTime}
+                      onChange={e => updateHour(activeWeek, h.dayOfWeek, { startTime: e.target.value })}
+                      className="w-[7.5rem] sm:w-32"
+                      dir="ltr"
+                    />
+                    <span className="text-muted-foreground">—</span>
+                    <Input
+                      type="time"
+                      value={h.endTime}
+                      onChange={e => updateHour(activeWeek, h.dayOfWeek, { endTime: e.target.value })}
+                      className="w-[7.5rem] sm:w-32"
+                      dir="ltr"
+                    />
+                  </div>
+                ) : (
+                  <span className="text-muted-foreground text-sm">סגור</span>
+                )}
+                <Switch
+                  className="ms-auto"
+                  checked={h.isEnabled}
+                  onCheckedChange={v => updateHour(activeWeek, h.dayOfWeek, { isEnabled: v })}
+                />
+              </div>
+            ))}
+          </div>
+
+          <div className="flex justify-end gap-2 pt-2">
+            <Button variant="outline" onClick={() => onOpenChange(false)} disabled={saving}>ביטול</Button>
+            <Button onClick={handleSave} disabled={saving}>
+              {saving ? "שומר..." : "שמור סידור"}
+            </Button>
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// Dialog: lists future appointments that fell outside the new rotation.
+// Opens automatically after the rotation PUT succeeds (server returns
+// a conflicts list). Owner can cancel each one (or all) — "keep" is a
+// no-op since the appointment is already in the DB; we just stop
+// nagging about it.
+function RotationConflictsDialog({
+  open, onOpenChange, conflicts,
+}: {
+  open: boolean;
+  onOpenChange: (v: boolean) => void;
+  conflicts: RotationConflict[];
+}) {
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+  const [busyIds, setBusyIds] = useState<Set<number>>(new Set());
+  const [dismissedIds, setDismissedIds] = useState<Set<number>>(new Set());
+
+  const cancelOne = async (id: number) => {
+    setBusyIds(prev => new Set(prev).add(id));
+    try {
+      const token = localStorage.getItem("biz_token") || sessionStorage.getItem("biz_token");
+      const res = await fetch(`/api/business/appointments/${id}`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ cancelReason: "שינוי סידור עבודה", notify: false }),
+      });
+      if (!res.ok) throw new Error();
+      toast({ title: "הפגישה בוטלה" });
+      setDismissedIds(prev => new Set(prev).add(id));
+      queryClient.invalidateQueries({ queryKey: getListBusinessAppointmentsQueryKey() });
+    } catch {
+      toast({ title: "שגיאה בביטול", variant: "destructive" });
+    } finally {
+      setBusyIds(prev => { const s = new Set(prev); s.delete(id); return s; });
+    }
+  };
+
+  const cancelAll = async () => {
+    for (const c of visible) await cancelOne(c.id);
+  };
+
+  const visible = conflicts.filter(c => !dismissedIds.has(c.id));
+
+  if (!open) return null;
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-xl max-h-[85vh] overflow-y-auto" dir="rtl">
+        <DialogHeader>
+          <DialogTitle>תורים קיימים בשעות שהגדרת לא לעבוד</DialogTitle>
+          <DialogDescription>
+            יש {visible.length} תור{visible.length === 1 ? "" : "ים"} שנקבע{visible.length === 1 ? "" : "ו"} לשעות שכבר לא תעבוד/י בהן אחרי שינוי הסידור. לחצ/י "מחק" כדי לבטל, או "השאר" אם את/ה רוצה להשאיר אותו למרות הסידור החדש.
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="space-y-2 pt-2">
+          {visible.length === 0 ? (
+            <div className="text-center text-sm text-muted-foreground py-4">אין עוד קונפליקטים.</div>
+          ) : (
+            visible.map(c => (
+              <div key={c.id} className="flex flex-col sm:flex-row justify-between gap-2 p-3 border rounded-xl bg-card">
+                <div className="flex-1 min-w-0">
+                  <div className="font-semibold text-sm">{c.clientName}</div>
+                  <div className="text-xs text-muted-foreground mt-0.5">
+                    {format(parseISO(c.appointmentDate + "T" + c.appointmentTime), "EEEE, d בMMMM", { locale: he })} • {c.appointmentTime} • {c.serviceName}
+                  </div>
+                  <div className="text-[11px] text-amber-700 mt-0.5">
+                    שבוע {c.rotationWeekIndex} • {c.reason === "day_off" ? "יום סגור בסידור" : "מחוץ לשעות העבודה"}
+                  </div>
+                </div>
+                <div className="flex gap-2 shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => cancelOne(c.id)}
+                    disabled={busyIds.has(c.id)}
+                    className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-red-50 hover:bg-red-100 text-red-600 border border-red-100 disabled:opacity-60"
+                  >
+                    {busyIds.has(c.id) ? "מבטל..." : "מחק"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setDismissedIds(prev => new Set(prev).add(c.id))}
+                    className="px-3 py-1.5 rounded-lg text-xs font-medium bg-card hover:bg-accent border"
+                  >
+                    השאר
+                  </button>
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+
+        <div className="flex justify-between items-center pt-3 border-t mt-3">
+          {visible.length > 1 ? (
+            <Button variant="outline" size="sm" onClick={cancelAll} disabled={busyIds.size > 0}>
+              מחק את כל הקונפליקטים
+            </Button>
+          ) : <span />}
+          <Button onClick={() => onOpenChange(false)}>סגור</Button>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 function WorkingHoursTab() {
   const { data: hours } = useGetWorkingHours();
   const { data: profile } = useGetBusinessProfile();
@@ -4360,6 +4772,21 @@ function WorkingHoursTab() {
   const { toast } = useToast();
   const [localHours, setLocalHours] = useState<any[]>([]);
   const [bufferMinutes, setBufferMinutes] = useState("0");
+  // Rotation config — fetched directly (no generated hook; would require
+  // an openapi regen). Cached in react-query so invalidation after save
+  // refreshes the summary card.
+  const { data: rotation, refetch: refetchRotation } = useQuery<RotationConfig>({
+    queryKey: ["working-hours-rotation"],
+    queryFn: async () => {
+      const token = localStorage.getItem("biz_token") || sessionStorage.getItem("biz_token");
+      const r = await fetch("/api/business/working-hours-rotation", { headers: { Authorization: `Bearer ${token}` } });
+      if (!r.ok) return { enabled: false, weeksCount: null, anchorDate: null, anchorWeekIndex: null, hoursByWeek: {} };
+      return r.json();
+    },
+  });
+  const [rotationDialogOpen, setRotationDialogOpen] = useState(false);
+  const [conflicts, setConflicts] = useState<RotationConflict[] | null>(null);
+  const [disablingRotation, setDisablingRotation] = useState(false);
 
   // Compare the in-memory form against whatever's currently cached by
   // react-query — that's always the "saved" baseline because we
@@ -4465,6 +4892,86 @@ function WorkingHoursTab() {
         </div>
       </CardContent>
     </Card>
+
+    {/* Rotation schedule — opt-in N-week repeating cycle. When active,
+        takes precedence over the standard weekly hours above for this
+        staff. Availability/booking + slot compute are rotation-aware
+        server-side. */}
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <RotateCw className="w-5 h-5 text-primary" />
+          סידור עבודה משתנה
+        </CardTitle>
+        <CardDescription>
+          סידור חוזר של מספר שבועות (למשל: שבוע בוקר / שבוע ערב). אחרי השבוע האחרון במחזור, הסידור חוזר אוטומטית לשבוע הראשון.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        {rotation?.enabled ? (
+          <div className="space-y-3">
+            <div className="p-3 rounded-xl bg-primary/5 border border-primary/20 space-y-1">
+              <div className="text-sm font-semibold">פעיל</div>
+              <div className="text-xs text-muted-foreground">
+                מחזור של {rotation.weeksCount} שבועות • שבוע {rotation.anchorWeekIndex} החל מ-{rotation.anchorDate}
+              </div>
+            </div>
+            <div className="flex gap-2 flex-wrap">
+              <Button size="sm" onClick={() => setRotationDialogOpen(true)}>ערוך סידור</Button>
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={disablingRotation}
+                onClick={async () => {
+                  if (!confirm("לכבות את הסידור המשתנה? שעות העבודה הרגילות ישובו לפעול.")) return;
+                  setDisablingRotation(true);
+                  try {
+                    const token = localStorage.getItem("biz_token") || sessionStorage.getItem("biz_token");
+                    const r = await fetch("/api/business/working-hours-rotation", {
+                      method: "DELETE",
+                      headers: { Authorization: `Bearer ${token}` },
+                    });
+                    if (!r.ok) throw new Error();
+                    toast({ title: "הסידור המשתנה כובה" });
+                    await refetchRotation();
+                  } catch {
+                    toast({ title: "שגיאה בכיבוי הסידור", variant: "destructive" });
+                  } finally {
+                    setDisablingRotation(false);
+                  }
+                }}
+              >
+                כבה סידור משתנה
+              </Button>
+            </div>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            <p className="text-sm text-muted-foreground">
+              לא הוגדר סידור משתנה. כרגע פעילות שעות העבודה הרגילות שמופיעות למעלה.
+            </p>
+            <Button size="sm" onClick={() => setRotationDialogOpen(true)}>
+              הפעל סידור משתנה
+            </Button>
+          </div>
+        )}
+      </CardContent>
+    </Card>
+
+    <RotationScheduleDialog
+      open={rotationDialogOpen}
+      onOpenChange={setRotationDialogOpen}
+      initial={rotation ?? null}
+      onSaved={async (cf) => {
+        await refetchRotation();
+        if (cf.length > 0) setConflicts(cf);
+      }}
+    />
+    <RotationConflictsDialog
+      open={!!conflicts && conflicts.length > 0}
+      onOpenChange={(v) => { if (!v) setConflicts(null); }}
+      conflicts={conflicts ?? []}
+    />
 
     {/* Save is exposed only via the floating save bar — no inline bottom row,
         no "בטל עריכה". The bar appears when the form is dirty. */}
@@ -7280,7 +7787,7 @@ function IntegrationsTab({ isStaffMode = false }: { isStaffMode?: boolean }) {
         </div>
       </div>
 
-      {/* Bulk SMS (Inforu) — Pro gets 100/month, עסקי gets 500/month. Extra
+      {/* Bulk SMS (Inforu) — Pro gets 100/month, עסקי gets 300/month. Extra
           packs top up independently. Free tier sees a locked state with an
           upgrade prompt. */}
       <SmsBulkCard />

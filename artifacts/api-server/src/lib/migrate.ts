@@ -250,7 +250,7 @@ export async function runMigrations() {
       // "הניסיון שלך עומד להסתיים" email + bell notification exactly once.
       "ALTER TABLE businesses ADD COLUMN IF NOT EXISTS trial_ending_notice_sent BOOLEAN NOT NULL DEFAULT FALSE",
       // ─── Bulk-SMS (Inforu) quota ─────────────────────────────────────
-      // Pro = 100/month included, עסקי = 500/month. Free = 0. The
+      // Pro = 100/month included, עסקי = 300/month. Free = 0. The
       // subscriptionCron (or on plan upgrade) is responsible for setting
       // the right quota value when the plan changes. Used-this-period
       // resets whenever sms_reset_date passes (every 30 days). Extra
@@ -293,6 +293,18 @@ export async function runMigrations() {
       // that stores the bcrypt hash here.
       "ALTER TABLE staff_members ADD COLUMN IF NOT EXISTS password_hash TEXT",
       "ALTER TABLE staff_members ADD COLUMN IF NOT EXISTS credentials_sent_at TIMESTAMPTZ",
+      // ─── Rotation schedule (N-week repeating hours) ──────────────────
+      // Per-staff rotation config — see schema/staff-members.ts and the
+      // availability engine. All three columns must be non-NULL for the
+      // rotation to be active; a NULL in any of them falls back to the
+      // standard single-week working_hours rows.
+      "ALTER TABLE staff_members ADD COLUMN IF NOT EXISTS rotation_weeks_count INTEGER",
+      "ALTER TABLE staff_members ADD COLUMN IF NOT EXISTS rotation_anchor_date TEXT",
+      "ALTER TABLE staff_members ADD COLUMN IF NOT EXISTS rotation_anchor_week_index INTEGER",
+      // Each working_hours row can optionally tag itself with the rotation
+      // week it applies to (1..N). NULL = non-rotation row used when the
+      // staff/business has no rotation configured.
+      "ALTER TABLE working_hours ADD COLUMN IF NOT EXISTS rotation_week_index INTEGER",
       // Unique index on lowercase email per business so a staff can log
       // in by email without ambiguity. Allows NULL emails.
       "CREATE UNIQUE INDEX IF NOT EXISTS staff_members_business_email_uniq ON staff_members (business_id, LOWER(email)) WHERE email IS NOT NULL",
@@ -674,6 +686,37 @@ export async function runMigrations() {
       }
     } catch (reconcileErr) {
       console.warn("[Migrate] broadcast debt reconciliation skipped:", (reconcileErr as any)?.message ?? reconcileErr);
+    }
+
+    // ─── One-shot: pro-plus quota rebalance 500 → 300 ───────────────────
+    // Commit 463337b lowered the עסקי (pro-plus) monthly bulk-SMS quota
+    // from 500 to 300 in every code path that sets it (super-admin,
+    // tranzila webhook, grant-pro, syncQuotaToPlan). Pre-existing
+    // pro-plus accounts still carried the old 500 value because no
+    // migration was added at the time — owner flagged this, so we fix
+    // it now. Gates narrowly to avoid clobbering custom admin bumps:
+    //   · plan must still be 'pro-plus'
+    //   · current quota must be EXACTLY 500 (the old auto-set value)
+    //   · rebalance flag must be NULL (idempotent across reboots)
+    try {
+      await db.execute(sql.raw(`
+        ALTER TABLE businesses
+        ADD COLUMN IF NOT EXISTS pro_plus_quota_rebalanced_at TIMESTAMPTZ
+      `));
+      const result = await db.execute(sql.raw(`
+        UPDATE businesses
+        SET sms_monthly_quota = 300,
+            pro_plus_quota_rebalanced_at = NOW()
+        WHERE pro_plus_quota_rebalanced_at IS NULL
+          AND subscription_plan = 'pro-plus'
+          AND sms_monthly_quota = 500
+      `));
+      const count: number = (result as any)?.rowCount ?? (result as any)?.count ?? 0;
+      if (count > 0) {
+        console.log(`[Migrate] pro-plus SMS quota rebalanced 500 → 300 for ${count} business(es).`);
+      }
+    } catch (rebalanceErr) {
+      console.warn("[Migrate] pro-plus quota rebalance skipped:", (rebalanceErr as any)?.message ?? rebalanceErr);
     }
 
     // ─── One-shot seed: import existing businesses + clients ────────────

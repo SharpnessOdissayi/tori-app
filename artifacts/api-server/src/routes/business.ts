@@ -1,7 +1,8 @@
 import { Router } from "express";
 import { logBusinessNotification, logClientNotification } from "./notifications";
-import { db, businessesTable, servicesTable, workingHoursTable, breakTimesTable, appointmentsTable, waitlistTable, timeOffTable, reviewsTable } from "@workspace/db";
-import { eq, and, or, gte, sql, count } from "drizzle-orm";
+import { db, businessesTable, servicesTable, workingHoursTable, breakTimesTable, appointmentsTable, waitlistTable, timeOffTable, reviewsTable, staffMembersTable } from "@workspace/db";
+import { eq, and, or, gte, sql, count, isNull } from "drizzle-orm";
+import { computeRotationWeekIndex } from "../lib/availability";
 import { sendClientCancellation, sendClientReschedule, sendClientConfirmation, sendWhatsApp } from "../lib/whatsapp";
 import { isBusinessPro } from "../lib/plan";
 import { allocateUnsubscribeTokensBulk, signInviteBackToken } from "../lib/unsubscribeToken";
@@ -738,6 +739,12 @@ router.delete("/business/services/:id", requireBusinessAuth, async (req, res): P
 // when the staff has no per-day override yet). Owner callers see every
 // business-wide row (staff_member_id IS NULL) — per-staff rows are
 // managed by each staff from their own dashboard.
+//
+// All queries here target rotation_week_index IS NULL — the "standard"
+// weekly rows. Rotation-week-tagged rows (for staff with a multi-week
+// cycle) are managed by GET/PUT /business/working-hours-rotation and
+// never surface here, so the owner/staff standard-hours editor can't
+// accidentally overwrite them.
 router.get("/business/working-hours", requireBusinessAuth, async (req, res): Promise<void> => {
   const businessId = req.business!.businessId;
   const callerStaffId = req.business!.staffMemberId ?? null;
@@ -752,6 +759,7 @@ router.get("/business/working-hours", requireBusinessAuth, async (req, res): Pro
       .where(and(
         eq(workingHoursTable.businessId, businessId),
         eq((workingHoursTable as any).staffMemberId, callerStaffId),
+        isNull((workingHoursTable as any).rotationWeekIndex),
       ))
       .orderBy(workingHoursTable.dayOfWeek);
     if (staffRows.length > 0) {
@@ -764,6 +772,7 @@ router.get("/business/working-hours", requireBusinessAuth, async (req, res): Pro
       .where(and(
         eq(workingHoursTable.businessId, businessId),
         sql`${(workingHoursTable as any).staffMemberId} IS NULL`,
+        isNull((workingHoursTable as any).rotationWeekIndex),
       ))
       .orderBy(workingHoursTable.dayOfWeek);
     res.json(fallback.map((h) => ({ id: h.id, businessId: h.businessId, dayOfWeek: h.dayOfWeek, startTime: h.startTime, endTime: h.endTime, isEnabled: h.isEnabled })));
@@ -779,6 +788,7 @@ router.get("/business/working-hours", requireBusinessAuth, async (req, res): Pro
     .where(and(
       eq(workingHoursTable.businessId, businessId),
       sql`${(workingHoursTable as any).staffMemberId} IS NULL`,
+      isNull((workingHoursTable as any).rotationWeekIndex),
     ))
     .orderBy(workingHoursTable.dayOfWeek);
 
@@ -789,7 +799,8 @@ router.get("/business/working-hours", requireBusinessAuth, async (req, res): Pro
 // Staff scoping mirrors GET: staff writes update ONLY their per-staff
 // rows (staff_member_id = caller). Owner writes touch only business-
 // wide rows (staff_member_id IS NULL). Neither side can clobber the
-// other's rows.
+// other's rows — and neither touches rotation-tagged rows (rotation_
+// week_index IS NOT NULL), which live under /working-hours-rotation.
 router.put("/business/working-hours", requireBusinessAuth, async (req, res): Promise<void> => {
   const parsed = SetWorkingHoursBody.safeParse(req.body);
   if (!parsed.success) {
@@ -804,6 +815,7 @@ router.put("/business/working-hours", requireBusinessAuth, async (req, res): Pro
     await db.delete(workingHoursTable).where(and(
       eq(workingHoursTable.businessId, businessId),
       eq((workingHoursTable as any).staffMemberId, callerStaffId),
+      isNull((workingHoursTable as any).rotationWeekIndex),
     ));
     const inserted = await db
       .insert(workingHoursTable)
@@ -816,6 +828,7 @@ router.put("/business/working-hours", requireBusinessAuth, async (req, res): Pro
   await db.delete(workingHoursTable).where(and(
     eq(workingHoursTable.businessId, businessId),
     sql`${(workingHoursTable as any).staffMemberId} IS NULL`,
+    isNull((workingHoursTable as any).rotationWeekIndex),
   ));
   const inserted = await db
     .insert(workingHoursTable)
@@ -823,6 +836,280 @@ router.put("/business/working-hours", requireBusinessAuth, async (req, res): Pro
     .returning();
 
   res.json(inserted.map((h) => ({ id: h.id, businessId: h.businessId, dayOfWeek: h.dayOfWeek, startTime: h.startTime, endTime: h.endTime, isEnabled: h.isEnabled })));
+});
+
+// ─── Rotation schedule (multi-week cycle) ───────────────────────────────
+// Rotation is always per-staff. Owner-as-themselves resolves to the
+// owner's own auto-seeded staff_members row (is_owner = TRUE); staff JWT
+// naturally carries staffMemberId. Every business has exactly one
+// is_owner row so the resolver below is deterministic.
+async function resolveRotationStaffId(
+  businessId: number,
+  callerStaffId: number | null,
+): Promise<number | null> {
+  if (callerStaffId) return callerStaffId;
+  const [ownerRow] = await db
+    .select({ id: staffMembersTable.id })
+    .from(staffMembersTable)
+    .where(and(
+      eq(staffMembersTable.businessId, businessId),
+      eq(staffMembersTable.isOwner, true),
+    ));
+  return ownerRow?.id ?? null;
+}
+
+// GET /business/working-hours-rotation
+// Returns the caller's rotation config + the hours rows grouped per
+// rotation week. When rotation is disabled (any of the three anchor
+// columns is NULL), `enabled = false` and hoursByWeek is empty — the
+// caller's standard weekly hours still live under /working-hours.
+router.get("/business/working-hours-rotation", requireBusinessAuth, async (req, res): Promise<void> => {
+  const businessId    = req.business!.businessId;
+  const callerStaffId = req.business!.staffMemberId ?? null;
+  const targetStaffId = await resolveRotationStaffId(businessId, callerStaffId);
+  if (!targetStaffId) {
+    res.status(404).json({ error: "no_staff_row" });
+    return;
+  }
+
+  const [staff] = await db
+    .select({
+      weeksCount:    (staffMembersTable as any).rotationWeeksCount,
+      anchorDate:    (staffMembersTable as any).rotationAnchorDate,
+      anchorWeekIdx: (staffMembersTable as any).rotationAnchorWeekIndex,
+    })
+    .from(staffMembersTable)
+    .where(eq(staffMembersTable.id, targetStaffId));
+
+  const enabled = !!(staff?.weeksCount && staff?.anchorDate && staff?.anchorWeekIdx);
+
+  // Always return the rotation-tagged rows if any exist, even when
+  // rotation isn't currently enabled — otherwise the owner toggling
+  // rotation back on would lose their previous per-week setup.
+  const rows = await db
+    .select()
+    .from(workingHoursTable)
+    .where(and(
+      eq(workingHoursTable.businessId, businessId),
+      eq((workingHoursTable as any).staffMemberId, targetStaffId),
+      sql`${(workingHoursTable as any).rotationWeekIndex} IS NOT NULL`,
+    ))
+    .orderBy((workingHoursTable as any).rotationWeekIndex, workingHoursTable.dayOfWeek);
+
+  const hoursByWeek: Record<number, Array<{ dayOfWeek: number; startTime: string; endTime: string; isEnabled: boolean }>> = {};
+  for (const r of rows) {
+    const w = (r as any).rotationWeekIndex as number;
+    if (!hoursByWeek[w]) hoursByWeek[w] = [];
+    hoursByWeek[w].push({
+      dayOfWeek:  r.dayOfWeek,
+      startTime:  r.startTime,
+      endTime:    r.endTime,
+      isEnabled:  r.isEnabled,
+    });
+  }
+
+  res.json({
+    enabled,
+    weeksCount:       staff?.weeksCount ?? null,
+    anchorDate:       staff?.anchorDate ?? null,
+    anchorWeekIndex:  staff?.anchorWeekIdx ?? null,
+    hoursByWeek,
+  });
+});
+
+// PUT /business/working-hours-rotation
+// Body: { weeksCount, anchorDate (YYYY-MM-DD), anchorWeekIndex, hoursByWeek: { "1": [{ dayOfWeek, startTime, endTime, isEnabled }, ...], ... } }
+// · Validates the inputs, writes the rotation columns on staff_members,
+//   replaces the per-week working_hours rows for this staff in a single
+//   atomic delete+insert.
+// · Responds with { conflicts: [...] } listing future appointments that
+//   now fall on a day/time the staff won't be working. Owner acts on
+//   them client-side (cancel or keep).
+router.put("/business/working-hours-rotation", requireBusinessAuth, async (req, res): Promise<void> => {
+  const businessId    = req.business!.businessId;
+  const callerStaffId = req.business!.staffMemberId ?? null;
+  const targetStaffId = await resolveRotationStaffId(businessId, callerStaffId);
+  if (!targetStaffId) {
+    res.status(404).json({ error: "no_staff_row" });
+    return;
+  }
+
+  const body = req.body ?? {};
+  const weeksCount      = Number(body.weeksCount);
+  const anchorDate      = typeof body.anchorDate === "string" ? body.anchorDate : "";
+  const anchorWeekIndex = Number(body.anchorWeekIndex);
+  const hoursByWeek     = body.hoursByWeek && typeof body.hoursByWeek === "object" ? body.hoursByWeek : null;
+
+  if (!Number.isInteger(weeksCount) || weeksCount < 2 || weeksCount > 8) {
+    res.status(400).json({ error: "weeksCount must be an integer between 2 and 8" });
+    return;
+  }
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(anchorDate)) {
+    res.status(400).json({ error: "anchorDate must be YYYY-MM-DD" });
+    return;
+  }
+  if (!Number.isInteger(anchorWeekIndex) || anchorWeekIndex < 1 || anchorWeekIndex > weeksCount) {
+    res.status(400).json({ error: "anchorWeekIndex out of range" });
+    return;
+  }
+  if (!hoursByWeek) {
+    res.status(400).json({ error: "hoursByWeek required" });
+    return;
+  }
+
+  // Flatten the per-week payload into working_hours rows tagged with
+  // the rotation_week_index. Defensive: ignore weeks outside 1..N and
+  // days outside 0..6, clamp strings to "HH:MM" so a malformed client
+  // can't poison the table.
+  const TIME_RE = /^\d{2}:\d{2}$/;
+  const rowsToInsert: any[] = [];
+  for (let w = 1; w <= weeksCount; w++) {
+    const weekHours = hoursByWeek[String(w)] ?? hoursByWeek[w];
+    if (!Array.isArray(weekHours)) continue;
+    for (const h of weekHours) {
+      const dow = Number(h?.dayOfWeek);
+      if (!Number.isInteger(dow) || dow < 0 || dow > 6) continue;
+      const start   = typeof h?.startTime === "string" && TIME_RE.test(h.startTime) ? h.startTime : "09:00";
+      const end     = typeof h?.endTime   === "string" && TIME_RE.test(h.endTime)   ? h.endTime   : "18:00";
+      const enabled = !!h?.isEnabled;
+      rowsToInsert.push({
+        businessId,
+        staffMemberId:     targetStaffId,
+        rotationWeekIndex: w,
+        dayOfWeek:         dow,
+        startTime:         start,
+        endTime:           end,
+        isEnabled:         enabled,
+      });
+    }
+  }
+
+  // Write the anchor on staff_members first — the availability engine
+  // reads these three columns to know whether rotation is active.
+  await db
+    .update(staffMembersTable)
+    .set({
+      rotationWeeksCount:      weeksCount,
+      rotationAnchorDate:      anchorDate,
+      rotationAnchorWeekIndex: anchorWeekIndex,
+    } as any)
+    .where(eq(staffMembersTable.id, targetStaffId));
+
+  // Replace the whole rotation hours block for this staff. NULL-indexed
+  // (standard) rows are left alone so toggling rotation OFF later
+  // still exposes the staff's standard weekly hours.
+  await db.delete(workingHoursTable).where(and(
+    eq(workingHoursTable.businessId, businessId),
+    eq((workingHoursTable as any).staffMemberId, targetStaffId),
+    sql`${(workingHoursTable as any).rotationWeekIndex} IS NOT NULL`,
+  ));
+  if (rowsToInsert.length > 0) {
+    await db.insert(workingHoursTable).values(rowsToInsert as any);
+  }
+
+  // Conflict detection — any future appointment for this staff whose
+  // (date, time) falls outside the new rotation hours. We keep the SQL
+  // simple: fetch every future non-cancelled appointment for the staff
+  // and recompute in JS using the same rotation math the availability
+  // engine uses. This is bounded by the staff's future-appointment
+  // count so it stays cheap even for busy owners.
+  const today = new Date().toISOString().slice(0, 10);
+  const futureAppts = await db
+    .select({
+      id:               appointmentsTable.id,
+      clientName:       appointmentsTable.clientName,
+      phoneNumber:      appointmentsTable.phoneNumber,
+      appointmentDate:  appointmentsTable.appointmentDate,
+      appointmentTime:  appointmentsTable.appointmentTime,
+      durationMinutes:  appointmentsTable.durationMinutes,
+      serviceName:      appointmentsTable.serviceName,
+      status:           appointmentsTable.status,
+    })
+    .from(appointmentsTable)
+    .where(and(
+      eq(appointmentsTable.businessId, businessId),
+      eq((appointmentsTable as any).staffMemberId, targetStaffId),
+      gte(appointmentsTable.appointmentDate, today),
+    ));
+
+  const active = futureAppts.filter(a => a.status !== "cancelled" && a.status !== "no_show" && a.status !== "pending_payment");
+  const timeToMinutes = (t: string) => {
+    const [h, m] = t.split(":").map(Number);
+    return h * 60 + m;
+  };
+  const dayOfWeek = (dateStr: string) => {
+    const [y, m, d] = dateStr.split("-").map(Number);
+    return new Date(Date.UTC(y, (m ?? 1) - 1, d ?? 1)).getUTCDay();
+  };
+
+  // Build a quick lookup: week → dayOfWeek → {start, end, enabled}.
+  const lookup: Record<number, Record<number, { start: number; end: number; enabled: boolean }>> = {};
+  for (const r of rowsToInsert) {
+    if (!lookup[r.rotationWeekIndex]) lookup[r.rotationWeekIndex] = {};
+    lookup[r.rotationWeekIndex][r.dayOfWeek] = {
+      start:   timeToMinutes(r.startTime),
+      end:     timeToMinutes(r.endTime),
+      enabled: r.isEnabled,
+    };
+  }
+
+  const conflicts: Array<{
+    id: number; clientName: string; phoneNumber: string;
+    appointmentDate: string; appointmentTime: string; serviceName: string;
+    rotationWeekIndex: number; reason: "day_off" | "out_of_hours";
+  }> = [];
+  for (const a of active) {
+    const w = computeRotationWeekIndex(a.appointmentDate, anchorDate, anchorWeekIndex, weeksCount);
+    const dow = dayOfWeek(a.appointmentDate);
+    const cell = lookup[w]?.[dow];
+    if (!cell || !cell.enabled) {
+      conflicts.push({
+        id: a.id, clientName: a.clientName, phoneNumber: a.phoneNumber,
+        appointmentDate: a.appointmentDate, appointmentTime: a.appointmentTime,
+        serviceName: a.serviceName, rotationWeekIndex: w, reason: "day_off",
+      });
+      continue;
+    }
+    const apptStart = timeToMinutes(a.appointmentTime);
+    const apptEnd   = apptStart + a.durationMinutes;
+    if (apptStart < cell.start || apptEnd > cell.end) {
+      conflicts.push({
+        id: a.id, clientName: a.clientName, phoneNumber: a.phoneNumber,
+        appointmentDate: a.appointmentDate, appointmentTime: a.appointmentTime,
+        serviceName: a.serviceName, rotationWeekIndex: w, reason: "out_of_hours",
+      });
+    }
+  }
+
+  res.json({ success: true, conflicts });
+});
+
+// DELETE /business/working-hours-rotation
+// Turns off rotation by clearing the three anchor columns on staff_members.
+// Leaves the rotation-tagged working_hours rows in place so re-enabling
+// later restores the previous setup without re-entering every hour. The
+// availability engine treats NULL anchors as "rotation disabled" and
+// falls back to the standard NULL-rotation rows, so this is the right
+// kill switch.
+router.delete("/business/working-hours-rotation", requireBusinessAuth, async (req, res): Promise<void> => {
+  const businessId    = req.business!.businessId;
+  const callerStaffId = req.business!.staffMemberId ?? null;
+  const targetStaffId = await resolveRotationStaffId(businessId, callerStaffId);
+  if (!targetStaffId) {
+    res.status(404).json({ error: "no_staff_row" });
+    return;
+  }
+
+  await db
+    .update(staffMembersTable)
+    .set({
+      rotationWeeksCount:      null,
+      rotationAnchorDate:      null,
+      rotationAnchorWeekIndex: null,
+    } as any)
+    .where(eq(staffMembersTable.id, targetStaffId));
+
+  res.json({ success: true });
 });
 
 router.get("/business/break-times", requireBusinessAuth, async (req, res): Promise<void> => {

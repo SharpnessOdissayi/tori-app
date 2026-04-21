@@ -13,6 +13,17 @@ export const workingHoursTable = pgTable("working_hours", {
   // NULL = inherits the business-level hours (current single-calendar
   // behaviour). Non-null = those hours apply only to that staff member.
   staffMemberId: integer("staff_member_id"),
+  // Rotation mode — optional N-week repeating schedule.
+  //   NULL = standard weekly row (used when the staff/business has no
+  //          rotation configured, or as the "week 0" default).
+  //   1..N = this row applies ONLY when the target date falls on the
+  //          Nth week of the staff's rotation cycle. N-week rotation
+  //          produces N rows per day; availability.ts picks the row
+  //          matching the computed rotation week for that date.
+  // Rotation config (weeks_count, anchor_date, anchor_week_index) lives
+  // on staff_members — working_hours just tags each row with the week it
+  // belongs to.
+  rotationWeekIndex: integer("rotation_week_index"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
