@@ -22,8 +22,15 @@ const ALLOWED_CONTENT_TYPES = new Set([
   "image/jpeg",
   "image/webp",
   "image/gif",
-  "image/svg+xml",
+  // image/svg+xml intentionally NOT allowed — SVGs can embed <script>
+  // which executes when served inline or opened directly, and our GCS
+  // bucket serves everything with its reported Content-Type.
 ]);
+
+// Hard cap for any single upload. Logos/banners are tiny; the cap
+// is generous enough to never annoy a real user and strict enough
+// to kill obvious abuse (gigantic files eating our GCS bill).
+const MAX_UPLOAD_BYTES = 5 * 1024 * 1024; // 5 MB
 
 /**
  * POST /storage/uploads/request-url
@@ -44,6 +51,10 @@ router.post("/storage/uploads/request-url", requireBusinessAuth, async (req: Req
 
     if (typeof contentType !== "string" || !ALLOWED_CONTENT_TYPES.has(contentType)) {
       res.status(400).json({ error: "Unsupported content type" });
+      return;
+    }
+    if (typeof size === "number" && size > MAX_UPLOAD_BYTES) {
+      res.status(413).json({ error: "File too large", maxBytes: MAX_UPLOAD_BYTES });
       return;
     }
 

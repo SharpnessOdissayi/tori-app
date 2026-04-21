@@ -107,13 +107,14 @@ export async function allocateUnsubscribeTokensBulk(
   // happy path a single INSERT per broadcast.
   const tokens = phones.map(() => generateRandomToken());
   try {
+    // Parameterised VALUES list — replaces the previous sql.raw quote-
+    // escape dance. Drizzle binds each (token, businessId, phone) tuple
+    // as placeholder args, so even a normaliser regression that lets
+    // through backslashes or quotes can't break out into SQL.
+    const tuples = tokens.map((t, i) => sql`(${t}, ${businessId}, ${normalisedPhones[i]})`);
     await db.execute(sql`
       INSERT INTO broadcast_opt_out_tokens (token, business_id, phone_number)
-      SELECT * FROM UNNEST(
-        ${sql.raw(`ARRAY[${tokens.map(t => `'${t}'`).join(",")}]`)}::TEXT[],
-        ${sql.raw(`ARRAY[${phones.map(() => businessId).join(",")}]`)}::INTEGER[],
-        ${sql.raw(`ARRAY[${normalisedPhones.map(p => `'${p.replace(/'/g, "''")}'`).join(",")}]`)}::TEXT[]
-      ) AS t(token, business_id, phone_number)
+      VALUES ${sql.join(tuples, sql`, `)}
     `);
     return tokens;
   } catch {

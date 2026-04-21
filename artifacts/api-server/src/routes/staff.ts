@@ -22,7 +22,8 @@
  */
 
 import { Router } from "express";
-import { db, staffMembersTable, staffServicesTable, businessesTable } from "@workspace/db";
+import { db, staffMembersTable, staffServicesTable, businessesTable, servicesTable } from "@workspace/db";
+import { inArray } from "drizzle-orm";
 import { eq, and } from "drizzle-orm";
 import jwt from "jsonwebtoken";
 import { JWT_SECRET } from "../lib/auth";
@@ -590,6 +591,24 @@ router.post("/staff/:id/services", async (req, res): Promise<void> => {
       eq(staffMembersTable.businessId, businessId),
     ));
   if (!row) { res.status(404).json({ error: "Staff not found" }); return; }
+
+  // Cross-tenant guard: reject silently if ANY serviceId doesn't belong
+  // to this business. Without this, an owner can stamp foreign service
+  // IDs onto their staff, polluting the staff_services join.
+  if (serviceIds.length > 0) {
+    const owned = await db
+      .select({ id: servicesTable.id })
+      .from(servicesTable)
+      .where(and(
+        inArray(servicesTable.id, serviceIds),
+        eq(servicesTable.businessId, businessId),
+      ));
+    const ownedIds = new Set(owned.map(r => r.id));
+    if (ownedIds.size !== serviceIds.length) {
+      res.status(400).json({ error: "service_not_owned", message: "חלק מהשירותים לא שייכים לעסק זה" });
+      return;
+    }
+  }
 
   await db.delete(staffServicesTable).where(eq(staffServicesTable.staffMemberId, staffId));
   if (serviceIds.length > 0) {

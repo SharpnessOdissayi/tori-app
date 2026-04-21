@@ -83,6 +83,18 @@ router.post("/auth/login", async (req, res): Promise<void> => {
 // afterwards (or the existing /auth/business/register is used).
 
 router.post("/auth/register", async (req, res): Promise<void> => {
+  // Per-IP rate limit — without this an attacker can enumerate the user
+  // table at line rate by probing for the distinct 409 "email_taken" /
+  // "phone_taken" responses. 3 attempts per 30 min is plenty for real users.
+  const { checkIpSmsLimit } = await import("../lib/smsRateLimit");
+  const ipLimit = checkIpSmsLimit(req.ip);
+  if (!ipLimit.ok) {
+    res.status(429).setHeader("Retry-After", String(ipLimit.retryAfterSec)).json({
+      error: "יותר מדי בקשות מכתובת זו — נסה שוב מאוחר יותר",
+    });
+    return;
+  }
+
   const { email, phone, password, fullName } = req.body ?? {};
 
   if (typeof password !== "string" || password.length < 6) {
@@ -97,14 +109,16 @@ router.post("/auth/register", async (req, res): Promise<void> => {
   const emailNormalized = typeof email === "string" ? email.toLowerCase().trim() : null;
   const phoneNormalized = typeof phone === "string" ? phone.trim() : null;
 
-  // Uniqueness check. Either field (if given) must not already exist.
+  // Uniqueness check. Collapse distinct "email_taken" vs "phone_taken"
+  // into a single opaque "conflict" so a caller can't tell which field
+  // matched — prevents enumeration of registered emails/phones.
   if (emailNormalized) {
     const [exists] = await db.select({ id: usersTable.id }).from(usersTable).where(eq(usersTable.email, emailNormalized));
-    if (exists) { res.status(409).json({ error: "email_taken" }); return; }
+    if (exists) { res.status(409).json({ error: "conflict", message: "כבר קיים חשבון עם פרטים אלו" }); return; }
   }
   if (phoneNormalized) {
     const [exists] = await db.select({ id: usersTable.id }).from(usersTable).where(eq(usersTable.phone, phoneNormalized));
-    if (exists) { res.status(409).json({ error: "phone_taken" }); return; }
+    if (exists) { res.status(409).json({ error: "conflict", message: "כבר קיים חשבון עם פרטים אלו" }); return; }
   }
 
   const passwordHash = await bcrypt.hash(password, 10);

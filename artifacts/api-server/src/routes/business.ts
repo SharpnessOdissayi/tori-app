@@ -1705,6 +1705,14 @@ router.get("/business/customers", requireBusinessAuth, async (req, res): Promise
 // /api/sms/balance so owners see the right number.
 
 router.post("/business/broadcast", requireBusinessAuth, async (req, res): Promise<void> => {
+  // Owner-only: staff tokens must not be able to fire broadcasts. Staff
+  // can already see the customer list; letting them also consume the
+  // business's WhatsApp quota on arbitrary phoneNumbers was a wide-open
+  // internal-threat escalation.
+  if (req.business!.staffMemberId) {
+    res.status(403).json({ error: "owner_only", message: "רק בעלי העסק יכולים לשלוח הודעות לכל הלקוחות" });
+    return;
+  }
   const businessId = req.business!.businessId;
   const { message, phoneNumbers, scope: scopeRaw } = req.body ?? {};
   // Recipient scope. When explicit `phoneNumbers` are given they win.

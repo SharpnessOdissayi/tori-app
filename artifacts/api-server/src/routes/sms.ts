@@ -51,6 +51,23 @@ function getBusinessId(authHeader: string): number | null {
   }
 }
 
+// Identifies write-side callers that may only be triggered by the
+// business owner (not staff). Staff tokens carry a staffMemberId claim —
+// reject those with 403 before running anything that spends quota or
+// charges the owner's saved card.
+function getAuthIdentity(authHeader: string): { businessId: number; staffMemberId: number | null } | null {
+  const token = authHeader.startsWith("Bearer ") ? authHeader.slice(7) : "";
+  if (!token) return null;
+  try {
+    const payload = jwt.verify(token, JWT_SECRET) as { businessId?: number; id?: number; staffMemberId?: number };
+    const businessId = payload.businessId ?? payload.id ?? null;
+    if (!businessId) return null;
+    return { businessId, staffMemberId: payload.staffMemberId ?? null };
+  } catch {
+    return null;
+  }
+}
+
 async function loadBusiness(businessId: number) {
   const [biz] = await db.select().from(businessesTable).where(eq(businessesTable.id, businessId));
   return biz ?? null;
@@ -124,8 +141,10 @@ router.get("/sms/history", async (req, res): Promise<void> => {
 //   4. Write one sms_messages row per recipient with the reservation bucket
 //   5. On Inforu failure: refund quota, mark rows as failed, return 502
 router.post("/sms/send-bulk", async (req, res): Promise<void> => {
-  const businessId = getBusinessId(req.headers.authorization ?? "");
-  if (!businessId) { res.status(401).json({ error: "Unauthorized" }); return; }
+  const ident = getAuthIdentity(req.headers.authorization ?? "");
+  if (!ident) { res.status(401).json({ error: "Unauthorized" }); return; }
+  if (ident.staffMemberId) { res.status(403).json({ error: "owner_only" }); return; }
+  const businessId = ident.businessId;
 
   const biz = await loadBusiness(businessId);
   if (!biz) { res.status(404).json({ error: "Business not found" }); return; }
@@ -440,8 +459,10 @@ router.get("/sms/pack-iframe-url", async (req, res): Promise<void> => {
 // (the same token the monthly subscription uses). On success we write a
 // purchase row and bump the business's smsExtraBalance.
 router.post("/sms/purchase-pack", async (req, res): Promise<void> => {
-  const businessId = getBusinessId(req.headers.authorization ?? "");
-  if (!businessId) { res.status(401).json({ error: "Unauthorized" }); return; }
+  const ident = getAuthIdentity(req.headers.authorization ?? "");
+  if (!ident) { res.status(401).json({ error: "Unauthorized" }); return; }
+  if (ident.staffMemberId) { res.status(403).json({ error: "owner_only" }); return; }
+  const businessId = ident.businessId;
 
   const biz = await loadBusiness(businessId);
   if (!biz) { res.status(404).json({ error: "Business not found" }); return; }
@@ -553,12 +574,18 @@ router.post("/sms/test-charge", async (req, res): Promise<void> => {
   console.log("[test-charge] ENTRY", { hasAuthHeader, ip: req.ip });
   logger.info({ hasAuthHeader }, "[test-charge] entry");
 
-  const businessId = getBusinessId(req.headers.authorization ?? "");
-  if (!businessId) {
+  const ident = getAuthIdentity(req.headers.authorization ?? "");
+  if (!ident) {
     console.log("[test-charge] REJECTED — no valid JWT");
     res.status(401).json({ error: "Unauthorized", message: "אסימון הזדהות לא תקף — התנתק והיכנס שוב." });
     return;
   }
+  if (ident.staffMemberId) {
+    console.log("[test-charge] REJECTED — staff token");
+    res.status(403).json({ error: "owner_only" });
+    return;
+  }
+  const businessId = ident.businessId;
   console.log("[test-charge] authed", { businessId });
 
   const biz = await loadBusiness(businessId);

@@ -787,12 +787,18 @@ router.post("/auth/business/google-auth", async (req, res): Promise<void> => {
   }
 
   try {
+    const googleClientId = (process.env.GOOGLE_CLIENT_ID ?? "").trim();
+    if (!googleClientId) {
+      // Fail closed: without GOOGLE_CLIENT_ID the aud comparison below
+      // short-circuits and accepts any valid Google ID token issued to
+      // any third-party OAuth app — a critical bypass.
+      console.error("[auth/google-auth] GOOGLE_CLIENT_ID not set — rejecting");
+      res.status(500).json({ error: "google_oauth_misconfigured" });
+      return;
+    }
     const infoRes = await fetch(`https://oauth2.googleapis.com/tokeninfo?id_token=${encodeURIComponent(credential)}`);
     const info = await infoRes.json() as { sub?: string; email?: string; aud?: string };
-    const googleClientId = process.env.GOOGLE_CLIENT_ID;
-    // aud must match our GOOGLE_CLIENT_ID if configured — otherwise anyone
-    // could mint a token on their own client ID and hand it to us.
-    if (!infoRes.ok || !info.sub || !info.email || (googleClientId && info.aud !== googleClientId)) {
+    if (!infoRes.ok || !info.sub || !info.email || info.aud !== googleClientId) {
       res.status(400).json({ error: "Google token לא תקין" }); return;
     }
     const email = String(info.email).toLowerCase();
@@ -950,17 +956,14 @@ router.post("/auth/business/email-login/send", async (req, res): Promise<void> =
     .from(staffMembersTable)
     .where(eq(staffMembersTable.email, trimmed));
 
-  // No-enumeration guarantee: respond 200 even on miss so an attacker
-  // can't probe which emails are registered. The verify endpoint will
-  // reject because no code was ever minted for that email.
+  // No-enumeration guarantee: respond 200 on EVERY branch that reveals
+  // account state (missing OR suspended) so a prober can't distinguish
+  // them. Real accounts get their code; probes get a fake success.
+  // Suspension is re-surfaced at /verify time after the attacker proves
+  // mailbox control.
   if (!business && !staff) { res.json({ success: true }); return; }
-  if (business && !business.isActive) {
-    res.status(403).json({ error: "account_suspended", message: "החשבון מושהה. צור קשר עם התמיכה." });
-    return;
-  }
-  if (staff && !staff.isActive) {
-    res.status(403).json({ error: "account_suspended", message: "החשבון מושהה. צור קשר עם המנהל/ת." });
-    return;
+  if ((business && !business.isActive) || (staff && !staff.isActive)) {
+    res.json({ success: true }); return;
   }
 
   try {

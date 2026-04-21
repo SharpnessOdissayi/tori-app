@@ -22,6 +22,20 @@ import { sql } from "drizzle-orm";
 import { sendEmail } from "./email";
 import { logger } from "./logger";
 
+// HTML-escape for the two receipt templates below. Every ${v.*} in
+// those templates gets wrapped in esc() so owner-supplied fields
+// (businessLegalName, issuerAddress, clientName, description, …)
+// can't inject <script> or arbitrary markup into the receipt email
+// that goes to the client.
+function esc(v: unknown): string {
+  return String(v ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
 // ─── Kavati's own details (עוסק פטור — אשתי של אופק) ─────────────────────
 // Hard-coded so they can't drift — these are the legal identifiers on every
 // receipt Kavati issues. Change only with intent.
@@ -214,38 +228,38 @@ function renderKavatiReceiptHtml(v: KavatiReceiptView): string {
   <div dir="rtl" style="font-family: Arial, sans-serif; max-width: 560px; margin: 0 auto; padding: 24px; color: #111;">
     <div style="text-align:center; padding-bottom: 16px; border-bottom: 2px solid #3c92f0;">
       <h1 style="margin: 0; font-size: 24px; color:#1e6fcf;">קבלה</h1>
-      <p style="margin: 8px 0 0; font-size: 18px; font-weight: bold;">מספר ${v.receiptNumber}</p>
+      <p style="margin: 8px 0 0; font-size: 18px; font-weight: bold;">מספר ${esc(v.receiptNumber)}</p>
     </div>
     <div style="margin: 20px 0; display: flex; justify-content: space-between; gap: 16px;">
       <div style="flex: 1;">
         <p style="margin: 0 0 4px; color: #666; font-size: 12px;">מוציא הקבלה</p>
-        <p style="margin: 0; font-weight: bold;">${KAVATI_ISSUER.legalName}</p>
-        <p style="margin: 2px 0 0; font-size: 13px;">עוסק פטור · ת.ז. ${KAVATI_ISSUER.taxId}</p>
-        <p style="margin: 2px 0 0; font-size: 13px;">${KAVATI_ISSUER.address}</p>
+        <p style="margin: 0; font-weight: bold;">${esc(KAVATI_ISSUER.legalName)}</p>
+        <p style="margin: 2px 0 0; font-size: 13px;">עוסק פטור · ת.ז. ${esc(KAVATI_ISSUER.taxId)}</p>
+        <p style="margin: 2px 0 0; font-size: 13px;">${esc(KAVATI_ISSUER.address)}</p>
       </div>
       <div style="flex: 1; text-align: left;">
         <p style="margin: 0 0 4px; color: #666; font-size: 12px;">תאריך</p>
-        <p style="margin: 0; font-weight: bold;">${v.date}</p>
+        <p style="margin: 0; font-weight: bold;">${esc(v.date)}</p>
       </div>
     </div>
     <div style="margin: 16px 0; padding: 12px; background: #f5f5f5; border-radius: 8px;">
       <p style="margin: 0 0 4px; color: #666; font-size: 12px;">משלם</p>
-      <p style="margin: 0; font-weight: bold;">${v.clientName}</p>
-      ${v.clientTaxId ? `<p style="margin: 2px 0 0; font-size: 13px;">ח.פ / ת.ז. ${v.clientTaxId}</p>` : ""}
-      <p style="margin: 2px 0 0; font-size: 13px;">${v.clientEmail}</p>
+      <p style="margin: 0; font-weight: bold;">${esc(v.clientName)}</p>
+      ${v.clientTaxId ? `<p style="margin: 2px 0 0; font-size: 13px;">ח.פ / ת.ז. ${esc(v.clientTaxId)}</p>` : ""}
+      <p style="margin: 2px 0 0; font-size: 13px;">${esc(v.clientEmail)}</p>
     </div>
     <table style="width: 100%; border-collapse: collapse; margin: 16px 0;">
       <tr>
-        <td style="padding: 12px; border-bottom: 1px solid #ddd;">${v.description}</td>
-        <td style="padding: 12px; border-bottom: 1px solid #ddd; text-align: left; font-weight: bold;">${v.amount}</td>
+        <td style="padding: 12px; border-bottom: 1px solid #ddd;">${esc(v.description)}</td>
+        <td style="padding: 12px; border-bottom: 1px solid #ddd; text-align: left; font-weight: bold;">${esc(v.amount)}</td>
       </tr>
       <tr>
         <td style="padding: 12px; font-size: 16px; font-weight: bold;">סה"כ לתשלום</td>
-        <td style="padding: 12px; text-align: left; font-size: 20px; font-weight: bold;">${v.amount}</td>
+        <td style="padding: 12px; text-align: left; font-size: 20px; font-weight: bold;">${esc(v.amount)}</td>
       </tr>
     </table>
     <div style="margin: 12px 0; font-size: 13px; color: #444;">
-      אופן תשלום: ${v.paymentMethod}${v.paymentReference ? ` · מס' אישור: ${v.paymentReference}` : ""}
+      אופן תשלום: ${esc(v.paymentMethod)}${v.paymentReference ? ` · מס' אישור: ${esc(v.paymentReference)}` : ""}
     </div>
     <div style="margin-top: 24px; padding-top: 12px; border-top: 1px solid #eee; font-size: 11px; color: #888;">
       מסמך זה מהווה קבלה בלבד. כעוסק פטור, Kavati אינה גובה מע"מ ואינה מוציאה חשבונית מס.
@@ -271,38 +285,38 @@ function renderBusinessReceiptHtml(v: BusinessReceiptView): string {
   <div dir="rtl" style="font-family: Arial, sans-serif; max-width: 560px; margin: 0 auto; padding: 24px; color: #111;">
     <div style="text-align:center; padding-bottom: 16px; border-bottom: 2px solid #3c92f0;">
       <h1 style="margin: 0; font-size: 24px; color:#1e6fcf;">קבלה</h1>
-      <p style="margin: 8px 0 0; font-size: 18px; font-weight: bold;">מספר ${v.receiptNumber}</p>
+      <p style="margin: 8px 0 0; font-size: 18px; font-weight: bold;">מספר ${esc(v.receiptNumber)}</p>
     </div>
     <div style="margin: 20px 0; display: flex; justify-content: space-between; gap: 16px;">
       <div style="flex: 1;">
         <p style="margin: 0 0 4px; color: #666; font-size: 12px;">מוציא הקבלה</p>
-        <p style="margin: 0; font-weight: bold;">${v.issuerName}</p>
-        ${v.issuerLegalType ? `<p style="margin: 2px 0 0; font-size: 13px;">${v.issuerLegalType}</p>` : ""}
-        <p style="margin: 2px 0 0; font-size: 13px;">ח.פ / ת.ז. ${v.issuerTaxId}</p>
-        ${v.issuerAddress ? `<p style="margin: 2px 0 0; font-size: 13px;">${v.issuerAddress}</p>` : ""}
+        <p style="margin: 0; font-weight: bold;">${esc(v.issuerName)}</p>
+        ${v.issuerLegalType ? `<p style="margin: 2px 0 0; font-size: 13px;">${esc(v.issuerLegalType)}</p>` : ""}
+        <p style="margin: 2px 0 0; font-size: 13px;">ח.פ / ת.ז. ${esc(v.issuerTaxId)}</p>
+        ${v.issuerAddress ? `<p style="margin: 2px 0 0; font-size: 13px;">${esc(v.issuerAddress)}</p>` : ""}
       </div>
       <div style="flex: 1; text-align: left;">
         <p style="margin: 0 0 4px; color: #666; font-size: 12px;">תאריך</p>
-        <p style="margin: 0; font-weight: bold;">${v.date}</p>
+        <p style="margin: 0; font-weight: bold;">${esc(v.date)}</p>
       </div>
     </div>
     ${v.clientName ? `
     <div style="margin: 16px 0; padding: 12px; background: #f5f5f5; border-radius: 8px;">
       <p style="margin: 0 0 4px; color: #666; font-size: 12px;">משלם</p>
-      <p style="margin: 0; font-weight: bold;">${v.clientName}</p>
+      <p style="margin: 0; font-weight: bold;">${esc(v.clientName)}</p>
     </div>` : ""}
     <table style="width: 100%; border-collapse: collapse; margin: 16px 0;">
       <tr>
-        <td style="padding: 12px; border-bottom: 1px solid #ddd;">${v.description}</td>
-        <td style="padding: 12px; border-bottom: 1px solid #ddd; text-align: left; font-weight: bold;">${v.amount}</td>
+        <td style="padding: 12px; border-bottom: 1px solid #ddd;">${esc(v.description)}</td>
+        <td style="padding: 12px; border-bottom: 1px solid #ddd; text-align: left; font-weight: bold;">${esc(v.amount)}</td>
       </tr>
       <tr>
         <td style="padding: 12px; font-size: 16px; font-weight: bold;">סה"כ לתשלום</td>
-        <td style="padding: 12px; text-align: left; font-size: 20px; font-weight: bold;">${v.amount}</td>
+        <td style="padding: 12px; text-align: left; font-size: 20px; font-weight: bold;">${esc(v.amount)}</td>
       </tr>
     </table>
     <div style="margin: 12px 0; font-size: 13px; color: #444;">
-      אופן תשלום: ${v.paymentMethod}
+      אופן תשלום: ${esc(v.paymentMethod)}
     </div>
   </div>`;
 }

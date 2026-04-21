@@ -39,12 +39,13 @@ export { SUPER_ADMIN_PASSWORD };
  * Preferred: `X-Admin-Password` header. Never logged by Railway/CDN request
  * logs, not retained in browser history, not leaked via Referer.
  *
- * Legacy (kept for existing front-end callers that still pass it in the
- * query string or JSON body): `?adminPassword=…` and `{ adminPassword }`
- * in the POST body. These paths emit a warning so they can be migrated
- * off. Do NOT add new callers that rely on the legacy paths.
+ * Legacy (kept for existing POST callers only): `{ adminPassword }` in
+ * the JSON body. The former `?adminPassword=…` query-string path is
+ * now rejected outright — query strings land in every request log,
+ * proxy, browser history, and Referer, so accepting them made a single
+ * leaked log line equivalent to a full credential leak.
  */
-function readCandidate(req: Request): { value: string; source: "header" | "body" | "query" | "none" } {
+function readCandidate(req: Request): { value: string; source: "header" | "body" | "none" } {
   const headerVal = req.header("x-admin-password");
   if (typeof headerVal === "string" && headerVal.length > 0) {
     return { value: headerVal.trim(), source: "header" };
@@ -55,15 +56,18 @@ function readCandidate(req: Request): { value: string; source: "header" | "body"
     return { value: bodyVal.trim(), source: "body" };
   }
 
-  const queryVal = (req.query as any)?.adminPassword;
-  if (typeof queryVal === "string" && queryVal.length > 0) {
-    return { value: queryVal.trim(), source: "query" };
-  }
-
   return { value: "", source: "none" };
 }
 
 export function requireSuperAdmin(req: Request, res: Response, next: NextFunction): void {
+  // Refuse query-string credentials loudly so any remaining caller gets
+  // an actionable 401 (instead of silently authenticating + a warn log).
+  if (typeof (req.query as any)?.adminPassword === "string" && (req.query as any).adminPassword.length > 0) {
+    console.warn("[super-admin] rejected query-string credential", { path: req.path, method: req.method });
+    res.status(401).json({ error: "Unauthorized", message: "Use X-Admin-Password header" });
+    return;
+  }
+
   const { value, source } = readCandidate(req);
 
   if (source === "none") {
@@ -74,15 +78,6 @@ export function requireSuperAdmin(req: Request, res: Response, next: NextFunctio
   if (!passwordsMatchConstantTime(value)) {
     res.status(401).json({ error: "Unauthorized" });
     return;
-  }
-
-  if (source === "query") {
-    // Query-string credentials get persisted in server logs, proxies, CDNs,
-    // browser history and the Referer header. Flag for migration.
-    console.warn(
-      "[super-admin] credential received via query string — migrate caller to X-Admin-Password header",
-      { path: req.path, method: req.method }
-    );
   }
 
   next();

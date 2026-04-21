@@ -1309,9 +1309,21 @@ router.get("/s/:businessSlug", async (req, res): Promise<void> => {
   // recognisable brand asset. Banner is wide and often gets cropped
   // awkwardly by WhatsApp's square preview card. Fall back to banner
   // only if no logo, and the generic Kavati card only if neither set.
-  const rawImg = (business as any).logoUrl || (business as any).bannerUrl || `${host}/opengraph.jpg`;
-  const imgAbs = String(rawImg).startsWith("http") ? String(rawImg)
-            : `${host}${String(rawImg).startsWith("/") ? "" : "/"}${rawImg}`;
+  // Reject anything that isn't a plain http(s) URL or a site-relative
+  // path; a `javascript:` or `data:image/svg+xml;...<script>` URL in
+  // the owner's logoUrl would otherwise leak into og:image and the
+  // visible <img> tag below. Fall back to the default Kavati card.
+  const KAVATI_CARD = `${host}/opengraph.jpg`;
+  function safeImageUrl(raw: unknown): string {
+    if (typeof raw !== "string" || !raw) return KAVATI_CARD;
+    const t = raw.trim();
+    if (t.startsWith("/")) return `${host}${t}`; // site-relative ok
+    try {
+      const u = new URL(t);
+      return (u.protocol === "https:" || u.protocol === "http:") ? u.toString() : KAVATI_CARD;
+    } catch { return KAVATI_CARD; }
+  }
+  const imgAbs = safeImageUrl((business as any).logoUrl || (business as any).bannerUrl);
 
   // Optimise the og:image for social-card scrapers. Huge source images
   // (4k+, multi-MB) get skipped or time out on WhatsApp/FB; tiny ones
@@ -1450,6 +1462,18 @@ router.get("/public/:businessSlug/reviews", async (req, res): Promise<void> => {
 router.post("/public/:businessSlug/reviews", async (req, res): Promise<void> => {
   const slug = req.params.businessSlug;
 
+  // Per-IP rate limit — reviews are fully anonymous (no account required)
+  // so without throttling an attacker can paint a competitor's page with
+  // one-star reviews at line rate.
+  const { checkIpSmsLimit } = await import("../lib/smsRateLimit");
+  const ipLimit = checkIpSmsLimit(req.ip);
+  if (!ipLimit.ok) {
+    res.status(429).setHeader("Retry-After", String(ipLimit.retryAfterSec)).json({
+      error: "יותר מדי ביקורות מכתובת זו — נסה שוב מאוחר יותר",
+    });
+    return;
+  }
+
   // Login OPTIONAL per owner's request — anyone can leave a review
   // with just a full name. When the caller IS logged in we use their
   // session for email/phone dedup (so a second submission updates the
@@ -1471,7 +1495,17 @@ router.post("/public/:businessSlug/reviews", async (req, res): Promise<void> => 
     res.status(400).json({ error: "invalid_rating" }); return;
   }
   const text = typeof req.body?.text === "string" ? req.body.text.trim().slice(0, 2000) : null;
-  const avatarUrl = typeof req.body?.avatarUrl === "string" ? req.body.avatarUrl.slice(0, 500) : null;
+  // Reject anything that isn't a plain http(s) URL — otherwise a caller
+  // can sneak in a `javascript:` URL (inert in <img> but live in <a>)
+  // or a `data:` URL carrying an SVG with embedded scripts.
+  const rawAvatar = typeof req.body?.avatarUrl === "string" ? req.body.avatarUrl.slice(0, 500).trim() : null;
+  let avatarUrl: string | null = null;
+  if (rawAvatar) {
+    try {
+      const u = new URL(rawAvatar);
+      if (u.protocol === "https:" || u.protocol === "http:") avatarUrl = u.toString();
+    } catch { /* invalid URL — drop */ }
+  }
   // Name: session.clientName wins over body.clientName when both are
   // present; at least one must be non-empty.
   const clientName = (session?.clientName || req.body?.clientName || "").trim().slice(0, 120);

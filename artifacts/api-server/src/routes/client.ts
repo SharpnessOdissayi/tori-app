@@ -149,6 +149,16 @@ router.post("/client/verify-otp", async (req, res): Promise<void> => {
 
 // ─── Email OTP (interim flow until WhatsApp Auth template is approved) ─────
 router.post("/client/send-email-otp", async (req, res): Promise<void> => {
+  // Per-IP gate first — the per-email limiter below can still be abused by
+  // rotating through attacker-controlled inboxes to burn our Resend quota.
+  const { checkIpSmsLimit } = await import("../lib/smsRateLimit");
+  const ipLimit = checkIpSmsLimit(req.ip);
+  if (!ipLimit.ok) {
+    res.status(429).setHeader("Retry-After", String(ipLimit.retryAfterSec)).json({
+      error: "יותר מדי בקשות מכתובת זו — נסה שוב מאוחר יותר",
+    });
+    return;
+  }
   const { email } = req.body;
   if (!email || typeof email !== "string" || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
     res.status(400).json({ error: "אימייל לא תקין" });
@@ -241,10 +251,18 @@ router.post("/client/google-auth", async (req, res): Promise<void> => {
   if (!credential) { res.status(400).json({ error: "token חסר" }); return; }
 
   try {
+    const googleClientId = (process.env.GOOGLE_CLIENT_ID ?? "").trim();
+    if (!googleClientId) {
+      // Fail closed: if GOOGLE_CLIENT_ID is missing from Railway env, the
+      // aud check below would short-circuit and accept ANY Google ID token
+      // (including ones issued to an attacker-controlled OAuth app).
+      console.error("[client/google-auth] GOOGLE_CLIENT_ID not set — rejecting");
+      res.status(500).json({ error: "google_oauth_misconfigured" });
+      return;
+    }
     const infoRes = await fetch(`https://oauth2.googleapis.com/tokeninfo?id_token=${credential}`);
     const info = await infoRes.json();
-    const googleClientId = process.env.GOOGLE_CLIENT_ID;
-    if (!infoRes.ok || !info.sub || (googleClientId && info.aud !== googleClientId)) {
+    if (!infoRes.ok || !info.sub || info.aud !== googleClientId) {
       res.status(400).json({ error: "Google token לא תקין" }); return;
     }
 
