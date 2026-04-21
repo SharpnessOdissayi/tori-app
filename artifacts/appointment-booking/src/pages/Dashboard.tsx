@@ -4850,36 +4850,57 @@ function WorkingHoursTab() {
     <Card>
       <CardHeader>
         <CardTitle>שעות עבודה</CardTitle>
-        <CardDescription>סמן את הימים והשעות בהם העסק פעיל</CardDescription>
+        <CardDescription>
+          {rotation?.enabled
+            ? "הסידור המשתנה פעיל — השעות למטה קובעות מה הלקוחות רואים. השעות הקבועות כאן רדומות."
+            : "סמן את הימים והשעות בהם העסק פעיל"}
+        </CardDescription>
       </CardHeader>
       <CardContent className="space-y-3">
-        {localHours.map((h, i) => (
-          // RTL row: day name reads first (right), times cluster right after
-          // it so the owner sees "ראשון 09:00-18:00" as one unit; Switch
-          // pushed to the far left (end) with ms-auto.
-          <div key={i} dir="rtl" className="flex flex-wrap items-center gap-3 p-4 border rounded-xl bg-card">
-            <span className="font-medium w-14 shrink-0">{DAYS[h.dayOfWeek]}</span>
-            {h.isEnabled ? (
-              <div className="flex items-center gap-2">
-                <Input type="time" value={h.startTime} onChange={e => { const n = [...localHours]; n[i].startTime = e.target.value; setLocalHours(n); }} className="w-[7.5rem] sm:w-32" dir="ltr" />
-                <span className="text-muted-foreground">—</span>
-                <Input type="time" value={h.endTime} onChange={e => { const n = [...localHours]; n[i].endTime = e.target.value; setLocalHours(n); }} className="w-[7.5rem] sm:w-32" dir="ltr" />
-              </div>
-            ) : (
-              <span className="text-muted-foreground text-sm">סגור</span>
-            )}
-            <Switch className="ms-auto" checked={h.isEnabled} onCheckedChange={v => {
-              const n = [...localHours]; n[i].isEnabled = v; setLocalHours(n);
-            }} />
+        {/* When rotation is active, the standard weekly hours ARE STILL
+            stored in the DB but are completely ignored by availability.ts
+            (rotation rows win; missing rotation row = closed). Showing the
+            editable grid anyway confuses the owner into thinking edits
+            matter. Hide the rows, show a pointer to the rotation card. */}
+        {rotation?.enabled ? (
+          <div className="p-4 rounded-xl border border-amber-200 bg-amber-50 text-sm text-amber-900 leading-relaxed space-y-1">
+            <div className="font-semibold">🔁 הסידור המשתנה פעיל</div>
+            <div className="text-amber-800">
+              השעות הקבועות בשבוע לא משפיעות כעת על מה שהלקוחות רואים — רק הסידור המשתנה למטה קובע. לערוך ימים/שעות — גלול לכרטיס "סידור עבודה משתנה" ולחץ "ערוך סידור".
+            </div>
+            <div className="text-xs text-amber-700 pt-1">
+              אם תכבה את הסידור המשתנה, השעות השבועיות יחזרו לקבוע את מה שזמין להזמנה.
+            </div>
           </div>
-        ))}
+        ) : (
+          localHours.map((h, i) => (
+            // RTL row: day name reads first (right), times cluster right after
+            // it so the owner sees "ראשון 09:00-18:00" as one unit; Switch
+            // pushed to the far left (end) with ms-auto.
+            <div key={i} dir="rtl" className="flex flex-wrap items-center gap-3 p-4 border rounded-xl bg-card">
+              <span className="font-medium w-14 shrink-0">{DAYS[h.dayOfWeek]}</span>
+              {h.isEnabled ? (
+                <div className="flex items-center gap-2">
+                  <Input type="time" value={h.startTime} onChange={e => { const n = [...localHours]; n[i].startTime = e.target.value; setLocalHours(n); }} className="w-[7.5rem] sm:w-32" dir="ltr" />
+                  <span className="text-muted-foreground">—</span>
+                  <Input type="time" value={h.endTime} onChange={e => { const n = [...localHours]; n[i].endTime = e.target.value; setLocalHours(n); }} className="w-[7.5rem] sm:w-32" dir="ltr" />
+                </div>
+              ) : (
+                <span className="text-muted-foreground text-sm">סגור</span>
+              )}
+              <Switch className="ms-auto" checked={h.isEnabled} onCheckedChange={v => {
+                const n = [...localHours]; n[i].isEnabled = v; setLocalHours(n);
+              }} />
+            </div>
+          ))
+        )}
         <div className="pt-4 border-t space-y-2">
           <Label>זמן הפסקה בין פגישות (דקות)</Label>
           <div className="flex items-center gap-3">
             <Input type="number" min="0" step="5" value={bufferMinutes} onChange={e => setBufferMinutes(e.target.value)} className="w-28 text-center" />
             <span className="text-sm text-muted-foreground">דקות בין תורים</span>
           </div>
-          <p className="text-xs text-muted-foreground">זמן קצוב לניקיון/מנוחה בין תור לתור</p>
+          <p className="text-xs text-muted-foreground">זמן קצוב לניקיון/מנוחה בין תור לתור — חל גם כשהסידור המשתנה פעיל</p>
         </div>
       </CardContent>
     </Card>
