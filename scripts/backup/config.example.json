@@ -1,0 +1,6 @@
+{
+  "databaseUrl": "postgresql://USER:PASSWORD@HOST:PORT/DBNAME",
+  "encryptionPassword": "PUT-THE-STRONG-PASSWORD-HERE",
+  "backupDir": "C:/Users/ofek3/Documents/kavati-backups",
+  "pgDumpPath": "C:/Program Files/PostgreSQL/17/bin/pg_dump.exe"
+}
