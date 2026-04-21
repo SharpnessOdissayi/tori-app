@@ -41,7 +41,7 @@ const router = Router();
  * previous "🔒 things you can't do" section was removed per the owner's
  * request — staff shouldn't be greeted by a list of restrictions.
  */
-async function sendStaffWelcomeEmail(args: {
+export async function sendStaffWelcomeEmail(args: {
   to:           string;
   staffName:    string;
   businessName: string;
@@ -298,6 +298,112 @@ router.post("/staff", async (req, res): Promise<void> => {
   });
 });
 
+// ─── GET /api/staff/extra-seat-iframe-url ──────────────────────────────────
+// עסקי tier: first 2 active staff come "included" with the plan. Anything
+// beyond 2 is an extra seat at ₪25/mo. Instead of modifying the main
+// subscription's STO, we open a fresh Tranzila iframe that:
+//   1. Charges ₪25 right now (first month)
+//   2. Returns a TranzilaTK on the notify webhook
+//   3. The webhook then creates a NEW independent STO for ₪25/mo
+// Each extra staff carries its own sto_id on staff_members.tranzila_sto_id.
+// Deleting the staff deactivates that STO (no more monthly charges).
+//
+// The staff row is NOT created here — it lands in the webhook once
+// payment + STO both succeed. Staff details travel to the webhook as a
+// short-lived JWT embedded in the iframe's pdesc.
+router.get("/staff/extra-seat-iframe-url", async (req, res): Promise<void> => {
+  const ident = (() => {
+    const authHeader = req.headers.authorization ?? "";
+    const token = authHeader.startsWith("Bearer ") ? authHeader.slice(7) : "";
+    if (!token) return null;
+    try {
+      const payload = jwt.verify(token, JWT_SECRET) as { businessId?: number; id?: number; staffMemberId?: number };
+      const businessId = payload.businessId ?? payload.id ?? null;
+      if (!businessId) return null;
+      return { businessId, staffMemberId: payload.staffMemberId ?? null };
+    } catch { return null; }
+  })();
+  if (!ident) { res.status(401).json({ error: "Unauthorized" }); return; }
+  // Owner-only — staff can't spend the owner's card.
+  if (ident.staffMemberId) { res.status(403).json({ error: "owner_only" }); return; }
+
+  const [biz] = await db
+    .select({
+      id: businessesTable.id,
+      plan: businessesTable.subscriptionPlan,
+      name: businessesTable.name,
+      ownerName: businessesTable.ownerName,
+      email: businessesTable.email,
+    })
+    .from(businessesTable)
+    .where(eq(businessesTable.id, ident.businessId));
+  if (!biz) { res.status(404).json({ error: "business_not_found" }); return; }
+  if (biz.plan !== "pro-plus") {
+    res.status(403).json({ error: "pro_plus_required", message: "מושב נוסף זמין רק במסלול עסקי" });
+    return;
+  }
+
+  // Same cap + uniqueness checks as the main POST so the owner isn't
+  // asked to pay only to hit a 400 in the webhook.
+  const active = await db
+    .select()
+    .from(staffMembersTable)
+    .where(and(
+      eq(staffMembersTable.businessId, ident.businessId),
+      eq(staffMembersTable.isActive, true),
+    ));
+  const cap = planSeatCap(biz.plan);
+  if (active.length >= cap) {
+    res.status(403).json({ error: "seat_cap_reached", cap, currentActive: active.length });
+    return;
+  }
+
+  const name  = String((req.query.name  as string | undefined) ?? "").trim();
+  const email = String((req.query.email as string | undefined) ?? "").trim().toLowerCase();
+  const phone = String((req.query.phone as string | undefined) ?? "").trim();
+  if (!name)  { res.status(400).json({ error: "name_required"  }); return; }
+  if (!email) { res.status(400).json({ error: "email_required" }); return; }
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { res.status(400).json({ error: "email_invalid" }); return; }
+  if (active.some(r => (r.email ?? "").toLowerCase() === email)) {
+    res.status(409).json({ error: "duplicate_email" }); return;
+  }
+  if (phone && active.some(r => r.phone === phone)) {
+    res.status(409).json({ error: "duplicate_phone" }); return;
+  }
+
+  // Encode the staff payload as a short-lived signed JWT that travels
+  // through Tranzila's pdesc and comes back on the notify webhook. This
+  // keeps the flow stateless — a server restart between iframe open and
+  // webhook arrival doesn't lose the pending staff record.
+  const pendingToken = jwt.sign(
+    { kind: "staff_seat", businessId: ident.businessId, name, email, phone },
+    JWT_SECRET,
+    { expiresIn: "20m" },
+  );
+
+  const supplier = (process.env.TRANZILA_SUPPLIER ?? "").trim();
+  if (!supplier) { res.status(500).json({ error: "tranzila_supplier_missing" }); return; }
+  const iframeBase = `https://direct.tranzila.com/${supplier}/iframenew.php`;
+  const p = new URLSearchParams({
+    sum:                 "25.00",
+    currency:            "1",
+    cred_type:           "1",
+    tranmode:            "AK",                           // charge + tokenize
+    lang:                "il",
+    buttonLabel:         "שלם ₪25 והוסף עובד",
+    contact:             biz.ownerName ?? biz.name ?? "",
+    email:               biz.email ?? "",
+    // pdesc carries the businessId + pending JWT so the webhook can
+    // reconstruct the staff record. Kept under Tranzila's ~250-char cap.
+    pdesc:               `עובד נוסף קבעתי - ${ident.businessId} - ${pendingToken}`,
+    success_url_address: `https://www.kavati.net/payment/success?type=extra-seat`,
+    fail_url_address:    `https://www.kavati.net/payment/fail?type=extra-seat`,
+    notify_url_address:  `https://www.kavati.net/api/tranzila/notify`,
+    nologo:              "1",
+  });
+  res.json({ url: `${iframeBase}?${p.toString()}` });
+});
+
 // ─── POST /api/staff/:id/resend-invite ────────────────────────────────────
 // Owner-initiated re-send of the welcome/training email. No password
 // reset — staff log in via SMS OTP, so there's nothing to rotate.
@@ -489,6 +595,16 @@ router.delete("/staff/me", async (req, res): Promise<void> => {
   if (!row) { res.status(404).json({ error: "Staff not found" }); return; }
   if (row.isOwner) { res.status(403).json({ error: "cannot_delete_owner" }); return; }
 
+  // Extra-seat STO cleanup — same best-effort path as DELETE /staff/:id.
+  if ((row as any).tranzilaStoId) {
+    try {
+      const { updateSto } = await import("../lib/tranzilaCharge");
+      await updateSto((row as any).tranzilaStoId as number, "inactive");
+    } catch (err) {
+      logger.error({ err, staffId, sto: (row as any).tranzilaStoId }, "[staff/me] STO deactivate failed");
+    }
+  }
+
   // staff_services is keyed on staff_member_id — clear first so the
   // owner-row bridge isn't left with dangling foreign keys.
   try { await db.delete(staffServicesTable).where(eq(staffServicesTable.staffMemberId, staffId)); } catch {}
@@ -521,6 +637,21 @@ router.delete("/staff/:id", async (req, res): Promise<void> => {
   if (row.isOwner) {
     res.status(403).json({ error: "cannot_delete_owner" });
     return;
+  }
+
+  // If this staff was backed by an extra-seat STO (₪25/mo), deactivate
+  // that STO on Tranzila BEFORE dropping the row so a future charge
+  // never fires on an already-deleted seat. Deactivation is best-effort:
+  // if it fails we still delete the row and log — the owner can follow
+  // up via the Tranzila dashboard.
+  if ((row as any).tranzilaStoId) {
+    try {
+      const { updateSto } = await import("../lib/tranzilaCharge");
+      const ok = await updateSto((row as any).tranzilaStoId as number, "inactive");
+      if (!ok) logger.warn({ staffId, sto: (row as any).tranzilaStoId }, "[staff] STO deactivate returned false");
+    } catch (err) {
+      logger.error({ err, staffId, sto: (row as any).tranzilaStoId }, "[staff] STO deactivate threw");
+    }
   }
 
   await db.delete(staffMembersTable).where(eq(staffMembersTable.id, staffId));

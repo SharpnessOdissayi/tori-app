@@ -66,6 +66,14 @@ export const staffMembersTable = pgTable("staff_members", {
   rotationWeeksCount:      integer("rotation_weeks_count"),
   rotationAnchorDate:      text("rotation_anchor_date"),
   rotationAnchorWeekIndex: integer("rotation_anchor_week_index"),
+  // ─── Extra-seat billing (עסקי tier) ──────────────────────────────────
+  // Each staff beyond the 2 included has its OWN Tranzila Standing
+  // Order for ₪25/mo, independent of the main subscription's STO.
+  // NULL = seat is included (one of the first 2), no charge.
+  // Populated by the /api/tranzila/notify handler after the owner
+  // completes the extra-seat iframe; deactivated (Tranzila-side) when
+  // the staff is deleted.
+  tranzilaStoId:           integer("tranzila_sto_id"),
   createdAt:  timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 

@@ -448,6 +448,122 @@ router.post("/tranzila/notify", async (req, res): Promise<void> => {
       return;
     }
 
+    // ── Extra-seat (עסקי) purchase: new iframe AK for ₪25 + new STO ──
+    // pdesc shape: "עובד נוסף קבעתי - {businessId} - {pendingJwt}"
+    // On success: decode the JWT (holds staff name/email/phone) → create
+    // the staff row → create a fresh ₪25/mo STO on the returned token →
+    // save that sto_id on the new staff row.
+    const extraSeatMatch = pdesc.match(/^עובד נוסף קבעתי - (\d+) - (.+)$/);
+    if (extraSeatMatch) {
+      const businessId   = parseInt(extraSeatMatch[1], 10);
+      const pendingToken = extraSeatMatch[2];
+      if (!businessId || isNaN(businessId)) {
+        console.error(`[Tranzila] extra-seat: invalid businessId in pdesc: ${pdesc}`);
+        res.status(200).send("OK");
+        return;
+      }
+      if (responsecode !== "000") {
+        console.log(`[Tranzila] extra-seat: iframe failed (biz=${businessId}, code=${responsecode})`);
+        res.status(200).send("OK");
+        return;
+      }
+      let payload: { kind?: string; businessId?: number; name?: string; email?: string; phone?: string };
+      try {
+        payload = jwt.verify(pendingToken, JWT_SECRET) as any;
+      } catch (e) {
+        console.error("[Tranzila] extra-seat: pending JWT verify failed:", (e as any)?.message);
+        res.status(200).send("OK");
+        return;
+      }
+      if (payload.kind !== "staff_seat" || payload.businessId !== businessId || !payload.name || !payload.email) {
+        console.error("[Tranzila] extra-seat: bad JWT payload", { kind: payload.kind, biz: payload.businessId });
+        res.status(200).send("OK");
+        return;
+      }
+
+      const newToken = String(body.TranzilaTK ?? body.tranzilatk ?? body.token ?? "").trim();
+      const mm       = String(body.expmonth ?? "").padStart(2, "0").slice(0, 2);
+      const yy       = String(body.expyear  ?? "").padStart(2, "0").slice(-2);
+      const expdate  = mm && yy ? `${mm}${yy}` : String(body.expdate ?? "").trim();
+      if (!newToken || !expdate) {
+        console.error(`[Tranzila] extra-seat: missing token/expdate for biz=${businessId}`);
+        res.status(200).send("OK");
+        return;
+      }
+
+      try {
+        const { staffMembersTable } = await import("@workspace/db");
+
+        // Duplicate-email / duplicate-phone guard — another staff could
+        // have been added while the owner was on the iframe. If duplicate,
+        // skip the STO + insert; owner already paid ₪25 and will need a
+        // manual refund in that rare race. Silent skip beats silently
+        // doubling a paid row.
+        const email = payload.email.toLowerCase();
+        const activeRows = await db
+          .select()
+          .from(staffMembersTable)
+          .where(and(
+            eq(staffMembersTable.businessId, businessId),
+            eq(staffMembersTable.isActive, true),
+          ));
+        if (activeRows.some(r => (r.email ?? "").toLowerCase() === email)) {
+          console.warn(`[Tranzila] extra-seat: duplicate email — skipping insert + STO for biz=${businessId}`);
+          res.status(200).send("OK");
+          return;
+        }
+        if (payload.phone && activeRows.some(r => r.phone === payload.phone)) {
+          console.warn(`[Tranzila] extra-seat: duplicate phone — skipping insert + STO for biz=${businessId}`);
+          res.status(200).send("OK");
+          return;
+        }
+
+        // Create the ₪25/mo STO on the new token — independent of the
+        // main subscription STO. Tranzila charges the same day of month
+        // going forward (see tranzilaCharge.ts notes).
+        const sto = await chargeToken(newToken, expdate, 25, businessId);
+        if (!sto.success || !sto.stoId) {
+          console.error(`[Tranzila] extra-seat STO create FAILED biz=${businessId}: ${sto.responseCode}`, sto.rawResponse.slice(0, 300));
+          res.status(200).send("OK");
+          return;
+        }
+
+        const [inserted] = await db
+          .insert(staffMembersTable)
+          .values({
+            businessId,
+            name:       payload.name,
+            email,
+            phone:      payload.phone || null,
+            isOwner:    false,
+            isActive:   true,
+            sortOrder:  0,
+            tranzilaStoId: sto.stoId,
+          } as any)
+          .returning();
+
+        console.log(`[Tranzila] extra-seat OK: biz=${businessId} staff=${inserted.id} sto=${sto.stoId}`);
+
+        // Fire the welcome email (fire-and-forget). Failure doesn't
+        // undo the paid row — owner can hit "resend invite" later.
+        const [bizName] = await db
+          .select({ name: businessesTable.name })
+          .from(businessesTable)
+          .where(eq(businessesTable.id, businessId));
+        const { sendStaffWelcomeEmail } = await import("../routes/staff");
+        sendStaffWelcomeEmail({
+          to:           email,
+          staffName:    payload.name as string,
+          businessName: bizName?.name ?? "",
+          staffPhone:   payload.phone || null,
+        }).catch(() => {/* logged in sendStaffWelcomeEmail on failure */});
+      } catch (e) {
+        console.error("[Tranzila] extra-seat handler threw:", e);
+      }
+      res.status(200).send("OK");
+      return;
+    }
+
     // ── Appointment deposit ──────────────────────────────────────────────
     const pdescMatch = pdesc.match(/תור מספר (\d+)/);
     const apptIdRaw = pdescMatch

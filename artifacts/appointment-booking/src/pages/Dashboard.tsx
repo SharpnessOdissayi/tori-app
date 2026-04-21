@@ -10557,6 +10557,109 @@ function StaffTab() {
     performAdd();
   }
 
+  // Extra-seat flow — opens a Tranzila iframe in a popup, polls the
+  // staff list until the webhook inserts the new row, then closes.
+  // This is owner-initiated payment for a NEW seat at ₪25/mo, with its
+  // own Tranzila STO separate from the main subscription.
+  async function performPaidAdd() {
+    setAdding(true);
+    try {
+      const qs = new URLSearchParams({
+        name:  newName.trim(),
+        email: newEmail.trim().toLowerCase(),
+        phone: newPhone.trim(),
+      });
+      const res = await fetch(`/api/staff/extra-seat-iframe-url?${qs.toString()}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        const m: Record<string, string> = {
+          duplicate_email:   "אימייל תפוס — עובד אחר בצוות כבר משתמש בו.",
+          duplicate_phone:   "טלפון תפוס — עובד אחר בצוות כבר משתמש בו.",
+          email_required:    "אימייל נדרש.",
+          email_invalid:     "כתובת אימייל לא תקינה.",
+          seat_cap_reached:  `הגעת למגבלת העובדים (${json?.cap ?? HARD_STAFF_CAP}).`,
+          pro_plus_required: "מושב נוסף זמין רק במסלול עסקי.",
+          owner_only:        "רק בעלי העסק יכולים להוסיף עובד חדש בתשלום.",
+        };
+        toast({ title: m[json?.error] ?? "שגיאה ביצירת קישור לתשלום", variant: "destructive" });
+        setAdding(false);
+        return;
+      }
+      const iframeUrl = json?.url as string | undefined;
+      if (!iframeUrl) {
+        toast({ title: "שגיאה: לא התקבל קישור לתשלום", variant: "destructive" });
+        setAdding(false);
+        return;
+      }
+
+      // Open the Tranzila iframe in a popup — centered, sized to fit
+      // the hosted form comfortably. Tranzila's success_url lands back
+      // on our /payment/success page which the owner can just close.
+      const w = window.open(
+        iframeUrl,
+        "kavati_extra_seat",
+        "width=540,height=720,noopener,noreferrer,resizable=yes,scrollbars=yes",
+      );
+      if (!w) {
+        toast({
+          title: "הדפדפן חסם את החלון הקופץ",
+          description: "אשר חלונות קופצים עבור קבעתי ונסה שוב.",
+          variant: "destructive",
+        });
+        setAdding(false);
+        return;
+      }
+
+      // Poll /api/staff every 3s for up to 5 minutes waiting for the
+      // Tranzila notify → staff insert pipeline to complete. Stop early
+      // if the popup closes and we already see the new row.
+      const startedAt = Date.now();
+      const prevIds = new Set(staff.map(s => s.id));
+      const pollMs = 3000;
+      const timeoutMs = 5 * 60 * 1000;
+      const poll = async (): Promise<void> => {
+        if (Date.now() - startedAt > timeoutMs) {
+          toast({
+            title: "התשלום לא אומת בזמן",
+            description: "בדוק במייל לאישור חיוב וטען מחדש את הדף. אם לא חויבת — נסה שוב.",
+            variant: "destructive",
+          });
+          setAdding(false);
+          setBillingConfirmOpen(false);
+          return;
+        }
+        try {
+          const r = await fetch("/api/staff", { headers: { Authorization: `Bearer ${token}` } });
+          if (r.ok) {
+            const rows: StaffMember[] = await r.json();
+            const newlyAdded = rows.find(s => !prevIds.has(s.id));
+            if (newlyAdded) {
+              setStaff(rows);
+              setNewName("");
+              setNewEmail("");
+              setNewPhone("");
+              setBillingConfirmOpen(false);
+              setShowAddForm(false);
+              setAdding(false);
+              toast({
+                title: "התשלום התקבל והעובד נוסף ✓",
+                description: `${newlyAdded.name} — חיוב חודשי ₪${EXTRA_STAFF_ILS_PER_MONTH} (STO חדש).`,
+              });
+              return;
+            }
+          }
+        } catch { /* keep polling */ }
+        setTimeout(poll, pollMs);
+      };
+      setTimeout(poll, pollMs);
+    } catch (e) {
+      toast({ title: "שגיאת רשת", variant: "destructive" });
+      setAdding(false);
+    }
+  }
+
   async function performAdd() {
     setAdding(true);
     try {
@@ -10943,37 +11046,27 @@ function StaffTab() {
             </DialogTitle>
             <DialogDescription>
               מסלול עסקי כולל {INCLUDED_STAFF_COUNT} עובדים.
-              כל עובד נוסף = <strong>₪{EXTRA_STAFF_ILS_PER_MONTH}/חודש</strong> נוספים על החיוב הבא.
+              כל עובד נוסף = הוראת קבע חדשה של <strong>₪{EXTRA_STAFF_ILS_PER_MONTH}/חודש</strong>, במקביל למנוי הקיים.
             </DialogDescription>
           </DialogHeader>
 
           <div className="space-y-3 py-2">
             <div className="rounded-xl bg-gradient-to-br from-blue-50 to-sky-50 border border-blue-200 p-4 space-y-2">
               <div className="flex justify-between text-sm">
-                <span className="text-muted-foreground">חיוב חודשי נוכחי</span>
-                <span className="font-semibold">₪{currentMonthly}</span>
+                <span className="text-muted-foreground">חיוב עכשיו</span>
+                <span className="font-semibold text-blue-800">₪{EXTRA_STAFF_ILS_PER_MONTH}</span>
               </div>
               <div className="flex justify-between text-sm">
-                <span className="text-muted-foreground">+ עובד נוסף</span>
-                <span className="font-semibold text-blue-700">+₪{EXTRA_STAFF_ILS_PER_MONTH}</span>
+                <span className="text-muted-foreground">כל חודש לאחר מכן</span>
+                <span className="font-semibold">₪{EXTRA_STAFF_ILS_PER_MONTH}</span>
               </div>
-              <div className="border-t border-blue-200 pt-2 flex justify-between">
-                <span className="font-bold">חיוב חודשי חדש</span>
-                <span className="font-bold text-blue-800 text-lg">₪{nextMonthlyIls}</span>
+              <div className="border-t border-blue-200 pt-2 text-xs text-muted-foreground leading-relaxed">
+                ההוראה חוזרת על עצמה בכל חודש באותו תאריך, כמו המנוי הראשי. ברגע שתסיר את העובד — ההוראה תיבטל אוטומטית.
               </div>
             </div>
 
-            <div className="rounded-xl bg-amber-50 border border-amber-200 p-3 text-sm text-amber-900">
-              <div className="flex justify-between items-baseline">
-                <span className="font-semibold">חיוב יחסי על החודש הנוכחי</span>
-                <span className="font-bold">₪{proratedNowIls.toFixed(2)}</span>
-              </div>
-              <div className="text-xs text-amber-700 mt-1">
-                {renewDate
-                  ? `נשארו ${daysLeftInCycle} ימים עד החיוב הבא (${renewDate.toLocaleDateString("he-IL")}).`
-                  : "מחושב על בסיס 30 ימים מהיום."}
-                {" "}החיוב השלם של ₪{nextMonthlyIls} יתחיל במחזור הבא.
-              </div>
+            <div className="rounded-xl bg-amber-50 border border-amber-200 p-3 text-xs text-amber-900 leading-relaxed">
+              בלחיצה על "תשלום והוספה" ייפתח חלון מאובטח של טרנזילה למילוי פרטי אשראי. העובד יתווסף אוטומטית ברגע שהתשלום מאושר.
             </div>
 
             <p className="text-xs text-muted-foreground leading-relaxed">
@@ -10986,11 +11079,11 @@ function StaffTab() {
               ביטול
             </Button>
             <Button
-              onClick={performAdd}
+              onClick={performPaidAdd}
               disabled={adding}
               className="flex-1 bg-gradient-to-r from-blue-600 to-sky-600 hover:from-blue-700 hover:to-sky-700 text-white"
             >
-              {adding ? "מוסיף..." : "אישור והוספה"}
+              {adding ? "ממתין לאישור תשלום..." : "תשלום ₪25 והוספה"}
             </Button>
           </div>
         </DialogContent>

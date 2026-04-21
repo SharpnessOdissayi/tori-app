@@ -301,6 +301,9 @@ export async function runMigrations() {
       "ALTER TABLE staff_members ADD COLUMN IF NOT EXISTS rotation_weeks_count INTEGER",
       "ALTER TABLE staff_members ADD COLUMN IF NOT EXISTS rotation_anchor_date TEXT",
       "ALTER TABLE staff_members ADD COLUMN IF NOT EXISTS rotation_anchor_week_index INTEGER",
+      // Each extra-seat staff (beyond the 2 included in עסקי) carries
+      // its own ₪25/mo Tranzila STO. NULL = included seat, no charge.
+      "ALTER TABLE staff_members ADD COLUMN IF NOT EXISTS tranzila_sto_id INTEGER",
       // Each working_hours row can optionally tag itself with the rotation
       // week it applies to (1..N). NULL = non-rotation row used when the
       // staff/business has no rotation configured.
