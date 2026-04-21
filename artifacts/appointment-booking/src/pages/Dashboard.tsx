@@ -10431,6 +10431,10 @@ function StaffTab() {
   const [newPhone, setNewPhone] = useState("");
   const [adding, setAdding] = useState(false);
   const [showGuide, setShowGuide] = useState(true);
+  // Collapse the add-form by default, same pattern as "מאגר לקוחות"
+  // in the customers tab — keeps the staff tab uncluttered for owners
+  // who just want to review existing members.
+  const [showAddForm, setShowAddForm] = useState(false);
 
   // StaffTab is rendered ONLY for owners — the parent Dashboard routes
   // non-owner staff sessions to <StaffSelfPanel /> instead (see the
@@ -10828,17 +10832,28 @@ function StaffTab() {
       {!isStaffMode && (
       <Card>
         <CardHeader>
-          <CardTitle className="text-base flex items-center gap-2">
-            <Plus className="w-4 h-4" /> הוספת עובד חדש
-          </CardTitle>
-          <CardDescription>
-            {activeCount < INCLUDED_STAFF_COUNT
-              ? `נשאר${INCLUDED_STAFF_COUNT - activeCount === 1 ? "" : "ו"} ${INCLUDED_STAFF_COUNT - activeCount} מקומות חינם במסלול שלך.`
-              : activeCount < HARD_STAFF_CAP
-                ? `כל עובד נוסף — ₪${EXTRA_STAFF_ILS_PER_MONTH}/חודש.`
-                : `הגעת למגבלה העליונה (${HARD_STAFF_CAP} עובדים). צור קשר לתכנית מותאמת אישית.`}
-          </CardDescription>
+          <button
+            type="button"
+            onClick={() => setShowAddForm(v => !v)}
+            className="w-full flex items-start justify-between gap-3 text-right hover:opacity-80 transition-opacity"
+            aria-expanded={showAddForm}
+          >
+            <div className="flex-1 min-w-0">
+              <CardTitle className="text-base flex items-center gap-2">
+                <Plus className="w-4 h-4" /> הוספת עובד חדש
+              </CardTitle>
+              <CardDescription className="mt-1">
+                {activeCount < INCLUDED_STAFF_COUNT
+                  ? `נשאר${INCLUDED_STAFF_COUNT - activeCount === 1 ? "" : "ו"} ${INCLUDED_STAFF_COUNT - activeCount} מקומות חינם במסלול שלך.`
+                  : activeCount < HARD_STAFF_CAP
+                    ? `כל עובד נוסף — ₪${EXTRA_STAFF_ILS_PER_MONTH}/חודש.`
+                    : `הגעת למגבלה העליונה (${HARD_STAFF_CAP} עובדים). צור קשר לתכנית מותאמת אישית.`}
+              </CardDescription>
+            </div>
+            <ChevronDown className={`w-5 h-5 text-muted-foreground shrink-0 mt-1 transition-transform ${showAddForm ? "rotate-180" : ""}`} />
+          </button>
         </CardHeader>
+        {showAddForm && (
         <CardContent className="space-y-3">
           <div className="space-y-1.5">
             <Label>שם מלא *</Label>
@@ -10872,6 +10887,7 @@ function StaffTab() {
                 : "הוסף עובד ושלח הזמנה"}
           </Button>
         </CardContent>
+        )}
       </Card>
       )}
 
