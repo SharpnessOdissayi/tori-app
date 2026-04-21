@@ -406,6 +406,18 @@ export default function Book({ slugOverride }: { slugOverride?: string } = {}) {
   const [rescheduleLoading, setRescheduleLoading] = useState(false);
   const [cancelLoading, setCancelLoading] = useState(false);
 
+  // OTP gate for self-service cancel / reschedule. We don't trust raw
+  // phoneNumber as ownership proof anymore — an attacker with the phone
+  // could enumerate appointmentIds and mutate a victim's bookings.
+  // Dialog opens → OTP auto-sent → user enters code → verify → server
+  // returns a signed token that the cancel/reschedule call must include.
+  type OtpGateAction = { kind: "cancel" } | { kind: "reschedule"; date: string; time: string };
+  const [otpGate, setOtpGate] = useState<OtpGateAction | null>(null);
+  const [otpGateCode, setOtpGateCode] = useState("");
+  const [otpGateSending, setOtpGateSending] = useState(false);
+  const [otpGateSent, setOtpGateSent] = useState(false);
+  const [otpGateWorking, setOtpGateWorking] = useState(false);
+
   const [selectedServiceId, setSelectedServiceId] = useState<number | null>(null);
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(undefined);
   const [selectedTime, setSelectedTime] = useState<string | null>(null);
@@ -1075,6 +1087,11 @@ export default function Book({ slugOverride }: { slugOverride?: string } = {}) {
     void handleVerifyOtp(smsCode);
   });
 
+  // Autofill for the cancel/reschedule gate.
+  useWebOtp(!!otpGate && otpGateSent, (smsCode) => {
+    setOtpGateCode(smsCode);
+  });
+
   if (businessLoading) return (
     <div className="min-h-screen flex items-center justify-center" style={{ background: "#ffffff" }}>
       <div className="text-center space-y-3">
@@ -1441,14 +1458,44 @@ export default function Book({ slugOverride }: { slugOverride?: string } = {}) {
     setStep(4);
   };
 
-  const handleCancelAppointment = async () => {
+  // Open the OTP gate (sends a fresh code) — called instead of the old
+  // one-click cancel/reschedule. The actual mutation runs from
+  // confirmOtpGate() after the user enters the SMS code.
+  const openOtpGate = async (action: OtpGateAction) => {
+    if (!existingBooking?.phone) return;
+    setOtpGate(action);
+    setOtpGateCode("");
+    setOtpGateSent(false);
+    setOtpGateSending(true);
+    try {
+      const res = await fetch(`${API_BASE}/public/${businessSlug}/otp/send`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ phone: existingBooking.phone }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        toast({ title: data?.error ?? "שגיאה בשליחת קוד", variant: "destructive" });
+        setOtpGate(null);
+        return;
+      }
+      setOtpGateSent(true);
+    } catch {
+      toast({ title: "שגיאת רשת", variant: "destructive" });
+      setOtpGate(null);
+    } finally {
+      setOtpGateSending(false);
+    }
+  };
+
+  const executeCancelWithToken = async (phoneVerificationToken: string) => {
     if (!existingBooking?.id || !existingBooking?.phone) return;
     setCancelLoading(true);
     try {
       const res = await fetch(`${API_BASE}/public/${businessSlug}/appointments/${existingBooking.id}/cancel`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ phoneNumber: existingBooking.phone }),
+        body: JSON.stringify({ phoneNumber: existingBooking.phone, phoneVerificationToken }),
       });
       const data = await res.json();
       if (!res.ok) {
@@ -1466,34 +1513,74 @@ export default function Book({ slugOverride }: { slugOverride?: string } = {}) {
     }
   };
 
-  const handleReschedule = async () => {
-    if (!existingBooking?.id || !existingBooking?.phone || !rescheduleDate || !rescheduleTime) return;
-    const newDate = rescheduleDate.toISOString().split("T")[0];
+  const executeRescheduleWithToken = async (phoneVerificationToken: string, newDate: string, newTime: string) => {
+    if (!existingBooking?.id || !existingBooking?.phone) return;
     setRescheduleLoading(true);
     try {
       const res = await fetch(`${API_BASE}/public/${businessSlug}/appointments/${existingBooking.id}/reschedule`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ phoneNumber: existingBooking.phone, newDate, newTime: rescheduleTime }),
+        body: JSON.stringify({ phoneNumber: existingBooking.phone, newDate, newTime, phoneVerificationToken }),
       });
       const data = await res.json();
       if (!res.ok) {
         toast({ title: "שגיאה", description: data.message ?? "לא ניתן לדחות", variant: "destructive" });
       } else {
         const [, month, day] = newDate.split("-");
-        const updated = { ...existingBooking, date: `${day}/${month}`, time: rescheduleTime };
+        const updated = { ...existingBooking, date: `${day}/${month}`, time: newTime };
         localStorage.setItem(`kavati_booking_${businessSlug}`, JSON.stringify(updated));
         setExistingBooking(updated);
         setRescheduleStep("idle");
         setRescheduleDate(undefined);
         setRescheduleTime(null);
-        toast({ title: "✅ התור נדחה בהצלחה!", description: `${day}/${month} בשעה ${rescheduleTime}` });
+        toast({ title: "✅ התור נדחה בהצלחה!", description: `${day}/${month} בשעה ${newTime}` });
       }
     } catch {
       toast({ title: "שגיאת רשת", variant: "destructive" });
     } finally {
       setRescheduleLoading(false);
     }
+  };
+
+  const confirmOtpGate = async () => {
+    if (!otpGate || !existingBooking?.phone || otpGateCode.length !== 6) return;
+    setOtpGateWorking(true);
+    try {
+      const verifyRes = await fetch(`${API_BASE}/public/${businessSlug}/otp/verify`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ phone: existingBooking.phone, code: otpGateCode }),
+      });
+      if (!verifyRes.ok) {
+        toast({ title: "קוד שגוי או פג תוקף", variant: "destructive" });
+        setOtpGateCode("");
+        return;
+      }
+      const { phoneVerificationToken } = await verifyRes.json();
+      const action = otpGate;
+      setOtpGate(null);
+      setOtpGateCode("");
+      if (action.kind === "cancel") {
+        await executeCancelWithToken(phoneVerificationToken);
+      } else {
+        await executeRescheduleWithToken(phoneVerificationToken, action.date, action.time);
+      }
+    } catch {
+      toast({ title: "שגיאת רשת", variant: "destructive" });
+    } finally {
+      setOtpGateWorking(false);
+    }
+  };
+
+  const handleCancelAppointment = () => {
+    if (!existingBooking?.id) return;
+    void openOtpGate({ kind: "cancel" });
+  };
+
+  const handleReschedule = () => {
+    if (!existingBooking?.id || !rescheduleDate || !rescheduleTime) return;
+    const newDate = rescheduleDate.toISOString().split("T")[0];
+    void openOtpGate({ kind: "reschedule", date: newDate, time: rescheduleTime });
   };
 
   const handleWaitlist = (e: React.FormEvent) => {
@@ -1702,6 +1789,59 @@ export default function Book({ slugOverride }: { slugOverride?: string } = {}) {
                 )}
               </div>
             )}
+          </DialogContent>
+        </Dialog>
+
+        {/* OTP gate for destructive actions on an existing booking.
+            Opens whenever otpGate is non-null; auto-sends a code on open,
+            closes on success / cancel. Server rejects cancel+reschedule
+            without a fresh phoneVerificationToken, so this dialog is the
+            only path to those endpoints. */}
+        <Dialog open={!!otpGate} onOpenChange={(open) => { if (!open) { setOtpGate(null); setOtpGateCode(""); } }}>
+          <DialogContent className="sm:max-w-sm text-center" dir="rtl">
+            <DialogHeader>
+              <DialogTitle>אימות SMS</DialogTitle>
+              <DialogDescription className="text-sm">
+                {otpGateSending
+                  ? "שולח קוד..."
+                  : otpGateSent
+                    ? <>שלחנו קוד ל-<span dir="ltr">{existingBooking?.phone}</span>. הזן אותו כדי לאשר {otpGate?.kind === "cancel" ? "ביטול" : "דחייה"}.</>
+                    : "שליחת קוד נכשלה"}
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-3 py-2">
+              <input
+                type="text"
+                inputMode="numeric"
+                maxLength={6}
+                value={otpGateCode}
+                onChange={(e) => setOtpGateCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
+                autoComplete="one-time-code"
+                dir="ltr"
+                placeholder="123456"
+                disabled={otpGateWorking || !otpGateSent}
+                autoFocus
+                className="w-full rounded-xl border border-border bg-background px-4 py-3 text-xl font-mono text-center tracking-widest focus:outline-none focus:ring-2 focus:ring-primary disabled:opacity-50"
+              />
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  className="flex-1"
+                  onClick={() => { setOtpGate(null); setOtpGateCode(""); }}
+                  disabled={otpGateWorking}
+                >
+                  ביטול
+                </Button>
+                <Button
+                  className="flex-1"
+                  style={{ backgroundColor: primaryColor }}
+                  disabled={otpGateCode.length !== 6 || otpGateWorking || !otpGateSent}
+                  onClick={() => void confirmOtpGate()}
+                >
+                  {otpGateWorking ? "מאמת..." : "אשר"}
+                </Button>
+              </div>
+            </div>
           </DialogContent>
         </Dialog>
 

@@ -1538,9 +1538,19 @@ router.post("/public/:businessSlug/reviews", async (req, res): Promise<void> => 
 // Requires phoneNumber in body to verify ownership
 router.post("/public/:businessSlug/appointments/:id/cancel", async (req, res): Promise<void> => {
   const { businessSlug, id } = req.params;
-  const { phoneNumber } = req.body ?? {};
+  const { phoneNumber, phoneVerificationToken } = req.body ?? {};
 
   if (!phoneNumber) { res.status(400).json({ error: "phoneNumber required" }); return; }
+
+  // Require a fresh SMS-OTP proof of phone ownership. Without this, anyone
+  // who knows a victim's phone (cheap to obtain — owners see customer
+  // phones on their dashboard) could enumerate appointment IDs and cancel
+  // them across every business in the system. Token is issued by
+  // /public/:slug/otp/verify and lives 15 minutes.
+  if (!phoneVerificationToken || !verifyPhoneVerificationToken(phoneVerificationToken, phoneNumber)) {
+    res.status(401).json({ error: "verification_required", message: "נדרש אימות SMS לפני ביטול" });
+    return;
+  }
 
   const apptId = parseInt(id);
   if (!apptId || isNaN(apptId)) { res.status(400).json({ error: "id לא תקין" }); return; }
@@ -1598,10 +1608,17 @@ router.post("/public/:businessSlug/appointments/:id/cancel", async (req, res): P
 // PATCH /public/:businessSlug/appointments/:id/reschedule — client reschedules their appointment
 router.patch("/public/:businessSlug/appointments/:id/reschedule", async (req, res): Promise<void> => {
   const { businessSlug, id } = req.params;
-  const { phoneNumber, newDate, newTime } = req.body ?? {};
+  const { phoneNumber, newDate, newTime, phoneVerificationToken } = req.body ?? {};
 
   if (!phoneNumber || !newDate || !newTime) {
     res.status(400).json({ error: "phoneNumber, newDate, newTime required" });
+    return;
+  }
+
+  // Same SMS-OTP gate as cancel — without it an attacker with (phoneNumber,
+  // appointmentId) could silently move a victim's appointment to any slot.
+  if (!phoneVerificationToken || !verifyPhoneVerificationToken(phoneVerificationToken, phoneNumber)) {
+    res.status(401).json({ error: "verification_required", message: "נדרש אימות SMS לפני דחיית תור" });
     return;
   }
 

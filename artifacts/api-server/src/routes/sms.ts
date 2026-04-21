@@ -618,13 +618,45 @@ router.post("/sms/test-charge", async (req, res): Promise<void> => {
   });
 });
 
+// Guard both Inforu webhooks with a shared secret. Inforu's delivery and
+// reply endpoints are otherwise reachable from anywhere on the internet —
+// a forged `/reply` POST can silently mark any phone as "opted out" of
+// any business's broadcast list, and a forged DLR can flip status and
+// refund SMS quota to attackers. If the env var isn't set we fall back
+// to accepting (prevents breakage on first deploy) but log loud.
+//
+// Secret travels as a path-suffix query param because Inforu's webhook
+// config only accepts a plain URL:
+//   https://www.kavati.net/api/sms/inforu-webhook/delivery?secret=…
+function inforuWebhookAuthorized(req: any): boolean {
+  const expected = (process.env.INFORU_WEBHOOK_SECRET ?? "").trim();
+  if (!expected) {
+    logger.warn("[inforu-webhook] INFORU_WEBHOOK_SECRET not set — accepting unauthenticated request (configure this ASAP)");
+    return true;
+  }
+  const provided = String(req.query?.secret ?? req.headers?.["x-webhook-secret"] ?? "").trim();
+  if (!provided) return false;
+  // timingSafeEqual requires equal-length inputs
+  try {
+    const a = Buffer.from(expected);
+    const b = Buffer.from(provided);
+    if (a.length !== b.length) return false;
+    const { timingSafeEqual } = require("node:crypto");
+    return timingSafeEqual(a, b);
+  } catch { return false; }
+}
+
 // ─── POST /api/sms/inforu-webhook/delivery ────────────────────────────────
 // Inforu hits this endpoint with a DLR (delivery report) when a message
 // transitions between states. We look up the matching sms_messages row
 // by customer_message_id (unguessable UUID set at send-time) and update
-// the status field. No auth header required — the UUID is the shared
-// secret.
+// the status field.
 router.post("/sms/inforu-webhook/delivery", async (req, res): Promise<void> => {
+  if (!inforuWebhookAuthorized(req)) {
+    logger.warn({ ip: req.ip }, "[inforu-dlr] rejected — bad/missing secret");
+    res.status(401).json({ error: "unauthorized" });
+    return;
+  }
   try {
     const dlr = parseDeliveryReport(req.body);
     if (!dlr.customerMessageId) {
@@ -702,6 +734,11 @@ const OPT_OUT_KEYWORDS = [
 ];
 
 router.post("/sms/inforu-webhook/reply", async (req, res): Promise<void> => {
+  if (!inforuWebhookAuthorized(req)) {
+    logger.warn({ ip: req.ip }, "[inforu-reply] rejected — bad/missing secret");
+    res.status(401).json({ error: "unauthorized" });
+    return;
+  }
   try {
     const body = req.body ?? {};
     // Inforu's reply webhook body isn't pinned in the public docs — parse
