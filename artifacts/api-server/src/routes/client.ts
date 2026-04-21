@@ -6,6 +6,14 @@ import { sendOtp, verifyOtp, OtpRateLimitError } from "../lib/whatsapp";
 import { sendEmail } from "../lib/email";
 import { randomUUID } from "crypto";
 
+// Israel is UTC+3 in summer (Apr–Oct) and UTC+2 in winter.
+// Duplicated from routes/public.ts — keep them in sync.
+function israelTimeToUTC(dateStr: string, timeStr: string): Date {
+  const month = parseInt(dateStr.split("-")[1], 10);
+  const offset = (month >= 4 && month <= 10) ? 3 : 2;
+  return new Date(`${dateStr}T${timeStr}:00+0${offset}:00`);
+}
+
 const router = Router();
 
 const SESSION_DAYS = 30;
@@ -573,6 +581,41 @@ router.patch("/client/appointments/:id/reschedule", requireClientAuth, async (re
 
   if (!appt) { res.status(404).json({ error: "תור לא נמצא" }); return; }
   if (appt.status === "cancelled") { res.status(400).json({ error: "לא ניתן לעדכן תור שבוטל" }); return; }
+
+  // Apply the owner's booking-window rules (min lead time + max
+  // horizon). Without these, a logged-in client could move their
+  // appointment to 03:00 on Shabbat or a year ahead, silently
+  // breaking the guardrails the owner configured.
+  const [biz] = await db
+    .select({
+      minLeadHours: businessesTable.minLeadHours,
+      futureBookingMode: businessesTable.futureBookingMode,
+      maxFutureWeeks: businessesTable.maxFutureWeeks,
+      maxFutureDate: businessesTable.maxFutureDate,
+    })
+    .from(businessesTable)
+    .where(eq(businessesTable.id, appt.businessId));
+  if (biz?.minLeadHours && biz.minLeadHours > 0) {
+    const newDateTime = israelTimeToUTC(newDate, newTime);
+    const minAllowed = new Date(Date.now() + biz.minLeadHours * 60 * 60 * 1000);
+    if (newDateTime < minAllowed) {
+      res.status(400).json({ error: "too_soon", message: `יש לדחות לפחות ${biz.minLeadHours} שעות מראש` });
+      return;
+    }
+  }
+  if (biz?.futureBookingMode === "weeks" && biz.maxFutureWeeks > 0) {
+    const maxDate = new Date();
+    maxDate.setDate(maxDate.getDate() + biz.maxFutureWeeks * 7);
+    if (new Date(newDate) > maxDate) {
+      res.status(400).json({ error: "too_far", message: `ניתן לדחות עד ${biz.maxFutureWeeks} שבועות מראש` });
+      return;
+    }
+  } else if (biz?.futureBookingMode === "date" && biz.maxFutureDate) {
+    if (newDate > biz.maxFutureDate) {
+      res.status(400).json({ error: "too_far", message: `ניתן לדחות עד תאריך ${biz.maxFutureDate}` });
+      return;
+    }
+  }
 
   // Make sure the target slot isn't already taken by someone else.
   const [clash] = await db
