@@ -4455,8 +4455,12 @@ function RotationScheduleDialog({
   // (if any) — otherwise start from the 2-week default.
   useEffect(() => {
     if (!open) return;
-    const wc    = initial?.weeksCount ?? 2;
-    const awi   = initial?.anchorWeekIndex ?? 1;
+    // Cap to max 3 — the previous range was 2..8 but the UI now offers
+    // only 2 or 3. Existing configs with more weeks get clamped to 3 on
+    // load; the extra weeks' hours stay in the DB but won't be visible
+    // until saved under the new limit.
+    const wcRaw = initial?.weeksCount ?? 2;
+    const wc = Math.min(3, Math.max(2, wcRaw));
     const adate = initial?.anchorDate ?? thisSundayISO();
     const seed: Record<number, RotationHourRow[]> = {};
     for (let w = 1; w <= wc; w++) {
@@ -4472,7 +4476,7 @@ function RotationScheduleDialog({
       }
     }
     setWeeksCount(wc);
-    setAnchorWeekIdx(awi);
+    setAnchorWeekIdx(1);
     setAnchorDate(adate);
     setHoursByWeek(seed);
     setActiveWeek(1);
@@ -4487,8 +4491,7 @@ function RotationScheduleDialog({
       for (let w = 1; w <= n; w++) next[w] = prev[w] ?? defaultWeekHours();
       return next;
     });
-    if (anchorWeekIndex > n) setAnchorWeekIdx(n);
-    if (activeWeek > n)      setActiveWeek(n);
+    if (activeWeek > n) setActiveWeek(n);
   };
 
   const updateHour = (week: number, dow: number, patch: Partial<RotationHourRow>) => {
@@ -4507,7 +4510,9 @@ function RotationScheduleDialog({
       const payload: any = {
         weeksCount,
         anchorDate,
-        anchorWeekIndex,
+        // anchorWeekIndex removed from UI — the cycle always starts at
+        // week 1 on anchorDate. Backend validates this is 1.
+        anchorWeekIndex: 1,
         hoursByWeek: Object.fromEntries(
           Object.entries(hoursByWeek).map(([w, rows]) => [w, rows])
         ),
@@ -4540,7 +4545,7 @@ function RotationScheduleDialog({
         <DialogHeader>
           <DialogTitle>סידור עבודה משתנה</DialogTitle>
           <DialogDescription>
-            הגדירו לו"ז חוזר של מספר שבועות. אחרי שהגעתם לשבוע האחרון, הסידור חוזר להתחלה אוטומטית.
+            לוח עבודה שחוזר על עצמו כל כמה שבועות. המערכת תציג ללקוחות את שעות העבודה של השבוע הנכון אוטומטית, ולא תאפשר להזמין תורים בימים ושעות שבהם לא עובדים.
           </DialogDescription>
         </DialogHeader>
 
@@ -4549,7 +4554,7 @@ function RotationScheduleDialog({
           <div className="space-y-2">
             <Label>מספר שבועות במחזור</Label>
             <div className="flex flex-wrap gap-2">
-              {[2, 3, 4, 5, 6, 7, 8].map(n => (
+              {[2, 3].map(n => (
                 <button
                   key={n}
                   type="button"
@@ -4562,38 +4567,24 @@ function RotationScheduleDialog({
                 </button>
               ))}
             </div>
+            <p className="text-xs text-muted-foreground">
+              כמה שבועות שונים יש במחזור. למשל — 2 שבועות לסירוגין (בוקר/ערב), או 3 שבועות שכל אחד מהם שונה.
+            </p>
           </div>
 
-          {/* Anchor: where in the cycle are we right now */}
+          {/* Cycle start date — anchorWeekIndex removed (always 1) */}
           <div className="space-y-2 p-3 rounded-xl border bg-muted/30">
-            <Label>באיזה שבוע של המחזור אתם נמצאים כרגע?</Label>
-            <div className="flex flex-wrap gap-2">
-              {Array.from({ length: weeksCount }, (_, i) => i + 1).map(w => (
-                <button
-                  key={w}
-                  type="button"
-                  onClick={() => setAnchorWeekIdx(w)}
-                  className={`px-4 h-10 rounded-lg border text-sm font-semibold transition-colors ${
-                    anchorWeekIndex === w ? "bg-primary text-primary-foreground border-primary" : "bg-card hover:bg-accent"
-                  }`}
-                >
-                  שבוע {w}
-                </button>
-              ))}
-            </div>
-            <div className="pt-2 space-y-1">
-              <Label className="text-xs text-muted-foreground">מתחיל מיום ראשון בתאריך</Label>
-              <Input
-                type="date"
-                value={anchorDate}
-                onChange={e => setAnchorDate(e.target.value)}
-                dir="ltr"
-                className="w-44"
-              />
-              <p className="text-xs text-muted-foreground">
-                ברירת מחדל: יום ראשון של השבוע הנוכחי. אפשר לשנות אם הסידור מתחיל בתאריך אחר.
-              </p>
-            </div>
+            <Label>תאריך התחלת המחזור (יום ראשון)</Label>
+            <Input
+              type="date"
+              value={anchorDate}
+              onChange={e => setAnchorDate(e.target.value)}
+              dir="ltr"
+              className="w-44"
+            />
+            <p className="text-xs text-muted-foreground">
+              מהתאריך הזה מתחיל שבוע 1 של המחזור. אחרי כל {weeksCount} שבועות הסידור חוזר להתחלה אוטומטית — אין צורך לעדכן ידנית "באיזה שבוע אנחנו".
+            </p>
           </div>
 
           {/* Week tabs */}
@@ -4607,7 +4598,7 @@ function RotationScheduleDialog({
                   activeWeek === w ? "bg-primary text-primary-foreground" : "bg-muted hover:bg-accent"
                 }`}
               >
-                שבוע {w}{anchorWeekIndex === w ? " • עכשיו" : ""}
+                שבוע {w}
               </button>
             ))}
           </div>
@@ -4904,7 +4895,7 @@ function WorkingHoursTab() {
           סידור עבודה משתנה
         </CardTitle>
         <CardDescription>
-          סידור חוזר של מספר שבועות (למשל: שבוע בוקר / שבוע ערב). אחרי השבוע האחרון במחזור, הסידור חוזר אוטומטית לשבוע הראשון.
+          לוח עבודה של 2 או 3 שבועות שונים שחוזר על עצמו — למשל שבוע בוקר / שבוע ערב, או סידור של שבוע ארוך + שבוע קצר. המערכת תחשב ללקוחות את השעות של השבוע הנכון אוטומטית, ותחסום הזמנות בימים ובשעות שבהם לא עובדים.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-3">
@@ -4913,7 +4904,7 @@ function WorkingHoursTab() {
             <div className="p-3 rounded-xl bg-primary/5 border border-primary/20 space-y-1">
               <div className="text-sm font-semibold">פעיל</div>
               <div className="text-xs text-muted-foreground">
-                מחזור של {rotation.weeksCount} שבועות • שבוע {rotation.anchorWeekIndex} החל מ-{rotation.anchorDate}
+                מחזור של {rotation.weeksCount} שבועות • מתחיל ב-{rotation.anchorDate}
               </div>
             </div>
             <div className="flex gap-2 flex-wrap">

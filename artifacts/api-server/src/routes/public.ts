@@ -1077,6 +1077,15 @@ router.post("/public/:businessSlug/appointments", async (req, res): Promise<void
   const approvalActive = isPaidPlan && business.requireAppointmentApproval;
   const appointmentStatus = requiresPayment ? "pending_payment" : approvalActive ? "pending" : "confirmed";
 
+  // Staff the client picked on the booking page (if any). Read BEFORE the
+  // availability check so computeAvailableSlots can apply rotation rules —
+  // without this the final insert-side check uses business-level hours even
+  // though the appointment is bound to a specific staff member, letting a
+  // client post straight to the endpoint and bypass that staff's rotation.
+  const rawStaffId = (req.body as any)?.staffMemberId;
+  const staffMemberIdForInsert: number | null =
+    typeof rawStaffId === "number" && rawStaffId > 0 ? rawStaffId : null;
+
   // Transaction + per-business advisory lock → prevents two clients from
   // both passing the availability check concurrently and double-booking
   // the same slot. pg_advisory_xact_lock serializes any other booking
@@ -1092,7 +1101,10 @@ router.post("/public/:businessSlug/appointments", async (req, res): Promise<void
       // Re-run availability INSIDE the lock — by now every prior concurrent
       // booking for this business has already committed (or rolled back),
       // so the slot list is authoritative for the next insert.
-      const slots = await computeAvailableSlots(business.id, appointmentDate, service.durationMinutes, bufferMinutes, business.maxAppointmentsPerDay);
+      const slots = await computeAvailableSlots(
+        business.id, appointmentDate, service.durationMinutes, bufferMinutes,
+        business.maxAppointmentsPerDay, null, staffMemberIdForInsert,
+      );
       const slot = slots.find((s) => s.time === appointmentTime);
       if (!slot || !slot.available) {
         throw new SlotNoLongerAvailableError();
@@ -1116,14 +1128,8 @@ router.post("/public/:businessSlug/appointments", async (req, res): Promise<void
         return existing;
       }
 
-      // Capture which staff member the client picked on the booking page
-      // (if any). Read straight off req.body — the Zod schema doesn't
-      // whitelist this field, so passing it through parsed.data would
-      // drop it. Null = legacy behaviour: owner's calendar.
-      const rawStaffId = (req.body as any)?.staffMemberId;
-      const staffMemberIdForInsert =
-        typeof rawStaffId === "number" && rawStaffId > 0 ? rawStaffId : null;
-
+      // staffMemberIdForInsert was extracted above the transaction so the
+      // availability check could honor it.
       const [row] = await tx
         .insert(appointmentsTable)
         .values({

@@ -940,16 +940,18 @@ router.put("/business/working-hours-rotation", requireBusinessAuth, async (req, 
   const anchorWeekIndex = Number(body.anchorWeekIndex);
   const hoursByWeek     = body.hoursByWeek && typeof body.hoursByWeek === "object" ? body.hoursByWeek : null;
 
-  if (!Number.isInteger(weeksCount) || weeksCount < 2 || weeksCount > 8) {
-    res.status(400).json({ error: "weeksCount must be an integer between 2 and 8" });
+  if (!Number.isInteger(weeksCount) || weeksCount < 2 || weeksCount > 3) {
+    res.status(400).json({ error: "weeksCount must be 2 or 3" });
     return;
   }
   if (!/^\d{4}-\d{2}-\d{2}$/.test(anchorDate)) {
     res.status(400).json({ error: "anchorDate must be YYYY-MM-DD" });
     return;
   }
-  if (!Number.isInteger(anchorWeekIndex) || anchorWeekIndex < 1 || anchorWeekIndex > weeksCount) {
-    res.status(400).json({ error: "anchorWeekIndex out of range" });
+  // anchorWeekIndex is no longer surfaced in the UI — anchorDate now
+  // always represents the Sunday of "week 1" in the cycle. Accept 1 only.
+  if (!Number.isInteger(anchorWeekIndex) || anchorWeekIndex !== 1) {
+    res.status(400).json({ error: "anchorWeekIndex must be 1" });
     return;
   }
   if (!hoursByWeek) {
