@@ -601,12 +601,16 @@ export default function Book({ slugOverride }: { slugOverride?: string } = {}) {
       return;
     }
     setRescheduleNextSlotsLoading(true);
-    fetch(`${API_BASE}/public/${businessSlug}/next-slots?serviceId=${rescheduleServiceId}&count=8`)
+    // Include staffId so the rotation schedule (staff-scoped on the server)
+    // is applied. Without it, the reschedule picker shows slots based on
+    // non-rotation hours and drifts from what the customer can actually book.
+    const staffQs = selectedStaffId ? `&staffId=${selectedStaffId}` : "";
+    fetch(`${API_BASE}/public/${businessSlug}/next-slots?serviceId=${rescheduleServiceId}&count=8${staffQs}`)
       .then(r => r.ok ? r.json() : [])
       .then(data => setRescheduleNextSlots(Array.isArray(data) ? data : []))
       .catch(() => setRescheduleNextSlots([]))
       .finally(() => setRescheduleNextSlotsLoading(false));
-  }, [businessSlug, rescheduleStep, rescheduleServiceId, API_BASE]);
+  }, [businessSlug, rescheduleStep, rescheduleServiceId, selectedStaffId, API_BASE]);
 
   const createMutation = useCreatePublicAppointment();
   const waitlistMutation = useJoinWaitlist();
@@ -624,7 +628,10 @@ export default function Book({ slugOverride }: { slugOverride?: string } = {}) {
     if (!businessSlug || !selectedServiceId || !useCalendar) return;
     setAvailableDatesLoaded(false);
     let aborted = false;
-    fetch(`${API_BASE}/public/${businessSlug}/available-dates?serviceId=${selectedServiceId}`)
+    // Same staffId pass-through — see /next-slots above. The calendar's
+    // green/grey dots need to honour the rotation schedule.
+    const staffQs = selectedStaffId ? `&staffId=${selectedStaffId}` : "";
+    fetch(`${API_BASE}/public/${businessSlug}/available-dates?serviceId=${selectedServiceId}${staffQs}`)
       .then(r => r.ok ? r.json() : { available: [], full: [] })
       .then((data: { available?: string[]; full?: string[] } | string[]) => {
         if (aborted) return;
@@ -640,7 +647,7 @@ export default function Book({ slugOverride }: { slugOverride?: string } = {}) {
       .catch(() => { if (!aborted) { setAvailableDates(new Set()); setFullDates(new Set()); } })
       .finally(() => { if (!aborted) setAvailableDatesLoaded(true); });
     return () => { aborted = true; };
-  }, [businessSlug, selectedServiceId, useCalendar, API_BASE]);
+  }, [businessSlug, selectedServiceId, useCalendar, selectedStaffId, API_BASE]);
 
   const primaryColor = business?.primaryColor ?? "#2563eb";
   const DayButtonComp = useMemo(() => makeHolidayDayButton(primaryColor), [primaryColor]);
@@ -744,17 +751,21 @@ export default function Book({ slugOverride }: { slugOverride?: string } = {}) {
 
   const cardRadius = borderRadius === "sharp" ? "8px" : borderRadius === "rounded" ? "24px" : "16px";
 
-  // Fetch next available slots when service is selected
+  // Fetch next available slots when service is selected. staffId pass-through
+  // so the rotation schedule is honoured — without it the "תורים קרובים"
+  // card shows non-rotation slots and doesn't update after the owner edits
+  // the rotation.
   useEffect(() => {
     if (!selectedServiceId || !businessSlug) { setNextSlots([]); return; }
     setNextSlotsLoading(true);
     setUseCalendar(false);
-    fetch(`${API_BASE}/public/${businessSlug}/next-slots?serviceId=${selectedServiceId}&count=8`)
+    const staffQs = selectedStaffId ? `&staffId=${selectedStaffId}` : "";
+    fetch(`${API_BASE}/public/${businessSlug}/next-slots?serviceId=${selectedServiceId}&count=8${staffQs}`)
       .then(r => r.ok ? r.json() : [])
       .then(data => setNextSlots(Array.isArray(data) ? data : []))
       .catch(() => setNextSlots([]))
       .finally(() => setNextSlotsLoading(false));
-  }, [selectedServiceId, businessSlug, API_BASE]);
+  }, [selectedServiceId, businessSlug, selectedStaffId, API_BASE]);
 
   // Auto-fill client details from portal session
   useEffect(() => {

@@ -1751,12 +1751,18 @@ router.patch("/public/:businessSlug/appointments/:id/reschedule", async (req, re
   res.json({ success: true, newDate, newTime });
 });
 
-// GET /public/:businessSlug/next-slots?serviceId=X&count=5
-// Returns the next N available slot times starting from today
+// GET /public/:businessSlug/next-slots?serviceId=X&count=5&staffId=Y
+// Returns the next N available slot times starting from today.
+// staffId is REQUIRED for rotation to apply (rotation is per-staff in
+// availability.ts). Without it, calls fall through to the non-rotation
+// path and the rotation schedule is silently ignored.
 router.get("/public/:businessSlug/next-slots", async (req, res): Promise<void> => {
   const { businessSlug } = req.params;
   const serviceId = Number(req.query.serviceId);
   const count = Math.min(Number(req.query.count) || 5, 20);
+  const staffIdRaw = typeof req.query.staffId === "string" ? req.query.staffId.trim() : "";
+  const staffIdNum = staffIdRaw ? Number(staffIdRaw) : NaN;
+  const staffId = Number.isFinite(staffIdNum) && staffIdNum > 0 ? staffIdNum : null;
 
   if (!serviceId || isNaN(serviceId)) { res.status(400).json({ error: "serviceId נדרש" }); return; }
 
@@ -1780,7 +1786,7 @@ router.get("/public/:businessSlug/next-slots", async (req, res): Promise<void> =
     const day = String(d.getDate()).padStart(2, "0");
     const dateStr = `${year}-${month}-${day}`;
 
-    const slots = await computeAvailableSlots(business.id, dateStr, service.durationMinutes, bufferMinutes, business.maxAppointmentsPerDay);
+    const slots = await computeAvailableSlots(business.id, dateStr, service.durationMinutes, bufferMinutes, business.maxAppointmentsPerDay, null, staffId);
 
     for (const slot of slots) {
       if (!slot.available) continue;
@@ -1805,6 +1811,12 @@ router.get("/public/:businessSlug/next-slots", async (req, res): Promise<void> =
 router.get("/public/:businessSlug/available-dates", async (req, res): Promise<void> => {
   const { businessSlug } = req.params;
   const serviceId = Number(req.query.serviceId);
+  // Same staffId pass-through as /next-slots + /availability — rotation
+  // is scoped per-staff, so without this the calendar's green/grey dots
+  // are computed from non-rotation hours and drift from reality.
+  const staffIdRaw = typeof req.query.staffId === "string" ? req.query.staffId.trim() : "";
+  const staffIdNum = staffIdRaw ? Number(staffIdRaw) : NaN;
+  const staffId = Number.isFinite(staffIdNum) && staffIdNum > 0 ? staffIdNum : null;
   if (!serviceId || isNaN(serviceId)) { res.status(400).json({ error: "serviceId נדרש" }); return; }
 
   const [business] = await db.select().from(businessesTable).where(eq(businessesTable.slug, businessSlug));
@@ -1839,7 +1851,7 @@ router.get("/public/:businessSlug/available-dates", async (req, res): Promise<vo
     const d = new Date(today);
     d.setDate(today.getDate() + off);
     const dateStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-    const slots = await computeAvailableSlots(business.id, dateStr, service.durationMinutes, bufferMinutes, business.maxAppointmentsPerDay);
+    const slots = await computeAvailableSlots(business.id, dateStr, service.durationMinutes, bufferMinutes, business.maxAppointmentsPerDay, null, staffId);
     if (slots.length === 0) continue; // closed weekday or full-day time-off
     const hasFree = slots.some(s => s.available && israelTimeToUTC(dateStr, s.time) >= minAllowedNS);
     if (hasFree) available.push(dateStr);
