@@ -250,13 +250,27 @@ router.post("/r/:businessSlug", async (req, res): Promise<void> => {
     ));
     return;
   }
-  const digits = rawPhone.replace(/\D/g, "");
-  if (digits.length < 9 || digits.length > 15) {
+  const { checkIpSmsLimit } = await import("../lib/smsRateLimit");
+  const ipLimit = checkIpSmsLimit(req.ip);
+  if (!ipLimit.ok) {
+    res.status(429).setHeader("Retry-After", String(ipLimit.retryAfterSec))
+       .set("Content-Type", "text/html; charset=utf-8").send(brandedPageShell(
+      "יותר מדי ניסיונות",
+      `<div class="icon" style="background:#fef3c7;color:#d97706">⏱</div>
+       <h1>יותר מדי בקשות</h1>
+       <p>יותר מדי בקשות מכתובת זו. נסה/י שוב בעוד כחצי שעה.</p>`,
+      "#d97706",
+    ));
+    return;
+  }
+  const { validateIsraeliMobile } = await import("../lib/phone");
+  const phoneCheck = validateIsraeliMobile(rawPhone);
+  if (!phoneCheck.ok) {
     res.status(400).set("Content-Type", "text/html; charset=utf-8").send(brandedPageShell(
       "מספר לא תקין",
       `<div class="icon" style="background:#fee2e2;color:#dc2626">✕</div>
        <h1>מספר טלפון לא תקין</h1>
-       <p>הזן/י מספר ישראלי תקין (לדוגמה 0501234567).
+       <p>${phoneCheck.error}.
          <a href="/api/r/${encodeURIComponent(slug)}">חזרה לטופס</a></p>`,
       "#dc2626",
     ));
@@ -833,13 +847,19 @@ router.get("/public/:businessSlug/availability", async (req, res): Promise<void>
 
 // POST /public/:businessSlug/otp/send
 router.post("/public/:businessSlug/otp/send", async (req, res): Promise<void> => {
-  const { phone } = req.body ?? {};
-  if (!phone || typeof phone !== "string") {
-    res.status(400).json({ error: "Missing phone" });
+  const { checkIpSmsLimit } = await import("../lib/smsRateLimit");
+  const ipLimit = checkIpSmsLimit(req.ip);
+  if (!ipLimit.ok) {
+    res.status(429).setHeader("Retry-After", String(ipLimit.retryAfterSec)).json({
+      error: "יותר מדי בקשות מכתובת זו — נסה שוב מאוחר יותר",
+    });
     return;
   }
+  const { validateIsraeliMobile } = await import("../lib/phone");
+  const v = validateIsraeliMobile(req.body?.phone);
+  if (!v.ok) { res.status(400).json({ error: v.error }); return; }
   try {
-    await sendOtp(phone, "booking_verify");
+    await sendOtp(v.normalized, "booking_verify");
     res.json({ success: true });
   } catch (e: any) {
     if (e instanceof OtpRateLimitError) {

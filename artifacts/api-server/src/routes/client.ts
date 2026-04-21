@@ -84,10 +84,19 @@ async function findPriorSession(ids: { googleId?: string; facebookId?: string; e
 // ─── OTP ─────────────────────────────────────────────────────────────────────
 
 router.post("/client/send-otp", async (req, res): Promise<void> => {
-  const { phone } = req.body;
-  if (!phone || typeof phone !== "string") { res.status(400).json({ error: "מספר טלפון נדרש" }); return; }
+  const { validateIsraeliMobile } = await import("../lib/phone");
+  const { checkIpSmsLimit } = await import("../lib/smsRateLimit");
+  const ipLimit = checkIpSmsLimit(req.ip);
+  if (!ipLimit.ok) {
+    res.status(429).setHeader("Retry-After", String(ipLimit.retryAfterSec)).json({
+      error: "יותר מדי בקשות מכתובת זו — נסה שוב מאוחר יותר",
+    });
+    return;
+  }
+  const v = validateIsraeliMobile(req.body?.phone);
+  if (!v.ok) { res.status(400).json({ error: v.error }); return; }
   try {
-    await sendOtp(phone.trim(), "client_login");
+    await sendOtp(v.normalized, "client_login");
     res.json({ success: true });
   } catch (e) {
     if (e instanceof OtpRateLimitError) {

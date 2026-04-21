@@ -11,6 +11,11 @@ import { eq } from "drizzle-orm";
 
 const app: Express = express();
 
+// Railway fronts the app with a single proxy layer. Without this,
+// req.ip reports the proxy's loopback address, so per-IP rate limits
+// collapse to "one IP for the whole internet". Trust exactly one hop.
+app.set("trust proxy", 1);
+
 app.use(
   pinoHttp({
     logger,

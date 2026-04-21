@@ -418,14 +418,20 @@ router.post("/auth/email/send-verification", async (req, res): Promise<void> => 
 //   POST /auth/phone/verify             { phone, code }  → { success: true }
 
 router.post("/auth/phone/send-verification", async (req, res): Promise<void> => {
-  const { phone } = req.body ?? {};
-  if (!phone || typeof phone !== "string" || phone.trim().length < 9) {
-    res.status(400).json({ error: "Invalid phone" });
+  const { validateIsraeliMobile } = await import("../lib/phone");
+  const { checkIpSmsLimit } = await import("../lib/smsRateLimit");
+  const ipLimit = checkIpSmsLimit(req.ip);
+  if (!ipLimit.ok) {
+    res.status(429).setHeader("Retry-After", String(ipLimit.retryAfterSec)).json({
+      error: "יותר מדי בקשות מכתובת זו — נסה שוב מאוחר יותר",
+    });
     return;
   }
+  const v = validateIsraeliMobile(req.body?.phone);
+  if (!v.ok) { res.status(400).json({ error: v.error }); return; }
   const { sendOtp, OtpRateLimitError } = await import("../lib/whatsapp");
   try {
-    await sendOtp(phone.trim(), "generic");
+    await sendOtp(v.normalized, "generic");
     res.json({ success: true });
   } catch (e: any) {
     if (e instanceof OtpRateLimitError) {
@@ -700,8 +706,23 @@ router.post("/auth/business/confirm-email-change", requireBusinessAuth, async (r
 // cross-use into forgot-password or client_login verifiers.
 
 router.post("/auth/business/sms-login/send", async (req, res): Promise<void> => {
+  const { checkIpSmsLimit } = await import("../lib/smsRateLimit");
+  const ipLimit = checkIpSmsLimit(req.ip);
+  if (!ipLimit.ok) {
+    res.status(429).setHeader("Retry-After", String(ipLimit.retryAfterSec)).json({
+      error: "יותר מדי בקשות מכתובת זו — נסה שוב מאוחר יותר",
+    });
+    return;
+  }
+  const { validateIsraeliMobile } = await import("../lib/phone");
+  const v = validateIsraeliMobile(req.body?.phone);
+  if (!v.ok) {
+    // No-enumeration: invalid format still returns success so callers
+    // can't tell the difference between "bad number" and "not registered".
+    res.json({ success: true });
+    return;
+  }
   const { phone } = req.body ?? {};
-  if (!phone || typeof phone !== "string") { res.status(400).json({ error: "מספר טלפון נדרש" }); return; }
 
   // Look up by phone. Accept exact match + a digit-only fallback so
   // "050-123-4567" and "0501234567" both resolve. Match both owners
@@ -1090,8 +1111,18 @@ router.post("/auth/business/reviewer-login", async (req, res): Promise<void> => 
 
 // POST /auth/forgot-password — send OTP via WhatsApp for phone-based reset
 router.post("/auth/forgot-password", async (req, res): Promise<void> => {
+  const { checkIpSmsLimit } = await import("../lib/smsRateLimit");
+  const ipLimit = checkIpSmsLimit(req.ip);
+  if (!ipLimit.ok) {
+    res.status(429).setHeader("Retry-After", String(ipLimit.retryAfterSec)).json({
+      error: "יותר מדי בקשות מכתובת זו — נסה שוב מאוחר יותר",
+    });
+    return;
+  }
+  const { validateIsraeliMobile } = await import("../lib/phone");
+  const v = validateIsraeliMobile(req.body?.phone);
+  if (!v.ok) { res.status(400).json({ error: v.error }); return; }
   const { phone } = req.body;
-  if (!phone) { res.status(400).json({ error: "Phone required" }); return; }
 
   const [business] = await db.select().from(businessesTable).where(eq(businessesTable.phone, phone));
   if (!business) { res.status(404).json({ error: "מספר טלפון לא נמצא במערכת" }); return; }
