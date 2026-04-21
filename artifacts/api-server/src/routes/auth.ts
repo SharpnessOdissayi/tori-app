@@ -716,12 +716,7 @@ router.post("/auth/business/sms-login/send", async (req, res): Promise<void> => 
   }
   const { validateIsraeliMobile } = await import("../lib/phone");
   const v = validateIsraeliMobile(req.body?.phone);
-  if (!v.ok) {
-    // No-enumeration: invalid format still returns success so callers
-    // can't tell the difference between "bad number" and "not registered".
-    res.json({ success: true });
-    return;
-  }
+  if (!v.ok) { res.status(400).json({ error: v.error }); return; }
   const { phone } = req.body ?? {};
 
   // Look up by phone. Accept exact match + a digit-only fallback so
@@ -745,10 +740,11 @@ router.post("/auth/business/sms-login/send", async (req, res): Promise<void> => 
       eq(staffMembersTable.phone, trimmed),
       eq(staffMembersTable.phone, digitsOnly),
     ));
-  // No-enumeration guarantee: respond 200 even on miss — verify
-  // endpoint will reject the code since no OTP was minted.
+  // Owner's call: transparent "not registered" UX beats the no-enumeration
+  // guarantee here. A user who typos their phone should see that clearly
+  // rather than get stuck on a "didn't receive code" loop.
   if (!business && !staff) {
-    res.json({ success: true });
+    res.status(404).json({ error: "מספר זה לא קיים במאגר העסקים של קבעתי" });
     return;
   }
   if (business && !business.isActive) {
@@ -1125,7 +1121,7 @@ router.post("/auth/forgot-password", async (req, res): Promise<void> => {
   const { phone } = req.body;
 
   const [business] = await db.select().from(businessesTable).where(eq(businessesTable.phone, phone));
-  if (!business) { res.status(404).json({ error: "מספר טלפון לא נמצא במערכת" }); return; }
+  if (!business) { res.status(404).json({ error: "מספר זה לא קיים במאגר העסקים של קבעתי" }); return; }
 
   const { sendOtp, OtpRateLimitError } = await import("../lib/whatsapp");
   try {

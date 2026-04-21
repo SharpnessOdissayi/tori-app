@@ -8,7 +8,7 @@
 // 5 sends per IP per 30 minutes. In-memory Map, swept every 5 minutes
 // to avoid unbounded growth.
 
-const MAX_PER_IP = 5;
+const MAX_PER_IP = 3;
 const WINDOW_MS = 30 * 60 * 1000;
 
 type Entry = { count: number; windowStart: number };
