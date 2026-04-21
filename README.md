@@ -23,6 +23,8 @@
 13. [Environment Variables](#environment-variables)
 14. [Local Development](#local-development)
 15. [Deployment](#deployment)
+16. [Google Play Store Assets](#google-play-store-assets)
+17. [Device Previews](#device-previews)
 
 ---
 
@@ -279,7 +281,8 @@ schedule-manager-main/
 ├── artifacts/
 │   ├── appointment-booking/    # React SPA (dashboard, booking, portal, admin)
 │   ├── api-server/             # Express backend (routes, cron, webhooks)
-│   └── mockup-sandbox/         # Design scratch area
+│   ├── mockup-sandbox/         # Design scratch area
+│   └── play-store/             # Google Play Store listing assets (PNG + philosophy)
 ├── lib/                        # Shared packages (db schema, api-spec)
 ├── scripts/                    # Operational scripts
 ├── migrate-*.js                # One-off migration helpers
@@ -335,6 +338,48 @@ pnpm --filter @workspace/api-spec run codegen
 - Railway auto-deploys on push to `main`
 - Cron jobs (reminders, monthly subscription charges) run in-process inside the API server
 - Static assets for the SPA are served by `serve.mjs` alongside the API
+
+---
+
+## Google Play Store Assets
+
+A full set of Hebrew-first store-listing assets lives in [`artifacts/play-store/`](artifacts/play-store/). They are rendered programmatically from a shared Quiet Hours design kit (Heebo + `python-bidi` for RTL composition), so everything is pixel-for-pixel reproducible and stays in sync with the product's visual identity.
+
+### Design philosophy
+
+The assets are expressions of a single aesthetic movement, **Quiet Hours / שעות שקטות**, documented in [`artifacts/play-store/design-philosophy.md`](artifacts/play-store/design-philosophy.md). Palette and typography rules in brief:
+
+- Warm paper `#F7F5F0`, ledger cream `#EDE8DD`, graphite ink `#1A1A1A`
+- Single chromatic accent: municipal-garden olive `#6B8E7F`, used sparingly (≤3 times per composition)
+- Heebo as the only type family; Hebrew dominant, English always subordinate
+- Paper-grain texture, corner crop-marks, hairline rules — no gradients or drop shadows
+
+### Deliverables
+
+| # | File | Size (px) | Purpose |
+|---|---|---|---|
+| 1 | `01_app_icon_512.png` | 512×512 | Google Play app icon |
+| 2 | `02_feature_graphic_1024x500.png` | 1024×500 | Play Store feature graphic |
+| 3 | `03_phone_01_hero.png` → `03_phone_05_revenue.png` | 1080×1920 × 5 | Phone screenshots (Hero · Booking · Schedule · WhatsApp · Revenue) |
+| 4 | `04_tablet7_01_hero.png` → `04_tablet7_03_customer.png` | 1200×1920 × 3 | 7″ tablet screenshots (Hero · Week · Customer) |
+| 5 | `05_tablet10_01_hero.png` → `05_tablet10_03_insights.png` | 1600×2560 × 3 | 10″ tablet screenshots (Hero · Booking · Insights) |
+| 6 | `06_chromebook_01_hero.png` → `06_chromebook_04_insights.png` | 1920×1080 × 4 | Chromebook screenshots (Hero · Admin Day · Public Booking · Insights) |
+
+All 16 raster assets satisfy Google Play's current listing requirements (icon ≥ 512, feature graphic 1024×500, phone screenshots min 320px short edge, 7″ & 10″ tablet screenshots min 1080px short edge, Chromebook landscape 1920×1080). The source generators are kept out of the repo — the PNGs in `artifacts/play-store/` are the canonical deliverables.
+
+---
+
+## Device Previews
+
+Live-site device mockups of `kavati.net` for marketing use live in [`previews/`](previews/). Each image wraps a real, just-captured screenshot of the live site in a device frame:
+
+| File | Device frame | Source capture |
+|---|---|---|
+| `kavati-mockup-mobile.png` | iPhone 14 Pro (portrait, dynamic island) | `iPhone 14 Pro` viewport (1179×1980 @ 2x) |
+| `kavati-mockup-tablet.png` | iPad Pro (landscape) | `iPad Pro 11 landscape` viewport (2388×1668) |
+| `kavati-mockup-laptop.png` | Browser window with URL bar + traffic lights | 1440×900 desktop viewport @ 2x |
+
+Regenerate at any time by running `node capture.js && node generate_mockups.js` against a freshly fetched `kavati.net`.
 
 ---
 
