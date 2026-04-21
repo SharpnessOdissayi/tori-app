@@ -85,15 +85,15 @@ export async function sendWelcomeEmail(params: {
   ownerName:  string;
   plan:       "free" | "pro" | "pro-plus";
   slug:       string;
-  username?:  string | null;   // what the owner logs in with (if picked one)
-  password:   string;           // plaintext, still in memory at registration
+  // username / password kept in the signature for back-compat with the
+  // register handler, but no longer shown in the email body. Owner
+  // request: don't echo credentials. Both fields are ignored.
+  username?:  string | null;
+  password?:  string;
 }): Promise<void> {
-  const { email, ownerName, plan, slug, username, password } = params;
+  const { email, ownerName, plan, slug } = params;
   const bookingUrl   = `https://www.kavati.net/book/${slug}`;
   const dashboardUrl = `https://www.kavati.net/dashboard`;
-  // The login form accepts email / phone / username. Show the username
-  // if one was chosen, otherwise fall back to the email address.
-  const loginHandle  = username && username.trim() ? username.trim() : email;
 
   const planCopy = plan === "pro-plus"
     ? `<p style="margin: 0 0 16px; color: #444;">תודה שהצטרפת למסלול <b>עסקי</b>. קבלה על התשלום תישלח בנפרד. תוכל להוסיף עובדים ולשלוח הודעות תפוצה מהדאשבורד.</p>`
@@ -110,20 +110,10 @@ export async function sendWelcomeEmail(params: {
       <p style="margin: 0 0 16px; color: #4b5563; font-size: 15px;">העסק שלך נרשם בהצלחה — הנה כל מה שצריך לדעת כדי להתחיל.</p>
       ${planCopy}
 
-      <!-- Credentials card -->
-      <div style="margin: 24px 0; padding: 20px; background: rgba(60,146,240,0.06); border: 1px solid rgba(60,146,240,0.22); border-radius: 12px;">
-        <p style="margin: 0 0 6px; font-weight: bold; color: #1e6fcf; font-size: 15px;">🔐 פרטי הכניסה שלך</p>
-        <p style="margin: 0 0 12px; font-size: 12px; color: #3c92f0;">אפשר להיכנס לפי שם משתמש, אימייל או מספר טלפון — הסיסמה זהה לכולם.</p>
-        <table style="width: 100%; font-size: 14px; border-collapse: collapse;">
-          <tr><td style="padding: 6px 0; color: #6b7280; width: 120px;">שם משתמש:</td>
-              <td style="padding: 6px 0; font-family: monospace; direction: ltr; text-align: right; font-weight: bold;">${loginHandle}</td></tr>
-          <tr><td style="padding: 6px 0; color: #6b7280;">סיסמה:</td>
-              <td style="padding: 6px 0; font-family: monospace; direction: ltr; text-align: right; font-weight: bold;">${password}</td></tr>
-        </table>
-        <p style="margin: 12px 0 0; font-size: 12px; color: #3c92f0;">⚠️ מומלץ להחליף את הסיסמה בכניסה הראשונה שלך מהדאשבורד → הגדרות → שינוי סיסמה.</p>
-      </div>
-
-      <!-- Action buttons -->
+      <!-- Action buttons. Per owner request: no credentials echoed in
+           this email. The owner knows the password they chose at
+           registration; if they forget it they go through the dashboard
+           sign-in page's SMS / email code flow to recover. -->
       <div style="margin: 24px 0; text-align: center;">
         <a href="${dashboardUrl}" style="display: inline-block; margin: 4px; padding: 12px 28px; background: #3c92f0; color: white; text-decoration: none; border-radius: 8px; font-weight: bold; font-size: 15px;">פתח את הדאשבורד</a>
         <a href="${bookingUrl}" style="display: inline-block; margin: 4px; padding: 12px 28px; background: white; color: #3c92f0; text-decoration: none; border: 2px solid #3c92f0; border-radius: 8px; font-weight: bold; font-size: 15px;">צפה בעמוד העסק שלך</a>
@@ -140,7 +130,7 @@ export async function sendWelcomeEmail(params: {
     </div>`;
 
   try {
-    await sendEmail(email, "ברוך הבא ל-Kavati — פרטי הכניסה שלך", html, {
+    await sendEmail(email, "ברוך הבא ל-Kavati", html, {
       from: "Kavati <welcome@kavati.net>",
     });
   } catch (e) {
