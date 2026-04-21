@@ -442,11 +442,6 @@ export default function Book({ slugOverride }: { slugOverride?: string } = {}) {
   const [showPortalLogin, setShowPortalLogin] = useState(false);
   const [portalLoginStep, setPortalLoginStep] = useState<"phone" | "otp">("phone");
   const [portalPhone, setPortalPhone] = useState("");
-  // Email is required alongside phone — the interim email-OTP flow uses
-  // it as the verification channel (Meta WhatsApp Auth template still
-  // pending review). Once approved, we'll switch back to WA OTP and email
-  // becomes optional.
-  const [portalEmail, setPortalEmail] = useState("");
   const [portalOtpCode, setPortalOtpCode] = useState("");
   const [portalLoading, setPortalLoading] = useState(false);
   const [gateGoogleLoading, setGateGoogleLoading] = useState(false);
@@ -1098,15 +1093,19 @@ export default function Book({ slugOverride }: { slugOverride?: string } = {}) {
     </div>
   );
 
-  const isPortalEmailValid = (e: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e.trim());
+  // SMS-only OTP for the booking-page login gate. The earlier email-OTP
+  // path was an interim workaround while the WhatsApp Auth template was
+  // pending Meta review; SMS has been live the whole time via Inforu, so
+  // we switched the gate over to it. Email is no longer collected here —
+  // clients either (a) verify with the SMS code or (b) tap "המשך עם
+  // Google" on the same card for a one-tap sign-in.
   const handlePortalSendOtp = async () => {
     if (!portalPhone.trim()) return;
-    if (!isPortalEmailValid(portalEmail)) { toast({ title: "אימייל לא תקין", variant: "destructive" }); return; }
     setPortalLoading(true);
     try {
-      const res = await fetch(`${API_BASE}/client/send-email-otp`, {
+      const res = await fetch(`${API_BASE}/client/send-otp`, {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: portalEmail.trim().toLowerCase() }),
+        body: JSON.stringify({ phone: portalPhone.trim() }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
@@ -1114,7 +1113,7 @@ export default function Book({ slugOverride }: { slugOverride?: string } = {}) {
         return;
       }
       setPortalLoginStep("otp");
-      toast({ title: "קוד נשלח לאימייל שלך" });
+      toast({ title: "קוד נשלח ב-SMS לטלפון שלך" });
     } catch { toast({ title: "שגיאה בשליחת קוד", variant: "destructive" }); }
     finally { setPortalLoading(false); }
   };
@@ -1124,10 +1123,9 @@ export default function Book({ slugOverride }: { slugOverride?: string } = {}) {
     setPortalLoading(true);
     const shouldRemember = gateRememberMe ?? rememberMe;
     try {
-      const res = await fetch(`${API_BASE}/client/verify-email-otp`, {
+      const res = await fetch(`${API_BASE}/client/verify-otp`, {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          email: portalEmail.trim().toLowerCase(),
           phone: portalPhone.trim(),
           code: portalOtpCode.trim(),
         }),
@@ -1212,20 +1210,6 @@ export default function Book({ slugOverride }: { slugOverride?: string } = {}) {
                     className="h-11"
                   />
                 </div>
-                <div>
-                  <Label htmlFor="kavati-gate-email" className="text-sm mb-1.5 block">אימייל</Label>
-                  <Input
-                    id="kavati-gate-email"
-                    name="kavati-gate-email"
-                    type="email"
-                    autoComplete="email"
-                    dir="ltr" placeholder="name@example.com"
-                    value={portalEmail}
-                    onChange={e => setPortalEmail(e.target.value)}
-                    onKeyDown={e => e.key === "Enter" && handlePortalSendOtp()}
-                    className="h-11"
-                  />
-                </div>
                 {/* Remember-me + "continue without login" sit on a single
                     row so customers see both choices side-by-side before
                     committing to the OTP. The skip link is rendered in
@@ -1251,8 +1235,8 @@ export default function Book({ slugOverride }: { slugOverride?: string } = {}) {
                   </button>
                 </div>
                 <Button className="w-full h-11" style={{ backgroundColor: primaryColor }}
-                  onClick={handlePortalSendOtp} disabled={portalLoading || !portalPhone.trim() || !portalEmail.trim()}>
-                  {portalLoading ? "שולח..." : "המשך"}
+                  onClick={handlePortalSendOtp} disabled={portalLoading || !portalPhone.trim()}>
+                  {portalLoading ? "שולח..." : "שלח קוד"}
                 </Button>
               </div>
             ) : (
@@ -1270,10 +1254,7 @@ export default function Book({ slugOverride }: { slugOverride?: string } = {}) {
                     onKeyDown={e => e.key === "Enter" && handlePortalVerifyOtp(rememberMe)}
                     className="h-11 text-center tracking-[0.4em] font-bold text-xl"
                   />
-                  <p className="text-xs text-muted-foreground mt-1">שלחנו קוד לאימייל שלך</p>
-                  <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 mt-2">
-                    ⚠️ הקוד עשוי להגיע לתיקיית הספאם — בדוק/י גם שם.
-                  </p>
+                  <p className="text-xs text-muted-foreground mt-1">שלחנו קוד ב-SMS לטלפון <span dir="ltr">{portalPhone}</span></p>
                 </div>
                 <Button className="w-full h-11" style={{ backgroundColor: primaryColor }}
                   onClick={() => handlePortalVerifyOtp(rememberMe)}
@@ -2567,7 +2548,7 @@ export default function Book({ slugOverride }: { slugOverride?: string } = {}) {
                 />
               </div>
               <Button type="submit" className="w-full" style={{ backgroundColor: primaryColor }} disabled={portalLoading || !portalPhone.trim()}>
-                {portalLoading ? "שולח..." : "שלח קוד לווצאפ"}
+                {portalLoading ? "שולח..." : "שלח קוד ב-SMS"}
               </Button>
               <Button type="button" variant="ghost" className="w-full text-muted-foreground" onClick={() => setShowPortalLogin(false)}>
                 המשך ללא כניסה
