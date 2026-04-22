@@ -19,9 +19,10 @@
 
 import { Router } from "express";
 import { db, pushTokensTable, businessesTable, staffMembersTable } from "@workspace/db";
-import { eq, and, sql } from "drizzle-orm";
+import { eq, and, sql, isNull, or } from "drizzle-orm";
 import { requireBusinessAuth } from "../middlewares/business-auth";
 import { logger } from "../lib/logger";
+import { sendPushToBusiness } from "../lib/pushNotifications";
 
 const router = Router();
 
@@ -136,6 +137,66 @@ router.put("/business/push-prefs", requireBusinessAuth, async (req, res): Promis
       .where(eq(businessesTable.id, businessId));
   }
   res.json({ success: true, prefs });
+});
+
+// ── GET /business/push-status ────────────────────────────────────────────────
+// Diagnostic endpoint — tells the Settings UI how many device tokens are
+// actually registered for this user, and whether the server's Firebase
+// credentials are in place. No secrets leaked; just enough to see at a
+// glance where the push pipeline is stuck without tailing Railway logs.
+router.get("/business/push-status", requireBusinessAuth, async (req, res): Promise<void> => {
+  const businessId    = req.business!.businessId;
+  const staffMemberId = req.business!.staffMemberId ?? null;
+
+  // Count tokens aimed at THIS user (owner = staff_member_id NULL,
+  // staff = staff_member_id = self). Mirror the audience rules in
+  // pushNotifications.ts so the number matches reality.
+  const tokenFilter = staffMemberId
+    ? eq(pushTokensTable.staffMemberId, staffMemberId)
+    : isNull(pushTokensTable.staffMemberId);
+
+  const rows = await db
+    .select({ deviceToken: pushTokensTable.deviceToken, platform: pushTokensTable.platform, lastSeenAt: pushTokensTable.lastSeenAt })
+    .from(pushTokensTable)
+    .where(and(eq(pushTokensTable.businessId, businessId), tokenFilter));
+
+  res.json({
+    caller:            staffMemberId ? "staff" : "owner",
+    tokensCount:       rows.length,
+    // Mask the tokens — show only last 6 chars so the owner can tell if
+    // a row exists, without exposing the full FCM token in the UI.
+    tokens: rows.map((r) => ({
+      tail:       r.deviceToken.slice(-6),
+      platform:   r.platform,
+      lastSeenAt: r.lastSeenAt,
+    })),
+    firebaseConfigured: !!process.env.FIREBASE_SERVICE_ACCOUNT_JSON,
+  });
+});
+
+// ── POST /business/push-test ─────────────────────────────────────────────────
+// Fires a "system" push to the current user's device(s). Used by the
+// Settings "Send test" button — if the push arrives, end-to-end works.
+router.post("/business/push-test", requireBusinessAuth, async (req, res): Promise<void> => {
+  const businessId    = req.business!.businessId;
+  const staffMemberId = req.business!.staffMemberId ?? null;
+
+  try {
+    await sendPushToBusiness({
+      businessId,
+      staffMemberId,
+      payload: {
+        kind:  "system",
+        title: "בדיקת התראה",
+        body:  "אם אתה רואה את זה על הטלפון — ההתראות עובדות 🎉",
+        route: "/dashboard",
+      },
+    });
+    res.json({ success: true });
+  } catch (err: any) {
+    logger.error({ err: err?.message ?? String(err) }, "[push-test] failed");
+    res.status(500).json({ error: err?.message ?? "test push failed" });
+  }
 });
 
 export default router;

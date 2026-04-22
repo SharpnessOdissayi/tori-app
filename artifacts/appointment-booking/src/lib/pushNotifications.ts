@@ -37,10 +37,20 @@ async function loadPlugin(): Promise<any | null> {
   }
 }
 
-// Guard against the registration effect running twice (React StrictMode,
-// auth-me re-fetch, etc.). Once per app load is enough — the token doesn't
-// change between renders, and the server upsert covers account switches.
+// Guards:
+//   · `listenersAttached`  — addListener() is idempotent on Capacitor but
+//     we avoid attaching duplicate handlers that would double-POST every
+//     token event.
+//   · `registered`         — set after a SUCCESSFUL register() so the
+//     auto-run on Dashboard mount is cheap. Reset by the retry button so
+//     the owner can re-attempt registration after granting permission in
+//     Android settings.
+let listenersAttached = false;
 let registered = false;
+
+export function resetPushRegistration(): void {
+  registered = false;
+}
 
 export async function registerForPush(businessToken: string | null): Promise<void> {
   if (!businessToken) return;
@@ -49,46 +59,47 @@ export async function registerForPush(businessToken: string | null): Promise<voi
   const Push = await loadPlugin();
   if (!Push) return;
 
-  // Listener registration comes BEFORE requestPermissions/register so we
-  // don't miss the very first `registration` event.
-  Push.addListener?.("registration", async (t: { value: string }) => {
-    try {
-      const res = await fetch("/api/business/push-token", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${businessToken}` },
-        body: JSON.stringify({ deviceToken: t.value, platform: "android" }),
-      });
-      if (!res.ok) console.warn("[push] token register failed:", res.status);
-    } catch (err) {
-      console.warn("[push] token POST failed:", err);
-    }
-  });
-
-  Push.addListener?.("registrationError", (err: any) => {
-    console.warn("[push] registration error:", err);
-  });
-
-  // When the user taps a notification. We stash the intended route
-  // (if any) and reload the current screen with the route as a
-  // deep-link. Wouter picks it up on the next render.
-  Push.addListener?.("pushNotificationActionPerformed", (action: any) => {
-    const route: string | undefined = action?.notification?.data?.route;
-    const apptId: string | undefined = action?.notification?.data?.appointmentId;
-    try {
-      if (apptId) sessionStorage.setItem("kavati_cal_highlight_id", apptId);
-      if (route && typeof route === "string" && route.startsWith("/")) {
-        // Let the SPA router handle it. Wouter listens to popstate, so
-        // setTimeout + location.href ensures we wind up on the right
-        // page even if the app was backgrounded.
-        window.location.href = route;
+  if (!listenersAttached) {
+    // Listener registration comes BEFORE requestPermissions/register so we
+    // don't miss the very first `registration` event.
+    Push.addListener?.("registration", async (t: { value: string }) => {
+      try {
+        const res = await fetch("/api/business/push-token", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${businessToken}` },
+          body: JSON.stringify({ deviceToken: t.value, platform: "android" }),
+        });
+        if (!res.ok) console.warn("[push] token register failed:", res.status);
+      } catch (err) {
+        console.warn("[push] token POST failed:", err);
       }
-    } catch {}
-  });
+    });
 
-  // Foreground-received notification — don't navigate automatically, but
-  // a toast would be nice. For now just log; the in-app bell picks up
-  // the same event via the existing /notifications/business polling.
-  Push.addListener?.("pushNotificationReceived", () => { /* handled by bell */ });
+    Push.addListener?.("registrationError", (err: any) => {
+      console.warn("[push] registration error:", err);
+    });
+
+    // When the user taps a notification. We stash the intended route
+    // (if any) and reload the current screen with the route as a
+    // deep-link. Wouter picks it up on the next render.
+    Push.addListener?.("pushNotificationActionPerformed", (action: any) => {
+      const route: string | undefined = action?.notification?.data?.route;
+      const apptId: string | undefined = action?.notification?.data?.appointmentId;
+      try {
+        if (apptId) sessionStorage.setItem("kavati_cal_highlight_id", apptId);
+        if (route && typeof route === "string" && route.startsWith("/")) {
+          window.location.href = route;
+        }
+      } catch {}
+    });
+
+    // Foreground-received notification — don't navigate automatically, but
+    // a toast would be nice. For now just log; the in-app bell picks up
+    // the same event via the existing /notifications/business polling.
+    Push.addListener?.("pushNotificationReceived", () => { /* handled by bell */ });
+
+    listenersAttached = true;
+  }
 
   try {
     const perm = await Push.requestPermissions?.();

@@ -9306,11 +9306,39 @@ function PushPrefsCard({ isStaffMode = false }: { isStaffMode?: boolean }) {
   const [prefs, setPrefs] = useState<Record<string, boolean>>({});
   const [loading, setLoading] = useState(true);
   const [saving,  setSaving]  = useState(false);
+  // Live diagnostic — populated by the /push-status call and by the
+  // client-side registration flow. Lets the owner see at a glance
+  // whether the phone actually registered a token without opening
+  // Railway logs or a USB debugger.
+  const [status, setStatus] = useState<{
+    tokensCount: number;
+    tokens: { tail: string; platform: string; lastSeenAt: string }[];
+    firebaseConfigured: boolean;
+    caller: string;
+  } | null>(null);
+  const [testing, setTesting] = useState(false);
+  const [retrying, setRetrying] = useState(false);
+
+  const isNativeCapacitor = typeof window !== "undefined"
+    && !!((window as any).Capacitor?.isNativePlatform?.());
 
   const getToken = () =>
     (typeof window !== "undefined"
       ? (localStorage.getItem("biz_token") ?? sessionStorage.getItem("biz_token") ?? "")
       : "");
+
+  const refreshStatus = async () => {
+    const token = getToken();
+    if (!token) return;
+    try {
+      const res = await fetch("/api/business/push-status", {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) return;
+      const json = await res.json();
+      setStatus(json);
+    } catch { /* ignore */ }
+  };
 
   useEffect(() => {
     let cancelled = false;
@@ -9318,17 +9346,66 @@ function PushPrefsCard({ isStaffMode = false }: { isStaffMode?: boolean }) {
       const token = getToken();
       if (!token) { setLoading(false); return; }
       try {
-        const res = await fetch("/api/business/push-prefs", {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-        if (!res.ok) return;
-        const json = await res.json();
-        if (!cancelled) setPrefs((json?.prefs ?? {}) as Record<string, boolean>);
+        const [prefsRes, statusRes] = await Promise.all([
+          fetch("/api/business/push-prefs",  { headers: { Authorization: `Bearer ${token}` } }),
+          fetch("/api/business/push-status", { headers: { Authorization: `Bearer ${token}` } }),
+        ]);
+        if (prefsRes.ok && !cancelled) {
+          const j = await prefsRes.json();
+          setPrefs((j?.prefs ?? {}) as Record<string, boolean>);
+        }
+        if (statusRes.ok && !cancelled) {
+          setStatus(await statusRes.json());
+        }
       } catch { /* ignore — defaults to all-enabled */ }
       finally { if (!cancelled) setLoading(false); }
     })();
     return () => { cancelled = true; };
   }, []);
+
+  // Force-run the Capacitor registration flow (only does something on the
+  // native app). Useful when the owner denied permission the first time,
+  // enabled it manually in Android settings, and now wants the token to
+  // make it to the server.
+  const retryRegister = async () => {
+    if (!isNativeCapacitor) {
+      toast({ title: "רישום FCM זמין רק באפליקציה", description: "במחשב אין התראות פוש — רק באנדרואיד" });
+      return;
+    }
+    setRetrying(true);
+    try {
+      const { registerForPush } = await import("../lib/pushNotifications");
+      await registerForPush(getToken());
+      // Give the async chain a moment to POST the token, then refresh.
+      await new Promise(r => setTimeout(r, 1500));
+      await refreshStatus();
+      toast({ title: "ניסיון רישום הושלם", description: "בדוק למטה אם מספר המכשירים עלה" });
+    } catch (err: any) {
+      toast({ title: "שגיאה", description: String(err?.message ?? err), variant: "destructive" });
+    } finally {
+      setRetrying(false);
+    }
+  };
+
+  const sendTestPush = async () => {
+    setTesting(true);
+    try {
+      const token = getToken();
+      const res = await fetch("/api/business/push-test", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) {
+        const msg = (await res.json().catch(() => ({})))?.error ?? res.statusText;
+        throw new Error(msg);
+      }
+      toast({ title: "נשלח! בדוק את הטלפון", description: "אם לא מגיע — סימן שגם הרישום נכשל או ש-Firebase לא תקין" });
+    } catch (err: any) {
+      toast({ title: "שליחה נכשלה", description: String(err?.message ?? err), variant: "destructive" });
+    } finally {
+      setTesting(false);
+    }
+  };
 
   const enabled = (kind: string) => prefs[kind] !== false; // undefined = on
 
@@ -9369,6 +9446,50 @@ function PushPrefsCard({ isStaffMode = false }: { isStaffMode?: boolean }) {
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-3">
+        {/* Diagnostic strip — tells the owner at a glance where the push
+            pipeline is stuck. Shown on every device, including web (where
+            registration isn't possible — the strip then explains that). */}
+        <div className="rounded-lg border bg-muted/30 p-3 text-xs space-y-1">
+          <div className="flex justify-between">
+            <span className="text-muted-foreground">פלטפורמה:</span>
+            <span className="font-medium">{isNativeCapacitor ? "אפליקציה (Capacitor)" : "דפדפן"}</span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-muted-foreground">Firebase מוגדר בשרת:</span>
+            <span className={`font-medium ${status?.firebaseConfigured ? "text-green-600" : "text-red-600"}`}>
+              {status?.firebaseConfigured ? "כן ✓" : "לא ✗"}
+            </span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-muted-foreground">מכשירים רשומים:</span>
+            <span className={`font-medium ${(status?.tokensCount ?? 0) > 0 ? "text-green-600" : "text-red-600"}`}>
+              {status?.tokensCount ?? 0}
+            </span>
+          </div>
+          {status?.tokens && status.tokens.length > 0 && (
+            <div className="pt-1 border-t border-border/50 mt-1">
+              <div className="text-muted-foreground mb-0.5">טוקנים:</div>
+              {status.tokens.map((t, i) => (
+                <div key={i} className="font-mono text-[10px] text-muted-foreground">
+                  …{t.tail} · {t.platform}
+                </div>
+              ))}
+            </div>
+          )}
+          <div className="flex gap-2 pt-2">
+            {isNativeCapacitor && (status?.tokensCount ?? 0) === 0 && (
+              <Button type="button" size="sm" variant="outline" onClick={retryRegister} disabled={retrying}>
+                {retrying ? "רושם..." : "נסה רישום מחדש"}
+              </Button>
+            )}
+            {(status?.tokensCount ?? 0) > 0 && (
+              <Button type="button" size="sm" variant="outline" onClick={sendTestPush} disabled={testing}>
+                {testing ? "שולח..." : "שלח התראת בדיקה"}
+              </Button>
+            )}
+          </div>
+        </div>
+
         {loading ? (
           <div className="text-sm text-muted-foreground">טוען...</div>
         ) : (
