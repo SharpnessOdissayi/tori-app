@@ -881,13 +881,22 @@ router.post("/public/:businessSlug/otp/verify", async (req, res): Promise<void> 
     res.status(400).json({ error: "Missing phone or code" });
     return;
   }
-  const ok = await verifyOtp(phone, String(code), "booking_verify");
+  // IMPORTANT: sendOtp stores the code keyed by the NORMALISED phone
+  // (via validateIsraeliMobile on the send endpoint). If we look up with
+  // the raw input here, the strings won't match and every verify fails
+  // with "invalid_code" — which is the bug owners reported on booking.
+  // Normalise before lookup to use the same key the sender used.
+  const { validateIsraeliMobile } = await import("../lib/phone");
+  const v = validateIsraeliMobile(String(phone));
+  const lookupPhone = v.ok ? v.normalized : String(phone);
+
+  const ok = await verifyOtp(lookupPhone, String(code), "booking_verify");
   if (!ok) {
     res.status(400).json({ error: "invalid_code", message: "הקוד שגוי או פג תוקף" });
     return;
   }
-  markPhoneVerified(phone);
-  const phoneVerificationToken = signPhoneVerificationToken(phone);
+  markPhoneVerified(lookupPhone);
+  const phoneVerificationToken = signPhoneVerificationToken(lookupPhone);
   res.json({ success: true, phoneVerificationToken });
 });
 
