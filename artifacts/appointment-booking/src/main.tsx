@@ -82,5 +82,21 @@ if (isNativeWebview()) {
 capturePromptEvent();
 registerServiceWorker();
 
+// Google Sign-In: one-time init on boot. The web path preloads the GIS
+// script; the native path initialises the Capacitor plugin with the
+// serverClientId so the returned id_token audience matches what our
+// server validates against. Non-blocking — failures are logged inside
+// the helper and fall back gracefully.
+(async () => {
+  const clientId = (import.meta as any).env?.VITE_GOOGLE_CLIENT_ID ?? "";
+  if (!clientId) return;
+  try {
+    const { initGoogleAuth } = await import("./lib/googleAuth");
+    await initGoogleAuth(clientId);
+  } catch (err) {
+    console.warn("[Kavati] Google auth init failed:", err);
+  }
+})();
+
 createRoot(document.getElementById("root")!).render(<App />);
 

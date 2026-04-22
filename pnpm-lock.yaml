@@ -199,6 +199,9 @@ importers:
       '@capacitor/status-bar':
         specifier: ^6.0.3
         version: 6.0.3(@capacitor/core@6.2.1)
+      '@codetrix-studio/capacitor-google-auth':
+        specifier: ^3.4.0-rc.4
+        version: 3.4.0-rc.4(@capacitor/core@6.2.1)
       '@hebcal/core':
         specifier: ^6.3.0
         version: 6.3.0
@@ -834,6 +837,11 @@ packages:
 
   '@capacitor/status-bar@6.0.3':
     resolution: {integrity: sha512-nFlgSmtx6Zwaw0tEvZgQsWHBeOfWWB/AvEoCApopLT4mHkBVoSrwkLvy2PjZs5wxCbsmqvQczr3XCyTwaDZVQg==}
+    peerDependencies:
+      '@capacitor/core': ^6.0.0
+
+  '@codetrix-studio/capacitor-google-auth@3.4.0-rc.4':
+    resolution: {integrity: sha512-d548/xKrbMHHbzMYSWnlgZCLZYo2zzY7Onrh3x8ujojrb7atkNK68I6su5WgmaBt4E+R4gxBsWams4554aOFjA==}
     peerDependencies:
       '@capacitor/core': ^6.0.0
 
@@ -6050,6 +6058,10 @@ snapshots:
       '@capacitor/core': 6.2.1
 
   '@capacitor/status-bar@6.0.3(@capacitor/core@6.2.1)':
+    dependencies:
+      '@capacitor/core': 6.2.1
+
+  '@codetrix-studio/capacitor-google-auth@3.4.0-rc.4(@capacitor/core@6.2.1)':
     dependencies:
       '@capacitor/core': 6.2.1
 

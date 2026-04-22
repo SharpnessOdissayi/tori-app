@@ -1992,56 +1992,45 @@ function Login({ onLogin }: { onLogin: (t: string) => void }) {
   const onLoginRef = useRef(onLogin);
   useEffect(() => { onLoginRef.current = onLogin; }, [onLogin]);
 
-  useEffect(() => {
+  // Google sign-in handler — uses the unified helper in src/lib/googleAuth.ts
+  // which routes to the native Capacitor plugin inside the app and GIS in
+  // the browser. The server endpoint is the same for both paths.
+  const handleGoogleSignIn = async () => {
     if (!GOOGLE_CLIENT_ID) return;
-    const handleCredential = async (response: any) => {
-      setGoogleLoading(true);
-      try {
-        const res = await fetch("/api/auth/business/google-auth", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ credential: response.credential }),
-        });
-        const data = await res.json();
-        if (!res.ok) {
-          toast({
-            title: data?.message ?? data?.error ?? "שגיאת Google",
-            variant: "destructive",
-          });
-          return;
+    setGoogleLoading(true);
+    try {
+      const { signInWithGoogle } = await import("@/lib/googleAuth");
+      const result = await signInWithGoogle(GOOGLE_CLIENT_ID);
+      if (!result.ok) {
+        if (!result.cancelled) {
+          toast({ title: result.error || "שגיאה בכניסה עם Google", variant: "destructive" });
         }
-        if (rememberMe) {
-          localStorage.setItem("biz_token", data.token);
-          sessionStorage.removeItem("biz_token");
-        } else {
-          sessionStorage.setItem("biz_token", data.token);
-          localStorage.removeItem("biz_token");
-        }
-        onLoginRef.current(data.token);
-      } catch {
-        toast({ title: "שגיאת רשת", variant: "destructive" });
-      } finally {
-        setGoogleLoading(false);
+        return;
       }
-    };
-
-    const init = () => {
-      (window as any).google?.accounts?.id?.initialize({
-        client_id: GOOGLE_CLIENT_ID,
-        callback: handleCredential,
+      const res = await fetch("/api/auth/business/google-auth", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ credential: result.idToken }),
       });
-    };
-
-    if ((window as any).google?.accounts?.id) { init(); return; }
-    const existing = document.querySelector('script[src="https://accounts.google.com/gsi/client"]');
-    if (existing) { existing.addEventListener("load", init); return; }
-    const script = document.createElement("script");
-    script.src = "https://accounts.google.com/gsi/client";
-    script.async = true;
-    script.onload = init;
-    document.head.appendChild(script);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        toast({ title: data?.message ?? data?.error ?? "שגיאת Google", variant: "destructive" });
+        return;
+      }
+      if (rememberMe) {
+        localStorage.setItem("biz_token", data.token);
+        sessionStorage.removeItem("biz_token");
+      } else {
+        sessionStorage.setItem("biz_token", data.token);
+        localStorage.removeItem("biz_token");
+      }
+      onLoginRef.current(data.token);
+    } catch {
+      toast({ title: "שגיאת רשת", variant: "destructive" });
+    } finally {
+      setGoogleLoading(false);
+    }
+  };
 
   return (
     <div className="min-h-screen flex flex-col bg-muted/30" dir="rtl">
@@ -2221,7 +2210,7 @@ function Login({ onLogin }: { onLogin: (t: string) => void }) {
                 </div>
                 <button
                   type="button"
-                  onClick={() => (window as any).google?.accounts?.id?.prompt()}
+                  onClick={handleGoogleSignIn}
                   disabled={googleLoading}
                   className="w-full mt-3 py-3 rounded-xl flex items-center justify-center gap-2 text-sm font-semibold border transition-all disabled:opacity-50 hover:bg-muted/40"
                   style={{ borderColor: "#dadce0", color: "#3c4043" }}
