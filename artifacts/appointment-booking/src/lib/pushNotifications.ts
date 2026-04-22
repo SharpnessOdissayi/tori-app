@@ -11,15 +11,24 @@
  *   { at: ISO string, step: string, detail?: string }
  */
 
-const DEBUG_KEY = "kavati_push_debug";
+const DEBUG_KEY = "kavati_push_debug";        // legacy — last entry only
+const DEBUG_LIST_KEY = "kavati_push_debug_list"; // full sequence
 
 type DebugEntry = { at: string; step: string; detail?: string };
 
 function writeStep(step: string, detail?: string): void {
   try {
     const entry: DebugEntry = { at: new Date().toISOString(), step, detail };
+    // Keep the last-entry key for backwards compatibility.
     localStorage.setItem(DEBUG_KEY, JSON.stringify(entry));
-    // Also mirror as console.info so USB-logcat users still see it.
+    // Append to the list — bounded to 40 entries so it doesn't grow forever.
+    try {
+      const raw = localStorage.getItem(DEBUG_LIST_KEY);
+      const list: DebugEntry[] = raw ? JSON.parse(raw) : [];
+      list.push(entry);
+      if (list.length > 40) list.splice(0, list.length - 40);
+      localStorage.setItem(DEBUG_LIST_KEY, JSON.stringify(list));
+    } catch { /* ignore quota / parse failures */ }
     console.info("[push]", step, detail ?? "");
   } catch { /* storage can fail in weird WebViews — not fatal */ }
 }
@@ -29,6 +38,20 @@ export function readPushDebug(): DebugEntry | null {
     const raw = localStorage.getItem(DEBUG_KEY);
     return raw ? JSON.parse(raw) : null;
   } catch { return null; }
+}
+
+export function readPushDebugList(): DebugEntry[] {
+  try {
+    const raw = localStorage.getItem(DEBUG_LIST_KEY);
+    return raw ? JSON.parse(raw) : [];
+  } catch { return []; }
+}
+
+export function clearPushDebug(): void {
+  try {
+    localStorage.removeItem(DEBUG_KEY);
+    localStorage.removeItem(DEBUG_LIST_KEY);
+  } catch {}
 }
 
 function isCapacitorNative(): boolean {

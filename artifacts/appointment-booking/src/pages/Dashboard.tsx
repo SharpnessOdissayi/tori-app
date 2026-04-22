@@ -9305,21 +9305,41 @@ function PushPrefsCard({ isStaffMode = false }: { isStaffMode?: boolean }) {
   // didn't end up on the server (permission denied, plugin not
   // loaded, FCM error, etc.) without digging through Android logcat.
   const [pushDebug, setPushDebug] = useState<{ at: string; step: string; detail?: string } | null>(null);
+  const [pushDebugList, setPushDebugList] = useState<Array<{ at: string; step: string; detail?: string }>>([]);
   const refreshDebug = () => {
     try {
       const raw = localStorage.getItem("kavati_push_debug");
       setPushDebug(raw ? JSON.parse(raw) : null);
-    } catch { setPushDebug(null); }
+      const rawList = localStorage.getItem("kavati_push_debug_list");
+      setPushDebugList(rawList ? JSON.parse(rawList) : []);
+    } catch { setPushDebug(null); setPushDebugList([]); }
   };
-  // Poll localStorage every 1s while the card is mounted so the diagnostic
-  // strip picks up late writeSteps even if the outer retry timeout fires
-  // before the native async chain finishes. Without this, a writeStep that
-  // writes 2s after the 25s timeout would never surface in the UI.
   useEffect(() => {
     refreshDebug();
-    const t = setInterval(refreshDebug, 1000);
+    const t = setInterval(refreshDebug, 500);
     return () => clearInterval(t);
   }, []);
+
+  const copyDebugLog = async () => {
+    const text = pushDebugList.map((e, i) =>
+      `${i + 1}. ${e.at.slice(11, 23)}  ${e.step}${e.detail ? ` · ${e.detail}` : ""}`
+    ).join("\n");
+    try {
+      await navigator.clipboard.writeText(text);
+      toast({ title: "הועתק", description: `${pushDebugList.length} שלבים הועתקו — הדבק לצ'אט` });
+    } catch {
+      toast({ title: "לא ניתן להעתיק", description: text.slice(0, 200), variant: "destructive" });
+    }
+  };
+
+  const clearDebugLog = () => {
+    try {
+      localStorage.removeItem("kavati_push_debug");
+      localStorage.removeItem("kavati_push_debug_list");
+    } catch {}
+    setPushDebug(null);
+    setPushDebugList([]);
+  };
 
   const isNativeCapacitor = typeof window !== "undefined"
     && !!((window as any).Capacitor?.isNativePlatform?.());
@@ -9496,14 +9516,27 @@ function PushPrefsCard({ isStaffMode = false }: { isStaffMode?: boolean }) {
               ))}
             </div>
           )}
-          {/* Last-step diagnostic from the client helper — invaluable
-              when the token count stays at 0 and we need to know why. */}
-          {pushDebug && (
+          {/* Full step log — each writeStep appends a line. Shows the
+              actual sequence even when steps fire faster than the poll. */}
+          {pushDebugList.length > 0 && (
             <div className="pt-1 border-t border-border/50 mt-1">
-              <div className="text-muted-foreground mb-0.5">שלב אחרון:</div>
-              <div className="font-mono text-[10px] text-foreground break-all">
-                {pushDebug.step}
-                {pushDebug.detail ? ` · ${pushDebug.detail}` : ""}
+              <div className="flex items-center justify-between mb-0.5">
+                <span className="text-muted-foreground">שלבים ({pushDebugList.length}):</span>
+                <div className="flex gap-1">
+                  <button type="button" onClick={copyDebugLog}
+                    className="text-[10px] px-2 py-0.5 rounded bg-primary text-primary-foreground">העתק</button>
+                  <button type="button" onClick={clearDebugLog}
+                    className="text-[10px] px-2 py-0.5 rounded bg-muted text-foreground">נקה</button>
+                </div>
+              </div>
+              <div className="font-mono text-[10px] text-foreground max-h-48 overflow-y-auto space-y-0.5">
+                {pushDebugList.map((e, i) => (
+                  <div key={i} className="break-all">
+                    <span className="text-muted-foreground">{e.at.slice(11, 19)}</span>{" "}
+                    {e.step}
+                    {e.detail ? <span className="text-muted-foreground"> · {e.detail}</span> : null}
+                  </div>
+                ))}
               </div>
             </div>
           )}
