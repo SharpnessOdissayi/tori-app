@@ -16,28 +16,30 @@ import { capturePromptEvent, registerServiceWorker } from "./lib/pwa";
 // API call dead on arrival. This rewrite runs SYNCHRONOUSLY at module load
 // using a protocol+hostname check, so the patch is guaranteed to be in
 // place before any React code renders.
-const API_URL = (import.meta as any).env?.VITE_API_URL ?? "https://kavati.net";
+// IMPORTANT: use www. here. The bare kavati.net host 301-redirects to
+// www.kavati.net on the edge, and Capacitor's WebView doesn't transparently
+// follow POST-redirects — the request just dies with a generic "network
+// error", which is the exact symptom owners reported on 1.0.4/1.0.5.
+const API_URL = (import.meta as any).env?.VITE_API_URL ?? "https://www.kavati.net";
 
-function isNativeWebview(): boolean {
+// Whenever we're NOT on the production web origin (kavati.net / www.kavati.net)
+// and NOT on a Vite dev server (hostname localhost with a non-empty port),
+// rewrite /api/* + /storage/* fetches to the absolute API URL. This
+// covers Capacitor (Android: https://localhost no port, iOS: capacitor://),
+// file:// previews, and any other weird WebView origin. Previous
+// detection logic relied on window.Capacitor being present, which was
+// flaky on boot; the hostname check is synchronous and doesn't depend on
+// any plugin having initialised.
+function shouldRewriteApiFetches(): boolean {
   if (typeof window === "undefined") return false;
-  // 1) Capacitor injects this global before any JS runs on native platforms.
-  const cap = (window as any).Capacitor;
-  if (cap && typeof cap.isNativePlatform === "function") {
-    try { if (cap.isNativePlatform()) return true; } catch { /* fall through */ }
-  }
-  // 2) Fallback for edge cases where the global is missing: protocol +
-  //    hostname. Capacitor on Android serves from https://localhost (with
-  //    androidScheme: "https"); on iOS from capacitor://localhost. Neither
-  //    matches kavati.net or a real dev server with a port.
-  const loc = window.location;
-  if (loc.protocol === "capacitor:") return true;
-  if (loc.protocol === "file:") return true;
-  if (loc.hostname === "localhost" && !loc.port) return true; // Capacitor, not Vite dev
-  return false;
+  const { hostname, port } = window.location;
+  if (hostname === "kavati.net" || hostname === "www.kavati.net") return false;
+  if (hostname === "localhost" && port) return false; // Vite dev server
+  return true;
 }
 
-if (isNativeWebview()) {
-  console.info("[Kavati] Native WebView detected — routing /api/* → " + API_URL);
+if (shouldRewriteApiFetches()) {
+  console.info("[Kavati] Non-production origin detected — routing /api/* → " + API_URL);
   const originalFetch = window.fetch.bind(window);
   window.fetch = ((input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
     if (typeof input === "string") {
