@@ -8451,6 +8451,42 @@ function ReceiptsTab() {
   );
 }
 
+// Small reusable accordion-section helper. The owner's Settings tab has
+// so many controls that a wall of scrolling is overwhelming. Wrapping
+// each logical block in this component makes the page scannable —
+// everything is collapsed by default and the owner opens only the
+// section they need.
+function CollapsibleSection({
+  title,
+  description,
+  defaultOpen = false,
+  children,
+}: {
+  title: string;
+  description?: string;
+  defaultOpen?: boolean;
+  children: React.ReactNode;
+}) {
+  const [open, setOpen] = useState(defaultOpen);
+  return (
+    <div className="space-y-4">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        aria-expanded={open}
+        className="w-full flex items-center justify-between gap-2 border-b pb-2 text-right hover:text-primary transition-colors"
+      >
+        <div className="flex-1 min-w-0">
+          <h3 className="font-medium text-base">{title}</h3>
+          {description && <p className="text-xs text-muted-foreground mt-0.5">{description}</p>}
+        </div>
+        <ChevronLeft className={`w-4 h-4 shrink-0 transition-transform ${open ? "-rotate-90" : ""}`} />
+      </button>
+      {open && <div className="space-y-4 pt-2">{children}</div>}
+    </div>
+  );
+}
+
 function SettingsTab({ isStaffMode = false }: { isStaffMode?: boolean }) {
   const { data: profile } = useGetBusinessProfile();
   const updateMutation = useUpdateBusinessProfile();
@@ -8664,8 +8700,7 @@ function SettingsTab({ isStaffMode = false }: { isStaffMode?: boolean }) {
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSave} className="space-y-8">
-            <div className="space-y-4">
-              <h3 className="font-medium text-base border-b pb-2">פרטים כלליים</h3>
+            <CollapsibleSection title="פרטים כלליים" description="שם העסק, בעלים, טלפון ואימייל">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label>שם העסק</Label>
@@ -8749,10 +8784,9 @@ function SettingsTab({ isStaffMode = false }: { isStaffMode?: boolean }) {
                     The slug is still set at signup and can be changed
                     by SuperAdmin if truly needed. */}
               </div>
-            </div>
+            </CollapsibleSection>
 
-            <div className="space-y-4">
-              <h3 className="font-medium text-base border-b pb-2">אישור תורים ואבטחה</h3>
+            <CollapsibleSection title="אישור תורים ואבטחה" description="דרישת אימות טלפון ואישור תורים ידני">
               {isPro && (
                 <div className="flex items-center justify-between p-4 border rounded-xl bg-muted/30">
                   <div>
@@ -8791,10 +8825,9 @@ function SettingsTab({ isStaffMode = false }: { isStaffMode?: boolean }) {
                   />
                 </div>
               )}
-            </div>
+            </CollapsibleSection>
 
-            <div className="space-y-4">
-              <h3 className="font-medium text-base border-b pb-2">פרטי העסק לעמוד הפרופיל</h3>
+            <CollapsibleSection title="פרטי העסק לעמוד הפרופיל" description="תיאור, כתובת, קישורים לרשתות חברתיות">
               <p className="text-xs text-muted-foreground -mt-2">מה שלקוחות רואים בעמוד ההזמנות שלך — קטגוריה, תיאור, דרכי יצירת קשר, קישורים</p>
           {/* Categories */}
           <div className="space-y-2">
@@ -8906,11 +8939,10 @@ function SettingsTab({ isStaffMode = false }: { isStaffMode?: boolean }) {
             <p className="text-xs text-muted-foreground">אם ריק — ניווט יופעל אוטומטית לפי הכתובת שהוזנה</p>
             <Input dir="ltr" value={form.wazeUrl} onChange={e => setForm(p => ({ ...p, wazeUrl: e.target.value }))} placeholder="https://waze.com/ul/..." />
           </div>
-            </div>
+            </CollapsibleSection>
 
             {/* ── Business Receipt / Invoice Profile ── */}
-            <div className="space-y-4">
-              <h3 className="font-medium text-base border-b pb-2">פרטי עסק לקבלות</h3>
+            <CollapsibleSection title="פרטי עסק לקבלות" description="ח.פ., שם חוקי וכתובת לחשבונית">
               <p className="text-xs text-muted-foreground -mt-2">
                 פרטים אלה יודפסו על כל קבלה שתנפיק ללקוחות. חובה למלא ח.פ / ת.ז. ושם משפטי לפני הנפקת הקבלה הראשונה.
               </p>
@@ -8956,7 +8988,7 @@ function SettingsTab({ isStaffMode = false }: { isStaffMode?: boolean }) {
                   <p className="text-xs text-muted-foreground">הכתובת הרשומה במס הכנסה — לא בהכרח כתובת העסק הפיזית.</p>
                 </div>
               </div>
-            </div>
+            </CollapsibleSection>
 
           </form>
 
@@ -10947,7 +10979,10 @@ function StaffTab() {
   const [newEmail, setNewEmail] = useState("");
   const [newPhone, setNewPhone] = useState("");
   const [adding, setAdding] = useState(false);
-  const [showGuide, setShowGuide] = useState(true);
+  // Default-closed per owner request — the guide was taking up lots of
+  // vertical space for owners who already know how staff logins work.
+  // Tap the "איך עובד הצוות?" button to expand.
+  const [showGuide, setShowGuide] = useState(false);
   // Collapse the add-form by default, same pattern as "מאגר לקוחות"
   // in the customers tab — keeps the staff tab uncluttered for owners
   // who just want to review existing members.
@@ -11387,40 +11422,50 @@ function StaffTab() {
       </div>
 
       {/* ─── Guidance card — how staff logins work ──────────────────── */}
-      {showGuide && (
-        <div className="rounded-2xl border-2 border-blue-200 bg-gradient-to-br from-blue-50 to-sky-50 p-5 relative">
-          <button
-            type="button"
-            onClick={() => setShowGuide(false)}
-            className="absolute top-3 left-3 text-blue-600/60 hover:text-blue-800 transition-colors"
-            aria-label="הסתר הדרכה"
-          >
-            <X className="w-4 h-4" />
-          </button>
-          <div className="flex items-start gap-3">
-            <div className="w-10 h-10 rounded-xl bg-blue-600 text-white flex items-center justify-center shrink-0 shadow-md">
+      {/* Collapsible: closed by default so the tab feels less cluttered.
+          Owners who forget the flow tap the compact header to expand. */}
+      <div className="rounded-2xl border-2 border-blue-200 bg-gradient-to-br from-blue-50 to-sky-50">
+        <button
+          type="button"
+          onClick={() => setShowGuide(v => !v)}
+          aria-expanded={showGuide}
+          className="w-full p-4 flex items-center justify-between gap-3 hover:bg-blue-100/30 transition-colors rounded-2xl"
+        >
+          <div className="flex items-center gap-3 text-right flex-1 min-w-0">
+            <div className="w-9 h-9 rounded-xl bg-blue-600 text-white flex items-center justify-center shrink-0 shadow-md text-lg">
               💡
             </div>
-            <div className="space-y-3 flex-1 min-w-0">
-              <div>
-                <h3 className="font-bold text-blue-900">איך עובד הצוות?</h3>
-                <p className="text-sm text-blue-800 mt-1 leading-relaxed">
-                  כל עובד שתוסיף יקבל חשבון משלו שדרכו יוכל להיכנס למערכת ולראות רק את היומן שלו.
-                </p>
-              </div>
-              <ol className="text-sm text-blue-900 space-y-2 pr-5 list-decimal marker:text-blue-600 marker:font-bold">
-                <li>מוסיף/ה עובד/ת עם <strong>שם, אימייל וטלפון</strong> בטופס למטה.</li>
-                <li>המערכת יוצרת לו/ה חשבון אוטומטית ושולחת לאימייל פרטי כניסה (שם משתמש + סיסמה זמנית).</li>
-                <li>העובד/ת נכנס/ת ל-<span dir="ltr" className="font-mono text-xs">kavati.net/dashboard</span> עם אותם פרטים.</li>
-                <li>אחרי ההתחברות הראשונה מומלץ שיחליפו סיסמה דרך "הגדרות → שינוי סיסמה".</li>
-              </ol>
-              <p className="text-xs text-blue-700">
-                🔒 רק העובד/ת רואה את הסיסמה שלו/ה. אתה יכול לשלוח הזמנה מחדש בכל עת (לחיצה על העובד ברשימה).
+            <div className="flex-1 min-w-0">
+              <h3 className="font-bold text-blue-900 text-sm sm:text-base">איך עובד הצוות?</h3>
+              <p className="text-[11px] sm:text-xs text-blue-700 truncate">
+                מדריך מהיר על חשבונות עובדים ושליחת פרטי כניסה
               </p>
             </div>
           </div>
-        </div>
-      )}
+          <ChevronLeft className={`w-4 h-4 text-blue-600 shrink-0 transition-transform ${showGuide ? "-rotate-90" : ""}`} />
+        </button>
+        {showGuide && (
+          <div className="px-5 pb-5 space-y-3 text-blue-900 border-t border-blue-200/80 pt-4">
+            <p className="text-sm leading-relaxed">
+              כל עובד שתוסיף יקבל חשבון משלו שדרכו יוכל להיכנס למערכת ולראות רק את היומן שלו.
+            </p>
+            <ol className="text-sm space-y-2 pr-5 list-decimal marker:text-blue-600 marker:font-bold">
+              <li>מוסיף/ה עובד/ת עם <strong>שם, אימייל וטלפון</strong> בטופס למטה.</li>
+              <li>המערכת יוצרת לו/ה חשבון אוטומטית ושולחת לאימייל פרטי כניסה (שם משתמש + סיסמה זמנית).</li>
+              <li>העובד/ת נכנס/ת ל-<span dir="ltr" className="font-mono text-xs">kavati.net/dashboard</span> עם אותם פרטים.</li>
+              <li>אחרי ההתחברות הראשונה מומלץ שיחליפו סיסמה דרך "הגדרות → שינוי סיסמה".</li>
+              <li>בעמוד הציבורי של העסק הלקוחות יוכלו לבחור <strong>אצל מי לקבוע תור</strong>.</li>
+              <li>כל עובד רואה רק את היומן שלו — הבעלים רואה את כולם ויכול לסנן לפי עובד.</li>
+            </ol>
+            <p className="text-xs text-blue-700">
+              🔒 רק העובד/ת רואה את הסיסמה שלו/ה. אתה יכול לשלוח הזמנה מחדש בכל עת (לחיצה על העובד ברשימה).
+            </p>
+            <p className="text-xs text-blue-700">
+              💰 <strong>מחיר:</strong> 2 העובדים הראשונים כלולים במנוי עסקי (בנוסף אליך). כל עובד נוסף — ₪25 לחודש. ניתן למחוק בכל עת.
+            </p>
+          </div>
+        )}
+      </div>
 
       {/* Plan usage card — shows how many of the 2 included seats are in
           use + cost of any paid extras. Helps the owner understand the
