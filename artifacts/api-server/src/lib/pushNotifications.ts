@@ -25,20 +25,63 @@ let adminPromise: Promise<any> | null = null;
 
 async function getAdmin(): Promise<any | null> {
   const raw = (process.env.FIREBASE_SERVICE_ACCOUNT_JSON ?? "").trim();
-  if (!raw) return null;
+  if (!raw) {
+    logger.warn("[push] FIREBASE_SERVICE_ACCOUNT_JSON not set — pushes disabled");
+    return null;
+  }
 
   if (!adminPromise) {
     adminPromise = (async () => {
+      // Detailed diagnostics — the previous generic "init failed" line hid
+      // the actual cause (unparsable JSON / bad private_key / missing key
+      // fields). We log the specific failure so the owner can fix Railway.
       try {
         const admin = await import("firebase-admin");
         if (admin.apps.length > 0) return admin;
-        const credential = JSON.parse(raw);
+
+        let credential: any;
+        try {
+          credential = JSON.parse(raw);
+        } catch (parseErr: any) {
+          logger.error(
+            {
+              reason: "json_parse",
+              msg: parseErr?.message ?? String(parseErr),
+              rawLen: raw.length,
+              rawHead: raw.slice(0, 30),
+              rawTail: raw.slice(-30),
+            },
+            "[push] FIREBASE_SERVICE_ACCOUNT_JSON is not valid JSON — pushes disabled",
+          );
+          return null;
+        }
+
+        // Sanity-check the credential shape — catches the common case of
+        // pasting the google-services.json (client config) by mistake.
+        if (!credential?.project_id || !credential?.client_email || !credential?.private_key) {
+          logger.error(
+            {
+              reason: "missing_fields",
+              has_project_id:   !!credential?.project_id,
+              has_client_email: !!credential?.client_email,
+              has_private_key:  !!credential?.private_key,
+              type: credential?.type,
+            },
+            "[push] FIREBASE_SERVICE_ACCOUNT_JSON missing required fields — pushes disabled",
+          );
+          return null;
+        }
+
         admin.initializeApp({
           credential: admin.credential.cert(credential),
         });
+        logger.info({ project: credential.project_id }, "[push] Firebase admin initialised");
         return admin;
-      } catch (err) {
-        logger.error({ err }, "[push] Firebase admin init failed — pushes disabled");
+      } catch (err: any) {
+        logger.error(
+          { reason: "init_exception", msg: err?.message ?? String(err), stack: err?.stack },
+          "[push] Firebase admin init failed — pushes disabled",
+        );
         return null;
       }
     })();
