@@ -38,10 +38,28 @@ function isCapacitorNative(): boolean {
 }
 
 async function loadPlugin(): Promise<any | null> {
+  // Race the dynamic import against a hard timeout. On some devices the
+  // Capacitor bridge isn't ready when the React tree first calls
+  // registerForPush, and `import("@capacitor/push-notifications")` hangs
+  // indefinitely waiting for the native side to come up. Without this
+  // race, the caller stays stuck on its first step forever.
+  writeStep("plugin_import_starting");
   try {
-    const mod: any = await import("@capacitor/push-notifications");
+    const mod: any = await Promise.race([
+      import("@capacitor/push-notifications"),
+      new Promise<null>((resolve) => setTimeout(() => resolve(null), 8000)),
+    ]);
+    if (mod === null) {
+      writeStep("plugin_import_timeout", "8s");
+      return null;
+    }
+    writeStep("plugin_import_done", `keys: ${Object.keys(mod).join(",")}`);
     const plugin = mod.PushNotifications ?? mod.default?.PushNotifications ?? null;
-    if (!plugin) writeStep("plugin_load_empty", `mod keys: ${Object.keys(mod).join(",")}`);
+    if (!plugin) {
+      writeStep("plugin_load_empty", `mod keys: ${Object.keys(mod).join(",")}`);
+      return null;
+    }
+    writeStep("plugin_ready");
     return plugin;
   } catch (err: any) {
     writeStep("plugin_load_exception", String(err?.message ?? err));
@@ -66,8 +84,18 @@ export function resetPushRegistration(): void {
 export async function registerForPush(businessToken: string | null): Promise<void> {
   writeStep("start");
   if (!businessToken) { writeStep("no_token"); return; }
+  writeStep("token_present");
   if (!isCapacitorNative()) { writeStep("not_native"); return; }
+  writeStep("is_native");
   if (registered)    { writeStep("already_registered"); return; }
+  writeStep("not_registered_yet");
+
+  // Give Capacitor's native bridge a tick to finish bootstrapping before
+  // we dynamically import the plugin. Empirically this prevents the
+  // first-launch hang where import() resolves only after the bridge is
+  // ready — on some devices that takes longer than the retry button's
+  // patience, leaving the UI stuck at "start".
+  await new Promise((r) => setTimeout(r, 500));
 
   const Push = await loadPlugin();
   if (!Push) { writeStep("plugin_unavailable"); return; }
