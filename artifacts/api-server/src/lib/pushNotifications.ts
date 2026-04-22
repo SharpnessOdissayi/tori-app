@@ -36,8 +36,21 @@ async function getAdmin(): Promise<any | null> {
       // the actual cause (unparsable JSON / bad private_key / missing key
       // fields). We log the specific failure so the owner can fix Railway.
       try {
-        const admin = await import("firebase-admin");
-        if (admin.apps.length > 0) return admin;
+        // firebase-admin is a CommonJS package; under tsx / ESM, the real
+        // module lives on `.default`. If we don't unwrap, `admin.apps` is
+        // undefined and the `.length` check below crashes with
+        // "Cannot read properties of undefined (reading 'length')" —
+        // which is exactly the request-crash we saw in Railway logs.
+        const adminMod: any = await import("firebase-admin");
+        const admin: any = adminMod?.default ?? adminMod;
+        if (!admin?.credential?.cert || !admin?.initializeApp) {
+          logger.error(
+            { reason: "bad_module_shape", keys: Object.keys(adminMod ?? {}) },
+            "[push] firebase-admin import returned an unexpected shape — pushes disabled",
+          );
+          return null;
+        }
+        if (Array.isArray(admin.apps) && admin.apps.length > 0) return admin;
 
         let credential: any;
         try {
