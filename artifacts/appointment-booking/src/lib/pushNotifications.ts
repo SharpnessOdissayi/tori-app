@@ -250,8 +250,9 @@ export async function registerForPush(businessToken: string | null): Promise<voi
 export async function unregisterPush(businessToken: string | null): Promise<void> {
   if (!businessToken) return;
   if (!isCapacitorNative()) return;
-  const Push = await loadPlugin();
-  if (!Push) return;
+  const wrapped = await loadPlugin();
+  if (!wrapped) return;
+  const Push = wrapped.plugin;
 
   try {
     const deliveredList = await Push.getDeliveredNotifications?.().catch(() => null);

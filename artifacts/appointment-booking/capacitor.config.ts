@@ -40,6 +40,11 @@ const config: CapacitorConfig = {
     StatusBar: {
       style: "Default",
       backgroundColor: "#ffffff",
+      // Don't let the WebView extend UNDER the status bar — owners were
+      // reporting "the app is a bit up" because content was being clipped
+      // by the notch / status area. This reserves vertical space for the
+      // native status bar instead of overlaying it.
+      overlaysWebView: false,
     },
     // Keyboard: push content up when keyboard opens
     Keyboard: {

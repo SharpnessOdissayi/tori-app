@@ -9304,42 +9304,9 @@ function PushPrefsCard({ isStaffMode = false }: { isStaffMode?: boolean }) {
   // whenever registerForPush runs so the owner can see WHY a token
   // didn't end up on the server (permission denied, plugin not
   // loaded, FCM error, etc.) without digging through Android logcat.
-  const [pushDebug, setPushDebug] = useState<{ at: string; step: string; detail?: string } | null>(null);
-  const [pushDebugList, setPushDebugList] = useState<Array<{ at: string; step: string; detail?: string }>>([]);
-  const refreshDebug = () => {
-    try {
-      const raw = localStorage.getItem("kavati_push_debug");
-      setPushDebug(raw ? JSON.parse(raw) : null);
-      const rawList = localStorage.getItem("kavati_push_debug_list");
-      setPushDebugList(rawList ? JSON.parse(rawList) : []);
-    } catch { setPushDebug(null); setPushDebugList([]); }
-  };
-  useEffect(() => {
-    refreshDebug();
-    const t = setInterval(refreshDebug, 500);
-    return () => clearInterval(t);
-  }, []);
-
-  const copyDebugLog = async () => {
-    const text = pushDebugList.map((e, i) =>
-      `${i + 1}. ${e.at.slice(11, 23)}  ${e.step}${e.detail ? ` · ${e.detail}` : ""}`
-    ).join("\n");
-    try {
-      await navigator.clipboard.writeText(text);
-      toast({ title: "הועתק", description: `${pushDebugList.length} שלבים הועתקו — הדבק לצ'אט` });
-    } catch {
-      toast({ title: "לא ניתן להעתיק", description: text.slice(0, 200), variant: "destructive" });
-    }
-  };
-
-  const clearDebugLog = () => {
-    try {
-      localStorage.removeItem("kavati_push_debug");
-      localStorage.removeItem("kavati_push_debug_list");
-    } catch {}
-    setPushDebug(null);
-    setPushDebugList([]);
-  };
+  // Debug log state kept in localStorage for future support cases —
+  // PushPrefsCard no longer surfaces it in the UI, but registerForPush
+  // still writes step entries so we can inspect after a user report.
 
   const isNativeCapacitor = typeof window !== "undefined"
     && !!((window as any).Capacitor?.isNativePlatform?.());
@@ -9516,32 +9483,8 @@ function PushPrefsCard({ isStaffMode = false }: { isStaffMode?: boolean }) {
               ))}
             </div>
           )}
-          {/* Full step log — each writeStep appends a line. Shows the
-              actual sequence even when steps fire faster than the poll. */}
-          {pushDebugList.length > 0 && (
-            <div className="pt-1 border-t border-border/50 mt-1">
-              <div className="flex items-center justify-between mb-0.5">
-                <span className="text-muted-foreground">שלבים ({pushDebugList.length}):</span>
-                <div className="flex gap-1">
-                  <button type="button" onClick={copyDebugLog}
-                    className="text-[10px] px-2 py-0.5 rounded bg-primary text-primary-foreground">העתק</button>
-                  <button type="button" onClick={clearDebugLog}
-                    className="text-[10px] px-2 py-0.5 rounded bg-muted text-foreground">נקה</button>
-                </div>
-              </div>
-              <div className="font-mono text-[10px] text-foreground max-h-48 overflow-y-auto space-y-0.5">
-                {pushDebugList.map((e, i) => (
-                  <div key={i} className="break-all">
-                    <span className="text-muted-foreground">{e.at.slice(11, 19)}</span>{" "}
-                    {e.step}
-                    {e.detail ? <span className="text-muted-foreground"> · {e.detail}</span> : null}
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
           <div className="flex gap-2 pt-2 flex-wrap">
-            {isNativeCapacitor && (
+            {isNativeCapacitor && (status?.tokensCount ?? 0) === 0 && (
               <Button type="button" size="sm" variant="outline" onClick={retryRegister} disabled={retrying}>
                 {retrying ? "רושם..." : "נסה רישום מחדש"}
               </Button>
