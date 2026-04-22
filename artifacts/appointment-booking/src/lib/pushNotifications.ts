@@ -60,12 +60,14 @@ function isCapacitorNative(): boolean {
   return !!(cap && typeof cap.isNativePlatform === "function" && cap.isNativePlatform());
 }
 
-async function loadPlugin(): Promise<any | null> {
-  // Race the dynamic import against a hard timeout. On some devices the
-  // Capacitor bridge isn't ready when the React tree first calls
-  // registerForPush, and `import("@capacitor/push-notifications")` hangs
-  // indefinitely waiting for the native side to come up. Without this
-  // race, the caller stays stuck on its first step forever.
+// Wrap the plugin in a plain object before returning from an async
+// function. Capacitor 6 plugin proxies auto-respond to ANY property
+// access — including `.then` — which makes JavaScript treat them as
+// thenables when returned from an async function. The engine then
+// "awaits" the proxy's .then, which calls a native method that
+// doesn't exist and the promise hangs forever. Wrapping in `{ plugin }`
+// (a plain object with no .then) prevents the thenable-unwrap.
+async function loadPlugin(): Promise<{ plugin: any } | null> {
   writeStep("plugin_import_starting");
   try {
     const mod: any = await Promise.race([
@@ -83,7 +85,7 @@ async function loadPlugin(): Promise<any | null> {
       return null;
     }
     writeStep("plugin_ready");
-    return plugin;
+    return { plugin };
   } catch (err: any) {
     writeStep("plugin_load_exception", String(err?.message ?? err));
     return null;
@@ -124,9 +126,11 @@ export async function registerForPush(businessToken: string | null): Promise<voi
   // patience, leaving the UI stuck at "start".
   await new Promise((r) => setTimeout(r, 500));
 
-  const Push = await loadPlugin();
-  writeStep("back_from_loadPlugin", Push ? "plugin=truthy" : "plugin=null");
-  if (!Push) { writeStep("plugin_unavailable"); return; }
+  const wrapped = await loadPlugin();
+  writeStep("back_from_loadPlugin", wrapped ? "ok" : "null");
+  if (!wrapped) { writeStep("plugin_unavailable"); return; }
+  const Push = wrapped.plugin;
+  writeStep("unwrapped_plugin");
 
   writeStep("before_listeners", `already_attached=${listenersAttached}`);
   if (!listenersAttached) {
