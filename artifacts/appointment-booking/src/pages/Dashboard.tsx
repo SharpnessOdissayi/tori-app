@@ -1078,6 +1078,18 @@ export default function Dashboard() {
     ? rootAppts.filter(a => a.status === "pending").length
     : 0;
   const [showTour, setShowTour] = useState(() => !localStorage.getItem("kavati_tour_seen"));
+  // Lets SettingsTab re-launch the tour via a custom window event — one
+  // of the nested children dispatches `kavati:restart-tour` and we listen
+  // at the top-level so React re-renders the tour regardless of where
+  // the user is in the dashboard.
+  useEffect(() => {
+    const handler = () => {
+      try { localStorage.removeItem("kavati_tour_seen"); } catch {}
+      setShowTour(true);
+    };
+    window.addEventListener("kavati:restart-tour", handler);
+    return () => window.removeEventListener("kavati:restart-tour", handler);
+  }, []);
   // Hide the "התקן את קבעתי כאפליקציה" shortcut when the dashboard is
   // already running inside the installed PWA (display-mode:standalone).
   // The onInstallStateChange listener flips the flag in the same tab
@@ -8950,6 +8962,32 @@ function SettingsTab({ isStaffMode = false }: { isStaffMode?: boolean }) {
 
       {/* Subscription status card — shown for both free and pro */}
       {profile && <SubscriptionStatusCard />}
+
+      {/* Replay the onboarding tour. Fires a global event the Dashboard
+          listens to — flips showTour back on and clears the "seen" flag
+          so a return visit starts fresh. Separate card so the link is
+          easy to find without hunting through submenus. */}
+      <Card>
+        <CardHeader>
+          <CardTitle>סיור במערכת</CardTitle>
+          <CardDescription>
+            רוצה להיזכר איך עובדים עם קבעתי? פתחנו לך סיור קצר על כל הפיצ'רים — יומן, לקוחות, קבלות, סידור עבודה ועוד.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => {
+              try { localStorage.removeItem("kavati_tour_seen"); } catch {}
+              window.dispatchEvent(new CustomEvent("kavati:restart-tour"));
+              toast({ title: "מתחיל סיור...", description: "תעקוב אחרי הבועה בפינה השמאלית" });
+            }}
+          >
+            🚀 התחל סיור במערכת
+          </Button>
+        </CardContent>
+      </Card>
 
       {/* Delete account — self-service, in-app. Hits
           DELETE /api/auth/business/account which cascades every
