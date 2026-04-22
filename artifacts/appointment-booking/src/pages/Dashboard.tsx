@@ -9444,6 +9444,31 @@ function PushPrefsCard({ isStaffMode = false }: { isStaffMode?: boolean }) {
     ? PUSH_KINDS.filter((k) => k.key !== "waitlist_join" && k.key !== "new_review")
     : PUSH_KINDS;
 
+  // Owner-only meta-pref — when off, the owner stops receiving pushes
+  // for appointments tied to a staff member. Staff still get theirs.
+  // Missing key defaults to true (backwards-compat with the original
+  // "owner sees everything" behaviour).
+  const includeStaffBookings = prefs.include_staff_bookings !== false;
+  const toggleIncludeStaffBookings = async (next: boolean) => {
+    const optimistic = { ...prefs, include_staff_bookings: next };
+    setPrefs(optimistic);
+    setSaving(true);
+    try {
+      const token = getToken();
+      const res = await fetch("/api/business/push-prefs", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ prefs: optimistic }),
+      });
+      if (!res.ok) throw new Error("save failed");
+    } catch {
+      setPrefs(prefs);
+      toast({ title: "שמירה נכשלה", description: "נסה שוב", variant: "destructive" });
+    } finally {
+      setSaving(false);
+    }
+  };
+
   return (
     <Card>
       <CardHeader>
@@ -9500,21 +9525,41 @@ function PushPrefsCard({ isStaffMode = false }: { isStaffMode?: boolean }) {
         {loading ? (
           <div className="text-sm text-muted-foreground">טוען...</div>
         ) : (
-          visibleKinds.map((k) => (
-            <label key={k.key} className="flex items-start justify-between gap-3 py-2 border-b last:border-0 cursor-pointer">
-              <div className="flex-1">
-                <div className="font-medium text-sm">{k.label}</div>
-                <div className="text-xs text-muted-foreground">{k.desc}</div>
-              </div>
-              <input
-                type="checkbox"
-                className="mt-1 h-5 w-5 accent-primary"
-                checked={enabled(k.key)}
-                disabled={saving}
-                onChange={(e) => toggle(k.key, e.target.checked)}
-              />
-            </label>
-          ))
+          <>
+            {visibleKinds.map((k) => (
+              <label key={k.key} className="flex items-start justify-between gap-3 py-2 border-b last:border-0 cursor-pointer">
+                <div className="flex-1">
+                  <div className="font-medium text-sm">{k.label}</div>
+                  <div className="text-xs text-muted-foreground">{k.desc}</div>
+                </div>
+                <input
+                  type="checkbox"
+                  className="mt-1 h-5 w-5 accent-primary"
+                  checked={enabled(k.key)}
+                  disabled={saving}
+                  onChange={(e) => toggle(k.key, e.target.checked)}
+                />
+              </label>
+            ))}
+            {/* Owner-only toggle to mute pushes for staff-assigned bookings.
+                Staff user never sees this — their prefs scope only to their
+                own appointments by design. */}
+            {!isStaffMode && (
+              <label className="flex items-start justify-between gap-3 py-2 pt-3 mt-2 border-t-2 border-border/50 cursor-pointer">
+                <div className="flex-1">
+                  <div className="font-medium text-sm">התראות על תורים של אנשי צוות</div>
+                  <div className="text-xs text-muted-foreground">כבה כדי לקבל התראות רק על תורים שמוקצים אליך. הצוות ימשיך לקבל את התראותיו.</div>
+                </div>
+                <input
+                  type="checkbox"
+                  className="mt-1 h-5 w-5 accent-primary"
+                  checked={includeStaffBookings}
+                  disabled={saving}
+                  onChange={(e) => toggleIncludeStaffBookings(e.target.checked)}
+                />
+              </label>
+            )}
+          </>
         )}
       </CardContent>
     </Card>

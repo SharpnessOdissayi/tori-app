@@ -182,6 +182,17 @@ export async function sendPushToBusiness(args: {
       .from(businessesTable)
       .where(eq(businessesTable.id, businessId));
     ownerAllowed = kindEnabled(biz?.prefs, payload.kind);
+    // Per-owner opt-out for staff-assigned bookings. When the owner has
+    // set `include_staff_bookings: false`, we still send to the relevant
+    // staff member but skip the owner's devices — lets owners with a
+    // manager keep their phone quiet for appointments they don't own.
+    // Missing key → default TRUE (owner sees everything, old behaviour).
+    if (ownerAllowed && staffMemberId) {
+      const prefs = (biz?.prefs ?? {}) as Record<string, boolean>;
+      if (prefs.include_staff_bookings === false) {
+        ownerAllowed = false;
+      }
+    }
   }
 
   const staffAllowedMap = new Map<number, boolean>();

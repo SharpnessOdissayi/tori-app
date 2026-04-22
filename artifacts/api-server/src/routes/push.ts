@@ -38,10 +38,18 @@ const PUSH_KINDS = [
 ] as const;
 type PushKind = typeof PUSH_KINDS[number];
 
+// Non-kind meta-prefs that the sender reads alongside the per-kind
+// opt-ins. Keep this list in sync with the keys pushNotifications.ts
+// checks before filtering recipients.
+const META_PREF_KEYS = ["include_staff_bookings"] as const;
+
 function sanitizePrefs(raw: any): Record<string, boolean> {
   const out: Record<string, boolean> = {};
   if (!raw || typeof raw !== "object") return out;
   for (const k of PUSH_KINDS) {
+    if (typeof raw[k] === "boolean") out[k] = raw[k];
+  }
+  for (const k of META_PREF_KEYS) {
     if (typeof raw[k] === "boolean") out[k] = raw[k];
   }
   return out;
