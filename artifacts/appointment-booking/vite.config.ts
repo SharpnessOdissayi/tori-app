@@ -23,11 +23,16 @@ export default defineConfig({
   build: {
     outDir: path.resolve(import.meta.dirname, "dist"),
     emptyOutDir: true,
-    rollupOptions: {
-      // Capacitor is only available in native mobile builds, not on Railway.
-      // The import in main.tsx is wrapped in try/catch so it fails gracefully.
-      external: ["@capacitor/core", "@capacitor/splash-screen", "@capacitor/status-bar"],
-    },
+    // Bundle @capacitor/core + the plugins INTO the output so the native
+    // build can actually import them. The old `external:[]` list existed
+    // when Capacitor was an optional dep wrapped in try/catch — now we
+    // use native plugins (Google Auth) that transitively depend on
+    // @capacitor/core at module-load time, and Rollup marking them
+    // external blows up at runtime with
+    //   "Failed to resolve module specifier '@capacitor/core'"
+    // in the WebView. The web fallbacks ship no-ops for native APIs,
+    // so bundling them is harmless on Railway builds.
+    rollupOptions: {},
   },
   server: {
     port,
