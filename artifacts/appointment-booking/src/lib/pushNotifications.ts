@@ -114,16 +114,39 @@ export async function registerForPush(businessToken: string | null): Promise<voi
     writeStep("listeners_attached");
   }
 
+  // Wrap each native bridge call in a timeout race. On buggy Play
+  // Services builds (BlueStacks, old emulators) the plugin's register()
+  // promise can hang forever — without the race, the Settings retry
+  // button stays stuck on "רושם..." and we never even write a debug
+  // line explaining why. The timeout writes a visible step so we can
+  // tell which bridge call is hanging.
+  const withTimeout = async <T,>(p: Promise<T>, ms: number, label: string): Promise<T | undefined> => {
+    let timer: any;
+    try {
+      return await Promise.race([
+        p,
+        new Promise<undefined>((resolve) => {
+          timer = setTimeout(() => {
+            writeStep(`${label}_timeout`, `${ms}ms`);
+            resolve(undefined);
+          }, ms);
+        }),
+      ]);
+    } finally {
+      clearTimeout(timer);
+    }
+  };
+
   try {
     writeStep("requesting_permission");
-    const perm = await Push.requestPermissions?.();
-    writeStep("permission_result", String(perm?.receive));
-    if (perm?.receive !== "granted") {
-      writeStep("permission_denied", String(perm?.receive));
+    const perm = await withTimeout(Push.requestPermissions?.(), 10000, "permission");
+    writeStep("permission_result", String((perm as any)?.receive));
+    if ((perm as any)?.receive !== "granted") {
+      writeStep("permission_denied", String((perm as any)?.receive));
       return;
     }
     writeStep("register_calling");
-    await Push.register?.();
+    await withTimeout(Push.register?.(), 10000, "register");
     writeStep("register_returned");
     // Note: we do NOT set `registered = true` here — the real success
     // signal is the listener POSTing the token to the server (which

@@ -9367,6 +9367,17 @@ function PushPrefsCard({ isStaffMode = false }: { isStaffMode?: boolean }) {
       return;
     }
     setRetrying(true);
+    // Hard-cap the whole retry so the button ALWAYS unsticks within 25s
+    // even if the native bridge call hangs forever (known Play Services
+    // bug on emulators and some rooted devices). Without this, the
+    // previous build left the button spinning indefinitely and the
+    // owner had no feedback at all.
+    const outerTimeout = setTimeout(() => {
+      refreshStatus();
+      refreshDebug();
+      setRetrying(false);
+      toast({ title: "רישום נתקע — בדוק 'שלב אחרון'", variant: "destructive" });
+    }, 25000);
     try {
       const { registerForPush, resetPushRegistration } = await import("../lib/pushNotifications");
       // Clear the in-memory guard so the retry button actually retries
@@ -9376,10 +9387,12 @@ function PushPrefsCard({ isStaffMode = false }: { isStaffMode?: boolean }) {
       await registerForPush(getToken());
       // Give the async FCM registration event a moment to fire + POST.
       await new Promise(r => setTimeout(r, 3000));
+      clearTimeout(outerTimeout);
       await refreshStatus();
       refreshDebug();
       toast({ title: "ניסיון רישום הושלם", description: "בדוק למטה את הסטטוס" });
     } catch (err: any) {
+      clearTimeout(outerTimeout);
       toast({ title: "שגיאה", description: String(err?.message ?? err), variant: "destructive" });
     } finally {
       setRetrying(false);
