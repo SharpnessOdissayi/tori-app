@@ -81,8 +81,12 @@ export function resetPushRegistration(): void {
   registered = false;
 }
 
+// Bump this when rebuilding, so the Settings diagnostic strip shows
+// at a glance whether the installed APK is on the latest debug code.
+const PUSH_BUILD = "v5";
+
 export async function registerForPush(businessToken: string | null): Promise<void> {
-  writeStep("start");
+  writeStep(`start_${PUSH_BUILD}`);
   if (!businessToken) { writeStep("no_token"); return; }
   writeStep("token_present");
   if (!isCapacitorNative()) { writeStep("not_native"); return; }
