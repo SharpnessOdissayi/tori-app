@@ -1249,6 +1249,7 @@ router.post("/business/appointments", requireBusinessAuth, async (req, res): Pro
         appointment.appointmentTime,
         business.slug,
         businessId,
+        appointment.id,
       ).catch(() => {});
     }
   }
@@ -1288,7 +1289,7 @@ router.patch("/business/appointments/:id/approve", requireBusinessAuth, async (r
     const paid = await isBusinessPro(req.business!.businessId);
     if (paid) {
       whatsappStatus = "sent";
-      sendClientConfirmation(updated.phoneNumber, updated.clientName, business.name, updated.serviceName, formattedDate, updated.appointmentTime, business.slug, req.business!.businessId)
+      sendClientConfirmation(updated.phoneNumber, updated.clientName, business.name, updated.serviceName, formattedDate, updated.appointmentTime, business.slug, req.business!.businessId, updated.id)
         .then(() => console.log(`[approve] WhatsApp confirmation sent for appt ${id} → ${updated.phoneNumber}`))
         .catch(err => console.error(`[approve] WhatsApp confirmation FAILED for appt ${id} → ${updated.phoneNumber}:`, err?.message ?? err));
     } else {
@@ -1351,6 +1352,7 @@ router.patch("/business/appointments/:id/reschedule", requireBusinessAuth, async
       (appt as any).serviceName ?? "",
       String(appt.id),
       req.business!.businessId,
+      appt.id,
     ).catch(() => {});
   }
 
@@ -1483,7 +1485,7 @@ router.delete("/business/appointments/:id", requireBusinessAuth, async (req, res
       : isRejection || !!bizCancelPref?.notifyOnCancel;
   const paid = await isBusinessPro(req.business!.businessId);
   if (shouldNotify && paid) {
-    sendClientCancellation(appt.phoneNumber, appt.clientName, req.business!.businessName, formattedDate, appt.appointmentTime, req.business!.businessId)
+    sendClientCancellation(appt.phoneNumber, appt.clientName, req.business!.businessName, formattedDate, appt.appointmentTime, req.business!.businessId, appt.id)
       .then(() => console.log(`[cancel${isRejection ? "/reject" : ""}] WhatsApp sent for appt ${appt.id} → ${appt.phoneNumber}`))
       .catch(err => console.error(`[cancel${isRejection ? "/reject" : ""}] WhatsApp FAILED for appt ${appt.id} → ${appt.phoneNumber}:`, err?.message ?? err));
   } else if (!paid) {

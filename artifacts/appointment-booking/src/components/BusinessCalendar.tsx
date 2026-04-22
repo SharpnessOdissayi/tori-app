@@ -34,6 +34,16 @@ export type CalAppt = {
   // interpreted as "assigned to the owner". Set when a specific staff
   // was picked on booking.
   staffMemberId?: number | null;
+  // WhatsApp audit trail — each column is set by the respective send
+  // helper after a successful Meta Cloud API call. NULL = never sent
+  // (free plan, client opted out, Meta error, or just hasn't happened
+  // yet). Surfaced in the appointment details modal.
+  confirmationSentAt?:   string | null;
+  rescheduleSentAt?:     string | null;
+  cancellationSentAt?:   string | null;
+  reminder24hSentAt?:    string | null;
+  reminder1hSentAt?:     string | null;
+  reminderMorningSentAt?: string | null;
 };
 
 // Optional map of serviceId → hex colour. Owner sets this per service

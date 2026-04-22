@@ -80,18 +80,19 @@ async function sendReminderForTrigger(
   formattedDate: string,
   time: string,
   businessSlug: string,
-  businessId: number
+  businessId: number,
+  appointmentId?: number,
 ) {
   const amount = parseInt(trigger.amount) || 0;
   const isOneHour = trigger.unit === "hours" && amount === 1;
   const isMorning = trigger.unit === "morning";
 
   if (isOneHour) {
-    await sendReminder1h(phone, clientName, businessName, formattedDate, time, businessSlug, businessId);
+    await sendReminder1h(phone, clientName, businessName, formattedDate, time, businessSlug, businessId, appointmentId);
   } else if (isMorning) {
-    await sendReminderMorning(phone, clientName, businessName, formattedDate, time, businessSlug, businessId);
+    await sendReminderMorning(phone, clientName, businessName, formattedDate, time, businessSlug, businessId, appointmentId);
   } else {
-    await sendReminder24h(phone, clientName, businessName, formattedDate, time, businessSlug, businessId);
+    await sendReminder24h(phone, clientName, businessName, formattedDate, time, businessSlug, businessId, appointmentId);
   }
 }
 
@@ -183,7 +184,8 @@ export async function sendReminders(): Promise<void> {
           formattedDate,
           appt.appointmentTime,
           appt.businessSlug,
-          appt.businessId
+          appt.businessId,
+          appt.id,
         );
 
         // Mark as sent

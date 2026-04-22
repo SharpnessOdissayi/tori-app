@@ -1077,6 +1077,15 @@ export default function Dashboard() {
                 const appts = Array.isArray(rootAppts) ? rootAppts : [];
                 const appt = apptId ? appts.find((a: any) => a.id === apptId) : null;
 
+                // When the notification refers to a specific appointment,
+                // park its id so BusinessCalendar can jump+pulse on mount
+                // (same mechanism used when clicking an upcoming-appointment
+                // card). The calendar picks this up on its next mount, which
+                // the tab switches below trigger.
+                if (apptId) {
+                  try { sessionStorage.setItem("kavati_cal_highlight_id", String(apptId)); } catch {}
+                }
+
                 if (n.type === "cancellation") {
                   // Owner wants to see the client in the customers list —
                   // they usually want to flag / call / reschedule.
@@ -3178,6 +3187,45 @@ function AppointmentsTab({ mobileFocus }: { mobileFocus?: "calendar" | "approval
                     </span>
                   </div>
                 </div>
+                {/* WhatsApp audit trail — which templates actually reached
+                    the client (and when). Rows with null timestamps mean
+                    the message hasn't been sent yet; we hide fully-empty
+                    sections so the modal doesn't show a wall of "never". */}
+                {(() => {
+                  const rows: { label: string; at: string | null | undefined }[] = [
+                    { label: "אישור הזמנה",          at: (editAppt as any).confirmationSentAt },
+                    { label: "הודעת דחיית תור",      at: (editAppt as any).rescheduleSentAt },
+                    { label: "הודעת ביטול תור",      at: (editAppt as any).cancellationSentAt },
+                    { label: "תזכורת יום לפני",       at: (editAppt as any).reminder24hSentAt },
+                    { label: "תזכורת שעה לפני",       at: (editAppt as any).reminder1hSentAt },
+                    { label: "תזכורת בבוקר התור",     at: (editAppt as any).reminderMorningSentAt },
+                  ];
+                  const anySent = rows.some(r => !!r.at);
+                  return (
+                    <div className="pt-2 border-t">
+                      <div className="text-xs font-semibold text-muted-foreground mb-2">הודעות ווצאפ ללקוח</div>
+                      {anySent ? (
+                        <ul className="space-y-1 text-xs">
+                          {rows.filter(r => r.at).map((r, i) => (
+                            <li key={i} className="flex items-center justify-between gap-2 px-2.5 py-1.5 rounded-lg bg-emerald-50 border border-emerald-100">
+                              <span className="text-emerald-900 font-medium">✓ {r.label}</span>
+                              <span className="text-emerald-700" dir="ltr">
+                                {new Date(r.at!).toLocaleString("he-IL", { day: "numeric", month: "numeric", hour: "2-digit", minute: "2-digit" })}
+                              </span>
+                            </li>
+                          ))}
+                          {rows.filter(r => !r.at).length > 0 && (
+                            <li className="text-[11px] text-muted-foreground pt-1">
+                              טרם נשלח: {rows.filter(r => !r.at).map(r => r.label).join(" · ")}
+                            </li>
+                          )}
+                        </ul>
+                      ) : (
+                        <div className="text-xs text-muted-foreground">עדיין לא נשלחו הודעות ללקוח עבור תור זה.</div>
+                      )}
+                    </div>
+                  );
+                })()}
                 {/* Quick reach-out buttons — tap to call or open WhatsApp
                     with a pre-filled greeting using the client's phone on
                     this appointment. Only render when we actually have a

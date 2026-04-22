@@ -317,6 +317,14 @@ export async function runMigrations() {
     // Cancellation tracking
     await db.execute(sql.raw(`ALTER TABLE appointments ADD COLUMN IF NOT EXISTS cancelled_by TEXT`));
     await db.execute(sql.raw(`ALTER TABLE appointments ADD COLUMN IF NOT EXISTS cancel_reason TEXT`));
+    // WhatsApp dispatch audit columns — each is set by the respective
+    // send helper on success (clientWantsNotifications false → stays NULL).
+    await db.execute(sql.raw(`ALTER TABLE appointments ADD COLUMN IF NOT EXISTS confirmation_sent_at      TIMESTAMPTZ`));
+    await db.execute(sql.raw(`ALTER TABLE appointments ADD COLUMN IF NOT EXISTS reschedule_sent_at        TIMESTAMPTZ`));
+    await db.execute(sql.raw(`ALTER TABLE appointments ADD COLUMN IF NOT EXISTS cancellation_sent_at      TIMESTAMPTZ`));
+    await db.execute(sql.raw(`ALTER TABLE appointments ADD COLUMN IF NOT EXISTS reminder_24h_sent_at      TIMESTAMPTZ`));
+    await db.execute(sql.raw(`ALTER TABLE appointments ADD COLUMN IF NOT EXISTS reminder_1h_sent_at       TIMESTAMPTZ`));
+    await db.execute(sql.raw(`ALTER TABLE appointments ADD COLUMN IF NOT EXISTS reminder_morning_sent_at  TIMESTAMPTZ`));
 
     // Notifications table
     await db.execute(sql.raw(`

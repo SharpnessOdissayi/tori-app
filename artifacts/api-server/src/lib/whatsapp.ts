@@ -290,7 +290,8 @@ export async function sendClientConfirmation(
   date: string,
   time: string,
   businessSlug: string,
-  businessId?: number
+  businessId?: number,
+  appointmentId?: number,
 ): Promise<void> {
   if (!(await clientWantsNotifications(phone))) return;
   await sendTemplate(phone, "appointment_confirmation_12", [
@@ -300,6 +301,7 @@ export async function sendClientConfirmation(
     date,
     time,
   ], businessSlug, businessId);
+  if (appointmentId) await markWhatsappSent(appointmentId, "confirmation");
 }
 
 // ── Reschedule notification to client ──────────────────────────────────────
@@ -314,7 +316,8 @@ export async function sendClientReschedule(
   newDateTimeLabel: string,   // {{2}} — freeform "21/04 ב-15:00" style label
   serviceName: string,        // {{3}}
   confirmationCode: string,   // {{4}} — appointment id or tranzila ref
-  businessId?: number
+  businessId?: number,
+  appointmentId?: number,
 ): Promise<void> {
   if (!(await clientWantsNotifications(phone))) return;
   await sendTemplate(phone, "appointment_rescheduled", [
@@ -323,6 +326,7 @@ export async function sendClientReschedule(
     serviceName,
     confirmationCode,
   ], undefined, businessId);
+  if (appointmentId) await markWhatsappSent(appointmentId, "reschedule");
 }
 
 // ── Cancellation notification to client ────────────────────────────────────
@@ -338,7 +342,8 @@ export async function sendClientCancellation(
   businessName: string,        // no longer injected into the template body
   date: string,
   time: string,
-  businessId?: number
+  businessId?: number,
+  appointmentId?: number,
 ): Promise<void> {
   if (!(await clientWantsNotifications(phone))) return;
   const dateTimeLabel = `${date} בשעה ${time}${businessName ? ` (${businessName})` : ""}`;
@@ -346,6 +351,7 @@ export async function sendClientCancellation(
     clientName,
     dateTimeLabel,
   ], undefined, businessId);
+  if (appointmentId) await markWhatsappSent(appointmentId, "cancellation");
 }
 
 // ── Reminders ───────────────────────────────────────────────────────────────
@@ -363,10 +369,12 @@ export async function sendReminder24h(
   date: string,
   time: string,
   businessSlug: string,
-  businessId?: number
+  businessId?: number,
+  appointmentId?: number,
 ): Promise<void> {
   if (!(await clientWantsNotifications(phone))) return;
   await sendTemplate(phone, "appointment_reminder_2", [clientName, businessName, date, time], businessSlug, businessId);
+  if (appointmentId) await markWhatsappSent(appointmentId, "reminder24h");
 }
 
 export async function sendReminder1h(
@@ -376,10 +384,12 @@ export async function sendReminder1h(
   date: string,
   time: string,
   businessSlug: string,
-  businessId?: number
+  businessId?: number,
+  appointmentId?: number,
 ): Promise<void> {
   if (!(await clientWantsNotifications(phone))) return;
   await sendTemplate(phone, "appointment_reminder_2", [clientName, businessName, date, time], businessSlug, businessId);
+  if (appointmentId) await markWhatsappSent(appointmentId, "reminder1h");
 }
 
 export async function sendReminderMorning(
@@ -389,8 +399,39 @@ export async function sendReminderMorning(
   date: string,
   time: string,
   businessSlug: string,
-  businessId?: number
+  businessId?: number,
+  appointmentId?: number,
 ): Promise<void> {
   if (!(await clientWantsNotifications(phone))) return;
   await sendTemplate(phone, "appointment_reminder_2", [clientName, businessName, date, time], businessSlug, businessId);
+  if (appointmentId) await markWhatsappSent(appointmentId, "reminderMorning");
+}
+
+// Stamps the appointment's "sent at" column for the given message kind.
+// Called after successful WhatsApp dispatch. Best-effort — if the DB
+// write fails we log and move on (the message was already delivered).
+async function markWhatsappSent(
+  appointmentId: number,
+  kind: "confirmation" | "reschedule" | "cancellation" | "reminder24h" | "reminder1h" | "reminderMorning",
+): Promise<void> {
+  try {
+    const { db, appointmentsTable } = await import("@workspace/db");
+    const { eq } = await import("drizzle-orm");
+    const col = {
+      confirmation:    "confirmation_sent_at",
+      reschedule:      "reschedule_sent_at",
+      cancellation:    "cancellation_sent_at",
+      reminder24h:     "reminder_24h_sent_at",
+      reminder1h:      "reminder_1h_sent_at",
+      reminderMorning: "reminder_morning_sent_at",
+    }[kind];
+    await db.execute(
+      (await import("drizzle-orm")).sql.raw(
+        `UPDATE appointments SET ${col} = NOW() WHERE id = ${Number(appointmentId)}`
+      )
+    );
+    void eq; void appointmentsTable;
+  } catch (err) {
+    console.error(`[whatsapp] markWhatsappSent(${appointmentId}, ${kind}) failed:`, err);
+  }
 }

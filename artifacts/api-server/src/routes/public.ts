@@ -1666,7 +1666,7 @@ router.post("/public/:businessSlug/appointments/:id/cancel", async (req, res): P
   const cancelFormattedDate = `${cancelDay}/${cancelMonth}`;
   const cancelIsPaidPlan = (business as any)?.subscriptionPlan === "pro" || (business as any)?.subscriptionPlan === "pro-plus";
   if (cancelIsPaidPlan) {
-    sendClientCancellation(appt.phoneNumber, appt.clientName, business?.name ?? "העסק", cancelFormattedDate, appt.appointmentTime, appt.businessId)
+    sendClientCancellation(appt.phoneNumber, appt.clientName, business?.name ?? "העסק", cancelFormattedDate, appt.appointmentTime, appt.businessId, appt.id)
       .catch((e: any) => console.error("[WhatsApp] sendClientCancellation failed:", e?.response?.data ?? e?.message));
   }
 
@@ -1763,18 +1763,30 @@ router.patch("/public/:businessSlug/appointments/:id/reschedule", async (req, re
   }
 
   await db.update(appointmentsTable)
-    .set({ appointmentDate: newDate, appointmentTime: newTime, reminder24hSent: false, reminder1hSent: false, reminderMorningSent: false })
+    .set({
+      appointmentDate: newDate, appointmentTime: newTime,
+      // Clear the reminder flags AND their timestamps — rescheduled
+      // appointments need a fresh reminder cycle for the new slot.
+      reminder24hSent: false, reminder1hSent: false, reminderMorningSent: false,
+      reminder24hSentAt: null, reminder1hSentAt: null, reminderMorningSentAt: null,
+    } as any)
     .where(eq(appointmentsTable.id, appt.id));
 
-  // Send WhatsApp notification — appointment_rescheduled template
-  // "Hello {{1}}, Your upcoming appointment with {{שם העסק}} has been rescheduled for {{תאריך}} at {{2}}."
+  // Send WhatsApp notification via the shared helper so the reschedule
+  // timestamp lands on the appointment row (the prior direct sendTemplate
+  // call bypassed the audit trail).
   const [, month, day] = newDate.split("-");
   const formattedDate = `${day}/${month}`;
-  sendTemplate(appt.phoneNumber, "appointment_rescheduled", [
+  const { sendClientReschedule } = await import("../lib/whatsapp");
+  sendClientReschedule(
+    appt.phoneNumber,
     appt.clientName,
-    formattedDate,
-    newTime,
-  ], undefined, appt.businessId).catch((e: any) => console.error("[WhatsApp] appointment_rescheduled failed:", e?.response?.data ?? e?.message));
+    `${formattedDate} בשעה ${newTime}`,
+    (appt as any).serviceName ?? "",
+    String(appt.id),
+    appt.businessId,
+    appt.id,
+  ).catch((e: any) => console.error("[WhatsApp] sendClientReschedule failed:", e?.response?.data ?? e?.message));
 
   res.json({ success: true, newDate, newTime });
 });
