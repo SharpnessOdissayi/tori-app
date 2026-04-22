@@ -1,25 +1,35 @@
 /**
  * Client-side FCM registration for the Capacitor Android app.
  *
- * Exposes two entry points:
- *   · registerForPush(token)   — call after business login. No-ops silently
- *     on web (where @capacitor/push-notifications isn't available) so the
- *     same Dashboard effect works in both environments.
- *   · unregisterPush(token)    — call on logout to detach this device from
- *     the user account (so they stop getting pushes aimed at the old user).
+ * Diagnostic-heavy version — every step writes to localStorage under
+ * `kavati_push_debug`, which the Settings PushPrefsCard reads and shows
+ * in plain text. Without this, a silent bail-out (wrong plugin shape,
+ * permission denied, FCM error, fetch failure) was invisible to the
+ * owner and only surfaced as "tokens: 0" with no explanation.
  *
- * The plugin's registration() fires the `registration` event with the FCM
- * token. We POST it to /api/business/push-token. Registration is idempotent
- * on the server side (ON CONFLICT (device_token) DO UPDATE), so calling it
- * on every dashboard mount is safe — it also lets us pick up rotated FCM
- * tokens whenever Firebase rotates them.
- *
- * Deep-link handling: when a notification is tapped, we read `data.route`
- * (e.g. "/dashboard?tab=approvals") and either navigate the Wouter router
- * if the shell is already mounted, or stash the target in sessionStorage
- * for the next render to pick up. That keeps the deep-link logic
- * framework-agnostic — no coupling to any specific router instance.
+ * Stored shape:
+ *   { at: ISO string, step: string, detail?: string }
  */
+
+const DEBUG_KEY = "kavati_push_debug";
+
+type DebugEntry = { at: string; step: string; detail?: string };
+
+function writeStep(step: string, detail?: string): void {
+  try {
+    const entry: DebugEntry = { at: new Date().toISOString(), step, detail };
+    localStorage.setItem(DEBUG_KEY, JSON.stringify(entry));
+    // Also mirror as console.info so USB-logcat users still see it.
+    console.info("[push]", step, detail ?? "");
+  } catch { /* storage can fail in weird WebViews — not fatal */ }
+}
+
+export function readPushDebug(): DebugEntry | null {
+  try {
+    const raw = localStorage.getItem(DEBUG_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch { return null; }
+}
 
 function isCapacitorNative(): boolean {
   if (typeof window === "undefined") return false;
@@ -30,21 +40,22 @@ function isCapacitorNative(): boolean {
 async function loadPlugin(): Promise<any | null> {
   try {
     const mod: any = await import("@capacitor/push-notifications");
-    return mod.PushNotifications ?? mod.default?.PushNotifications ?? null;
-  } catch (err) {
-    console.warn("[push] plugin not available:", err);
+    const plugin = mod.PushNotifications ?? mod.default?.PushNotifications ?? null;
+    if (!plugin) writeStep("plugin_load_empty", `mod keys: ${Object.keys(mod).join(",")}`);
+    return plugin;
+  } catch (err: any) {
+    writeStep("plugin_load_exception", String(err?.message ?? err));
     return null;
   }
 }
 
 // Guards:
-//   · `listenersAttached`  — addListener() is idempotent on Capacitor but
-//     we avoid attaching duplicate handlers that would double-POST every
-//     token event.
-//   · `registered`         — set after a SUCCESSFUL register() so the
-//     auto-run on Dashboard mount is cheap. Reset by the retry button so
-//     the owner can re-attempt registration after granting permission in
-//     Android settings.
+//   · `listenersAttached`  — addListener() is NOT idempotent in all Capacitor
+//     builds; double-attaching produces double-POST. So we track ourselves.
+//   · `registered`         — set after a SUCCESSFUL token POST (not just
+//     after register() resolves — FCM can silently fail to deliver a token).
+//     Reset by the retry button so the owner can re-attempt after granting
+//     permission in Android settings.
 let listenersAttached = false;
 let registered = false;
 
@@ -53,35 +64,40 @@ export function resetPushRegistration(): void {
 }
 
 export async function registerForPush(businessToken: string | null): Promise<void> {
-  if (!businessToken) return;
-  if (!isCapacitorNative()) return;
-  if (registered) return;
+  writeStep("start");
+  if (!businessToken) { writeStep("no_token"); return; }
+  if (!isCapacitorNative()) { writeStep("not_native"); return; }
+  if (registered)    { writeStep("already_registered"); return; }
+
   const Push = await loadPlugin();
-  if (!Push) return;
+  if (!Push) { writeStep("plugin_unavailable"); return; }
 
   if (!listenersAttached) {
-    // Listener registration comes BEFORE requestPermissions/register so we
-    // don't miss the very first `registration` event.
     Push.addListener?.("registration", async (t: { value: string }) => {
+      const tail = String(t?.value ?? "").slice(-6);
+      writeStep("token_event", `tail=${tail} len=${String(t?.value ?? "").length}`);
       try {
         const res = await fetch("/api/business/push-token", {
           method: "POST",
           headers: { "Content-Type": "application/json", Authorization: `Bearer ${businessToken}` },
           body: JSON.stringify({ deviceToken: t.value, platform: "android" }),
         });
-        if (!res.ok) console.warn("[push] token register failed:", res.status);
-      } catch (err) {
-        console.warn("[push] token POST failed:", err);
+        if (res.ok) {
+          writeStep("token_post_ok", `tail=${tail}`);
+          registered = true;
+        } else {
+          const body = await res.text().catch(() => "");
+          writeStep("token_post_failed", `status=${res.status} body=${body.slice(0, 120)}`);
+        }
+      } catch (err: any) {
+        writeStep("token_post_exception", String(err?.message ?? err));
       }
     });
 
     Push.addListener?.("registrationError", (err: any) => {
-      console.warn("[push] registration error:", err);
+      writeStep("fcm_error", JSON.stringify(err)?.slice(0, 200));
     });
 
-    // When the user taps a notification. We stash the intended route
-    // (if any) and reload the current screen with the route as a
-    // deep-link. Wouter picks it up on the next render.
     Push.addListener?.("pushNotificationActionPerformed", (action: any) => {
       const route: string | undefined = action?.notification?.data?.route;
       const apptId: string | undefined = action?.notification?.data?.appointmentId;
@@ -93,24 +109,29 @@ export async function registerForPush(businessToken: string | null): Promise<voi
       } catch {}
     });
 
-    // Foreground-received notification — don't navigate automatically, but
-    // a toast would be nice. For now just log; the in-app bell picks up
-    // the same event via the existing /notifications/business polling.
     Push.addListener?.("pushNotificationReceived", () => { /* handled by bell */ });
-
     listenersAttached = true;
+    writeStep("listeners_attached");
   }
 
   try {
+    writeStep("requesting_permission");
     const perm = await Push.requestPermissions?.();
+    writeStep("permission_result", String(perm?.receive));
     if (perm?.receive !== "granted") {
-      console.info("[push] permission not granted:", perm?.receive);
+      writeStep("permission_denied", String(perm?.receive));
       return;
     }
+    writeStep("register_calling");
     await Push.register?.();
-    registered = true;
-  } catch (err) {
-    console.warn("[push] register flow failed:", err);
+    writeStep("register_returned");
+    // Note: we do NOT set `registered = true` here — the real success
+    // signal is the listener POSTing the token to the server (which
+    // sets it). If FCM silently fails to produce a token, register()
+    // still resolves but no token ever arrives, and we want the retry
+    // button to re-trigger the flow.
+  } catch (err: any) {
+    writeStep("register_exception", String(err?.message ?? err));
   }
 }
 
@@ -124,15 +145,8 @@ export async function unregisterPush(businessToken: string | null): Promise<void
   if (!Push) return;
 
   try {
-    // Grab the current token from the plugin's list of delivered/active
-    // registrations. If the plugin doesn't expose it, we skip the server
-    // call — the server auto-prunes dead tokens on next send anyway.
     const deliveredList = await Push.getDeliveredNotifications?.().catch(() => null);
     void deliveredList;
-    // Tell the server to forget this device. The plugin doesn't give us
-    // an easy getToken(), so we fall back to POST /logout-all on the
-    // server side via a different endpoint — for now we just re-register
-    // the listener chain next sign-in (server upserts by device_token).
     registered = false;
   } catch {
     /* ignore */

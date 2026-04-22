@@ -9322,6 +9322,18 @@ function PushPrefsCard({ isStaffMode = false }: { isStaffMode?: boolean }) {
   } | null>(null);
   const [testing, setTesting] = useState(false);
   const [retrying, setRetrying] = useState(false);
+  // Last-step diagnostic from the client-side push helper. Populated
+  // whenever registerForPush runs so the owner can see WHY a token
+  // didn't end up on the server (permission denied, plugin not
+  // loaded, FCM error, etc.) without digging through Android logcat.
+  const [pushDebug, setPushDebug] = useState<{ at: string; step: string; detail?: string } | null>(null);
+  const refreshDebug = () => {
+    try {
+      const raw = localStorage.getItem("kavati_push_debug");
+      setPushDebug(raw ? JSON.parse(raw) : null);
+    } catch { setPushDebug(null); }
+  };
+  useEffect(() => { refreshDebug(); }, []);
 
   const isNativeCapacitor = typeof window !== "undefined"
     && !!((window as any).Capacitor?.isNativePlatform?.());
@@ -9378,12 +9390,17 @@ function PushPrefsCard({ isStaffMode = false }: { isStaffMode?: boolean }) {
     }
     setRetrying(true);
     try {
-      const { registerForPush } = await import("../lib/pushNotifications");
+      const { registerForPush, resetPushRegistration } = await import("../lib/pushNotifications");
+      // Clear the in-memory guard so the retry button actually retries
+      // even after a previous "register() returned" state — without this
+      // the function no-ops on the second call.
+      resetPushRegistration?.();
       await registerForPush(getToken());
-      // Give the async chain a moment to POST the token, then refresh.
-      await new Promise(r => setTimeout(r, 1500));
+      // Give the async FCM registration event a moment to fire + POST.
+      await new Promise(r => setTimeout(r, 3000));
       await refreshStatus();
-      toast({ title: "ניסיון רישום הושלם", description: "בדוק למטה אם מספר המכשירים עלה" });
+      refreshDebug();
+      toast({ title: "ניסיון רישום הושלם", description: "בדוק למטה את הסטטוס" });
     } catch (err: any) {
       toast({ title: "שגיאה", description: String(err?.message ?? err), variant: "destructive" });
     } finally {
@@ -9480,8 +9497,19 @@ function PushPrefsCard({ isStaffMode = false }: { isStaffMode?: boolean }) {
               ))}
             </div>
           )}
-          <div className="flex gap-2 pt-2">
-            {isNativeCapacitor && (status?.tokensCount ?? 0) === 0 && (
+          {/* Last-step diagnostic from the client helper — invaluable
+              when the token count stays at 0 and we need to know why. */}
+          {pushDebug && (
+            <div className="pt-1 border-t border-border/50 mt-1">
+              <div className="text-muted-foreground mb-0.5">שלב אחרון:</div>
+              <div className="font-mono text-[10px] text-foreground break-all">
+                {pushDebug.step}
+                {pushDebug.detail ? ` · ${pushDebug.detail}` : ""}
+              </div>
+            </div>
+          )}
+          <div className="flex gap-2 pt-2 flex-wrap">
+            {isNativeCapacitor && (
               <Button type="button" size="sm" variant="outline" onClick={retryRegister} disabled={retrying}>
                 {retrying ? "רושם..." : "נסה רישום מחדש"}
               </Button>
