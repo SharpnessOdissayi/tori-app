@@ -1,5 +1,6 @@
 import { Router } from "express";
 import { logBusinessNotification } from "./notifications";
+import { sendPushToBusiness } from "../lib/pushNotifications";
 import { db, businessesTable, servicesTable, appointmentsTable, waitlistTable, workingHoursTable, clientSessionsTable, reviewsTable, staffMembersTable, staffServicesTable } from "@workspace/db";
 import { eq, and, gte, sql, countDistinct, count, ilike, or, gt, desc } from "drizzle-orm";
 import {
@@ -1208,15 +1209,41 @@ router.post("/public/:businessSlug/appointments", async (req, res): Promise<void
   // customer picked a specific staff on the booking page, that staff's
   // inbox gets the notification; owner sees everything regardless.
   // NULL staffMemberId = "assigned to owner" → staff inboxes skip it.
+  // Pending-approval bookings are a distinct event surface — the owner
+  // needs to act, not just be aware. We split into two push kinds so
+  // Settings can let the owner mute ordinary bookings without losing
+  // the "someone's waiting for approval" ping.
+  const isPending = appointmentStatus === "pending";
+  const notifType = isPending ? "pending_approval" : "new_booking";
+  const notifMsg  = isPending
+    ? `ממתין לאישור: ${clientName} ביקש/ה ${service.name} ב-${formattedDate} בשעה ${appointmentTime}`
+    : `תור חדש: ${clientName} קבע ${service.name} ב-${formattedDate} בשעה ${appointmentTime}`;
+
   logBusinessNotification({
     businessId: business.id,
-    type: "new_booking",
+    type: notifType,
     appointmentId: appointment.id,
-    message: `תור חדש: ${clientName} קבע ${service.name} ב-${formattedDate} בשעה ${appointmentTime}`,
+    message: notifMsg,
     actorType: "client",
     actorName: clientName,
     staffMemberId: (appointment as any).staffMemberId ?? null,
   });
+
+  // Fire-and-forget push to the relevant recipient(s). Deep-link opens
+  // the approvals tab for pending, the calendar (highlighted) otherwise.
+  sendPushToBusiness({
+    businessId: business.id,
+    staffMemberId: (appointment as any).staffMemberId ?? null,
+    payload: {
+      kind:  notifType,
+      title: isPending ? "תור חדש ממתין לאישור" : "תור חדש נקבע",
+      body:  `${clientName} · ${service.name} · ${formattedDate} ${appointmentTime}`,
+      route: isPending
+        ? "/dashboard?tab=approvals"
+        : `/dashboard?highlight=${appointment.id}`,
+      data: { appointmentId: String(appointment.id) },
+    },
+  }).catch(() => {});
 
   // Notify business owner via WhatsApp (non-blocking).
   // Respects the "קבלי התראה על כל תור חדש" toggle in Integrations tab —
@@ -1288,6 +1315,16 @@ router.post("/public/:businessSlug/waitlist", async (req, res): Promise<void> =>
     actorType: "client",
     actorName: clientName,
   });
+
+  sendPushToBusiness({
+    businessId: business.id,
+    payload: {
+      kind:  "waitlist_join",
+      title: "הצטרפות לרשימת המתנה",
+      body:  `${clientName}${serviceName ? ` · ${serviceName}` : ""}${preferredDate ? ` · ${preferredDate}` : ""}`,
+      route: "/dashboard?tab=waitlist",
+    },
+  }).catch(() => {});
 
   res.status(201).json({ success: true, message: "Added to waitlist" });
 });
@@ -1598,6 +1635,16 @@ router.post("/public/:businessSlug/reviews", async (req, res): Promise<void> => 
     actorType: "client",
     actorName: clientName,
   });
+
+  sendPushToBusiness({
+    businessId: business.id,
+    payload: {
+      kind:  "new_review",
+      title: `ביקורת חדשה (${Math.round(rating)}★)`,
+      body:  `${clientName} השאיר/ה ביקורת חדשה`,
+      route: "/dashboard?tab=reviews",
+    },
+  }).catch(() => {});
 
   res.status(201).json({ success: true, created: true });
 });

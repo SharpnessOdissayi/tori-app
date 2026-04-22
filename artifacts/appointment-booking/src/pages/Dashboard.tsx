@@ -948,6 +948,14 @@ export default function Dashboard() {
           sessionStorage.removeItem("kavati_staff_filter_id");
           sessionStorage.removeItem("kavati_staff_filter_name");
         }
+        // Capacitor-only: ask for notification permission and register the
+        // FCM token with the server so pushes start flowing. No-op on
+        // web — the helper bails out when the Capacitor native platform
+        // isn't detected.
+        try {
+          const { registerForPush } = await import("../lib/pushNotifications");
+          registerForPush(token).catch(() => {});
+        } catch {}
       } catch {
         if (!cancelled) setAuthMe(null);
       }
@@ -986,6 +994,31 @@ export default function Dashboard() {
     }
     window.addEventListener("kavati:switch-tab", onSwitch);
     return () => window.removeEventListener("kavati:switch-tab", onSwitch);
+  }, []);
+
+  // Push-notification deep-link: when the user taps a notification, the
+  // Capacitor helper sets window.location to /dashboard?tab=X&highlight=Y.
+  // Parse the query string once on mount, route to the right tab (and
+  // leave highlight for BusinessCalendar to pick up from sessionStorage),
+  // then strip the search params so a subsequent manual refresh doesn't
+  // re-apply the deep-link.
+  useEffect(() => {
+    try {
+      const url = new URL(window.location.href);
+      const tab = url.searchParams.get("tab");
+      const hi  = url.searchParams.get("highlight");
+      if (hi) sessionStorage.setItem("kavati_cal_highlight_id", hi);
+      if (tab === "approvals")      setActiveTab("approvals");
+      else if (tab === "waitlist")  setActiveTab("waitlist");
+      else if (tab === "reviews")   setActiveTab("reviews");
+      else if (tab === "appointments") setActiveTab("appointments");
+      else if (hi) setActiveTab("appointments");
+      if (tab || hi) {
+        url.searchParams.delete("tab");
+        url.searchParams.delete("highlight");
+        window.history.replaceState({}, "", url.pathname + (url.search || "") + url.hash);
+      }
+    } catch { /* no-op if URL parsing fails */ }
   }, []);
 
   // Staff-mode tab guard: a staff account that lands on a disallowed tab
@@ -8989,6 +9022,12 @@ function SettingsTab({ isStaffMode = false }: { isStaffMode?: boolean }) {
         </CardContent>
       </Card>
 
+      {/* Push notifications — per-kind opt-in. Only shows a real value
+          inside the Capacitor native app; on the web the checkboxes are
+          still editable (the prefs persist for when the owner installs
+          the mobile app later). */}
+      <PushPrefsCard isStaffMode={isStaffMode} />
+
       {/* Delete account — self-service, in-app. Hits
           DELETE /api/auth/business/account which cascades every
           business-scoped table on the server. Gated behind a confirm
@@ -9217,6 +9256,10 @@ function StaffSettingsPanel() {
         </CardContent>
       </Card>
 
+      {/* Push prefs — staff can mute the specific kinds that ping them
+          (they only see alerts about their OWN appointments by design). */}
+      <PushPrefsCard isStaffMode />
+
       {/* Delete own staff account. Matches the owner/client flow —
           inline button → confirm dialog → immediate server wipe →
           logout. Deletes the staff's staff_members row + staff_services
@@ -9241,6 +9284,115 @@ function StaffSettingsPanel() {
 // screen takes over the moment the delete fires — if the server 500s we
 // toast the error and the owner is just logged out (safer than leaving
 // them on a half-wiped session pointing at an id that may no longer exist).
+// ─── Push-notification preferences ─────────────────────────────────────────
+// Per-kind opt-in checkboxes. Posts to /api/business/push-prefs which writes
+// to businesses.push_prefs (owner) or staff_members.push_prefs (staff). The
+// sender in pushNotifications.ts honours a `false` value as an opt-out;
+// missing keys default to "enabled" so a fresh owner with no saved prefs
+// gets every push. The card is shown even on web browsers — the prefs
+// persist so they take effect the moment the owner installs the app.
+const PUSH_KINDS: { key: string; label: string; desc: string }[] = [
+  { key: "new_booking",      label: "תור חדש",              desc: "לקוח קבע תור דרך העמוד הציבורי" },
+  { key: "pending_approval", label: "בקשת תור לאישור",       desc: "תור שממתין לאישור ידני" },
+  { key: "cancellation",     label: "ביטול תור",             desc: "לקוח ביטל תור קיים" },
+  { key: "reschedule",       label: "שינוי תור",             desc: "לקוח דחה תור קיים" },
+  { key: "waitlist_join",    label: "רישום לרשימת המתנה",    desc: "לקוח הצטרף לרשימת ההמתנה" },
+  { key: "new_review",       label: "ביקורת חדשה",           desc: "לקוח השאיר ביקורת חדשה" },
+  { key: "system",           label: "הודעות מערכת",          desc: "עדכונים והודעות מקבעתי" },
+];
+
+function PushPrefsCard({ isStaffMode = false }: { isStaffMode?: boolean }) {
+  const { toast } = useToast();
+  const [prefs, setPrefs] = useState<Record<string, boolean>>({});
+  const [loading, setLoading] = useState(true);
+  const [saving,  setSaving]  = useState(false);
+
+  const getToken = () =>
+    (typeof window !== "undefined"
+      ? (localStorage.getItem("biz_token") ?? sessionStorage.getItem("biz_token") ?? "")
+      : "");
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const token = getToken();
+      if (!token) { setLoading(false); return; }
+      try {
+        const res = await fetch("/api/business/push-prefs", {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (!res.ok) return;
+        const json = await res.json();
+        if (!cancelled) setPrefs((json?.prefs ?? {}) as Record<string, boolean>);
+      } catch { /* ignore — defaults to all-enabled */ }
+      finally { if (!cancelled) setLoading(false); }
+    })();
+    return () => { cancelled = true; };
+  }, []);
+
+  const enabled = (kind: string) => prefs[kind] !== false; // undefined = on
+
+  const toggle = async (kind: string, next: boolean) => {
+    const optimistic = { ...prefs, [kind]: next };
+    setPrefs(optimistic);
+    setSaving(true);
+    try {
+      const token = getToken();
+      const res = await fetch("/api/business/push-prefs", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ prefs: optimistic }),
+      });
+      if (!res.ok) throw new Error("save failed");
+    } catch {
+      // Roll back on failure.
+      setPrefs(prefs);
+      toast({ title: "שמירה נכשלה", description: "נסה שוב", variant: "destructive" });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  // Staff only see alerts scoped to THEIR appointments, so waitlist and
+  // reviews don't really apply to them — owner gets those. Hide those
+  // two rows in staff mode to keep the list focused.
+  const visibleKinds = isStaffMode
+    ? PUSH_KINDS.filter((k) => k.key !== "waitlist_join" && k.key !== "new_review")
+    : PUSH_KINDS;
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>התראות פוש לאפליקציה</CardTitle>
+        <CardDescription>
+          בחר על אילו אירועים לקבל התראה דחופה לטלפון. ההגדרה נשמרת גם אם עדיין לא התקנת את האפליקציה.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        {loading ? (
+          <div className="text-sm text-muted-foreground">טוען...</div>
+        ) : (
+          visibleKinds.map((k) => (
+            <label key={k.key} className="flex items-start justify-between gap-3 py-2 border-b last:border-0 cursor-pointer">
+              <div className="flex-1">
+                <div className="font-medium text-sm">{k.label}</div>
+                <div className="text-xs text-muted-foreground">{k.desc}</div>
+              </div>
+              <input
+                type="checkbox"
+                className="mt-1 h-5 w-5 accent-primary"
+                checked={enabled(k.key)}
+                disabled={saving}
+                onChange={(e) => toggle(k.key, e.target.checked)}
+              />
+            </label>
+          ))
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
 function DeleteBusinessAccountCard() {
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);

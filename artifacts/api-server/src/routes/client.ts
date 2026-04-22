@@ -1,5 +1,6 @@
 import { Router, Request, Response, NextFunction } from "express";
 import { logBusinessNotification } from "./notifications";
+import { sendPushToBusiness } from "../lib/pushNotifications";
 import { db, appointmentsTable, businessesTable, clientSessionsTable, clientBusinessesTable } from "@workspace/db";
 import { eq, and, or, gt, desc, sql } from "drizzle-orm";
 import { sendOtp, verifyOtp, OtpRateLimitError } from "../lib/whatsapp";
@@ -660,6 +661,18 @@ router.patch("/client/appointments/:id/reschedule", requireClientAuth, async (re
     staffMemberId: (appt as any).staffMemberId ?? null,
   });
 
+  sendPushToBusiness({
+    businessId:    appt.businessId,
+    staffMemberId: (appt as any).staffMemberId ?? null,
+    payload: {
+      kind:  "reschedule",
+      title: "תור נדחה על ידי הלקוח",
+      body:  `${appt.clientName} · ${appt.serviceName} · מ-${fromLabel} ל-${toLabel}`,
+      route: `/dashboard?highlight=${appt.id}`,
+      data:  { appointmentId: String(appt.id) },
+    },
+  }).catch(() => {});
+
   res.json({ success: true, newDate, newTime });
 });
 
@@ -692,6 +705,18 @@ router.patch("/client/appointments/:id/cancel", requireClientAuth, async (req, r
     actorName: appt.clientName,
     staffMemberId: (appt as any).staffMemberId ?? null,
   });
+
+  sendPushToBusiness({
+    businessId:    appt.businessId,
+    staffMemberId: (appt as any).staffMemberId ?? null,
+    payload: {
+      kind:  "cancellation",
+      title: "תור בוטל",
+      body:  `${appt.clientName} ביטל/ה: ${appt.serviceName} ב-${day}/${month} בשעה ${appt.appointmentTime}`,
+      route: "/dashboard",
+      data:  { appointmentId: String(appt.id) },
+    },
+  }).catch(() => {});
 
   res.json({ success: true });
 });

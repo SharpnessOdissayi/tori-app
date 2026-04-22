@@ -326,6 +326,36 @@ export async function runMigrations() {
     await db.execute(sql.raw(`ALTER TABLE appointments ADD COLUMN IF NOT EXISTS reminder_1h_sent_at       TIMESTAMPTZ`));
     await db.execute(sql.raw(`ALTER TABLE appointments ADD COLUMN IF NOT EXISTS reminder_morning_sent_at  TIMESTAMPTZ`));
 
+    // ─── Push notifications (FCM) ──────────────────────────────────────
+    // One row per (device, account) — businesses + staff get their own
+    // device tokens so the app can push to the right inbox. FCM tokens
+    // are globally unique so the device_token column is uniquely indexed.
+    await db.execute(sql.raw(`
+      CREATE TABLE IF NOT EXISTS push_tokens (
+        id               SERIAL PRIMARY KEY,
+        business_id      INTEGER NOT NULL,
+        staff_member_id  INTEGER,
+        device_token     TEXT NOT NULL,
+        platform         TEXT NOT NULL DEFAULT 'android',
+        last_seen_at     TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        created_at       TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      )
+    `));
+    await db.execute(sql.raw(
+      `CREATE UNIQUE INDEX IF NOT EXISTS push_tokens_device_token_uniq ON push_tokens (device_token)`
+    ));
+
+    // Per-account opt-in map for push notification types. Stored as JSONB
+    // so we can add new event types without a schema change — default
+    // (NULL) means "all types enabled". Flipped to false per-key by the
+    // owner in Settings → Push.
+    await db.execute(sql.raw(
+      `ALTER TABLE businesses ADD COLUMN IF NOT EXISTS push_prefs JSONB`
+    ));
+    await db.execute(sql.raw(
+      `ALTER TABLE staff_members ADD COLUMN IF NOT EXISTS push_prefs JSONB`
+    ));
+
     // Notifications table
     await db.execute(sql.raw(`
       CREATE TABLE IF NOT EXISTS notifications (

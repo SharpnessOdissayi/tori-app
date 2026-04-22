@@ -1,4 +1,4 @@
-import { pgTable, serial, text, integer, boolean, timestamp } from "drizzle-orm/pg-core";
+import { pgTable, serial, text, integer, boolean, timestamp, jsonb } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 
@@ -74,6 +74,10 @@ export const staffMembersTable = pgTable("staff_members", {
   // completes the extra-seat iframe; deactivated (Tranzila-side) when
   // the staff is deleted.
   tranzilaStoId:           integer("tranzila_sto_id"),
+  // Per-kind push-notification opt-in for this staff member. Same shape
+  // as businesses.pushPrefs — null/missing key = enabled. Staff see only
+  // notifications scoped to their own appointments.
+  pushPrefs: jsonb("push_prefs").$type<Record<string, boolean>>(),
   createdAt:  timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 

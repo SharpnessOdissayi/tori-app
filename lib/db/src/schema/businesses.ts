@@ -1,4 +1,4 @@
-import { pgTable, serial, text, integer, boolean, timestamp } from "drizzle-orm/pg-core";
+import { pgTable, serial, text, integer, boolean, timestamp, jsonb } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 
@@ -149,6 +149,11 @@ export const businessesTable = pgTable("businesses", {
   smsUsedThisPeriod:  integer("sms_used_this_period").notNull().default(0),
   smsExtraBalance:    integer("sms_extra_balance").notNull().default(0),
   smsResetDate:       timestamp("sms_reset_date", { withTimezone: true }),
+  // Per-kind push-notification opt-in for the OWNER. Null/missing key =
+  // enabled by default. Shape: { new_booking?: bool, pending_approval?: bool,
+  // cancellation?: bool, reschedule?: bool, waitlist_join?: bool,
+  // new_review?: bool, system?: bool }. Maintained in Settings → התראות.
+  pushPrefs: jsonb("push_prefs").$type<Record<string, boolean>>(),
 });
 
 export const insertBusinessSchema = createInsertSchema(businessesTable).omit({ id: true, createdAt: true });

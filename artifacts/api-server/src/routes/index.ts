@@ -16,6 +16,7 @@ import smsRouter from "./sms";
 import staffRouter from "./staff";
 import analyticsRouter from "./analytics";
 import exportRouter from "./export";
+import pushRouter from "./push";
 
 const router: IRouter = Router();
 
@@ -36,5 +37,6 @@ router.use(smsRouter);
 router.use(staffRouter);
 router.use(analyticsRouter);
 router.use(exportRouter);
+router.use(pushRouter);
 
 export default router;
