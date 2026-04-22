@@ -1083,8 +1083,33 @@ router.post("/public/:businessSlug/appointments", async (req, res): Promise<void
   // though the appointment is bound to a specific staff member, letting a
   // client post straight to the endpoint and bypass that staff's rotation.
   const rawStaffId = (req.body as any)?.staffMemberId;
-  const staffMemberIdForInsert: number | null =
+  const staffMemberIdForAvailability: number | null =
     typeof rawStaffId === "number" && rawStaffId > 0 ? rawStaffId : null;
+
+  // Normalise "owner's own staff row" back to NULL before insert. The
+  // Book.tsx picker auto-selects the owner's is_owner=TRUE staff row on
+  // solo businesses (so availability + rotation are looked up correctly),
+  // but storing that id on the appointment breaks the dashboard filter,
+  // which treats NULL as "owner / unassigned" and anything non-NULL as
+  // "some other staff member's row". The result: public bookings on a
+  // solo business disappeared from the owner's calendar entirely. Keep
+  // the availability lookup aware of the staff for rotation, but store
+  // NULL so the row shows up in the owner's default view.
+  let staffMemberIdForInsert: number | null = staffMemberIdForAvailability;
+  if (staffMemberIdForInsert) {
+    const { staffMembersTable } = await import("@workspace/db");
+    const [pickedStaff] = await db
+      .select({ isOwner: staffMembersTable.isOwner, businessId: staffMembersTable.businessId })
+      .from(staffMembersTable)
+      .where(eq(staffMembersTable.id, staffMemberIdForInsert));
+    if (!pickedStaff || pickedStaff.businessId !== business.id) {
+      // Foreign or missing staff id — ignore it entirely rather than
+      // storing a reference that doesn't belong to this business.
+      staffMemberIdForInsert = null;
+    } else if (pickedStaff.isOwner) {
+      staffMemberIdForInsert = null;
+    }
+  }
 
   // Transaction + per-business advisory lock → prevents two clients from
   // both passing the availability check concurrently and double-booking
@@ -1100,10 +1125,13 @@ router.post("/public/:businessSlug/appointments", async (req, res): Promise<void
 
       // Re-run availability INSIDE the lock — by now every prior concurrent
       // booking for this business has already committed (or rolled back),
-      // so the slot list is authoritative for the next insert.
+      // so the slot list is authoritative for the next insert. Note we
+      // pass the PRE-normalised staff id so rotation (keyed on the
+      // owner's is_owner=TRUE staff row) is still applied; the NULL
+      // normalisation only affects what we STORE on the appointment row.
       const slots = await computeAvailableSlots(
         business.id, appointmentDate, service.durationMinutes, bufferMinutes,
-        business.maxAppointmentsPerDay, null, staffMemberIdForInsert,
+        business.maxAppointmentsPerDay, null, staffMemberIdForAvailability,
       );
       const slot = slots.find((s) => s.time === appointmentTime);
       if (!slot || !slot.available) {
