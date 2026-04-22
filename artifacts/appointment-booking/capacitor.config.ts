@@ -47,6 +47,13 @@ const config: CapacitorConfig = {
       style: "dark",
       resizeOnFullScreen: true,
     },
+    // Push notifications — foreground presentation options for iOS.
+    // Android reads the default channel from AndroidManifest meta-data
+    // (default_notification_channel_id → @string/kavati-default) and the
+    // client registers the channel at runtime via Push.createChannel().
+    PushNotifications: {
+      presentationOptions: ["badge", "sound", "alert"],
+    },
   },
 };
 

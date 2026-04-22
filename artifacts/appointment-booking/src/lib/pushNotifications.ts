@@ -176,6 +176,26 @@ export async function registerForPush(businessToken: string | null): Promise<voi
     }
   };
 
+  // Register the notification channel the server sends with
+  // (android.notification.channelId = "kavati-default"). Android 8+
+  // silently drops incoming FCM messages whose channel isn't known.
+  // createChannel is idempotent — calling it every launch is safe.
+  try {
+    writeStep("creating_channel");
+    await Push.createChannel?.({
+      id: "kavati-default",
+      name: "קבעתי — התראות",
+      description: "תורים חדשים, ביטולים ועדכוני מערכת",
+      importance: 4, // HIGH — shows as a heads-up notification
+      visibility: 1, // PUBLIC — show on lock screen
+      sound: "default",
+      vibration: true,
+    });
+    writeStep("channel_created");
+  } catch (err: any) {
+    writeStep("channel_exception", String(err?.message ?? err));
+  }
+
   try {
     writeStep("requesting_permission");
     const perm = await withTimeout(Push.requestPermissions?.(), 10000, "permission");
