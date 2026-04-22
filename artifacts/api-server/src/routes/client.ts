@@ -402,6 +402,49 @@ router.patch("/client/me", requireClientAuth, async (req, res): Promise<void> =>
     return;
   }
 
+  // Phone uniqueness guard. When the incoming phone differs from the
+  // session's current phone, reject if ANY other session already owns
+  // that phone under a DIFFERENT identity (googleId / facebookId /
+  // phone-OTP-only). Without this check, a brand-new Google sign-in
+  // could silently claim an existing customer's phone, which would
+  // then split that customer's history across two accounts and show
+  // garbled names in owner dashboards. Same phone across the user's
+  // OWN sessions is fine — that's multi-device login and expected.
+  if (updates.phoneNumber && updates.phoneNumber !== session.phoneNumber) {
+    const { or: orOp, and: andOp, ne } = await import("drizzle-orm");
+    // "Same identity" = any of: same googleId, same facebookId, or no
+    // OAuth identity on either side (both are phone-OTP sessions, in
+    // which case they're literally the same customer using a second
+    // device). We only block when the OTHER session has a DIFFERENT
+    // non-null OAuth identity than ours.
+    const conflictRows = await db
+      .select({ id: clientSessionsTable.id, googleId: clientSessionsTable.googleId, facebookId: (clientSessionsTable as any).facebookId })
+      .from(clientSessionsTable)
+      .where(andOp(
+        eq(clientSessionsTable.phoneNumber, updates.phoneNumber),
+        ne(clientSessionsTable.token, session.token),
+      ))
+      .limit(20);
+    const mine = (gid: string | null, fid: string | null) => {
+      // Treat the incoming session's identity as "mine" — if a row
+      // shares my googleId or facebookId, it's the same customer.
+      if (session.googleId   && gid === session.googleId)   return true;
+      if (session.facebookId && fid === session.facebookId) return true;
+      // Neither side has an OAuth identity → both are phone-OTP
+      // sessions, treat as the same customer (phone is the identity).
+      if (!session.googleId && !session.facebookId && !gid && !fid) return true;
+      return false;
+    };
+    const hasConflict = conflictRows.some(r => !mine(r.googleId as any, r.facebookId as any));
+    if (hasConflict) {
+      res.status(409).json({
+        error: "phone_in_use",
+        message: "מספר הטלפון הזה כבר רשום ללקוח אחר. היכנס/י עם החשבון שבו נרשמת במקור.",
+      });
+      return;
+    }
+  }
+
   // 1. Update the current session (may include a phone-number change).
   await db.update(clientSessionsTable).set(updates).where(eq(clientSessionsTable.token, session.token));
 

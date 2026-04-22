@@ -602,10 +602,12 @@ export default function ClientPortal() {
       toast({ title: "יש למלא שם מלא", variant: "destructive" });
       return;
     }
-    // Owner's spec: 'חובה אחד מהשתיים או אימייל או מס פלאפון' — require
-    // at least ONE contact method; both is welcome but not required.
-    if (!phone && !email) {
-      toast({ title: "יש להזין מספר טלפון או אימייל (לפחות אחד)", variant: "destructive" });
+    // New-customer registration requires phone — the portal + all WhatsApp
+    // reminders + booking-owner views key on phone, not email, so we take
+    // it upfront rather than letting the customer trip over the missing
+    // field at the first booking.
+    if (!phone) {
+      toast({ title: "יש להזין מספר טלפון", variant: "destructive" });
       return;
     }
     if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
@@ -629,7 +631,13 @@ export default function ClientPortal() {
       setWelcomeOpen(false);
       setSession(s => s ? { ...s, clientName: name, phone: phone || null, email: email || s.email || null, receiveNotifications: profileReceiveNotifications, gender: profileGender } : s);
     } else {
-      toast({ title: "שגיאה בשמירת הפרטים", variant: "destructive" });
+      // Surface server-side errors with their human message — 409
+      // "phone_in_use" needs a specific prompt ("sign in with the
+      // account you originally registered with"), not a generic error.
+      const body = await res.json().catch(() => ({} as any));
+      const msg = body?.message
+        ?? (body?.error === "phone_in_use" ? "מספר הטלפון כבר רשום ללקוח אחר" : "שגיאה בשמירת הפרטים");
+      toast({ title: msg, variant: "destructive" });
     }
   };
 
@@ -1001,7 +1009,7 @@ export default function ClientPortal() {
           <div className="w-full max-w-md bg-white rounded-t-3xl p-6 space-y-5" onClick={e => e.stopPropagation()}>
             <div>
               <h3 className="font-extrabold text-xl text-gray-900">ברוכים הבאים לקבעתי! 🎉</h3>
-              <p className="text-sm text-gray-500 mt-1">כדי להתחיל, ספר/י לנו איך לפנות אליך. מספיק להזין <strong>טלפון</strong> או <strong>אימייל</strong> — לא חייב שניהם.</p>
+              <p className="text-sm text-gray-500 mt-1">כדי להתחיל, ספר/י לנו איך לפנות אליך.</p>
             </div>
             <div className="space-y-3">
               <div className="space-y-1.5">
@@ -1014,7 +1022,7 @@ export default function ClientPortal() {
                 />
               </div>
               <div className="space-y-1.5">
-                <label className="text-sm font-medium text-gray-700">טלפון</label>
+                <label className="text-sm font-medium text-gray-700">טלפון *</label>
                 <input
                   type="tel"
                   dir="ltr"
@@ -1025,7 +1033,28 @@ export default function ClientPortal() {
                 />
               </div>
               <div className="space-y-1.5">
-                <label className="text-sm font-medium text-gray-700">אימייל</label>
+                <label className="text-sm font-medium text-gray-700">מין *</label>
+                <div className="flex gap-2">
+                  {[{ v: "male", l: "זכר" }, { v: "female", l: "נקבה" }].map(({ v, l }) => (
+                    <button
+                      key={v}
+                      type="button"
+                      onClick={() => setProfileGender(v)}
+                      className="flex-1 py-2.5 rounded-xl text-sm font-medium border transition-all"
+                      style={{
+                        background: profileGender === v ? "#3c92f0" : "transparent",
+                        color: profileGender === v ? "#fff" : "#6b7280",
+                        borderColor: profileGender === v ? "#3c92f0" : "#e5e7eb",
+                      }}
+                    >
+                      {l}
+                    </button>
+                  ))}
+                </div>
+                <p className="text-xs text-gray-400">משמש בפניות אישיות ("ברוכה הבאה" / "ברוך הבא")</p>
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-sm font-medium text-gray-700">אימייל (אופציונלי)</label>
                 <input
                   type="email"
                   dir="ltr"
@@ -1035,7 +1064,22 @@ export default function ClientPortal() {
                   className="w-full rounded-xl border border-gray-200 px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 text-right"
                 />
               </div>
-              <p className="text-xs text-gray-500">חובה להזין לפחות אחד — טלפון או אימייל.</p>
+              <div className="flex items-center justify-between py-2 border-t border-gray-100 mt-2">
+                <div>
+                  <div className="text-sm font-medium text-gray-700">תזכורות WhatsApp</div>
+                  <div className="text-xs text-gray-400">קבל/י אישור תור ותזכורות מהעסקים שלך</div>
+                </div>
+                <div
+                  onClick={() => setProfileReceiveNotifications(v => !v)}
+                  className="relative w-10 h-5 rounded-full transition-colors duration-200 cursor-pointer flex-shrink-0"
+                  style={{ background: profileReceiveNotifications ? "#3c92f0" : "#d1d5db" }}
+                >
+                  <div
+                    className="absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-all duration-200"
+                    style={{ right: profileReceiveNotifications ? "2px" : "auto", left: profileReceiveNotifications ? "auto" : "2px" }}
+                  />
+                </div>
+              </div>
             </div>
             <button
               onClick={saveWelcome}
