@@ -9311,7 +9311,15 @@ function PushPrefsCard({ isStaffMode = false }: { isStaffMode?: boolean }) {
       setPushDebug(raw ? JSON.parse(raw) : null);
     } catch { setPushDebug(null); }
   };
-  useEffect(() => { refreshDebug(); }, []);
+  // Poll localStorage every 1s while the card is mounted so the diagnostic
+  // strip picks up late writeSteps even if the outer retry timeout fires
+  // before the native async chain finishes. Without this, a writeStep that
+  // writes 2s after the 25s timeout would never surface in the UI.
+  useEffect(() => {
+    refreshDebug();
+    const t = setInterval(refreshDebug, 1000);
+    return () => clearInterval(t);
+  }, []);
 
   const isNativeCapacitor = typeof window !== "undefined"
     && !!((window as any).Capacitor?.isNativePlatform?.());
