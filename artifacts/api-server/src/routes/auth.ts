@@ -719,27 +719,34 @@ router.post("/auth/business/sms-login/send", async (req, res): Promise<void> => 
   if (!v.ok) { res.status(400).json({ error: v.error }); return; }
   const { phone } = req.body ?? {};
 
-  // Look up by phone. Accept exact match + a digit-only fallback so
-  // "050-123-4567" and "0501234567" both resolve. Match both owners
-  // (businesses.phone) AND staff members (staff_members.phone) —
-  // staff log in the same way as owners now, via SMS OTP.
+  // Look up by phone. Previous version only accepted the raw + digits-only
+  // variants, so a DB row stored as "972501234567" or "+972-50-1234567"
+  // wouldn't match a user typing "0501234567". Build every plausible
+  // representation of THIS number and query with inArray — a real user's
+  // phone matches regardless of how it got stored historically.
   const trimmed = phone.trim();
   const digitsOnly = trimmed.replace(/\D/g, "");
+  const local9 = v.normalized.slice(3);     // "501234567"
+  const variants = Array.from(new Set([
+    trimmed,                                // as typed
+    digitsOnly,                             // "0501234567"
+    v.normalized,                           // "972501234567"
+    `+${v.normalized}`,                     // "+972501234567"
+    `0${local9}`,                           // "0501234567"
+    `+972-${local9.slice(0,2)}-${local9.slice(2,5)}-${local9.slice(5)}`, // "+972-50-123-4567"
+    `0${local9.slice(0,2)}-${local9.slice(2,5)}-${local9.slice(5)}`,     // "050-123-4567"
+    `0${local9.slice(0,2)} ${local9.slice(2,5)} ${local9.slice(5)}`,     // "050 123 4567"
+  ].filter(x => typeof x === "string" && x.length > 0)));
   const { staffMembersTable } = await import("@workspace/db");
+  const { inArray } = await import("drizzle-orm");
   const [business] = await db
     .select()
     .from(businessesTable)
-    .where(or(
-      eq(businessesTable.phone, trimmed),
-      eq(businessesTable.phone, digitsOnly),
-    ));
+    .where(inArray(businessesTable.phone, variants));
   const [staff] = await db
     .select()
     .from(staffMembersTable)
-    .where(or(
-      eq(staffMembersTable.phone, trimmed),
-      eq(staffMembersTable.phone, digitsOnly),
-    ));
+    .where(inArray(staffMembersTable.phone, variants));
   // Owner's call: transparent "not registered" UX beats the no-enumeration
   // guarantee here. A user who typos their phone should see that clearly
   // rather than get stuck on a "didn't receive code" loop.
