@@ -100,5 +100,18 @@ registerServiceWorker();
   }
 })();
 
+// Capacitor opens the APK straight into the SPA's index.html; with no
+// query/hash the initial pathname is "/" which resolves to the marketing
+// home page. Owners don't want to see that — the Android app is for them,
+// not for discovering kavati.net. Redirect the root to /dashboard before
+// React mounts so Wouter picks up the correct route on the first render.
+try {
+  const cap = (window as any).Capacitor;
+  const isNative = !!(cap && typeof cap.isNativePlatform === "function" && cap.isNativePlatform());
+  if (isNative && (window.location.pathname === "/" || window.location.pathname === "")) {
+    window.history.replaceState({}, "", "/dashboard");
+  }
+} catch { /* non-fatal — fall back to default routing */ }
+
 createRoot(document.getElementById("root")!).render(<App />);
 

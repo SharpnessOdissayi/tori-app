@@ -3443,12 +3443,29 @@ function AppointmentsTab({ mobileFocus }: { mobileFocus?: "calendar" | "approval
           <CardContent>
             <div className="space-y-2">
               {past.slice(-10).reverse().map(apt => (
-                <div key={apt.id} className="flex justify-between items-center p-3 border rounded-lg opacity-60 text-sm">
-                  <span className="flex items-center gap-1.5 min-w-0">
+                <div key={apt.id} className="flex justify-between items-center gap-2 p-3 border rounded-lg text-sm">
+                  <span className="flex items-center gap-1.5 min-w-0 opacity-60">
                     <GenderMark gender={genderByPhone.get(apt.phoneNumber)} />
                     <span className="truncate">{apt.clientName} • {apt.serviceName}</span>
                   </span>
-                  <span className="text-muted-foreground">{apt.appointmentDate} {apt.appointmentTime}</span>
+                  <span className="text-muted-foreground whitespace-nowrap opacity-60">{apt.appointmentDate} {apt.appointmentTime}</span>
+                  {/* Owner request: let them clear successfully-completed
+                      appointments too (not just future ones). Soft-delete
+                      via the same cancel endpoint — per CLAUDE.md we never
+                      hard-delete. Confirm first so a misclick doesn't
+                      silently purge a completed session. */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (confirm(`למחוק את התור של ${apt.clientName} (${apt.appointmentDate} ${apt.appointmentTime})?`)) {
+                        handleCancel(apt.id);
+                      }
+                    }}
+                    disabled={cancelMutation.isPending}
+                    className="flex items-center gap-1 px-2 py-1 rounded-md text-[11px] font-medium bg-red-50 hover:bg-red-100 text-red-500 border border-red-100 transition-all disabled:opacity-60 shrink-0"
+                  >
+                    <Trash2 className="w-3 h-3" /> מחק
+                  </button>
                 </div>
               ))}
             </div>
@@ -6262,7 +6279,9 @@ function CustomersTab() {
   const [customerPage, setCustomerPage] = useState(0);
   const CUSTOMERS_PAGE_SIZE = 5;
   // Cancellation-breakdown popup — set to a customer record to open, null to close.
-  const [cancelBreakdown, setCancelBreakdown] = useState<any | null>(null);
+  // cancelBreakdown state removed — the "who cancelled each appointment"
+  // dialog was dropped per owner request; the count chip stays as a pure
+  // stat and no longer opens a dialog.
   // "הנפק קבלה" from a customer row. Pre-fills email from the
   // customer session (null if they never logged in to the portal,
   // which the dialog flags as "not registered").
@@ -6790,14 +6809,9 @@ function CustomersTab() {
                         </span>
                       )}
                       {cancelledCount > 0 && (
-                        <button
-                          type="button"
-                          onClick={() => setCancelBreakdown(c)}
-                          className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-orange-50 text-orange-700 border border-orange-100 hover:bg-orange-100 transition-colors cursor-pointer"
-                          title="הצג פירוט ביטולים"
-                        >
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-orange-50 text-orange-700 border border-orange-100">
                           ↩️ {cancelledCount} ביטולים
-                        </button>
+                        </span>
                       )}
                     </div>
                   </div>
@@ -6881,42 +6895,6 @@ function CustomersTab() {
         </CardContent>
         )}
       </Card>
-
-      {/* Cancellation breakdown dialog — opens when the owner taps a
-          customer's "↩️ N ביטולים" chip. Owner asked to drop the
-          "לא ידוע" bucket; legacy rows (cancelled_by null) roll into
-          the total but aren't surfaced as a third row anymore. */}
-      <Dialog open={!!cancelBreakdown} onOpenChange={v => { if (!v) setCancelBreakdown(null); }}>
-        <DialogContent dir="rtl" className="max-w-sm">
-          <DialogHeader>
-            <DialogTitle>פירוט ביטולים — {cancelBreakdown?.clientName}</DialogTitle>
-            <DialogDescription>
-              מי ביטל כל תור.
-            </DialogDescription>
-          </DialogHeader>
-          {cancelBreakdown && (() => {
-            const byClient = (cancelBreakdown as any).cancelledByClientCount ?? 0;
-            const byBusiness = (cancelBreakdown as any).cancelledByBusinessCount ?? 0;
-            const total = (cancelBreakdown as any).cancelledCount ?? 0;
-            return (
-              <div className="space-y-3 pt-2">
-                <div className="flex items-center justify-between p-3 rounded-xl bg-orange-50 border border-orange-100">
-                  <span className="font-semibold text-orange-800">הלקוח/ה ביטל/ה את התור</span>
-                  <span className="text-2xl font-bold text-orange-700">{byClient}</span>
-                </div>
-                <div className="flex items-center justify-between p-3 rounded-xl bg-blue-50 border border-blue-100">
-                  <span className="font-semibold text-blue-800">בעל/ת העסק ביטל/ה את התור</span>
-                  <span className="text-2xl font-bold text-blue-700">{byBusiness}</span>
-                </div>
-                <div className="flex items-center justify-between pt-2 border-t">
-                  <span className="text-sm text-muted-foreground">סה״כ ביטולים</span>
-                  <span className="text-lg font-bold">{total}</span>
-                </div>
-              </div>
-            );
-          })()}
-        </DialogContent>
-      </Dialog>
 
       {/* Customer-level receipt issuance (no appointment context). Pass the
           service list so the owner can pick a treatment, and the customer's
