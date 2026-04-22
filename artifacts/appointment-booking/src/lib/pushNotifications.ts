@@ -98,48 +98,55 @@ export async function registerForPush(businessToken: string | null): Promise<voi
   await new Promise((r) => setTimeout(r, 500));
 
   const Push = await loadPlugin();
+  writeStep("back_from_loadPlugin", Push ? "plugin=truthy" : "plugin=null");
   if (!Push) { writeStep("plugin_unavailable"); return; }
 
+  writeStep("before_listeners", `already_attached=${listenersAttached}`);
   if (!listenersAttached) {
-    Push.addListener?.("registration", async (t: { value: string }) => {
-      const tail = String(t?.value ?? "").slice(-6);
-      writeStep("token_event", `tail=${tail} len=${String(t?.value ?? "").length}`);
-      try {
-        const res = await fetch("/api/business/push-token", {
-          method: "POST",
-          headers: { "Content-Type": "application/json", Authorization: `Bearer ${businessToken}` },
-          body: JSON.stringify({ deviceToken: t.value, platform: "android" }),
-        });
-        if (res.ok) {
-          writeStep("token_post_ok", `tail=${tail}`);
-          registered = true;
-        } else {
-          const body = await res.text().catch(() => "");
-          writeStep("token_post_failed", `status=${res.status} body=${body.slice(0, 120)}`);
+    try {
+      writeStep("attaching_registration");
+      Push.addListener?.("registration", async (t: { value: string }) => {
+        const tail = String(t?.value ?? "").slice(-6);
+        writeStep("token_event", `tail=${tail} len=${String(t?.value ?? "").length}`);
+        try {
+          const res = await fetch("/api/business/push-token", {
+            method: "POST",
+            headers: { "Content-Type": "application/json", Authorization: `Bearer ${businessToken}` },
+            body: JSON.stringify({ deviceToken: t.value, platform: "android" }),
+          });
+          if (res.ok) {
+            writeStep("token_post_ok", `tail=${tail}`);
+            registered = true;
+          } else {
+            const body = await res.text().catch(() => "");
+            writeStep("token_post_failed", `status=${res.status} body=${body.slice(0, 120)}`);
+          }
+        } catch (err: any) {
+          writeStep("token_post_exception", String(err?.message ?? err));
         }
-      } catch (err: any) {
-        writeStep("token_post_exception", String(err?.message ?? err));
-      }
-    });
-
-    Push.addListener?.("registrationError", (err: any) => {
-      writeStep("fcm_error", JSON.stringify(err)?.slice(0, 200));
-    });
-
-    Push.addListener?.("pushNotificationActionPerformed", (action: any) => {
-      const route: string | undefined = action?.notification?.data?.route;
-      const apptId: string | undefined = action?.notification?.data?.appointmentId;
-      try {
-        if (apptId) sessionStorage.setItem("kavati_cal_highlight_id", apptId);
-        if (route && typeof route === "string" && route.startsWith("/")) {
-          window.location.href = route;
-        }
-      } catch {}
-    });
-
-    Push.addListener?.("pushNotificationReceived", () => { /* handled by bell */ });
-    listenersAttached = true;
-    writeStep("listeners_attached");
+      });
+      writeStep("attaching_registration_error");
+      Push.addListener?.("registrationError", (err: any) => {
+        writeStep("fcm_error", JSON.stringify(err)?.slice(0, 200));
+      });
+      writeStep("attaching_action_performed");
+      Push.addListener?.("pushNotificationActionPerformed", (action: any) => {
+        const route: string | undefined = action?.notification?.data?.route;
+        const apptId: string | undefined = action?.notification?.data?.appointmentId;
+        try {
+          if (apptId) sessionStorage.setItem("kavati_cal_highlight_id", apptId);
+          if (route && typeof route === "string" && route.startsWith("/")) {
+            window.location.href = route;
+          }
+        } catch {}
+      });
+      writeStep("attaching_received");
+      Push.addListener?.("pushNotificationReceived", () => { /* handled by bell */ });
+      listenersAttached = true;
+      writeStep("listeners_attached");
+    } catch (err: any) {
+      writeStep("listener_exception", String(err?.message ?? err));
+    }
   }
 
   // Wrap each native bridge call in a timeout race. On buggy Play
