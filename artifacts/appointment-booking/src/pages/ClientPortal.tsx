@@ -311,6 +311,19 @@ function LoginScreen({ onLogin }: { onLogin: (token: string, name: string) => vo
               </label>
               <a
                 href="/"
+                onClick={(e) => {
+                  // If the visitor arrived from a /book/<slug> page (Navbar
+                  // link), bounce them back there instead of the home page.
+                  // Book.tsx writes the slug on mount; sessionStorage
+                  // survives the redirect and clears on tab close.
+                  if (typeof window !== "undefined") {
+                    const slug = sessionStorage.getItem("kavati_last_book_slug");
+                    if (slug) {
+                      e.preventDefault();
+                      window.location.href = `/book/${encodeURIComponent(slug)}`;
+                    }
+                  }
+                }}
                 className="text-sm font-bold underline underline-offset-2 hover:no-underline"
                 style={{ color: "#1e6fcf" }}
               >

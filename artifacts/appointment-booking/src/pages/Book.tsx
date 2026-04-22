@@ -361,6 +361,16 @@ export default function Book({ slugOverride }: { slugOverride?: string } = {}) {
   // Custom-domain flow: HomeOrBook resolves the hostname to a slug and
   // passes it here as `slugOverride` — there's no slug in the URL.
   const businessSlug = slugOverride ?? params.businessSlug;
+
+  // Remember the last business slug a visitor was looking at so the
+  // portal's "המשך ללא התחברות" link can bounce them back here instead
+  // of dumping them on the home page. Session-scoped — clears on tab
+  // close so cross-business navigation doesn't stick.
+  useEffect(() => {
+    if (businessSlug && typeof window !== "undefined") {
+      sessionStorage.setItem("kavati_last_book_slug", businessSlug);
+    }
+  }, [businessSlug]);
   const [, navigate] = useLocation();
   // Owner preview hint — when a biz_token is present we assume the
   // viewer came from the dashboard's "צפייה בעמוד העסק" link and show
