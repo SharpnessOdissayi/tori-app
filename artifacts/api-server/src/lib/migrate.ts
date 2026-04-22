@@ -649,6 +649,31 @@ export async function runMigrations() {
       console.warn("[Migrate] time_off backfill skipped:", (backfillErr as any)?.message ?? backfillErr);
     }
 
+    // ─── Appointments owner-staff normalisation (one-shot) ─────────────
+    // Until commit b2946e6 the public booking POST stored the picked
+    // staff id on the appointment — including the owner's auto-seeded
+    // is_owner=TRUE staff row on solo businesses. The dashboard filter
+    // treats NULL staff_member_id as "owner's own" and non-NULL as
+    // "assigned to some other staff", so those public bookings went
+    // invisible from the owner's calendar. Flip existing rows back to
+    // NULL here; new bookings already follow the convention after the
+    // commit. Idempotent — re-running is a no-op once everything's NULL.
+    try {
+      const result = await db.execute(sql.raw(`
+        UPDATE appointments
+        SET staff_member_id = NULL
+        WHERE staff_member_id IN (
+          SELECT id FROM staff_members WHERE is_owner = TRUE
+        )
+      `));
+      const affected = (result as any)?.rowCount;
+      if (typeof affected === "number" && affected > 0) {
+        console.log(`[Migrate] appointments owner-staff backfill: ${affected} rows flipped to NULL`);
+      }
+    } catch (backfillErr) {
+      console.warn("[Migrate] appointments owner-staff backfill skipped:", (backfillErr as any)?.message ?? backfillErr);
+    }
+
     // ─── Broadcast quota reconciliation (one-shot) ──────────────────────
     // Before commit b3cd4e8 the /business/broadcast endpoint deducted
     // from broadcast_sent_this_month — a column that NO other quota path
