@@ -1,6 +1,5 @@
 import { Router } from "express";
 import bcrypt from "bcryptjs";
-import { z } from "zod";
 import { db, businessesTable, workingHoursTable, appointmentsTable, smsMessagesTable, smsPackPurchasesTable, reviewsTable } from "@workspace/db";
 import { eq, sql, gte } from "drizzle-orm";
 import { updateSto } from "../lib/tranzilaCharge";
@@ -16,21 +15,13 @@ import {
 // lists a handful of fields — name/slug/email/password/plan/etc. But the
 // SuperAdmin UI also posts phone, address, city, websiteUrl, instagramUrl,
 // businessDescription, businessCategories, username, maxAppointmentsPerMonth.
-// Plain zod.object() strips unknown keys silently, so those updates were
-// disappearing — clearing the phone field in the UI looked like it saved
-// but the DB row was untouched, and the UI's re-fetch then reported an
-// inconsistency. Extend the schema here to actually accept them.
-const SuperAdminUpdateBusinessBodyExtended = (SuperAdminUpdateBusinessBody as any).extend({
-  phone:               z.string().nullish(),
-  address:             z.string().nullish(),
-  city:                z.string().nullish(),
-  websiteUrl:          z.string().nullish(),
-  instagramUrl:        z.string().nullish(),
-  businessDescription: z.string().nullish(),
-  businessCategories:  z.union([z.string(), z.array(z.string())]).nullish(),
-  username:            z.string().nullish(),
-  maxAppointmentsPerMonth: z.number().optional(),
-});
+// zod.object() strips unknown keys silently by default, so those updates
+// were disappearing — clearing the phone field looked like it saved but
+// the DB row was untouched, and the UI's re-fetch reported an inconsistency.
+// .passthrough() keeps the extra keys on bodyParsed.data so the subsequent
+// update logic (which reads them via `(bodyParsed.data as any).fieldName`)
+// actually sees them.
+const SuperAdminUpdateBusinessBodyExtended = (SuperAdminUpdateBusinessBody as any).passthrough();
 
 const router = Router();
 
