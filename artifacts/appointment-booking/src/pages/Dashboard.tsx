@@ -7,6 +7,7 @@ import {
 } from "recharts";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { DESIGN_PRESETS } from "@/lib/designPresets";
+import { publicOrigin } from "@/lib/publicOrigin";
 import {
   useListBusinessAppointments,
   useGetBusinessStats,
@@ -455,7 +456,10 @@ function CopyLinkButton({ slug }: { slug: string }) {
   // scrapers see business-specific og: tags (name + logo + description)
   // instead of Kavati's default. A human clicking the link gets bounced
   // to the SPA /book/<slug> route via meta-refresh.
-  const fullUrl = `${window.location.origin}/api/s/${slug}`;
+  // publicOrigin() routes around the Capacitor `https://localhost`
+  // footgun — without it the share link shown to owners in the native
+  // app was https://localhost/api/s/<slug>, which customers can't open.
+  const fullUrl = `${publicOrigin()}/api/s/${slug}`;
   const handleCopy = () => {
     navigator.clipboard.writeText(fullUrl).then(() => {
       setCopied(true);
