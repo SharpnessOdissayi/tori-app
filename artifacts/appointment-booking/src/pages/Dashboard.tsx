@@ -640,42 +640,113 @@ function SubscriptionBanner() {
 // ─────────────────────────────────────────────────────────
 // Onboarding Tour — floating bubble, no overlay
 // ─────────────────────────────────────────────────────────
-const TOUR_STEPS = [
+type TourStep = {
+  emoji: string;
+  title: string;
+  tab: string | null;
+  // Either a short paragraph (desc) OR a list of feature bullets (bullets).
+  // Step 0 uses the overview `sections` format for the welcome card;
+  // everything else uses `bullets` for scannable feature lists.
+  desc?: string;
+  sections?: { icon: string; name: string; desc: string }[];
+  bullets?: { icon: string; text: string }[];
+  // Optional one-line tip below the bullets for a "did you know?" moment.
+  tip?: string;
+};
+
+const TOUR_STEPS: TourStep[] = [
   {
     emoji: "👋",
     title: "ברוכים הבאים לקבעתי!",
     tab: null,
     sections: [
-      { icon: "📅", name: "תורים", desc: "כל התורים שלך במקום אחד" },
-      { icon: "✂️", name: "שירותים", desc: "הגדר מה אתה מציע ובאיזה מחיר" },
-      { icon: "🕐", name: "שעות עבודה", desc: "קבע מתי אתה זמין" },
-      { icon: "📊", name: "נתונים", desc: "סטטיסטיקות, ברזים וביטולים" },
-      { icon: "🔗", name: "הגדרות", desc: "עמוד ההזמנה שלך + פרטי העסק" },
+      { icon: "📅", name: "יומן",      desc: "הלב של המערכת — כל התורים בתצוגה אחת" },
+      { icon: "✂️", name: "שירותים",   desc: "מה אתה מציע, מחיר, משך זמן" },
+      { icon: "🕐", name: "שעות עבודה", desc: "קבוע או סידור מתחלף" },
+      { icon: "👥", name: "לקוחות",    desc: "היסטוריה מלאה לכל לקוח" },
+      { icon: "💵", name: "קבלות",     desc: "הפקה אוטומטית בלחיצה" },
+      { icon: "⭐", name: "ביקורות",   desc: "בעמוד העסק הציבורי שלך" },
     ],
   },
   {
     emoji: "📅",
-    title: "תורים",
+    title: "היומן — הלב של הכל",
     tab: "appointments",
-    desc: "כאן מופיעים כל התורים הקרובים. תוכל לאשר, לבטל ולראות היסטוריה מלאה. בעת ביטול — בחר סיבה (ברז / ביטול לקוח / אחר) ומי ביטל יוצג בהיסטוריה.",
+    bullets: [
+      { icon: "👆", text: "הקש על שעה ריקה → יצירת תור חדש" },
+      { icon: "🫳", text: "גרור תור לשעה אחרת → זז מיד" },
+      { icon: "🔍", text: "הקש על תור → פרטים מלאים של הלקוח" },
+      { icon: "📆", text: "החלף בין יום / שבוע / חודש ממעלה" },
+      { icon: "🎨", text: "כל איש צוות בצבע שונה (עסקי)" },
+      { icon: "🚫", text: "ימי חופש וחוסמים באדום — לא ניתן להזמין" },
+    ],
+    tip: "💡 לוח מלא? תלחץ על יום בלוח החודשי לקפוץ ישר ליום בתצוגת שבוע",
+  },
+  {
+    emoji: "📋",
+    title: "פרטי התור — הכל במקום אחד",
+    tab: "appointments",
+    bullets: [
+      { icon: "📱", text: "הודעות וואטסאפ שנשלחו ללקוח — אישור, תזכורות, ביטול" },
+      { icon: "📊", text: "היסטוריית הלקוח — ביקורים, ברזים, ביטולים" },
+      { icon: "📞", text: "כפתור חיוג ישיר + כפתור וואטסאפ אישי" },
+      { icon: "✏️", text: "עריכה / דחייה / ביטול — עם התראת וואטסאפ ללקוח" },
+    ],
+    tip: "💡 בביטול — תבחר סיבה (ברז / לקוח התחרט / אחר) והיסטוריה תיזכר",
   },
   {
     emoji: "🔔",
-    title: "פעמון התראות",
+    title: "התראות בזמן אמת",
     tab: "appointments",
-    desc: "בפינה הימנית העליונה יש פעמון התראות שמציג בזמן אמת: תורים חדשים, ביטולים ועדכונים — ממך ומהלקוחות שלך.",
+    bullets: [
+      { icon: "✨", text: "תורים חדשים, ביטולים, דחיות, ביקורות — הכל בפעמון" },
+      { icon: "👉", text: "הקש התראה → קופץ ליומן ומהבהב על התור הרלוונטי" },
+      { icon: "🔴", text: "ספירה אדומה על הפעמון — כמה לא קראת" },
+      { icon: "📥", text: "תאשר הכל בלחיצה אחת או תקרא בהדרגה" },
+    ],
   },
   {
-    emoji: "📊",
-    title: "נתונים וניתוח",
-    tab: "analytics",
-    desc: "כאן תמצא סטטיסטיקות מלאות: כמה תורים עברו, ביטולים, מגמות חודשיות, דירוג הברזים ומי ביטל הכי הרבה — לחץ על שורה לפרטים.",
+    emoji: "🕐",
+    title: "שעות עבודה — פשוט או מתחלף",
+    tab: "hours",
+    bullets: [
+      { icon: "🗓️", text: "סידור קבוע: 7 ימים בשבוע, שעות התחלה וסיום" },
+      { icon: "🔁", text: "סידור מתחלף: 2 או 3 שבועות שחוזרים (בוקר/ערב)" },
+      { icon: "☕", text: "הפסקות יומיות, חופשות, ימי חג ומצב שבת" },
+      { icon: "⚡", text: "לקוחות יראו רק את השעות שבחרת — אוטומטית" },
+    ],
+    tip: "💡 הפעלת סידור מתחלף → השעות הקבועות רדומות, רק המחזור קובע",
+  },
+  {
+    emoji: "👥",
+    title: "ניהול לקוחות + קבלות",
+    tab: "customers",
+    bullets: [
+      { icon: "⭐", text: "כל לקוח — מידת נאמנות, סה״כ הכנסה, היסטוריית ביקורים" },
+      { icon: "🔍", text: "חיפוש לפי שם / טלפון, סינון לקוחות בסיכון" },
+      { icon: "📣", text: "ברודקאסט וואטסאפ לכל הלקוחות (פרו)" },
+      { icon: "🧾", text: "קבלה ממוספרת בלחיצה — נשלחת אוטומטית למייל הלקוח" },
+      { icon: "↩️", text: "זיכויים וביטולי קבלות — עומד בדרישות רשות המיסים" },
+    ],
   },
   {
     emoji: "🔗",
-    title: "הגדרות",
-    tab: "settings",
-    desc: "הלינק האישי שלך לשיתוף עם לקוחות, תמונת פרופיל, צבעים, מגבלות הזמנה, תזכורות ועוד. כאן גם תנהל את המנוי שלך.",
+    title: "הלינק שלך — תשתף אותו",
+    tab: "branding",
+    bullets: [
+      { icon: "🌍", text: "kavati.net/book/שם-העסק-שלך — דף הזמנה מיידי" },
+      { icon: "📲", text: "שתף באינסטגרם, וואטסאפ, ביו של טיקטוק" },
+      { icon: "⏱️", text: "הלקוח מזמין לבד תוך 60 שניות — 24/7" },
+      { icon: "🎨", text: "צבעים, לוגו, תמונות וגלריה — תעצב איך שאתה רוצה" },
+      { icon: "⭐", text: "ביקורות מלקוחות מופיעות שם אוטומטית" },
+    ],
+    tip: "💡 מסלול עסקי מקבל גם דומיין משלו (book.yourbiz.co.il)",
+  },
+  {
+    emoji: "🚀",
+    title: "יאללה — מתחילים!",
+    tab: "appointments",
+    desc: "זהו — הכל מוכן. תתחיל ליצור שירותים ולשתף את הלינק שלך. יש תפריט ״עוד״ למטה עם הגדרות נוספות (תזכורות, אינטגרציות, עיצוב) ושאלות — ההתראה בצד ימין למעלה תמיד מחכה לך. בהצלחה! 🎉",
   },
 ];
 
@@ -684,24 +755,25 @@ function OnboardingTour({ onComplete, onTabChange }: { onComplete: () => void; o
   const current = TOUR_STEPS[step];
   const isLast = step === TOUR_STEPS.length - 1;
 
+  // When the step changes, jump the dashboard to the matching tab so the
+  // user sees the real UI alongside the bubble. Wrapped in an effect
+  // instead of inlined in handleNext/Back so the initial step also syncs
+  // (step 1 starts on the calendar tab even though we opened the tour).
+  useEffect(() => {
+    if (current.tab) onTabChange(current.tab);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [step]);
+
   const handleNext = () => {
     if (isLast) { onComplete(); return; }
-    const next = step + 1;
-    setStep(next);
-    const nextTab = TOUR_STEPS[next].tab;
-    if (nextTab) onTabChange(nextTab);
+    setStep(step + 1);
   };
-
   const handleBack = () => {
-    if (step === 0) return;
-    const prev = step - 1;
-    setStep(prev);
-    const prevTab = TOUR_STEPS[prev].tab;
-    if (prevTab) onTabChange(prevTab);
+    if (step > 0) setStep(step - 1);
   };
 
   return (
-    <div className="fixed bottom-5 left-5 z-50 w-72 animate-in slide-in-from-bottom-3 duration-300" dir="rtl">
+    <div className="fixed bottom-5 left-5 z-50 w-80 max-w-[calc(100vw-2.5rem)] animate-in slide-in-from-bottom-3 duration-300" dir="rtl">
       {/* Bubble */}
       <div className="bg-white rounded-2xl shadow-2xl border border-border/60 overflow-hidden">
         {/* Top gradient strip */}
@@ -709,25 +781,30 @@ function OnboardingTour({ onComplete, onTabChange }: { onComplete: () => void; o
 
         <div className="p-4 space-y-3">
           {/* Header */}
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <span className="text-xl">{current.emoji}</span>
-              <span className="font-bold text-sm">{current.title}</span>
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center gap-2 min-w-0">
+              <span className="text-2xl shrink-0">{current.emoji}</span>
+              <span className="font-bold text-sm truncate">{current.title}</span>
             </div>
-            <button onClick={onComplete} className="text-muted-foreground hover:text-foreground transition-colors">
-              <X className="w-4 h-4" />
-            </button>
+            <div className="flex items-center gap-2 shrink-0">
+              <span className="text-[10px] font-mono text-muted-foreground">
+                {step + 1}/{TOUR_STEPS.length}
+              </span>
+              <button onClick={onComplete} className="text-muted-foreground hover:text-foreground transition-colors">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
           </div>
 
-          {/* Step 0 — welcome overview */}
-          {step === 0 && "sections" in current && (
+          {/* Welcome step — section overview cards */}
+          {current.sections && (
             <div className="space-y-2">
-              <p className="text-xs text-muted-foreground">פה תוכל לנהל את העסק שלך. הנה מה שיש:</p>
+              <p className="text-xs text-muted-foreground">בוא נעשה סיור קצר — 30 שניות ואתה כבר שולט:</p>
               <div className="space-y-1.5">
                 {current.sections.map((s) => (
                   <div key={s.name} className="flex items-center gap-2 bg-muted/40 rounded-lg px-3 py-1.5">
                     <span className="text-base">{s.icon}</span>
-                    <div>
+                    <div className="min-w-0 flex-1">
                       <span className="text-xs font-semibold">{s.name}</span>
                       <span className="text-xs text-muted-foreground"> — {s.desc}</span>
                     </div>
@@ -737,9 +814,28 @@ function OnboardingTour({ onComplete, onTabChange }: { onComplete: () => void; o
             </div>
           )}
 
-          {/* Steps 1–4 — section explanation */}
-          {step > 0 && "desc" in current && (
+          {/* Bullet steps — scannable feature lists */}
+          {current.bullets && (
+            <div className="space-y-1.5">
+              {current.bullets.map((b, i) => (
+                <div key={i} className="flex items-start gap-2 text-xs leading-relaxed">
+                  <span className="text-sm shrink-0 translate-y-[1px]">{b.icon}</span>
+                  <span className="text-foreground/85">{b.text}</span>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Prose step — final CTA */}
+          {current.desc && !current.bullets && !current.sections && (
             <p className="text-xs text-muted-foreground leading-relaxed">{current.desc}</p>
+          )}
+
+          {/* Optional "did you know?" tip */}
+          {current.tip && (
+            <div className="rounded-lg bg-gradient-to-l from-blue-50 to-sky-50 border border-blue-100 px-3 py-2 text-[11px] text-blue-900 leading-relaxed">
+              {current.tip}
+            </div>
           )}
 
           {/* Progress dots */}
@@ -753,16 +849,16 @@ function OnboardingTour({ onComplete, onTabChange }: { onComplete: () => void; o
           <div className="flex gap-2">
             {step > 0 && (
               <Button variant="outline" size="sm" onClick={handleBack} className="gap-1 text-xs h-8">
-                <ChevronRight className="w-3.5 h-3.5" /> אחורה
+                <ChevronRight className="w-3.5 h-3.5" /> חזור
               </Button>
             )}
             <Button size="sm" onClick={handleNext} className="flex-1 gap-1 text-xs h-8">
-              {isLast ? "התחל! 🚀" : <>הבא <ChevronLeft className="w-3.5 h-3.5" /></>}
+              {isLast ? "בוא נתחיל! 🚀" : <>הבא <ChevronLeft className="w-3.5 h-3.5" /></>}
             </Button>
           </div>
 
           <button onClick={onComplete} className="w-full text-[11px] text-muted-foreground hover:text-foreground transition-colors">
-            דלג על ההדרכה
+            דלג על הסיור
           </button>
         </div>
       </div>
