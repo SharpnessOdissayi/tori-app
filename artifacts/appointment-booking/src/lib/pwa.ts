@@ -33,7 +33,22 @@ export function capturePromptEvent() {
 
   // Detect "already running standalone" — user opened the app from the
   // home-screen icon, so there's nothing to install.
+  //
+  // Also treat Capacitor native webviews (the Android / iOS app from the
+  // Play Store / App Store) as "already installed" — inviting an app user
+  // to install an app is nonsense. Detection: window.Capacitor global
+  // exposed by the native runtime, OR a hostname that isn't the public
+  // web origin. The latter is the robust fallback for edge cases where
+  // the global isn't populated yet when this runs.
+  const loc = window.location;
+  const capNative = !!((window as any).Capacitor?.isNativePlatform?.());
+  const nonWebOrigin =
+    loc.hostname !== "kavati.net" &&
+    loc.hostname !== "www.kavati.net" &&
+    !(loc.hostname === "localhost" && loc.port); // keep the Vite dev banner
   if (
+    capNative ||
+    nonWebOrigin ||
     window.matchMedia?.("(display-mode: standalone)").matches ||
     (navigator as any).standalone === true
   ) {

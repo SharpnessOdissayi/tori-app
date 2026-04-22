@@ -221,43 +221,35 @@ function LoginScreen({ onLogin }: { onLogin: (token: string, name: string) => vo
   const onLoginRef = useRef(onLogin);
   useEffect(() => { onLoginRef.current = onLogin; }, [onLogin]);
 
-  useEffect(() => {
-    const handleCredential = async (response: any) => {
-      setLoading(true);
-      try {
-        const res = await fetch(`${API}/client/google-auth`, {
-          method: "POST", headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ credential: response.credential }),
-        });
-        const data = await res.json();
-        if (!res.ok) throw new Error(data.error);
-        storeToken(data.token);
-        onLoginRef.current(data.token, data.clientName);
-      } catch (e: any) { toast({ title: e?.message ?? "שגיאת Google", variant: "destructive" }); }
-      finally { setLoading(false); }
-    };
-
-    const init = () => {
-      if (!GOOGLE_CLIENT_ID) return;
-      (window as any).google?.accounts?.id?.initialize({
-        client_id: GOOGLE_CLIENT_ID,
-        callback: handleCredential,
-      });
-    };
-
-    if ((window as any).google?.accounts?.id) { init(); }
-    else {
-      const existing = document.querySelector('script[src="https://accounts.google.com/gsi/client"]');
-      if (existing) { existing.addEventListener("load", init); }
-      else {
-        const script = document.createElement("script");
-        script.src = "https://accounts.google.com/gsi/client";
-        script.async = true;
-        script.onload = init;
-        document.head.appendChild(script);
+  // Unified Google sign-in handler — uses the native Capacitor plugin
+  // inside the app (where GIS popups are blocked) and the GIS web flow
+  // inside a browser. Same server endpoint for both.
+  const handleGoogleSignIn = async () => {
+    if (!GOOGLE_CLIENT_ID) return;
+    setLoading(true);
+    try {
+      const { signInWithGoogle } = await import("@/lib/googleAuth");
+      const result = await signInWithGoogle(GOOGLE_CLIENT_ID);
+      if (!result.ok) {
+        if (!result.cancelled) {
+          toast({ title: result.error || "שגיאה בכניסה עם Google", variant: "destructive" });
+        }
+        return;
       }
+      const res = await fetch(`${API}/client/google-auth`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ credential: result.idToken }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+      storeToken(data.token);
+      onLoginRef.current(data.token, data.clientName);
+    } catch (e: any) {
+      toast({ title: e?.message ?? "שגיאת Google", variant: "destructive" });
+    } finally {
+      setLoading(false);
     }
-  }, []);
+  };
 
   return (
     <div className="min-h-screen flex flex-col items-center justify-center bg-gradient-to-br from-blue-50 to-blue-100 p-6" dir="rtl">
@@ -374,7 +366,7 @@ function LoginScreen({ onLogin }: { onLogin: (token: string, name: string) => vo
         <div className="space-y-2">
           {GOOGLE_CLIENT_ID && (
             <button
-              onClick={() => (window as any).google?.accounts?.id?.prompt()}
+              onClick={handleGoogleSignIn}
               disabled={loading}
               className="w-full py-3 rounded-xl flex items-center justify-center gap-2 text-sm font-semibold border transition-all disabled:opacity-50 hover:bg-gray-50"
               style={{ borderColor: "#dadce0", color: "#3c4043" }}

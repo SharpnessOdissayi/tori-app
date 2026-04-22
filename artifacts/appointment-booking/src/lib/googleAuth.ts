@@ -80,6 +80,12 @@ export async function signInWithGoogle(clientId: string): Promise<GoogleSignInRe
       const mod: any = await import("@codetrix-studio/capacitor-google-auth");
       const GoogleAuth = mod.GoogleAuth ?? mod.default?.GoogleAuth;
       if (!GoogleAuth?.signIn) return { ok: false, error: "native plugin not loaded" };
+      // Force the Android account picker to show every time. Without the
+      // signOut(), the Google SDK silently re-uses the last-selected
+      // account on the device — which is almost always NOT the one the
+      // business owner registered with, producing an immediate
+      // "לא נמצא חשבון" error before the user ever sees a picker.
+      try { await GoogleAuth.signOut(); } catch { /* no prior session — fine */ }
       const user = await GoogleAuth.signIn();
       const idToken: string | undefined =
         user?.authentication?.idToken ?? user?.idToken ?? user?.serverAuthCode;
