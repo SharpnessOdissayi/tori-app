@@ -473,10 +473,14 @@ export default function Book({ slugOverride }: { slugOverride?: string } = {}) {
   const [clientToken, setClientToken] = useState<string | null>(
     () => localStorage.getItem("kavati_client_token") ?? sessionStorage.getItem("kavati_client_token")
   );
-  // Login gate: show full-screen login if no token (user can skip)
-  const [showLoginGate, setShowLoginGate] = useState(
-    () => !localStorage.getItem("kavati_client_token") && !sessionStorage.getItem("kavati_client_token")
-  );
+  // The duplicate login gate on /book/:slug was removed — Kavati has ONE
+  // client portal login at /client. Visitors here land straight on the
+  // business page; anyone wanting to sign in to the portal clicks the
+  // "התחבר/י לפורטל הלקוחות" link which navigates to /client. The state
+  // flag is kept as a const so the existing call sites that try to close
+  // the gate on successful actions still compile — they're all no-ops now.
+  const showLoginGate = false;
+  const setShowLoginGate = (_v: boolean) => {};
   const [rememberMe, setRememberMe] = useState(true);
   const [showPortalLogin, setShowPortalLogin] = useState(false);
   const [portalLoginStep, setPortalLoginStep] = useState<"phone" | "otp">("phone");
@@ -2065,16 +2069,20 @@ export default function Book({ slugOverride }: { slugOverride?: string } = {}) {
             </div>
           )}
 
-          {/* Login prompt for guests */}
+          {/* Login prompt for guests. Kavati has a SINGLE client portal
+              login at /client; we no longer render a second gate here.
+              The link bounces to /client and that page's back-link logic
+              (kavati_last_book_slug in sessionStorage) brings the user
+              back to this booking page after they log in. */}
           {!clientToken && (
             <div className="mb-3 flex justify-center">
-              <button
-                onClick={() => setShowLoginGate(true)}
+              <a
+                href="/client"
                 className="text-xs font-medium underline underline-offset-2"
                 style={{ color: primaryColor }}
               >
                 התחבר/י לפורטל הלקוחות
-              </button>
+              </a>
             </div>
           )}
 
