@@ -470,24 +470,24 @@ function CopyLinkButton({ slug }: { slug: string }) {
   const whatsappHref = `https://wa.me/?text=${encodeURIComponent(whatsappText)}`;
 
   return (
-    <div className="space-y-4">
-      {/* URL row — the copy button sits at the START of the flex row (which
-          in RTL is the right-hand side) so it's the first thing the thumb
-          hits on mobile. Matches the Dibs reference layout but rebuilt in
-          our Kavati primary-color palette. */}
-      <div className="flex items-stretch gap-2">
+    <div className="space-y-3">
+      {/* URL row — glassy white pill with the copy button tucked on the
+          start (right-hand side in RTL) so it's the first thing the thumb
+          hits on mobile. Uses a soft gradient border + backdrop blur to
+          sit cleanly on top of the gradient card below. */}
+      <div className="flex items-stretch gap-2 p-1.5 rounded-2xl bg-white/70 backdrop-blur-sm border border-white shadow-inner">
         <button
           type="button"
           onClick={handleCopy}
-          className={`shrink-0 px-4 rounded-xl border text-sm font-semibold flex items-center gap-1.5 transition-all ${copied
-            ? "bg-emerald-600 border-emerald-600 text-white shadow-sm"
-            : "bg-card border-border hover:bg-muted"
+          className={`shrink-0 px-4 py-2 rounded-xl text-sm font-semibold flex items-center gap-1.5 transition-all ${copied
+            ? "bg-emerald-600 text-white shadow-sm"
+            : "bg-primary text-primary-foreground hover:bg-primary/90 shadow-sm"
           }`}
         >
           {copied ? <><Check className="w-4 h-4" /> הועתק</> : <><Copy className="w-4 h-4" /> העתקה</>}
         </button>
-        <div className="flex-1 flex items-center px-3 bg-muted/60 rounded-xl border border-border min-w-0">
-          <span className="text-sm font-mono text-foreground select-all truncate" dir="ltr">{fullUrl}</span>
+        <div className="flex-1 flex items-center px-3 min-w-0">
+          <span className="text-sm font-mono text-slate-700 select-all truncate" dir="ltr">{fullUrl}</span>
         </div>
       </div>
 
@@ -505,6 +505,40 @@ function CopyLinkButton({ slug }: { slug: string }) {
         </svg>
         שיתוף בווטסאפ
       </a>
+    </div>
+  );
+}
+
+// ─── Share-link card ─────────────────────────────────────────────────────
+// Single unified wrapper used both on the Home tab and above the Services
+// list. Was previously two different Card shells with inconsistent copy
+// and a plain muted-background URL row. The new shell has:
+//   - soft blue→indigo→purple gradient background
+//   - two subtle blurred blobs for depth (no dominant visual noise)
+//   - a linked-icon chip next to the title
+//   - the glassy URL pill inside CopyLinkButton
+// Copy per owner: "העתקת הקישור המעוצב שלך" as the headline.
+function ShareLinkCard({ slug }: { slug: string }) {
+  return (
+    <div className="relative overflow-hidden rounded-3xl border border-primary/20 bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 shadow-sm">
+      {/* Decorative blobs — pure visual texture, no interactivity. */}
+      <div className="pointer-events-none absolute -top-10 -right-10 w-36 h-36 rounded-full bg-primary/20 blur-3xl" aria-hidden />
+      <div className="pointer-events-none absolute -bottom-12 -left-10 w-44 h-44 rounded-full bg-purple-300/30 blur-3xl" aria-hidden />
+
+      <div className="relative p-5 sm:p-6 space-y-4">
+        <div className="flex items-start gap-3">
+          <div className="w-10 h-10 rounded-2xl bg-primary/15 flex items-center justify-center shrink-0">
+            <Link className="w-5 h-5 text-primary" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <h3 className="text-base sm:text-lg font-bold text-slate-900">העתקת הקישור המעוצב שלך</h3>
+            <p className="text-xs sm:text-sm text-slate-600 mt-0.5 leading-relaxed">
+              שלח/י את הלינק ללקוחות. בשיתוף ב-WhatsApp תופיע תמונה ופרטי העסק.
+            </p>
+          </div>
+        </div>
+        <CopyLinkButton slug={slug} />
+      </div>
     </div>
   );
 }
@@ -3635,23 +3669,9 @@ function HomeTab({ onJump }: { onJump: (tab: string) => void }) {
         <h2 className="text-2xl font-bold">{(profile as any)?.ownerName?.split(" ")[0] ?? profile?.name ?? ""}</h2>
       </div>
 
-      {/* Share-link banner — primary CTA for new owners. Copy + layout
-          modelled on the Dibs share-link card (title question + subtitle
-          + URL row + prominent WhatsApp button) but rebuilt in Kavati
-          colors. CopyLinkButton holds the interactive bits. */}
-      {profile?.slug && (
-        <Card className="border-primary/30 bg-card">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-lg">למה שהלקוחות לא יקבעו בעצמם?</CardTitle>
-            <CardDescription className="text-sm">
-              זה הקישור הייחודי שלכם — תוכלו לשתף אותו איפה שתרצו.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <CopyLinkButton slug={profile.slug} />
-          </CardContent>
-        </Card>
-      )}
+      {/* Share-link banner — primary CTA for new owners. Same unified
+          ShareLinkCard used at the top of the Services tab. */}
+      {profile?.slug && <ShareLinkCard slug={profile.slug} />}
 
       {/* Stats mini grid */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
@@ -4090,22 +4110,13 @@ function ServicesTab() {
 
   return (
     <>
-    {/* Share-link callout — same as the home tab. Placed at the top
-        of Services so owners discover it while managing their offering. */}
+    {/* Share-link callout — same unified ShareLinkCard as the home tab.
+        Placed at the top of Services so owners see it while managing
+        their offering. */}
     {profile?.slug && (
-      <Card className="border-primary/40 bg-primary/5 mb-4">
-        <CardHeader className="pb-2">
-          <CardTitle className="text-base flex items-center gap-2 text-primary">
-            <span>🔗</span> הלינק שלך לקביעת תורים
-          </CardTitle>
-          <CardDescription>
-            שלח/י את הלינק הזה ללקוחות. בשיתוף ב־WhatsApp תופיע תמונה ופרטי העסק.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <CopyLinkButton slug={profile.slug} />
-        </CardContent>
-      </Card>
+      <div className="mb-4">
+        <ShareLinkCard slug={profile.slug} />
+      </div>
     )}
     <Card>
       <CardHeader className="flex flex-row items-center justify-between pb-4">
