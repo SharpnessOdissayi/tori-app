@@ -262,15 +262,15 @@ export async function sendSms(opts: SendSmsOptions): Promise<InforuSendResult> {
     // default ("Kavati" for our account) — making the recipient see
     // "Kavati" instead of our asked-for sender. This one-liner makes
     // that substitution visible in Railway logs without needing to
-    // flip INFORU_DEBUG_LOG.
-    logger.info({
-      senderRequested: safeSender,
-      senderEcho:      json?.Data?.Settings?.Sender ?? json?.Settings?.Sender ?? null,
-      recipients:      dedup.length,
-      httpStatus:      res.status,
-      inforuStatus:    json?.StatusId ?? json?.Status ?? null,
-      inforuStatusText: json?.StatusDescription ?? json?.DetailedDescription ?? null,
-    }, "[inforu] send");
+    // flip INFORU_DEBUG_LOG. Values are inlined into the message
+    // string (not just structured fields) so Railway's log display,
+    // which truncates structured data, still shows them.
+    const echo = json?.Data?.Settings?.Sender ?? json?.Settings?.Sender ?? null;
+    const inforuStatus = json?.StatusId ?? json?.Status ?? null;
+    const inforuStatusText = json?.StatusDescription ?? json?.DetailedDescription ?? null;
+    logger.info(
+      `[inforu] send requested=${safeSender} echo=${echo ?? "null"} recipients=${dedup.length} http=${res.status} status=${inforuStatus} text=${JSON.stringify(inforuStatusText)}`
+    );
 
     // Per the docs, the success envelope is:
     //   { StatusId: 1, StatusDescription: "Success", DetailedDescription: "",
