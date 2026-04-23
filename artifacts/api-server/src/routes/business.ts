@@ -1885,12 +1885,18 @@ router.post("/business/broadcast", requireBusinessAuth, async (req, res): Promis
   // The "להסרה, הגב 'הסר'" line + our inforu-reply webhook + our own
   // broadcast_unsubscribes blacklist together implement the legally
   // required immediate-unsubscribe flow.
+  // Fetch smsSenderName + slug too so resolveSenderName has what it
+  // needs — the old shape (just `name`) meant the sender resolver
+  // couldn't see the owner's explicit smsSenderName override here.
   const [biz2] = await db
-    .select({ name: businessesTable.name })
+    .select({
+      name: businessesTable.name,
+      slug: businessesTable.slug,
+      smsSenderName: (businessesTable as any).smsSenderName,
+    })
     .from(businessesTable)
     .where(eq(businessesTable.id, req.business!.businessId));
-  const ownerMessage  = message.trim();
-  const businessLabel = (biz2?.name ?? "").trim();
+  const ownerMessage = message.trim();
   // Short tokenised opt-out URL — /api/u/<6-char-token>. Routed under
   // /api/ because Railway's edge only forwards /api/* to this service.
   // KAVATI_HOST overridable per deploy; default www.kavati.net.
@@ -1901,13 +1907,17 @@ router.post("/business/broadcast", requireBusinessAuth, async (req, res): Promis
   const tokens = batch.length > 0
     ? await allocateUnsubscribeTokensBulk(req.business!.businessId, batch)
     : [];
+  // Body is JUST the owner's message + the unsubscribe link. NO prefix,
+  // NO business-name label. The sender-id (Inforu "from" field) is the
+  // only place the business identity should appear — repeating the
+  // business name inside the body was double-labelling that confused
+  // recipients and wasted SMS character budget.
   const composeMessage = (recipientPhone: string, token: string) =>
     [
-      businessLabel ? `${businessLabel}:` : null,
       ownerMessage,
       "",
       `להסרה https://${host}/api/u/${token}`,
-    ].filter(Boolean).join("\n");
+    ].join("\n");
 
   // Collect per-phone failure reasons so the owner sees WHY a send
   // didn't arrive. Previously we swallowed them and showed "0 sent" with
