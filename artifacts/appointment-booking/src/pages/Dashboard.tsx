@@ -3443,41 +3443,10 @@ function AppointmentsTab({ mobileFocus }: { mobileFocus?: "calendar" | "approval
         />
       )}
 
-      {past.length > 0 && (
-        <Card>
-          <CardHeader><CardTitle className="text-muted-foreground">פגישות שעברו</CardTitle></CardHeader>
-          <CardContent>
-            <div className="space-y-2">
-              {past.slice(-10).reverse().map(apt => (
-                <div key={apt.id} className="flex justify-between items-center gap-2 p-3 border rounded-lg text-sm">
-                  <span className="flex items-center gap-1.5 min-w-0 opacity-60">
-                    <GenderMark gender={genderByPhone.get(apt.phoneNumber)} />
-                    <span className="truncate">{apt.clientName} • {apt.serviceName}</span>
-                  </span>
-                  <span className="text-muted-foreground whitespace-nowrap opacity-60">{apt.appointmentDate} {apt.appointmentTime}</span>
-                  {/* Owner request: let them clear successfully-completed
-                      appointments too (not just future ones). Soft-delete
-                      via the same cancel endpoint — per CLAUDE.md we never
-                      hard-delete. Confirm first so a misclick doesn't
-                      silently purge a completed session. */}
-                  <button
-                    type="button"
-                    onClick={() => {
-                      if (confirm(`למחוק את התור של ${apt.clientName} (${apt.appointmentDate} ${apt.appointmentTime})?`)) {
-                        handleCancel(apt.id);
-                      }
-                    }}
-                    disabled={cancelMutation.isPending}
-                    className="flex items-center gap-1 px-2 py-1 rounded-md text-[11px] font-medium bg-red-50 hover:bg-red-100 text-red-500 border border-red-100 transition-all disabled:opacity-60 shrink-0"
-                  >
-                    <Trash2 className="w-3 h-3" /> מחק
-                  </button>
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-      )}
+      {/* "פגישות שעברו" block removed per owner — completed appointments
+          are now managed from the Customers tab → "תורים שהושלמו" drill-
+          down with per-appointment delete buttons. Keeps the calendar
+          tab focused on actionable future/pending work. */}
 
       {/* "פגישות שבוטלו" block was removed per owner feedback — the
           same data surfaces in the Customers view (per-client counters
@@ -5601,10 +5570,16 @@ function AnalyticsTab() {
       .finally(() => setLoading(false));
   };
 
-  const openDrilldown = (person: { name: string; phone: string }) => {
+  // Track whether the drill-down is showing cancelled history or the
+  // "completed" list so the dialog title + delete-action semantics
+  // match (both paths still hit /permanent, since an owner deleting
+  // either kind clearly means "purge this row from analytics").
+  const [drilldownKind, setDrilldownKind] = useState<"cancelled" | "completed">("cancelled");
+  const openDrilldown = (person: { name: string; phone: string }, kind: "cancelled" | "completed" = "cancelled") => {
     setDrilldown(person);
+    setDrilldownKind(kind);
     setDrilldownLoading(true);
-    fetch(`/api/business/appointments/by-phone?phone=${encodeURIComponent(person.phone)}`, {
+    fetch(`/api/business/appointments/by-phone?phone=${encodeURIComponent(person.phone)}&kind=${kind}`, {
       headers: { authorization: `Bearer ${token}` },
     })
       .then(r => r.ok ? r.json() : Promise.reject(r.status))
@@ -5645,13 +5620,17 @@ function AnalyticsTab() {
       <Dialog open={!!drilldown} onOpenChange={v => { if (!v) setDrilldown(null); }}>
         <DialogContent dir="rtl" className="max-w-md">
           <DialogHeader>
-            <DialogTitle>פגישות מבוטלות — {drilldown?.name}</DialogTitle>
+            <DialogTitle>
+              {drilldownKind === "completed" ? "תורים שהושלמו" : "פגישות מבוטלות"} — {drilldown?.name}
+            </DialogTitle>
             <DialogDescription dir="ltr">{drilldown?.phone}</DialogDescription>
           </DialogHeader>
           {drilldownLoading ? (
             <div className="text-center py-8 text-muted-foreground">טוען...</div>
           ) : drilldownAppts.length === 0 ? (
-            <div className="text-center py-8 text-muted-foreground">אין פגישות מבוטלות</div>
+            <div className="text-center py-8 text-muted-foreground">
+              {drilldownKind === "completed" ? "אין תורים שהושלמו" : "אין פגישות מבוטלות"}
+            </div>
           ) : (
             <div className="space-y-2 max-h-96 overflow-y-auto">
               {drilldownAppts.map((a: any) => {
@@ -5803,7 +5782,9 @@ function AnalyticsTab() {
           <CardContent>
             <div className="space-y-2">
               {data.topAttendees.map((c: any, i: number) => (
-                <div key={c.phone} className="flex items-center gap-3 p-2.5 rounded-xl bg-blue-50 border border-blue-100">
+                <div key={c.phone}
+                  className="flex items-center gap-3 p-2.5 rounded-xl bg-blue-50 border border-blue-100 cursor-pointer hover:bg-blue-100 transition-colors"
+                  onClick={() => openDrilldown(c, "completed")}>
                   <span className="text-lg font-bold text-blue-400 w-6 text-center">{i + 1}</span>
                   <div className="flex-1 min-w-0">
                     <p className="font-semibold text-sm truncate flex items-center gap-1.5">

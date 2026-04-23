@@ -1536,6 +1536,28 @@ router.get("/business/appointments/by-phone", requireBusinessAuth, async (req, r
   const phone = typeof req.query.phone === "string" ? req.query.phone : null;
   if (!phone) { res.status(400).json({ error: "phone required" }); return; }
 
+  // `kind` query param: "cancelled" (default, back-compat) → rows with
+  // status='cancelled'; "completed" → rows whose date has passed AND
+  // aren't cancelled (i.e. the customer either attended or the owner
+  // never marked a no-show). The Customers tab drill-down uses this
+  // to surface the "תורים שהושלמו" list so owners can delete old
+  // rows one-by-one from there.
+  const kind = req.query.kind === "completed" ? "completed" : "cancelled";
+  const todayStr = new Date().toISOString().split("T")[0];
+
+  const where = kind === "completed"
+    ? and(
+        eq(appointmentsTable.businessId, req.business!.businessId),
+        eq(appointmentsTable.phoneNumber, phone),
+        sql`${appointmentsTable.status} NOT IN ('cancelled', 'pending_payment', 'pending')`,
+        sql`${appointmentsTable.appointmentDate} < ${todayStr}`,
+      )
+    : and(
+        eq(appointmentsTable.businessId, req.business!.businessId),
+        eq(appointmentsTable.phoneNumber, phone),
+        eq(appointmentsTable.status, "cancelled"),
+      );
+
   const appts = await db
     .select({
       id: appointmentsTable.id,
@@ -1547,11 +1569,7 @@ router.get("/business/appointments/by-phone", requireBusinessAuth, async (req, r
       cancelReason: sql<string>`appointments.cancel_reason`,
     })
     .from(appointmentsTable)
-    .where(and(
-      eq(appointmentsTable.businessId, req.business!.businessId),
-      eq(appointmentsTable.phoneNumber, phone),
-      eq(appointmentsTable.status, "cancelled")
-    ))
+    .where(where)
     .orderBy(appointmentsTable.appointmentDate);
 
   res.json(appts);
