@@ -1104,7 +1104,13 @@ export default function Dashboard() {
     if (t === "approvals") setActiveTab("approvals");
     if (t === "customers") setActiveTab("customers");
   };
-  const { data: headerProfile } = useGetBusinessProfile();
+  // Root-level profile fetch — gated on `token` so the Dashboard's
+  // login screen (rendered when the user isn't authenticated yet)
+  // doesn't fire an immediate GET /api/business/profile that comes
+  // back 401 and fills the console with errors.
+  const { data: headerProfile } = useGetBusinessProfile({
+    query: { enabled: !!token },
+  });
   // Lightweight root-level fetch so the bottom-nav badge reflects the
   // actual pending count. Uses the same cache key as AppointmentsTab so
   // we don't duplicate the request.

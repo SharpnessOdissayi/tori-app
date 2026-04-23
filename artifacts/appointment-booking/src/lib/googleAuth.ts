@@ -100,34 +100,100 @@ export async function signInWithGoogle(clientId: string): Promise<GoogleSignInRe
   }
 
   // Web: GIS flow. Initialize if needed, then prompt + await the callback.
+  return webSignIn(clientId);
+}
+
+/** Popup-based fallback for when the FedCM / One-Tap prompt is blocked.
+ *  Renders Google's official button into an off-screen container and
+ *  programmatically dispatches a click. Google's renderButton handler
+ *  opens a normal OAuth popup window that's not subject to the same
+ *  third-party-cookie restrictions as One-Tap. The button is hidden
+ *  visually so users see their own styled button stay in place. */
+function popupFallback(
+  clientId: string,
+  resolve: (v: GoogleSignInResult) => void,
+): void {
+  const google = (window as any).google?.accounts?.id;
+  if (!google) {
+    resolve({ ok: false, error: "Google SDK not loaded" });
+    return;
+  }
+  try {
+    const host = document.createElement("div");
+    host.style.position = "fixed";
+    host.style.left = "-9999px";
+    host.style.top = "0";
+    host.style.width = "1px";
+    host.style.height = "1px";
+    host.style.overflow = "hidden";
+    host.setAttribute("aria-hidden", "true");
+    document.body.appendChild(host);
+    google.renderButton(host, { type: "standard", size: "large", theme: "outline" });
+    // Click the button Google rendered. `div[role=button]` is the element
+    // Google attaches the popup-trigger handler to.
+    requestAnimationFrame(() => {
+      const btn = host.querySelector<HTMLElement>("div[role='button']");
+      if (!btn) {
+        resolve({ ok: false, error: "לא הצלחנו לפתוח את חלון Google. נסה כניסה עם מספר טלפון." });
+        return;
+      }
+      btn.click();
+    });
+  } catch (err: any) {
+    resolve({ ok: false, error: String(err?.message ?? err) || "Google popup failed" });
+  }
+}
+
+function webSignIn(clientId: string): Promise<GoogleSignInResult> {
   return new Promise<GoogleSignInResult>((resolve) => {
     const google = (window as any).google?.accounts?.id;
     if (!google) {
       resolve({ ok: false, error: "Google SDK not loaded" });
       return;
     }
+    // Single-shot resolver so we don't get cross-fired by both the
+    // callback and the legacy skip-detection path.
+    let resolved = false;
+    const safeResolve = (val: GoogleSignInResult) => {
+      if (!resolved) { resolved = true; resolve(val); }
+    };
+
+    // use_fedcm_for_prompt=true opts into Google's FedCM-backed prompt
+    // flow. Without it, recent Chrome/Edge log a GSI_LOGGER deprecation
+    // warning and the callback-based skip detection will break when
+    // FedCM becomes mandatory. FedCM also sidesteps most third-party-
+    // cookie blocking that used to silently kill the prompt.
     google.initialize({
       client_id: clientId,
       callback: (response: { credential?: string }) => {
-        if (response?.credential) resolve({ ok: true, idToken: response.credential });
-        else resolve({ ok: false, error: "no credential in GIS response" });
+        if (response?.credential) safeResolve({ ok: true, idToken: response.credential });
+        else safeResolve({ ok: false, error: "no credential in GIS response" });
       },
+      use_fedcm_for_prompt: true,
     });
+
+    // Primary flow: GIS One-Tap prompt. When it works, our `callback`
+    // fires with the credential.
     google.prompt((notification: any) => {
-      // GIS's "prompt" will auto-skip itself silently when the user's
-      // browser has opted out or FedCM detects no eligible account. In
-      // those cases notification.isNotDisplayed() returns true and our
-      // callback never fires — resolve so the caller isn't stuck.
-      //
-      // Common triggers: third-party cookies blocked (Safari default,
-      // some Chrome configs), FedCM disabled, ad-blockers blocking
-      // accounts.google.com, or the user dismissed the prompt 3+ times
-      // which puts them in a Google-imposed cool-down. Direct the user
-      // to SMS login — it always works and doesn't require third-party
-      // cookies.
-      if (notification?.isNotDisplayed?.() || notification?.isSkippedMoment?.()) {
-        resolve({ ok: false, error: "לא הצלחנו לפתוח את חלון Google בדפדפן הזה. נסה כניסה עם מספר טלפון במקום." });
-      }
+      // Legacy skip-detection — still useful in older Chrome/Edge that
+      // haven't switched to FedCM yet. Under FedCM these are no-ops.
+      try {
+        if (notification?.isNotDisplayed?.() || notification?.isSkippedMoment?.()) {
+          // Fallback to a popup-based OAuth flow: renderButton into a
+          // hidden container and programmatically click Google's
+          // official button. This opens a real popup window and works
+          // even when One-Tap is blocked (Safari third-party cookies,
+          // restricted browser profiles, ad-blockers). If rendering
+          // fails too, surface the Hebrew SMS-fallback toast.
+          popupFallback(clientId, safeResolve);
+        }
+      } catch { /* predicate removed under FedCM — callback handles it */ }
     });
+
+    // Safety net: if neither the callback nor the fallback resolves
+    // within 45 seconds, bail out so "מתחבר..." doesn't stay stuck.
+    setTimeout(() => {
+      safeResolve({ ok: false, error: "לא הצלחנו לפתוח את חלון Google. נסה שוב או השתמש בכניסה עם מספר טלפון." });
+    }, 45_000);
   });
 }
