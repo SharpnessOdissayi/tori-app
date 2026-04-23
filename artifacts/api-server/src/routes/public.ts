@@ -2,7 +2,7 @@ import { Router } from "express";
 import { logBusinessNotification } from "./notifications";
 import { sendPushToBusiness } from "../lib/pushNotifications";
 import { db, businessesTable, servicesTable, appointmentsTable, waitlistTable, workingHoursTable, clientSessionsTable, reviewsTable, staffMembersTable, staffServicesTable } from "@workspace/db";
-import { eq, and, gte, sql, countDistinct, count, ilike, or, gt, desc } from "drizzle-orm";
+import { eq, and, gte, sql, countDistinct, count, ilike, or, gt, desc, isNull } from "drizzle-orm";
 import {
   GetPublicBusinessParams,
   GetPublicServicesParams,
@@ -769,10 +769,25 @@ router.get("/public/:businessSlug/hours", async (req, res): Promise<void> => {
     return;
   }
 
+  // Public profile shows the business-level DEFAULT hours. Without the
+  // explicit NULL filters on staff_member_id + rotation_week_index, a
+  // business with multiple staff (each with their own hours) or a
+  // rotation schedule (2-4 week cycle) returned ALL rows mixed together
+  // and the client rendered "Sunday 09:00-20:00" next to "Sunday
+  // 08:00-16:00" with no way to tell which week/staff each belonged to.
+  //
+  // The base row per day of week (staff NULL + rotation NULL) is the
+  // canonical fallback shown on the public profile; staff-specific and
+  // per-week-rotation rows live alongside and are consumed by the
+  // availability calculator.
   const hours = await db
     .select()
     .from(workingHoursTable)
-    .where(eq(workingHoursTable.businessId, business.id))
+    .where(and(
+      eq(workingHoursTable.businessId, business.id),
+      isNull((workingHoursTable as any).staffMemberId),
+      isNull((workingHoursTable as any).rotationWeekIndex),
+    ))
     .orderBy(workingHoursTable.dayOfWeek);
 
   res.json(hours.map((h) => ({

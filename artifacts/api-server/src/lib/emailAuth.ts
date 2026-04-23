@@ -85,13 +85,15 @@ export async function sendWelcomeEmail(params: {
   ownerName:  string;
   plan:       "free" | "pro" | "pro-plus";
   slug:       string;
-  // username / password kept in the signature for back-compat with the
-  // register handler, but no longer shown in the email body. Owner
-  // request: don't echo credentials. Both fields are ignored.
+  // Credentials echoed in the welcome email — the owner asked for this
+  // back so users have their username + password on record in their
+  // inbox. The email is sent via Resend over TLS and only the recipient
+  // sees it, so this is no worse than the password-reset flow we
+  // already run. The values shown are what the user typed at signup.
   username?:  string | null;
   password?:  string;
 }): Promise<void> {
-  const { email, ownerName, plan, slug } = params;
+  const { email, ownerName, plan, slug, username, password } = params;
   const bookingUrl   = `https://www.kavati.net/book/${slug}`;
   const dashboardUrl = `https://www.kavati.net/dashboard`;
 
@@ -110,10 +112,19 @@ export async function sendWelcomeEmail(params: {
       <p style="margin: 0 0 16px; color: #4b5563; font-size: 15px;">העסק שלך נרשם בהצלחה — הנה כל מה שצריך לדעת כדי להתחיל.</p>
       ${planCopy}
 
-      <!-- Action buttons. Per owner request: no credentials echoed in
-           this email. The owner knows the password they chose at
-           registration; if they forget it they go through the dashboard
-           sign-in page's SMS / email code flow to recover. -->
+      <!-- Credentials block — show the username + password the user
+           just picked so they have a record in their inbox. Safe
+           enough: the email channel itself is the same path we use
+           for password-reset codes. -->
+      ${(username || password) ? `
+      <div style="margin: 20px 0; padding: 16px; background: #eff6ff; border:1px solid #bfdbfe; border-radius: 8px;">
+        <p style="margin: 0 0 10px; font-weight: bold; color: #1e3a8a; font-size: 14px;">🔑 פרטי הכניסה שלך</p>
+        ${username ? `<p style="margin: 0 0 6px; font-size: 13px; color: #1f2937;"><strong>שם משתמש:</strong> <span dir="ltr" style="font-family: 'Courier New', monospace;">${username}</span></p>` : ``}
+        <p style="margin: 0 0 6px; font-size: 13px; color: #1f2937;"><strong>אימייל לכניסה:</strong> <span dir="ltr" style="font-family: 'Courier New', monospace;">${email}</span></p>
+        ${password ? `<p style="margin: 0 0 6px; font-size: 13px; color: #1f2937;"><strong>סיסמה:</strong> <span dir="ltr" style="font-family: 'Courier New', monospace; background:#fff; padding:2px 6px; border-radius:4px; border:1px solid #e5e7eb;">${password}</span></p>` : ``}
+        <p style="margin: 8px 0 0; color: #6b7280; font-size: 11px;">שמור/י את המייל הזה במקום בטוח. תמיד אפשר לאפס סיסמה דרך מסך הכניסה.</p>
+      </div>` : ``}
+
       <div style="margin: 24px 0; text-align: center;">
         <a href="${dashboardUrl}" style="display: inline-block; margin: 4px; padding: 12px 28px; background: #3c92f0; color: white; text-decoration: none; border-radius: 8px; font-weight: bold; font-size: 15px;">פתח את הדאשבורד</a>
         <a href="${bookingUrl}" style="display: inline-block; margin: 4px; padding: 12px 28px; background: white; color: #3c92f0; text-decoration: none; border: 2px solid #3c92f0; border-radius: 8px; font-weight: bold; font-size: 15px;">צפה בעמוד העסק שלך</a>
