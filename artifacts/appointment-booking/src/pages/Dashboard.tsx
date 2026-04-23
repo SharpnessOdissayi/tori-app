@@ -8461,8 +8461,8 @@ function CollapsibleCard({
   defaultOpen = false,
   children,
 }: {
-  title: string;
-  description?: string;
+  title: React.ReactNode;
+  description?: React.ReactNode;
   defaultOpen?: boolean;
   children: React.ReactNode;
 }) {
@@ -8740,7 +8740,8 @@ function SettingsTab({ isStaffMode = false }: { isStaffMode?: boolean }) {
           stays compact. Sub-sections inside also collapse individually. */}
       <CollapsibleCard title="הגדרות כלליות" description="פרטי עסק, פרטי הפרופיל הציבורי ואפשרויות קבלת תורים">
           <form onSubmit={handleSave} className="space-y-8">
-            <CollapsibleSection title="פרטים כלליים" description="שם העסק, בעלים, טלפון ואימייל">
+            <div className="space-y-4">
+              <h3 className="font-medium text-base border-b pb-2">פרטים כלליים</h3>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label>שם העסק</Label>
@@ -8824,9 +8825,10 @@ function SettingsTab({ isStaffMode = false }: { isStaffMode?: boolean }) {
                     The slug is still set at signup and can be changed
                     by SuperAdmin if truly needed. */}
               </div>
-            </CollapsibleSection>
+            </div>
 
-            <CollapsibleSection title="אישור תורים ואבטחה" description="דרישת אימות טלפון ואישור תורים ידני">
+            <div className="space-y-4">
+              <h3 className="font-medium text-base border-b pb-2">אישור תורים ואבטחה</h3>
               {isPro && (
                 <div className="flex items-center justify-between p-4 border rounded-xl bg-muted/30">
                   <div>
@@ -8865,9 +8867,10 @@ function SettingsTab({ isStaffMode = false }: { isStaffMode?: boolean }) {
                   />
                 </div>
               )}
-            </CollapsibleSection>
+            </div>
 
-            <CollapsibleSection title="שליחת SMS" description="שם השולח שלקוחות יראו בהודעות">
+            <div className="space-y-4">
+              <h3 className="font-medium text-base border-b pb-2">שליחת SMS</h3>
               <div className="space-y-2">
                 <Label>שם השולח ב-SMS</Label>
                 <Input
@@ -8886,9 +8889,10 @@ function SettingsTab({ isStaffMode = false }: { isStaffMode?: boolean }) {
                   <p>• לאישור שם חדש פנה/י לתמיכה של Inforu: <span dir="ltr" className="font-mono">support@inforu.co.il</span></p>
                 </div>
               </div>
-            </CollapsibleSection>
+            </div>
 
-            <CollapsibleSection title="פרטי העסק לעמוד הפרופיל" description="תיאור, כתובת, קישורים לרשתות חברתיות">
+            <div className="space-y-4">
+              <h3 className="font-medium text-base border-b pb-2">פרטי העסק לעמוד הפרופיל</h3>
               <p className="text-xs text-muted-foreground -mt-2">מה שלקוחות רואים בעמוד ההזמנות שלך — קטגוריה, תיאור, דרכי יצירת קשר, קישורים</p>
           {/* Categories */}
           <div className="space-y-2">
@@ -9000,10 +9004,11 @@ function SettingsTab({ isStaffMode = false }: { isStaffMode?: boolean }) {
             <p className="text-xs text-muted-foreground">אם ריק — ניווט יופעל אוטומטית לפי הכתובת שהוזנה</p>
             <Input dir="ltr" value={form.wazeUrl} onChange={e => setForm(p => ({ ...p, wazeUrl: e.target.value }))} placeholder="https://waze.com/ul/..." />
           </div>
-            </CollapsibleSection>
+            </div>
 
             {/* ── Business Receipt / Invoice Profile ── */}
-            <CollapsibleSection title="פרטי עסק לקבלות" description="ח.פ., שם חוקי וכתובת לחשבונית">
+            <div className="space-y-4">
+              <h3 className="font-medium text-base border-b pb-2">פרטי עסק לקבלות</h3>
               <p className="text-xs text-muted-foreground -mt-2">
                 פרטים אלה יודפסו על כל קבלה שתנפיק ללקוחות. חובה למלא ח.פ / ת.ז. ושם משפטי לפני הנפקת הקבלה הראשונה.
               </p>
@@ -9049,7 +9054,7 @@ function SettingsTab({ isStaffMode = false }: { isStaffMode?: boolean }) {
                   <p className="text-xs text-muted-foreground">הכתובת הרשומה במס הכנסה — לא בהכרח כתובת העסק הפיזית.</p>
                 </div>
               </div>
-            </CollapsibleSection>
+            </div>
 
           </form>
 
@@ -9840,22 +9845,20 @@ function CustomDomainCard() {
   }
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
+    <CollapsibleCard
+      title={
+        <span className="flex items-center gap-2">
           🌐 דומיין מותאם אישית
           {currentDomain && (
             isVerified
               ? <Badge className="bg-green-100 text-green-700 border-green-200">פעיל</Badge>
               : <Badge className="bg-amber-100 text-amber-700 border-amber-200">ממתין לאישור</Badge>
           )}
-        </CardTitle>
-        <CardDescription>
-          רוצה שעמוד ההזמנה יהיה על הדומיין שלך? לדוגמה <b dir="ltr">book.yoursalon.co.il</b> במקום <b dir="ltr">kavati.net/book/...</b>
-        </CardDescription>
-      </CardHeader>
-
-      <CardContent className="space-y-5">
+        </span>
+      }
+      description={<>רוצה שעמוד ההזמנה יהיה על הדומיין שלך? לדוגמה <b dir="ltr">book.yoursalon.co.il</b> במקום <b dir="ltr">kavati.net/book/...</b></>}
+    >
+      <div className="space-y-5">
         {/* Current value + save */}
         <div className="space-y-2">
           <Label>הדומיין שלך</Label>
@@ -9989,8 +9992,8 @@ function CustomDomainCard() {
         <p className="text-xs text-muted-foreground">
           🔒 אנחנו מפעילים אוטומטית תעודת HTTPS מאובטחת (SSL) — בלי עלות, תוך כמה דקות אחרי האישור.
         </p>
-      </CardContent>
-    </Card>
+      </div>
+    </CollapsibleCard>
   );
 }
 
@@ -10055,17 +10058,16 @@ function SubscriptionStatusCard() {
 
   return (
     <>
-      <Card className={isPro ? "border-blue-200" : "border-slate-200"}>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
+      <CollapsibleCard
+        title={
+          <span className="flex items-center gap-2">
             <Crown className={`w-5 h-5 ${isPro ? "text-blue-500" : "text-slate-400"}`} />
             סטטוס מנוי
-          </CardTitle>
-          <CardDescription>
-            {isPro ? "הגדרות חיוב חודשי אוטומטי" : "אתה במנוי חינמי — שדרג לפרו להסרת כל המגבלות"}
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
+          </span>
+        }
+        description={isPro ? "הגדרות חיוב חודשי אוטומטי" : "אתה במנוי חינמי — שדרג לפרו להסרת כל המגבלות"}
+      >
+        <div className="space-y-4">
           <div className={`flex items-center justify-between p-4 border rounded-xl ${isPro ? "bg-blue-50/50" : "bg-slate-50"}`}>
             <div className="space-y-1">
               <div className={`font-medium text-sm ${isPro ? "text-blue-800" : "text-slate-900"}`}>
@@ -10163,8 +10165,8 @@ function SubscriptionStatusCard() {
               💳 לא נשמר עדיין טוקן כרטיס אשראי. אחרי התשלום הראשון דרך ה-iframe יישמר טוקן אוטומטית.
             </div>
           ) : null}
-        </CardContent>
-      </Card>
+        </div>
+      </CollapsibleCard>
 
       <Dialog open={showConfirm} onOpenChange={setShowConfirm}>
         <DialogContent dir="rtl" className="max-w-sm">
