@@ -8892,9 +8892,14 @@ function SettingsTab({ isStaffMode = false }: { isStaffMode?: boolean }) {
                 />
                 <div className="text-xs text-muted-foreground space-y-1.5 leading-relaxed">
                   <p>• עד 11 תווים, אותיות באנגלית ומספרים בלבד (ללא רווחים, עברית, או תווים מיוחדים).</p>
-                  <p>• לא דרוש אימות נוסף — שם טקסטואלי עד 11 תווים ישלח עם החתימה שלך אוטומטית.</p>
-                  <p>• אם תשאיר/י ריק — ההודעות יישלחו תחת שם העסק הרגיל (אנגלית בלבד, ללא תווים מיוחדים).</p>
+                  <p>• <strong>חשוב:</strong> כדי שהשם שלך יופיע כשולח, Inforu צריכה לאשר אותו בצד שלהם (support@inforu.co.il). בלי אישור הם מחליפים אותו בברירת המחדל של החשבון.</p>
+                  <p>• אם תשאיר/י ריק — ההודעות ישלחו עם ה-slug של העסק שלך.</p>
                 </div>
+                {/* Live preview — hits /api/sms/balance which echoes back
+                    the resolved sender name AND which source won. Lets
+                    the owner see immediately what "from" label will go
+                    out before burning credits on a real send. */}
+                <SmsSenderPreview />
               </div>
           </CollapsibleCard>
 
@@ -10277,6 +10282,75 @@ function ProUpgradePrompt({ title, desc }: { title: string; desc: string }) {
 // SmsBulkCard — bulk SMS messaging for Pro / עסקי tiers
 // ─────────────────────────────────────────────────────────────────────────────
 //
+// ─── SMS sender preview ───────────────────────────────────────────────────
+// Fetches /api/sms/balance to get the backend-resolved sender name + source.
+// Used from the Settings → שליחת SMS card so the owner can see right there
+// which "from" label WILL go out on their next broadcast, before they spend
+// credits testing. When the source is `hard_fallback_kavati` the recipient
+// would see "Kavati" — which is the signal that either smsSenderName is
+// empty AND the slug got cleaned to nothing, OR (most common) the Inforu
+// account hasn't approved the asked-for sender and is silently substituting.
+function SmsSenderPreview() {
+  const [state, setState] = useState<{ sender: string; source: string } | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const token = typeof window !== "undefined"
+      ? (localStorage.getItem("biz_token") ?? sessionStorage.getItem("biz_token") ?? "")
+      : "";
+    if (!token) { setLoading(false); return; }
+    let alive = true;
+    (async () => {
+      try {
+        const res = await fetch("/api/sms/balance", { headers: { Authorization: `Bearer ${token}` } });
+        if (!res.ok) { if (alive) setLoading(false); return; }
+        const data = await res.json().catch(() => ({}));
+        if (!alive) return;
+        if (data?.resolvedSender) {
+          setState({
+            sender: String(data.resolvedSender),
+            source: String(data.senderSource ?? "unknown"),
+          });
+        }
+      } catch {}
+      finally { if (alive) setLoading(false); }
+    })();
+    return () => { alive = false; };
+  }, []);
+
+  if (loading) return null;
+  if (!state) return null;
+
+  const sourceLabel = (() => {
+    switch (state.source) {
+      case "sms_sender_name":      return "שם שהגדרת ידנית";
+      case "slug":                 return "slug של העסק";
+      case "env_default":          return "ברירת מחדל של המערכת";
+      case "hard_fallback_kavati": return "fallback (Kavati)";
+      default:                     return state.source;
+    }
+  })();
+
+  const isFallback = state.source === "hard_fallback_kavati";
+
+  return (
+    <div className={`mt-3 p-3 rounded-lg border text-xs ${isFallback ? "bg-amber-50 border-amber-200" : "bg-slate-50 border-slate-200"}`}>
+      <div className="flex items-center justify-between">
+        <span className="text-muted-foreground">שם השולח שישלח:</span>
+        <code className="text-sm font-semibold" dir="ltr">{state.sender}</code>
+      </div>
+      <div className="mt-1 text-[11px] text-muted-foreground">
+        מקור: {sourceLabel}
+      </div>
+      {isFallback && (
+        <p className="mt-2 text-[11px] text-amber-800 leading-relaxed">
+          שים לב: אם הלקוחות רואים "Kavati" במקום השם שלך — זה כי Inforu לא אישרה את השם המבוקש בצד שלהם. שלח אימייל ל-support@inforu.co.il בבקשה לאישור השם.
+        </p>
+      )}
+    </div>
+  );
+}
+
 // Three states, depending on the owner's plan:
 //   1. Free   → locked card with upgrade CTA
 //   2. Pro    → 100/month included, show balance + compose + purchase

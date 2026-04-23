@@ -91,6 +91,12 @@ router.get("/sms/balance", async (req, res): Promise<void> => {
   if (!biz) { res.status(404).json({ error: "Business not found" }); return; }
 
   const snapshot = await getQuotaSnapshot(businessId);
+  // Echo back the resolved sender so the owner can see in the UI what
+  // "from" label will actually go out — before burning credits on a
+  // test broadcast. If this comes back as "Kavati" that's the hard
+  // fallback (=all prior sources cleaned to empty strings) and tells
+  // the owner they need to either set an smsSenderName in Settings or
+  // have their desired sender approved with Inforu support.
   res.json({
     plan: biz.subscriptionPlan,
     allowed: isBulkSmsAllowed(biz.subscriptionPlan),
@@ -100,6 +106,15 @@ router.get("/sms/balance", async (req, res): Promise<void> => {
     extraBalance:    snapshot.extraBalance,
     totalAvailable:  snapshot.totalAvailable,
     resetDate:       snapshot.resetDate?.toISOString() ?? null,
+    resolvedSender:  resolveSenderName(biz),
+    senderSource: (() => {
+      const clean = (s: string | null | undefined) =>
+        (s ?? "").replace(/[^A-Za-z0-9]/g, "").slice(0, 11);
+      if (clean((biz as any).smsSenderName)) return "sms_sender_name";
+      if (clean((biz as any).slug))          return "slug";
+      if (clean(process.env.INFORU_SENDER_NAME)) return "env_default";
+      return "hard_fallback_kavati";
+    })(),
   });
 });
 

@@ -251,6 +251,22 @@ export async function sendSms(opts: SendSmsOptions): Promise<InforuSendResult> {
       }, "[inforu] send verbose-dump");
     }
 
+    // Always emit a compact info log showing what sender WE asked for
+    // vs what Inforu echoed back. When a sender isn't pre-approved on
+    // the Inforu account, they silently substitute the account's
+    // default ("Kavati" for our account) — making the recipient see
+    // "Kavati" instead of our asked-for sender. This one-liner makes
+    // that substitution visible in Railway logs without needing to
+    // flip INFORU_DEBUG_LOG.
+    logger.info({
+      senderRequested: safeSender,
+      senderEcho:      json?.Data?.Settings?.Sender ?? json?.Settings?.Sender ?? null,
+      recipients:      dedup.length,
+      httpStatus:      res.status,
+      inforuStatus:    json?.StatusId ?? json?.Status ?? null,
+      inforuStatusText: json?.StatusDescription ?? json?.DetailedDescription ?? null,
+    }, "[inforu] send");
+
     // Per the docs, the success envelope is:
     //   { StatusId: 1, StatusDescription: "Success", DetailedDescription: "",
     //     FunctionName: "...", RequestId: "...", Data: { Recipients, Errors } }
