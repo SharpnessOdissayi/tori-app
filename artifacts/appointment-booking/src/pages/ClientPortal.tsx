@@ -5,7 +5,24 @@ import { useToast } from "@/hooks/use-toast";
 import { useWebOtp } from "@/lib/useWebOtp";
 
 const API = import.meta.env.VITE_API_BASE_URL ?? "/api";
-const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID ?? "";
+// Resolve the Google Client ID defensively. A UTF-8 BOM at the start of
+// .env.local (common when the file is saved from Windows editors) prefixes
+// the env key name with U+FEFF, so `import.meta.env.VITE_GOOGLE_CLIENT_ID`
+// silently returns undefined and the Google button disappears from the
+// client portal login screen. Walk every env key and match by suffix so
+// the lookup survives a hidden BOM character.
+const GOOGLE_CLIENT_ID = (() => {
+  const env = (import.meta as any).env ?? {};
+  for (const [key, val] of Object.entries(env)) {
+    if (typeof val !== "string") continue;
+    const trimmed = val.trim();
+    if (!trimmed) continue;
+    if (key === "VITE_GOOGLE_CLIENT_ID" || key.endsWith("\uFEFFVITE_GOOGLE_CLIENT_ID")) {
+      return trimmed;
+    }
+  }
+  return "";
+})();
 const FACEBOOK_APP_ID = import.meta.env.VITE_FACEBOOK_APP_ID ?? "";
 const TOKEN_KEY = "kavati_client_token";
 
