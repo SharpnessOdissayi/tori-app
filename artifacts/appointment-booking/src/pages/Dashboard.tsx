@@ -8881,9 +8881,9 @@ function SettingsTab({ isStaffMode = false }: { isStaffMode?: boolean }) {
                 />
                 <div className="text-xs text-muted-foreground space-y-1.5 leading-relaxed">
                   <p>• עד 11 תווים, אותיות באנגלית ומספרים בלבד (ללא רווחים, עברית, או תווים מיוחדים).</p>
-                  <p>• השם חייב להיות <strong>מאושר מראש אצל Inforu</strong>. שליחת שם לא מאושר תיכשל אצל חברות הסלולר.</p>
-                  <p>• אם תשאיר/י ריק — ההודעות יישלחו תחת שם העסק הרגיל.</p>
-                  <p>• לאישור שם חדש פנה/י לתמיכה של Inforu: <span dir="ltr" className="font-mono">support@inforu.co.il</span></p>
+                  <p>• לא דרוש אימות נוסף — שם טקסטואלי עד 11 תווים ישלח עם החתימה שלך אוטומטית.</p>
+                  <p>• אם תשאיר/י ריק — ההודעות יישלחו תחת שם העסק הרגיל (אנגלית בלבד, ללא תווים מיוחדים).</p>
+                  <p>• דוגמאות טובות: <span dir="ltr" className="font-mono">LilashByGal</span>, <span dir="ltr" className="font-mono">Hair4U</span>, <span dir="ltr" className="font-mono">Nails123</span>.</p>
                 </div>
               </div>
           </CollapsibleCard>
