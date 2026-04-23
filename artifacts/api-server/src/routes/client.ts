@@ -120,7 +120,16 @@ router.post("/client/verify-otp", async (req, res): Promise<void> => {
   const { phone, code } = req.body;
   if (!phone || !code) { res.status(400).json({ error: "שדות חסרים" }); return; }
 
-  const ok = await verifyOtp(phone.trim(), String(code), "client_login");
+  // sendOtp stored the code keyed by the NORMALISED phone (sendOtp is
+  // called with v.normalized in the matching /client/send-otp handler).
+  // Without normalising here too, every verify failed with "קוד שגוי"
+  // because "0523327327" and "972523327327" are different map keys.
+  // Same bug and same fix as /public/:slug/otp/verify.
+  const { validateIsraeliMobile } = await import("../lib/phone");
+  const v = validateIsraeliMobile(String(phone));
+  const lookupPhone = v.ok ? v.normalized : String(phone).trim();
+
+  const ok = await verifyOtp(lookupPhone, String(code), "client_login");
   if (!ok) { res.status(400).json({ error: "קוד שגוי או פג תוקף" }); return; }
 
   // Carry-forward from the most recent session for this same phone — the
@@ -133,14 +142,14 @@ router.post("/client/verify-otp", async (req, res): Promise<void> => {
   // carrier gave this phone to a new owner, they can't complete the OTP
   // without being in physical possession of the SIM, so we only ever
   // carry-forward to callers who just proved receipt of a fresh code.
-  const prior = await findPriorSession({ phoneNumber: phone.trim() });
+  const prior = await findPriorSession({ phoneNumber: lookupPhone });
 
   const token = randomUUID();
   const expiresAt = new Date(Date.now() + SESSION_DAYS * 24 * 60 * 60 * 1000);
 
   await db.insert(clientSessionsTable).values({
     token,
-    phoneNumber: phone.trim(),
+    phoneNumber: lookupPhone,
     clientName:           prior?.clientName ?? "",
     email:                prior?.email ?? undefined,
     receiveNotifications: prior?.receiveNotifications ?? true,
@@ -151,7 +160,7 @@ router.post("/client/verify-otp", async (req, res): Promise<void> => {
   res.json({
     token,
     clientName: prior?.clientName ?? "",
-    phone: phone.trim(),
+    phone: lookupPhone,
     email: prior?.email ?? null,
   });
 });
