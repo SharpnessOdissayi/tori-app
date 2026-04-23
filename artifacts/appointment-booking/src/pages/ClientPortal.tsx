@@ -1034,7 +1034,7 @@ export default function ClientPortal() {
                 <input
                   value={profileName}
                   onChange={e => setProfileName(e.target.value)}
-                  placeholder="לדוגמה: לילך שרה כהן"
+                  placeholder=""
                   className="w-full rounded-xl border border-gray-200 px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
               </div>
