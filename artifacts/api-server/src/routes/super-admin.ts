@@ -114,12 +114,9 @@ router.post("/super-admin/businesses", async (req, res): Promise<void> => {
   const passwordHash = await bcrypt.hash(password, 10);
 
   // Paid tiers share the "unlimited" caps; only Free gets hard limits.
-  // עסקי (pro-plus) → 20/month bulk-SMS quota (per owner 2026-04 pricing
-  // recalibration — used to be 300 but the real usage pattern was a
-  // small fraction of that). Pro gets 100. Free has 0 and the bulk-SMS
-  // routes refuse to send anyway.
+  // עסקי (pro-plus) → 300/month bulk-SMS quota. Pro → 100. Free → 0.
   const isPaid = plan !== "free";
-  const smsMonthlyQuota = plan === "pro-plus" ? 20 : plan === "pro" ? 100 : 0;
+  const smsMonthlyQuota = plan === "pro-plus" ? 300 : plan === "pro" ? 100 : 0;
 
   const [business] = await db
     .insert(businessesTable)
@@ -182,7 +179,7 @@ router.patch("/super-admin/businesses/:id", async (req, res): Promise<void> => {
     // reset. Downgrades keep the overage usable for the rest of the
     // cycle (standard: don't claw back mid-period).
     if (bodyParsed.data.subscriptionPlan === "pro-plus") {
-      (updates as any).smsMonthlyQuota = 20;
+      (updates as any).smsMonthlyQuota = 300;
     } else if (bodyParsed.data.subscriptionPlan === "pro") {
       (updates as any).smsMonthlyQuota = 100;
     } else if (bodyParsed.data.subscriptionPlan === "free") {
@@ -369,6 +366,49 @@ router.post("/super-admin/businesses/:id/cancel-subscription", async (req, res):
 //                                          (call AFTER adding domain to Railway)
 // POST /super-admin/domains/:id/unverify — flip back to false (e.g. domain
 //                                          removed from Railway / CNAME changed)
+
+// Super-admin SMS credit topup. Adds N credits to sms_extra_balance
+// for a given business. Used both for manual refunds (customer paid
+// for a pack but the Tranzila webhook got rejected, so the credits
+// never landed) and for comping SMS to individual customers.
+//
+// Body: { amount: number }  — positive integer, clamped to 5000/request
+// Response: { success, previousExtra, newExtra }
+router.post("/super-admin/businesses/:id/add-sms-credits", async (req, res): Promise<void> => {
+  const id = Number(req.params.id);
+  if (!id || isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
+  const raw = Number(req.body?.amount);
+  if (!Number.isFinite(raw) || raw <= 0) {
+    res.status(400).json({ error: "amount must be a positive number" });
+    return;
+  }
+  const amount = Math.min(5000, Math.floor(raw));
+
+  const [before] = await db
+    .select({ extra: (businessesTable as any).smsExtraBalance })
+    .from(businessesTable)
+    .where(eq(businessesTable.id, id));
+  if (!before) { res.status(404).json({ error: "Business not found" }); return; }
+
+  // Atomic increment — use SQL so two concurrent topups don't clobber each other.
+  await db.execute(sql`
+    UPDATE businesses
+    SET sms_extra_balance = COALESCE(sms_extra_balance, 0) + ${amount}
+    WHERE id = ${id}
+  `);
+
+  const [after] = await db
+    .select({ extra: (businessesTable as any).smsExtraBalance })
+    .from(businessesTable)
+    .where(eq(businessesTable.id, id));
+
+  res.json({
+    success: true,
+    previousExtra: before.extra ?? 0,
+    newExtra: after?.extra ?? 0,
+    added: amount,
+  });
+});
 
 router.get("/super-admin/domains", async (_req, res): Promise<void> => {
   const rows = await db

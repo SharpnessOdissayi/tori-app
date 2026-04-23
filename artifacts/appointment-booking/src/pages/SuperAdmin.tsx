@@ -61,6 +61,12 @@ export default function SuperAdmin() {
   const [editForm, setEditForm] = useState<EditFormData>({ name: "", slug: "", username: "", ownerName: "", email: "", password: "", phone: "", address: "", city: "", websiteUrl: "", instagramHandle: "", businessDescription: "", subscriptionPlan: "free" });
   const [showEditPassword, setShowEditPassword] = useState(false);
   const [grantProBusiness, setGrantProBusiness] = useState<AdminBusinessSummary | null>(null);
+  // SMS credit top-up — super-admin can add N credits to any business's
+  // sms_extra_balance. Used for manual refunds (Tranzila webhook rejected)
+  // or to comp credits to VIP customers.
+  const [smsTopupBusiness, setSmsTopupBusiness] = useState<AdminBusinessSummary | null>(null);
+  const [smsTopupAmount, setSmsTopupAmount] = useState<number>(100);
+  const [smsTopupLoading, setSmsTopupLoading] = useState(false);
   // Free-text number of days; null = unlimited. Admin types any value (1 day,
   // 42 days, 800 days — whatever). Previous fixed presets were replaced per
   // owner's request ('instead of week/month/year, let me type how many days').
@@ -268,6 +274,31 @@ export default function SuperAdmin() {
       toast({ title: "שגיאה", description: err.message, variant: "destructive" });
     } finally {
       setGrantProLoading(false);
+    }
+  };
+
+  const handleSmsTopup = async () => {
+    if (!smsTopupBusiness || !smsTopupAmount || smsTopupAmount <= 0) return;
+    setSmsTopupLoading(true);
+    try {
+      const res = await fetch(`/api/super-admin/businesses/${smsTopupBusiness.id}/add-sms-credits?adminPassword=${encodeURIComponent(password)}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ amount: smsTopupAmount }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "שגיאה");
+      toast({
+        title: `נוספו ${data.added} SMS ל-${smsTopupBusiness.name}`,
+        description: `יתרה: ${data.previousExtra} → ${data.newExtra}`,
+      });
+      setSmsTopupBusiness(null);
+      setSmsTopupAmount(100);
+      invalidate();
+    } catch (err: any) {
+      toast({ title: "שגיאה בטעינת SMS", description: err.message, variant: "destructive" });
+    } finally {
+      setSmsTopupLoading(false);
     }
   };
 
@@ -492,6 +523,7 @@ export default function SuperAdmin() {
                   onGrantPro={() => { setGrantProBusiness(b); setGrantProDays(30); }}
                   onRevokePro={() => handleRevokePro(b)}
                   onCancelSubscription={() => handleCancelSubscription(b)}
+                  onAddSmsCredits={() => { setSmsTopupBusiness(b); setSmsTopupAmount(100); }}
                   isPending={updateMutation.isPending || deleteMutation.isPending}
                 />
               )) : (
@@ -724,6 +756,51 @@ export default function SuperAdmin() {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* SMS credit top-up dialog. Adds N credits to sms_extra_balance.
+          Used for manual refunds when Tranzila webhook gets rejected,
+          or to comp SMS to VIP customers. */}
+      <Dialog open={!!smsTopupBusiness} onOpenChange={v => { if (!v) setSmsTopupBusiness(null); }}>
+        <DialogContent dir="rtl" className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>טעינת הודעות SMS — {smsTopupBusiness?.name}</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 pt-2">
+            <div className="space-y-2">
+              <Label>כמות הודעות להוספה</Label>
+              <Input
+                type="number"
+                min={1}
+                max={5000}
+                value={smsTopupAmount}
+                onChange={(e) => setSmsTopupAmount(Math.max(1, Math.min(5000, Number(e.target.value) || 0)))}
+                placeholder="100"
+                autoFocus
+              />
+              <p className="text-xs text-muted-foreground">
+                ההודעות יצטברו ליתרה הנוספת (sms_extra_balance). אלה משמשות אחרי שהמכסה החודשית נגמרת ולא פגות תוקף.
+              </p>
+            </div>
+            {/* Quick-pick shortcuts — match the current SMS pack sizes. */}
+            <div className="flex gap-2 flex-wrap">
+              {[50, 100, 250, 500, 1000].map(n => (
+                <button
+                  key={n}
+                  type="button"
+                  onClick={() => setSmsTopupAmount(n)}
+                  className={`px-3 py-1 rounded-md text-xs border transition-colors ${smsTopupAmount === n ? "bg-emerald-500 text-white border-emerald-600" : "bg-white text-foreground border-border hover:bg-emerald-50"}`}
+                >
+                  {n}
+                </button>
+              ))}
+            </div>
+            <Button className="w-full bg-emerald-600 hover:bg-emerald-700 text-white"
+              onClick={handleSmsTopup} disabled={smsTopupLoading || smsTopupAmount <= 0}>
+              {smsTopupLoading ? "טוען..." : `הוסף ${smsTopupAmount} SMS`}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
@@ -741,10 +818,11 @@ interface BusinessCardProps {
   onGrantPro: () => void;
   onRevokePro: () => void;
   onCancelSubscription: () => void;
+  onAddSmsCredits: () => void;
   isPending: boolean;
 }
 
-function BusinessCard({ business, onToggleActive, onChangePlan, onDelete, onEdit, onGrantPro, onRevokePro, onCancelSubscription, isPending }: BusinessCardProps) {
+function BusinessCard({ business, onToggleActive, onChangePlan, onDelete, onEdit, onGrantPro, onRevokePro, onCancelSubscription, onAddSmsCredits, isPending }: BusinessCardProps) {
   const plan = PLANS.find(p => p.value === business.subscriptionPlan) ?? PLANS[0];
   const renewDate = business.subscriptionRenewDate ? new Date(business.subscriptionRenewDate) : null;
   const isCancelled = !!business.subscriptionCancelledAt;
@@ -843,6 +921,13 @@ function BusinessCard({ business, onToggleActive, onChangePlan, onDelete, onEdit
             </Button>
           )}
         </div>
+        {/* SMS top-up — always visible (useful both to comp credits to
+            paid customers and to fix the "Tranzila webhook rejected,
+            pack never landed" edge case). */}
+        <Button size="sm" variant="outline" className="w-full text-xs border-emerald-300 text-emerald-700 hover:bg-emerald-50 mt-1"
+          onClick={onAddSmsCredits}>
+          📨 הוסף הודעות SMS
+        </Button>
       </CardContent>
     </Card>
   );

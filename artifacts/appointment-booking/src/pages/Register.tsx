@@ -162,7 +162,7 @@ function StepPlan({ onNext }: { onNext: (plan: Plan) => void }) {
         </button>
 
         {/* עסקי Plan — the team tier. Flagship blue = Kavati brand color.
-            Multi-staff (2 included, +₪25/extra up to 5 total) + 20 SMS +
+            Multi-staff (2 included, +₪25/extra up to 5 total) + 300 SMS +
             advanced analytics. */}
         <button
           onClick={() => onNext("pro-plus")}
@@ -236,7 +236,7 @@ function StepPlan({ onNext }: { onNext: (plan: Plan) => void }) {
             <p className="text-xs text-blue-700 -mt-2 mb-2">כל מה שבפרו, ובנוסף:</p>
             <ul className="space-y-2 text-sm text-blue-900">
               <li className="flex items-start gap-2"><CheckCircle className="w-4 h-4 text-green-500 shrink-0 mt-0.5" /> 2 יומנים לעובדים (+₪25 לכל נוסף, עד 5)</li>
-              <li className="flex items-start gap-2"><CheckCircle className="w-4 h-4 text-green-500 shrink-0 mt-0.5" /> 20 SMS תפוצה בחודש</li>
+              <li className="flex items-start gap-2"><CheckCircle className="w-4 h-4 text-green-500 shrink-0 mt-0.5" /> 300 SMS תפוצה בחודש</li>
               <li className="flex items-start gap-2"><CheckCircle className="w-4 h-4 text-green-500 shrink-0 mt-0.5" /> אנליטיקה מתקדמת — LTV, נאמנות, תחזית</li>
               <li className="flex items-start gap-2"><CheckCircle className="w-4 h-4 text-green-500 shrink-0 mt-0.5" /> ייצוא נתונים לאקסל / CSV</li>
             </ul>

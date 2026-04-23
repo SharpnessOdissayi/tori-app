@@ -196,28 +196,23 @@ router.post("/sms/send-bulk", async (req, res): Promise<void> => {
     return;
   }
 
-  // Compose the SMS body. Per owner: recipient already sees the
-  // business name as the SMS sender (Inforu sender-id at the top of
-  // the phone's SMS app), so repeating the full business name inside
-  // the body was a double-label. Use the owner's FIRST name inside
-  // the body instead — personal, short, doesn't burn characters. If
-  // no first name is stored, fall back to the first whitespace-
-  // delimited token of ownerName; if that's also empty, drop the
-  // label line altogether rather than echoing the business name.
-  const ownerMessage  = (messageRaw as string).trim();
-  const ownerFirstRaw = String((biz as any).ownerFirstName ?? "").trim();
-  const ownerFirst = ownerFirstRaw || String(biz.ownerName ?? "").trim().split(/\s+/)[0] || "";
+  // Compose the SMS body. Per owner: the SMS sender-id (smsSenderName
+  // in Settings, shown as the "from" label at the TOP of the recipient's
+  // SMS app) is the ONLY place the business identity should appear.
+  // The body itself is just the owner's message + the unsubscribe footer
+  // — NO prefix, NO business name, NO owner first name. Repeating the
+  // label inside the body was pure noise and burned SMS character budget.
+  const ownerMessage = (messageRaw as string).trim();
   const host = (process.env.KAVATI_HOST ?? "www.kavati.net").replace(/^https?:\/\//, "").replace(/\/$/, "");
   // Bulk-allocate one token per recipient in a single INSERT so we don't
   // do N round trips before the first SMS even goes out.
   const tokens = await allocateUnsubscribeTokensBulk(businessId, recipients);
   const composeMessage = (recipientPhone: string, token: string): string =>
     [
-      ownerFirst ? `${ownerFirst}:` : null,
       ownerMessage,
       "",
       `להסרה לחצי כאן: https://${host}/api/u/${token}`,
-    ].filter(Boolean).join("\n");
+    ].join("\n");
 
   // ─── Reserve quota BEFORE calling Inforu ────────────────────────────────
   const count = recipients.length;

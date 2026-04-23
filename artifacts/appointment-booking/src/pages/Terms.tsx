@@ -68,7 +68,7 @@ export default function Terms() {
               <ul className="list-disc list-inside space-y-1 text-muted-foreground mb-3">
                 <li><strong>חינמי</strong> — עד 3 שירותים, 20 תורים לחודש, ללא אינטגרציית WhatsApp.</li>
                 <li><strong>פרו</strong> — ₪100/חודש. שירותים + לקוחות ללא הגבלה, WhatsApp מלא, 100 SMS תפוצה בחודש.</li>
-                <li><strong>עסקי</strong> — ₪150/חודש. כל מה שבפרו + עד 2 עובדים (תוספת ₪25 לעובד נוסף, עד 5 סה"כ), 20 SMS תפוצה בחודש, אנליטיקה מתקדמת.</li>
+                <li><strong>עסקי</strong> — ₪150/חודש. כל מה שבפרו + עד 2 עובדים (תוספת ₪25 לעובד נוסף, עד 5 סה"כ), 300 SMS תפוצה בחודש, אנליטיקה מתקדמת.</li>
               </ul>
               <p className="mb-2">
                 חשבונות חדשים מקבלים <strong>14 ימי ניסיון פרו חינם</strong> — ללא חיוב
