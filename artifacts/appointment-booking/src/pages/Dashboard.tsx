@@ -8451,6 +8451,43 @@ function ReceiptsTab() {
   );
 }
 
+// Top-level collapsible Card wrapper — same idea as CollapsibleSection
+// but renders a full <Card> with the standard header styling. Used to
+// wrap the entire Settings tab so EVERY card can be collapsed, not just
+// subsections inside the main form.
+function CollapsibleCard({
+  title,
+  description,
+  defaultOpen = false,
+  children,
+}: {
+  title: string;
+  description?: string;
+  defaultOpen?: boolean;
+  children: React.ReactNode;
+}) {
+  const [open, setOpen] = useState(defaultOpen);
+  return (
+    <Card>
+      <CardHeader>
+        <button
+          type="button"
+          onClick={() => setOpen((v) => !v)}
+          aria-expanded={open}
+          className="w-full flex items-center justify-between gap-2 text-right hover:opacity-80 transition-opacity"
+        >
+          <div className="flex-1 min-w-0 space-y-1">
+            <CardTitle>{title}</CardTitle>
+            {description && <CardDescription>{description}</CardDescription>}
+          </div>
+          <ChevronLeft className={`w-4 h-4 shrink-0 text-muted-foreground transition-transform ${open ? "-rotate-90" : ""}`} />
+        </button>
+      </CardHeader>
+      {open && <CardContent>{children}</CardContent>}
+    </Card>
+  );
+}
+
 // Small reusable accordion-section helper. The owner's Settings tab has
 // so many controls that a wall of scrolling is overwhelming. Wrapping
 // each logical block in this component makes the page scannable —
@@ -8529,6 +8566,9 @@ function SettingsTab({ isStaffMode = false }: { isStaffMode?: boolean }) {
     invoiceAddress: "",
     // URL slug
     slug: "",
+    // Inforu SMS sender name override (11 chars, alphanumeric, must be
+    // pre-registered with Inforu). Null/empty → fall back to biz.name.
+    smsSenderName: "",
   });
   const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
   const [categorySearch, setCategorySearch] = useState("");
@@ -8585,6 +8625,7 @@ function SettingsTab({ isStaffMode = false }: { isStaffMode?: boolean }) {
         businessLegalName: (profile as any).businessLegalName ?? "",
         invoiceAddress: (profile as any).invoiceAddress ?? "",
         slug: profile.slug ?? "",
+        smsSenderName: (profile as any).smsSenderName ?? "",
       };
       setForm(next);
       baselineFormRef.current = next;
@@ -8653,6 +8694,9 @@ function SettingsTab({ isStaffMode = false }: { isStaffMode?: boolean }) {
         businessLegalType: form.businessLegalType || null,
         businessLegalName: form.businessLegalName || null,
         invoiceAddress: form.invoiceAddress || null,
+        // Inforu SMS sender override (trimmed, alphanumeric-only, ≤11).
+        // Empty → null, server falls back to biz name at send time.
+        smsSenderName: (form.smsSenderName || "").replace(/[^A-Za-z0-9]/g, "").slice(0, 11) || null,
         // URL slug — only send if the owner actually changed it
         ...(form.slug && form.slug !== profile?.slug ? { slug: form.slug } : {}),
       } as any
@@ -8692,13 +8736,9 @@ function SettingsTab({ isStaffMode = false }: { isStaffMode?: boolean }) {
           the moment they log in. Settings stays focused on editable
           business details. */}
 
-      {/* General settings card — merged with business profile and password change */}
-      <Card>
-        <CardHeader>
-          <CardTitle>הגדרות כלליות</CardTitle>
-          <CardDescription>פרטי עסק, פרטי הפרופיל הציבורי ואפשרויות קבלת תורים</CardDescription>
-        </CardHeader>
-        <CardContent>
+      {/* General settings — now rendered as a CollapsibleCard so the tab
+          stays compact. Sub-sections inside also collapse individually. */}
+      <CollapsibleCard title="הגדרות כלליות" description="פרטי עסק, פרטי הפרופיל הציבורי ואפשרויות קבלת תורים">
           <form onSubmit={handleSave} className="space-y-8">
             <CollapsibleSection title="פרטים כלליים" description="שם העסק, בעלים, טלפון ואימייל">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -8825,6 +8865,27 @@ function SettingsTab({ isStaffMode = false }: { isStaffMode?: boolean }) {
                   />
                 </div>
               )}
+            </CollapsibleSection>
+
+            <CollapsibleSection title="שליחת SMS" description="שם השולח שלקוחות יראו בהודעות">
+              <div className="space-y-2">
+                <Label>שם השולח ב-SMS</Label>
+                <Input
+                  type="text"
+                  dir="ltr"
+                  value={form.smsSenderName}
+                  onChange={e => setForm(p => ({ ...p, smsSenderName: e.target.value.replace(/[^A-Za-z0-9]/g, "").slice(0, 11) }))}
+                  placeholder="BeautySalon"
+                  maxLength={11}
+                  className="text-left"
+                />
+                <div className="text-xs text-muted-foreground space-y-1.5 leading-relaxed">
+                  <p>• עד 11 תווים, אותיות באנגלית ומספרים בלבד (ללא רווחים, עברית, או תווים מיוחדים).</p>
+                  <p>• השם חייב להיות <strong>מאושר מראש אצל Inforu</strong>. שליחת שם לא מאושר תיכשל אצל חברות הסלולר.</p>
+                  <p>• אם תשאיר/י ריק — ההודעות יישלחו תחת שם העסק הרגיל.</p>
+                  <p>• לאישור שם חדש פנה/י לתמיכה של Inforu: <span dir="ltr" className="font-mono">support@inforu.co.il</span></p>
+                </div>
+              </div>
             </CollapsibleSection>
 
             <CollapsibleSection title="פרטי העסק לעמוד הפרופיל" description="תיאור, כתובת, קישורים לרשתות חברתיות">
@@ -8999,8 +9060,7 @@ function SettingsTab({ isStaffMode = false }: { isStaffMode?: boolean }) {
               backend endpoint as a no-op path for now; a future cleanup
               can remove it entirely once we're sure nothing is calling
               it (e.g., the first-login forced-change flow for staff). */}
-        </CardContent>
-      </Card>
+      </CollapsibleCard>
 
       {/* Booking restrictions moved to the Services tab. */}
 
@@ -9014,27 +9074,19 @@ function SettingsTab({ isStaffMode = false }: { isStaffMode?: boolean }) {
           listens to — flips showTour back on and clears the "seen" flag
           so a return visit starts fresh. Separate card so the link is
           easy to find without hunting through submenus. */}
-      <Card>
-        <CardHeader>
-          <CardTitle>סיור במערכת</CardTitle>
-          <CardDescription>
-            רוצה להיזכר איך עובדים עם קבעתי? פתחנו לך סיור קצר על כל הפיצ'רים — יומן, לקוחות, קבלות, סידור עבודה ועוד.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <Button
-            type="button"
-            variant="outline"
-            onClick={() => {
-              try { localStorage.removeItem("kavati_tour_seen"); } catch {}
-              window.dispatchEvent(new CustomEvent("kavati:restart-tour"));
-              toast({ title: "מתחיל סיור...", description: "תעקוב אחרי הבועה בפינה השמאלית" });
-            }}
-          >
-            🚀 התחל סיור במערכת
-          </Button>
-        </CardContent>
-      </Card>
+      <CollapsibleCard title="סיור במערכת" description="סיור קצר על יומן, לקוחות, קבלות, סידור עבודה ועוד">
+        <Button
+          type="button"
+          variant="outline"
+          onClick={() => {
+            try { localStorage.removeItem("kavati_tour_seen"); } catch {}
+            window.dispatchEvent(new CustomEvent("kavati:restart-tour"));
+            toast({ title: "מתחיל סיור...", description: "תעקוב אחרי הבועה בפינה השמאלית" });
+          }}
+        >
+          🚀 התחל סיור במערכת
+        </Button>
+      </CollapsibleCard>
 
       {/* Push notifications — per-kind opt-in. Only shows a real value
           inside the Capacitor native app; on the web the checkboxes are
@@ -9401,7 +9453,7 @@ function PushPrefsCard({ isStaffMode = false }: { isStaffMode?: boolean }) {
     // owner had no feedback at all.
     const outerTimeout = setTimeout(() => {
       refreshStatus();
-      refreshDebug();
+      /* refreshDebug removed — diagnostic strip not shown in UI */
       setRetrying(false);
       toast({ title: "רישום נתקע — בדוק 'שלב אחרון'", variant: "destructive" });
     }, 25000);
@@ -9416,7 +9468,7 @@ function PushPrefsCard({ isStaffMode = false }: { isStaffMode?: boolean }) {
       await new Promise(r => setTimeout(r, 3000));
       clearTimeout(outerTimeout);
       await refreshStatus();
-      refreshDebug();
+      /* refreshDebug removed — diagnostic strip not shown in UI */
       toast({ title: "ניסיון רישום הושלם", description: "בדוק למטה את הסטטוס" });
     } catch (err: any) {
       clearTimeout(outerTimeout);
@@ -9502,58 +9554,11 @@ function PushPrefsCard({ isStaffMode = false }: { isStaffMode?: boolean }) {
   };
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>התראות פוש לאפליקציה</CardTitle>
-        <CardDescription>
-          בחר על אילו אירועים לקבל התראה דחופה לטלפון. ההגדרה נשמרת גם אם עדיין לא התקנת את האפליקציה.
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-3">
-        {/* Diagnostic strip — tells the owner at a glance where the push
-            pipeline is stuck. Shown on every device, including web (where
-            registration isn't possible — the strip then explains that). */}
-        <div className="rounded-lg border bg-muted/30 p-3 text-xs space-y-1">
-          <div className="flex justify-between">
-            <span className="text-muted-foreground">פלטפורמה:</span>
-            <span className="font-medium">{isNativeCapacitor ? "אפליקציה (Capacitor)" : "דפדפן"}</span>
-          </div>
-          <div className="flex justify-between">
-            <span className="text-muted-foreground">Firebase מוגדר בשרת:</span>
-            <span className={`font-medium ${status?.firebaseConfigured ? "text-green-600" : "text-red-600"}`}>
-              {status?.firebaseConfigured ? "כן ✓" : "לא ✗"}
-            </span>
-          </div>
-          <div className="flex justify-between">
-            <span className="text-muted-foreground">מכשירים רשומים:</span>
-            <span className={`font-medium ${(status?.tokensCount ?? 0) > 0 ? "text-green-600" : "text-red-600"}`}>
-              {status?.tokensCount ?? 0}
-            </span>
-          </div>
-          {status?.tokens && status.tokens.length > 0 && (
-            <div className="pt-1 border-t border-border/50 mt-1">
-              <div className="text-muted-foreground mb-0.5">טוקנים:</div>
-              {status.tokens.map((t, i) => (
-                <div key={i} className="font-mono text-[10px] text-muted-foreground">
-                  …{t.tail} · {t.platform}
-                </div>
-              ))}
-            </div>
-          )}
-          <div className="flex gap-2 pt-2 flex-wrap">
-            {isNativeCapacitor && (status?.tokensCount ?? 0) === 0 && (
-              <Button type="button" size="sm" variant="outline" onClick={retryRegister} disabled={retrying}>
-                {retrying ? "רושם..." : "נסה רישום מחדש"}
-              </Button>
-            )}
-            {(status?.tokensCount ?? 0) > 0 && (
-              <Button type="button" size="sm" variant="outline" onClick={sendTestPush} disabled={testing}>
-                {testing ? "שולח..." : "שלח התראת בדיקה"}
-              </Button>
-            )}
-          </div>
-        </div>
-
+    <CollapsibleCard
+      title="התראות פוש לאפליקציה"
+      description="בחר על אילו אירועים לקבל התראה דחופה לטלפון"
+    >
+      <div className="space-y-3">
         {loading ? (
           <div className="text-sm text-muted-foreground">טוען...</div>
         ) : (
@@ -9593,8 +9598,8 @@ function PushPrefsCard({ isStaffMode = false }: { isStaffMode?: boolean }) {
             )}
           </>
         )}
-      </CardContent>
-    </Card>
+      </div>
+    </CollapsibleCard>
   );
 }
 

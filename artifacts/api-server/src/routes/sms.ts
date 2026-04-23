@@ -25,7 +25,7 @@ import jwt from "jsonwebtoken";
 import crypto from "crypto";
 import { JWT_SECRET } from "../lib/auth";
 import { logger } from "../lib/logger";
-import { sendSms as inforuSendSms, parseDeliveryReport } from "../lib/inforu";
+import { sendSms as inforuSendSms, parseDeliveryReport, resolveSenderName } from "../lib/inforu";
 import {
   getQuotaSnapshot,
   reserveQuota,
@@ -237,10 +237,10 @@ router.post("/sms/send-bulk", async (req, res): Promise<void> => {
   const customerMessageIdBase = `broadcast-${businessId}-${crypto.randomUUID()}`;
   const deliveryReportUrl = `${(process.env.PUBLIC_API_BASE_URL ?? "https://www.kavati.net/api").replace(/\/$/, "")}/sms/inforu-webhook/delivery`;
 
-  // Sender: prefer the account-level INFORU_SENDER_NAME (pre-registered
-  // with the Israeli carriers) over the business name. See comment in
-  // the previous version of this file.
-  const senderName = (process.env.INFORU_SENDER_NAME ?? biz.name).trim();
+  // Sender: per-business override (businesses.sms_sender_name) wins,
+  // falls back to the business name, then the platform default. See
+  // resolveSenderName() in lib/inforu.ts for the full priority chain.
+  const senderName = resolveSenderName(biz);
 
   // Per-recipient parallel send. One SMS per recipient, each carrying its
   // own tokenised opt-out URL. Promise.allSettled so a single failure

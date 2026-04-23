@@ -259,6 +259,10 @@ export async function runMigrations() {
       "ALTER TABLE businesses ADD COLUMN IF NOT EXISTS sms_used_this_period INTEGER NOT NULL DEFAULT 0",
       "ALTER TABLE businesses ADD COLUMN IF NOT EXISTS sms_extra_balance INTEGER NOT NULL DEFAULT 0",
       "ALTER TABLE businesses ADD COLUMN IF NOT EXISTS sms_reset_date TIMESTAMPTZ",
+      // Custom Inforu sender name per business — 11 chars, alphanumeric,
+      // no spaces. Must be pre-registered with Inforu. NULL falls back to
+      // a sanitised form of businesses.name at send time.
+      "ALTER TABLE businesses ADD COLUMN IF NOT EXISTS sms_sender_name TEXT",
       // ─── Multi-staff (עסקי tier) foreign keys ────────────────────────
       // Nullable on both tables: NULL on appointments = "assigned to the
       // owner"; NULL on working_hours = "inherit business defaults".

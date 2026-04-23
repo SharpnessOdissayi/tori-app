@@ -149,6 +149,14 @@ export const businessesTable = pgTable("businesses", {
   smsUsedThisPeriod:  integer("sms_used_this_period").notNull().default(0),
   smsExtraBalance:    integer("sms_extra_balance").notNull().default(0),
   smsResetDate:       timestamp("sms_reset_date", { withTimezone: true }),
+  // Custom SMS "from" name displayed to the recipient. Inforu restricts
+  // this to 11 chars, alphanumeric, no spaces, and each value must be
+  // pre-registered with the Israeli carriers. When NULL, sends fall back
+  // to a sanitised form of `businesses.name`; when set, owners can use
+  // any pre-approved label (e.g. "NailsByGal") without renaming the
+  // business itself. The `notes` on the input in Settings should tell
+  // owners to contact Inforu support to register new sender names.
+  smsSenderName:      text("sms_sender_name"),
   // Per-kind push-notification opt-in for the OWNER. Null/missing key =
   // enabled by default. Shape: { new_booking?: bool, pending_approval?: bool,
   // cancellation?: bool, reschedule?: bool, waitlist_join?: bool,

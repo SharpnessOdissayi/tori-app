@@ -69,6 +69,32 @@ export function isInforuConfigured(): boolean {
   return resolveAuthHeader() !== null;
 }
 
+/**
+ * Resolve the "from" label to use for a given business.
+ *
+ * Priority:
+ *   1. businesses.sms_sender_name  (explicit per-business override, must be
+ *      pre-registered with Inforu)
+ *   2. businesses.name             (sanitised: ASCII-only, no spaces, ≤11)
+ *   3. process.env.INFORU_SENDER_NAME (platform-wide default)
+ *   4. "Kavati"                    (hard fallback so we never fail to send)
+ *
+ * Hebrew-only business names can't be used as-is because Inforu's sender
+ * field is GSM-7 only; the name gets stripped to ASCII which may produce
+ * an empty string, in which case we roll forward to the next candidate.
+ */
+export function resolveSenderName(biz: { smsSenderName?: string | null; name?: string | null } | null | undefined): string {
+  const clean = (s: string | null | undefined) =>
+    (s ?? "").replace(/[^A-Za-z0-9]/g, "").slice(0, 11);
+  const override = clean(biz?.smsSenderName);
+  if (override) return override;
+  const fromName = clean(biz?.name);
+  if (fromName) return fromName;
+  const envDefault = clean(process.env.INFORU_SENDER_NAME);
+  if (envDefault) return envDefault;
+  return "Kavati";
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Result types
 // ─────────────────────────────────────────────────────────────────────────────

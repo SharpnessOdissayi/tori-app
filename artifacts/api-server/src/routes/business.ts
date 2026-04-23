@@ -1883,9 +1883,9 @@ router.post("/business/broadcast", requireBusinessAuth, async (req, res): Promis
   // no context — owner was left to guess whether it was the sender name,
   // a blocked number, or an invalid phone.
   const failureReasons: Array<{ phone: string; reason: string }> = [];
-  const { sendSms: inforuSendSms, isInforuConfigured } = await import("../lib/inforu");
+  const { sendSms: inforuSendSms, isInforuConfigured, resolveSenderName } = await import("../lib/inforu");
   if (isInforuConfigured() && batch.length > 0) {
-    const senderName = (process.env.INFORU_SENDER_NAME ?? biz2?.name ?? "Kavati").slice(0, 11);
+    const senderName = resolveSenderName(biz2 ?? undefined);
     // Register the delivery-report webhook for every broadcast send so
     // Inforu pings us back once the carrier actually accepts (or drops)
     // the message. Without this, a "StatusId=1" from the SendSMS call
@@ -2564,12 +2564,12 @@ router.post("/business/broadcast-subscribers/:phone/invite-back", requireBusines
     `לאישור חזרה לרשימת התפוצה: ${inviteUrl}`,
   ].filter(Boolean).join("\n");
 
-  const { sendSms, isInforuConfigured } = await import("../lib/inforu");
+  const { sendSms, isInforuConfigured, resolveSenderName } = await import("../lib/inforu");
   if (!isInforuConfigured()) {
     res.status(503).json({ error: "sms_not_configured", message: "שירות ה-SMS לא מוגדר." });
     return;
   }
-  const senderName = (process.env.INFORU_SENDER_NAME ?? biz.name ?? "Kavati").slice(0, 11);
+  const senderName = resolveSenderName(biz);
   const result = await sendSms({
     recipients: [canonical],
     message: inviteMessage,
