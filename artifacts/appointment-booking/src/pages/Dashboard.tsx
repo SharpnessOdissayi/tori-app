@@ -53,8 +53,7 @@ import {
   ExternalLink, Info, Upload, Image as ImageIcon, Crown, Zap, X, Copy, Check, Link,
   ChevronLeft, ChevronRight, Eye, EyeOff, Ban, DollarSign,
   MessageSquare, Send, Search, ChevronDown, Instagram, Bell, FileText,
-  XCircle, CheckCircle2, RotateCw, Hourglass, Download, MoreVertical, RefreshCcw,
-  Shield
+  XCircle, CheckCircle2, RotateCw, Hourglass, Download, MoreVertical, RefreshCcw
 } from "lucide-react";
 import { useLocation } from "wouter";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
@@ -2077,6 +2076,21 @@ function Login({ onLogin }: { onLogin: (t: string) => void }) {
   const handlePasswordLogin = async () => {
     if (!pwUsername.trim() || !pwPassword) {
       toast({ title: "נא למלא שם משתמש וסיסמה", variant: "destructive" });
+      return;
+    }
+    // Super-admin shortcut — when the user types "admin" as the
+    // identifier, route to /superadmin with the password stashed in
+    // sessionStorage so the page can auto-log-in without making the
+    // owner type the password twice. This is the only way to reach
+    // /superadmin from inside the Capacitor mobile app (no address
+    // bar there). The super-admin password check happens server-
+    // side on every /super-admin/* endpoint, so nothing is trusted
+    // client-side.
+    if (pwUsername.trim().toLowerCase() === "admin") {
+      try {
+        sessionStorage.setItem("kavati_admin_pw_prefill", pwPassword);
+      } catch {}
+      navigate("/superadmin");
       return;
     }
     setPwSubmitting(true);
@@ -9094,17 +9108,6 @@ function SettingsTab({ isStaffMode = false }: { isStaffMode?: boolean }) {
           dialog so a misclick doesn't nuke the business. */}
       <DeleteBusinessAccountCard />
 
-      {/* Super Admin entry — hidden tap-gate. Renders only a small
-          version label at the bottom; tap it 7× to unlock a visible
-          button that navigates to /superadmin. Once the owner logs
-          into super-admin once (localStorage flag), the button stays
-          unlocked permanently. The /superadmin page itself is gated
-          by a password server-side — this is just a discoverability
-          gate so regular owners on the shared app binary don't see
-          it. Needed on mobile (Capacitor) because there's no address
-          bar to type /superadmin into. */}
-      <SuperAdminEntryCard />
-
 
       {/* Save exposed only via the floating bar — no inline footer row,
           no "בטל עריכה". The bar appears when the form is dirty.
@@ -9695,82 +9698,6 @@ function DeleteBusinessAccountCard() {
         </DialogContent>
       </Dialog>
     </>
-  );
-}
-
-// ─── Super Admin entry card ───────────────────────────────────────────────
-// Tap-to-unlock entry point to /superadmin from inside the Capacitor
-// mobile app (there's no address bar there, so without this the owner
-// has no way to reach the page). Renders as a tiny greyed-out version
-// label until the user taps it 7× within 3 seconds — then it flips to
-// a visible button. Once the owner successfully logs into /superadmin
-// once (which sets kavati_admin_last_username="admin" in localStorage),
-// the button stays unlocked permanently so re-entry is one tap.
-//
-// Not a security gate — the /superadmin page is password-protected
-// server-side. This is purely discoverability: regular owners on the
-// shared app binary shouldn't see "Super Admin" staring at them.
-function SuperAdminEntryCard() {
-  const [, navigate] = useLocation();
-  const [unlocked, setUnlocked] = useState<boolean>(() => {
-    try {
-      return (localStorage.getItem("kavati_admin_last_username") ?? "").trim().toLowerCase() === "admin";
-    } catch {
-      return false;
-    }
-  });
-  const [tapCount, setTapCount] = useState(0);
-  const lastTapRef = useRef<number>(0);
-
-  const onVersionTap = () => {
-    const now = Date.now();
-    // 3-second rolling window — if the user pauses too long, reset.
-    const newCount = (now - lastTapRef.current) < 3000 ? tapCount + 1 : 1;
-    lastTapRef.current = now;
-    if (newCount >= 7) {
-      setUnlocked(true);
-      setTapCount(0);
-    } else {
-      setTapCount(newCount);
-    }
-  };
-
-  if (!unlocked) {
-    return (
-      <div className="text-center pt-2 pb-1">
-        <button
-          type="button"
-          onClick={onVersionTap}
-          className="text-[10px] text-muted-foreground/30 hover:text-muted-foreground/50 transition-colors select-none"
-          aria-label="App version"
-        >
-          v1.1.3
-        </button>
-      </div>
-    );
-  }
-
-  return (
-    <Card className="border-slate-300">
-      <CardHeader className="pb-3">
-        <CardTitle className="text-base flex items-center gap-2">
-          <Shield className="w-4 h-4 text-slate-600" /> כניסת מנהל-על
-        </CardTitle>
-        <CardDescription className="text-xs">
-          כניסה למסך ניהול מערכת. דורש סיסמת מנהל-על.
-        </CardDescription>
-      </CardHeader>
-      <CardContent>
-        <Button
-          type="button"
-          variant="outline"
-          className="w-full border-slate-300 text-slate-700 hover:bg-slate-50"
-          onClick={() => navigate("/superadmin")}
-        >
-          <Shield className="w-4 h-4 ms-1" /> פתח Super Admin
-        </Button>
-      </CardContent>
-    </Card>
   );
 }
 

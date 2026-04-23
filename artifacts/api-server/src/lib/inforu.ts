@@ -75,21 +75,25 @@ export function isInforuConfigured(): boolean {
  * Priority:
  *   1. businesses.sms_sender_name  (explicit per-business override, must be
  *      pre-registered with Inforu)
- *   2. businesses.name             (sanitised: ASCII-only, no spaces, ≤11)
+ *   2. businesses.slug             (public URL handle — ASCII + hyphens by
+ *      design, a much better fit than the business name, which is usually
+ *      Hebrew and degenerates to a random Latin substring after cleaning)
  *   3. process.env.INFORU_SENDER_NAME (platform-wide default)
  *   4. "Kavati"                    (hard fallback so we never fail to send)
  *
- * Hebrew-only business names can't be used as-is because Inforu's sender
- * field is GSM-7 only; the name gets stripped to ASCII which may produce
- * an empty string, in which case we roll forward to the next candidate.
+ * Note: previously fell back to businesses.name, but Hebrew names get
+ * stripped down to whatever Latin characters happen to appear inside —
+ * e.g. "תיקון ומכירת רחפני FPV" → "FPV", which confused recipients.
+ * The slug is the owner-chosen, ASCII-safe public handle and is the
+ * right choice for a sender label.
  */
-export function resolveSenderName(biz: { smsSenderName?: string | null; name?: string | null } | null | undefined): string {
+export function resolveSenderName(biz: { smsSenderName?: string | null; slug?: string | null; name?: string | null } | null | undefined): string {
   const clean = (s: string | null | undefined) =>
     (s ?? "").replace(/[^A-Za-z0-9]/g, "").slice(0, 11);
   const override = clean(biz?.smsSenderName);
   if (override) return override;
-  const fromName = clean(biz?.name);
-  if (fromName) return fromName;
+  const fromSlug = clean(biz?.slug);
+  if (fromSlug) return fromSlug;
   const envDefault = clean(process.env.INFORU_SENDER_NAME);
   if (envDefault) return envDefault;
   return "Kavati";

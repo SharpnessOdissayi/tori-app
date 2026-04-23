@@ -91,6 +91,24 @@ export default function SuperAdmin() {
     { query: { enabled: loginAttempted, retry: false } }
   );
 
+  // Auto-login shortcut — the business login screen (Dashboard) routes
+  // here with the password stashed in sessionStorage when the owner
+  // types "admin" as the identifier. Consume it once, pre-fill the
+  // form, and trigger login. Stash is cleared immediately so a browser
+  // back+refresh doesn't keep auto-logging in.
+  useEffect(() => {
+    let stashed = "";
+    try { stashed = sessionStorage.getItem("kavati_admin_pw_prefill") ?? ""; } catch {}
+    if (stashed) {
+      try { sessionStorage.removeItem("kavati_admin_pw_prefill"); } catch {}
+      setUsername("admin");
+      setPassword(stashed);
+      setLoginAttempted(true);
+    }
+    // Run exactly once on mount.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   useEffect(() => {
     if (loginAttempted && !isLoading && businesses && !isAuthenticated) {
       setIsAuthenticated(true);
