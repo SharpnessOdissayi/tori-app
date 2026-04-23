@@ -8893,7 +8893,7 @@ function SettingsTab({ isStaffMode = false }: { isStaffMode?: boolean }) {
                 <div className="text-xs text-muted-foreground space-y-1.5 leading-relaxed">
                   <p>• עד 11 תווים, אותיות באנגלית ומספרים בלבד (ללא רווחים, עברית, או תווים מיוחדים).</p>
                   <p>• <strong>חשוב:</strong> כדי שהשם שלך יופיע כשולח, Inforu צריכה לאשר אותו בצד שלהם (support@inforu.co.il). בלי אישור הם מחליפים אותו בברירת המחדל של החשבון.</p>
-                  <p>• אם תשאיר/י ריק — ההודעות ישלחו עם ה-slug של העסק שלך.</p>
+                  <p>• אם תשאיר/י ריק — ההודעות ישלחו עם השם של העסק (אותיות לטיניות בלבד, עד 11 תווים).</p>
                 </div>
                 {/* Live preview — hits /api/sms/balance which echoes back
                     the resolved sender name AND which source won. Lets
@@ -10324,6 +10324,7 @@ function SmsSenderPreview() {
   const sourceLabel = (() => {
     switch (state.source) {
       case "sms_sender_name":      return "שם שהגדרת ידנית";
+      case "business_name":        return "שם העסק (אותיות לטיניות)";
       case "slug":                 return "slug של העסק";
       case "env_default":          return "ברירת מחדל של המערכת";
       case "hard_fallback_kavati": return "fallback (Kavati)";

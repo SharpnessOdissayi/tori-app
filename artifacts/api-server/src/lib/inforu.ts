@@ -73,25 +73,30 @@ export function isInforuConfigured(): boolean {
  * Resolve the "from" label to use for a given business.
  *
  * Priority:
- *   1. businesses.sms_sender_name  (explicit per-business override, must be
- *      pre-registered with Inforu)
- *   2. businesses.slug             (public URL handle — ASCII + hyphens by
- *      design, a much better fit than the business name, which is usually
- *      Hebrew and degenerates to a random Latin substring after cleaning)
- *   3. process.env.INFORU_SENDER_NAME (platform-wide default)
- *   4. "Kavati"                    (hard fallback so we never fail to send)
+ *   1. businesses.sms_sender_name   (explicit per-business override)
+ *   2. businesses.name              (sanitised: ASCII-only, no spaces, ≤11)
+ *   3. businesses.slug              (last resort for all-Hebrew business
+ *                                   names where the name cleans to empty)
+ *   4. process.env.INFORU_SENDER_NAME (platform-wide default)
+ *   5. "Kavati"                     (hard fallback)
  *
- * Note: previously fell back to businesses.name, but Hebrew names get
- * stripped down to whatever Latin characters happen to appear inside —
- * e.g. "תיקון ומכירת רחפני FPV" → "FPV", which confused recipients.
- * The slug is the owner-chosen, ASCII-safe public handle and is the
- * right choice for a sender label.
+ * Important: Inforu's sender field is GSM-7 and the sender name MUST be
+ * pre-approved on our account (per Inforu support). If we pass a sender
+ * that isn't in their approved list, they SILENTLY substitute with the
+ * account's default ("Kavati"). That's why we prefer the business name
+ * here — existing owners' names are already in the approved list from
+ * platform-launch time. The slug is tried only when the name would
+ * clean to empty, because a slug like "fpvdrones" may not be approved
+ * yet and would get swapped to "Kavati" — at least the Latin substring
+ * of the name has a chance of being approved already.
  */
 export function resolveSenderName(biz: { smsSenderName?: string | null; slug?: string | null; name?: string | null } | null | undefined): string {
   const clean = (s: string | null | undefined) =>
     (s ?? "").replace(/[^A-Za-z0-9]/g, "").slice(0, 11);
   const override = clean(biz?.smsSenderName);
   if (override) return override;
+  const fromName = clean(biz?.name);
+  if (fromName) return fromName;
   const fromSlug = clean(biz?.slug);
   if (fromSlug) return fromSlug;
   const envDefault = clean(process.env.INFORU_SENDER_NAME);

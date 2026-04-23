@@ -111,6 +111,7 @@ router.get("/sms/balance", async (req, res): Promise<void> => {
       const clean = (s: string | null | undefined) =>
         (s ?? "").replace(/[^A-Za-z0-9]/g, "").slice(0, 11);
       if (clean((biz as any).smsSenderName)) return "sms_sender_name";
+      if (clean((biz as any).name))          return "business_name";
       if (clean((biz as any).slug))          return "slug";
       if (clean(process.env.INFORU_SENDER_NAME)) return "env_default";
       return "hard_fallback_kavati";
