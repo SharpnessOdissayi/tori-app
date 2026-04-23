@@ -41,6 +41,14 @@ testem.log
 .DS_Store
 Thumbs.db
 
+# Local env overrides (per-developer Google Client ID, API base URL, etc.)
+.env.local
+**/.env.local
+
+# Claude Code runtime locks / scratch files
+.claude/scheduled_tasks.lock
+.claude/worktrees/
+
 .cursor/rules/nx-rules.mdc
 .github/instructions/nx.instructions.md
 
