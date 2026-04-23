@@ -1023,7 +1023,20 @@ export default function ClientPortal() {
         // z-56) so the wheelchair + moon buttons don't float over the
         // email / phone inputs on the welcome sheet.
         <div className="fixed inset-0 z-[70] flex items-end justify-center bg-black/50" dir="rtl">
-          <div className="w-full max-w-md bg-white rounded-t-3xl p-6 space-y-5" onClick={e => e.stopPropagation()}>
+          <div className="relative w-full max-w-md bg-white rounded-t-3xl p-6 space-y-5" onClick={e => e.stopPropagation()}>
+            {/* Close button — owners reported users getting stuck here when
+                they didn't want to complete registration in one sitting.
+                Dismissing only hides the sheet; the session still exists
+                and the welcome-check re-opens it next load until the
+                required fields are filled. */}
+            <button
+              type="button"
+              onClick={() => setWelcomeOpen(false)}
+              aria-label="סגור"
+              className="absolute top-3 left-3 w-8 h-8 rounded-full flex items-center justify-center text-gray-500 hover:bg-gray-100 hover:text-gray-800 transition-colors"
+            >
+              <X className="w-5 h-5" />
+            </button>
             <div>
               <h3 className="font-extrabold text-xl text-gray-900">ברוכים הבאים לקבעתי! 🎉</h3>
               <p className="text-sm text-gray-500 mt-1">כדי להתחיל, ספר/י לנו איך לפנות אליך.</p>
