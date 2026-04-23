@@ -24,6 +24,8 @@ async function callMetaAPI(
     console.log(`[WhatsApp Meta] credentials not set — payload:`, JSON.stringify(payload));
     return;
   }
+  const to = (payload as any)?.to;
+  const tmpl = (payload as any)?.template?.name;
   try {
     await axios.post(
       `https://graph.facebook.com/v21.0/${PHONE_NUMBER_ID}/messages`,
@@ -35,8 +37,30 @@ async function callMetaAPI(
         },
       }
     );
+    // Per-send success log so we can confirm "WhatsApp actually went out
+    // to this number" vs. "Meta accepted it but never delivered" in
+    // production diagnostics. Includes the destination and template so
+    // we can search Railway logs by phone number.
+    console.log(`[WhatsApp Meta] sent template=${tmpl ?? "(none)"} to=${to}`);
   } catch (e: any) {
-    console.error("[WhatsApp Meta] Send failed:", e?.response?.data ?? e.message);
+    // Enrich the error log — Meta returns a structured error with
+    // `error.code` (e.g. 131026 = phone not on WhatsApp, 131047 =
+    // re-engagement window expired) + `error.message`. Logging these
+    // verbatim is the only way to diagnose "customer X didn't get any
+    // WhatsApp" reports without attaching a debugger.
+    const metaErr = e?.response?.data?.error ?? null;
+    console.error(
+      "[WhatsApp Meta] Send failed:",
+      JSON.stringify({
+        to,
+        template: tmpl,
+        httpStatus: e?.response?.status ?? null,
+        metaErrorCode: metaErr?.code ?? null,
+        metaErrorSubcode: metaErr?.error_subcode ?? null,
+        metaErrorMessage: metaErr?.message ?? null,
+        metaErrorDetails: metaErr?.error_data?.details ?? null,
+      }),
+    );
     throw e;
   }
 }
@@ -272,9 +296,14 @@ export async function clientWantsNotifications(phone: string): Promise<boolean> 
       .where(eq(clientSessionsTable.phoneNumber, phone))
       .limit(1);
     if (!row) return true;
-    return row.receiveNotifications !== false;
-  } catch {
+    const allowed = row.receiveNotifications !== false;
+    if (!allowed) {
+      console.log(`[WhatsApp] skipped — client ${phone} has opted out (clientSessions.receiveNotifications=false)`);
+    }
+    return allowed;
+  } catch (err) {
     // Fail open — don't block notifications because of a DB hiccup.
+    console.warn(`[WhatsApp] clientWantsNotifications check failed for ${phone}:`, (err as any)?.message ?? err);
     return true;
   }
 }
