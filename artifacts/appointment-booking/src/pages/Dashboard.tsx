@@ -8820,15 +8820,24 @@ function SettingsTab({ isStaffMode = false }: { isStaffMode?: boolean }) {
                   <Label>אימייל</Label>
                   <Input type="email" dir="ltr" value={form.email} onChange={e => setForm(p => ({ ...p, email: e.target.value }))} />
                 </div>
-                {/* Old "לינק לקביעת תור" block removed — the share
-                    link now lives in the highlighted notice banner at
-                    the top of the settings page. */}
-                {/* Slug editor removed per owner — the canonical
-                    share link is the /api/s/<slug> URL, and editing
-                    the slug directly caused confusion (the inline
-                    block still showed the old /book/<slug> form).
-                    The slug is still set at signup and can be changed
-                    by SuperAdmin if truly needed. */}
+                {/* Slug editor — the owner can change their public URL
+                    path. Sanitised to lowercase ASCII + hyphens only to
+                    match the server's normalisation. Uniqueness is
+                    checked server-side and returns 409 if taken. */}
+                <div className="space-y-2 sm:col-span-2">
+                  <Label>כתובת ציבורית (slug)</Label>
+                  <Input
+                    type="text"
+                    dir="ltr"
+                    value={form.slug}
+                    onChange={e => setForm(p => ({ ...p, slug: e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, "") }))}
+                    placeholder="business-name"
+                    className="text-left"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    הקישור הציבורי שלך יהיה <span dir="ltr" className="font-mono">www.kavati.net/book/{form.slug || "..."}</span>. אותיות קטנות באנגלית, ספרות ומקפים בלבד.
+                  </p>
+                </div>
               </div>
           </CollapsibleCard>
 
@@ -8881,7 +8890,7 @@ function SettingsTab({ isStaffMode = false }: { isStaffMode?: boolean }) {
                   dir="ltr"
                   value={form.smsSenderName}
                   onChange={e => setForm(p => ({ ...p, smsSenderName: e.target.value.replace(/[^A-Za-z0-9]/g, "").slice(0, 11) }))}
-                  placeholder="BeautySalon"
+                  placeholder=""
                   maxLength={11}
                   className="text-left"
                 />
@@ -8889,7 +8898,6 @@ function SettingsTab({ isStaffMode = false }: { isStaffMode?: boolean }) {
                   <p>• עד 11 תווים, אותיות באנגלית ומספרים בלבד (ללא רווחים, עברית, או תווים מיוחדים).</p>
                   <p>• לא דרוש אימות נוסף — שם טקסטואלי עד 11 תווים ישלח עם החתימה שלך אוטומטית.</p>
                   <p>• אם תשאיר/י ריק — ההודעות יישלחו תחת שם העסק הרגיל (אנגלית בלבד, ללא תווים מיוחדים).</p>
-                  <p>• דוגמאות טובות: <span dir="ltr" className="font-mono">LilashByGal</span>, <span dir="ltr" className="font-mono">Hair4U</span>, <span dir="ltr" className="font-mono">Nails123</span>.</p>
                 </div>
               </div>
           </CollapsibleCard>

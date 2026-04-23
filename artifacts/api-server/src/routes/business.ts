@@ -285,6 +285,14 @@ router.patch("/business/profile", requireBusinessAuth, async (req, res): Promise
   if (d.businessLegalName !== undefined) (updates as any).businessLegalName = d.businessLegalName || null;
   if (d.invoiceAddress !== undefined)    (updates as any).invoiceAddress    = d.invoiceAddress    || null;
   if (d.autoSendReceipts !== undefined)  (updates as any).autoSendReceipts  = !!d.autoSendReceipts;
+  // SMS sender name (Inforu) — per-business override. Strip to the
+  // 11-char alphanumeric subset here as a defence-in-depth even though
+  // the UI already enforces it; empty / missing → null so the resolver
+  // falls back to the sanitised business name at send time.
+  if (d.smsSenderName !== undefined) {
+    const clean = String(d.smsSenderName ?? "").replace(/[^A-Za-z0-9]/g, "").slice(0, 11);
+    (updates as any).smsSenderName = clean || null;
+  }
 
   // Public profile fields — these historically only flowed through
   // PATCH /business/branding, but the SettingsTab form saves via

@@ -196,22 +196,27 @@ router.post("/sms/send-bulk", async (req, res): Promise<void> => {
     return;
   }
 
-  // Compose the SMS: business name first, owner's message in the middle,
-  // our own per-recipient opt-out footer at the end. Each recipient gets
-  // a short DB-backed token baked into /api/u/<token> — the /api/ prefix
-  // is required because only /api/* is routed to this server on Railway.
+  // Compose the SMS body. Per owner: recipient already sees the
+  // business name as the SMS sender (Inforu sender-id at the top of
+  // the phone's SMS app), so repeating the full business name inside
+  // the body was a double-label. Use the owner's FIRST name inside
+  // the body instead — personal, short, doesn't burn characters. If
+  // no first name is stored, fall back to the first whitespace-
+  // delimited token of ownerName; if that's also empty, drop the
+  // label line altogether rather than echoing the business name.
   const ownerMessage  = (messageRaw as string).trim();
-  const businessLabel = (biz.name ?? "").trim();
+  const ownerFirstRaw = String((biz as any).ownerFirstName ?? "").trim();
+  const ownerFirst = ownerFirstRaw || String(biz.ownerName ?? "").trim().split(/\s+/)[0] || "";
   const host = (process.env.KAVATI_HOST ?? "www.kavati.net").replace(/^https?:\/\//, "").replace(/\/$/, "");
   // Bulk-allocate one token per recipient in a single INSERT so we don't
   // do N round trips before the first SMS even goes out.
   const tokens = await allocateUnsubscribeTokensBulk(businessId, recipients);
   const composeMessage = (recipientPhone: string, token: string): string =>
     [
-      businessLabel ? `${businessLabel}:` : null,
+      ownerFirst ? `${ownerFirst}:` : null,
       ownerMessage,
       "",
-      `להסרה https://${host}/api/u/${token}`,
+      `להסרה לחצי כאן: https://${host}/api/u/${token}`,
     ].filter(Boolean).join("\n");
 
   // ─── Reserve quota BEFORE calling Inforu ────────────────────────────────

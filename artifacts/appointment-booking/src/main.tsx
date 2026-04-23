@@ -101,15 +101,25 @@ registerServiceWorker();
 })();
 
 // Capacitor opens the APK straight into the SPA's index.html; with no
-// query/hash the initial pathname is "/" which resolves to the marketing
-// home page. Owners don't want to see that — the Android app is for them,
-// not for discovering kavati.net. Redirect the root to /dashboard before
-// React mounts so Wouter picks up the correct route on the first render.
+// query/hash the initial pathname is "/". Previously we always forced
+// that to /dashboard — but a first-time user who hasn't signed in yet
+// would hit the dashboard's login screen and see an unhelpful blank
+// page until they scrolled. Now:
+//   · logged-in (biz_token present) → /dashboard (straight to the
+//     owner's working surface)
+//   · not logged in                 → /  (marketing home — same as
+//     opening kavati.net in a browser, so they can choose to register
+//     or log in)
 try {
   const cap = (window as any).Capacitor;
   const isNative = !!(cap && typeof cap.isNativePlatform === "function" && cap.isNativePlatform());
   if (isNative && (window.location.pathname === "/" || window.location.pathname === "")) {
-    window.history.replaceState({}, "", "/dashboard");
+    const hasBizToken = !!(localStorage.getItem("biz_token") || sessionStorage.getItem("biz_token"));
+    if (hasBizToken) {
+      window.history.replaceState({}, "", "/dashboard");
+    }
+    // No token → leave pathname at "/" so HomeOrBook renders the
+    // marketing page inside the app.
   }
 } catch { /* non-fatal — fall back to default routing */ }
 
