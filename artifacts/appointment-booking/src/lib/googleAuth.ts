@@ -118,8 +118,15 @@ export async function signInWithGoogle(clientId: string): Promise<GoogleSignInRe
       // browser has opted out or FedCM detects no eligible account. In
       // those cases notification.isNotDisplayed() returns true and our
       // callback never fires — resolve so the caller isn't stuck.
+      //
+      // Common triggers: third-party cookies blocked (Safari default,
+      // some Chrome configs), FedCM disabled, ad-blockers blocking
+      // accounts.google.com, or the user dismissed the prompt 3+ times
+      // which puts them in a Google-imposed cool-down. Direct the user
+      // to SMS login — it always works and doesn't require third-party
+      // cookies.
       if (notification?.isNotDisplayed?.() || notification?.isSkippedMoment?.()) {
-        resolve({ ok: false, error: "Google prompt skipped — try a different login method" });
+        resolve({ ok: false, error: "לא הצלחנו לפתוח את חלון Google בדפדפן הזה. נסה כניסה עם מספר טלפון במקום." });
       }
     });
   });

@@ -356,6 +356,23 @@ function GalleryLightbox({
 }
 
 
+// BOM-tolerant lookup for VITE_GOOGLE_CLIENT_ID. Matches ClientPortal's
+// helper — a UTF-8 BOM at the start of .env.local silently breaks the
+// direct `import.meta.env.VITE_GOOGLE_CLIENT_ID` reference and hides the
+// Google button from the booking-page login gate.
+function resolveGoogleClientId(): string {
+  const env = (import.meta as any).env ?? {};
+  for (const [key, val] of Object.entries(env)) {
+    if (typeof val !== "string") continue;
+    const trimmed = val.trim();
+    if (!trimmed) continue;
+    if (key === "VITE_GOOGLE_CLIENT_ID" || key.endsWith("\uFEFFVITE_GOOGLE_CLIENT_ID")) {
+      return trimmed;
+    }
+  }
+  return "";
+}
+
 export default function Book({ slugOverride }: { slugOverride?: string } = {}) {
   const params = useParams<{ businessSlug: string }>();
   // Custom-domain flow: HomeOrBook resolves the hostname to a slug and
@@ -1049,40 +1066,22 @@ export default function Book({ slugOverride }: { slugOverride?: string } = {}) {
   }, [business, fontFamily]);
 
   // Google sign-in for login gate
+  // Reuse the shared signInWithGoogle helper (lib/googleAuth.ts) so this
+  // gate uses the SAME flow as every other Google entry point: native
+  // Capacitor plugin on Android/iOS, GIS prompt on the web, BOM-tolerant
+  // client-id lookup, and a Hebrew error message when the browser
+  // blocks the prompt (third-party cookies off, etc.). Previous inline
+  // implementation called google.accounts.id.prompt() directly without
+  // the BOM-tolerant lookup and without native fallback, so the button
+  // "did nothing" on devices that had either issue.
   useEffect(() => {
     if (!showLoginGate) return;
-    const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
-    if (!clientId) return;
-    const apiBase = (import.meta.env.VITE_API_BASE_URL && import.meta.env.VITE_API_BASE_URL.trim()) || "/api";
-    const init = () => {
-      (window as any).google?.accounts?.id?.initialize({
-        client_id: clientId,
-        callback: async (response: any) => {
-          setGateGoogleLoading(true);
-          try {
-            const res = await fetch(`${apiBase}/client/google-auth`, {
-              method: "POST", headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ credential: response.credential }),
-            });
-            const data = await res.json();
-            if (!res.ok) throw new Error(data.error);
-            localStorage.setItem("kavati_client_token", data.token);
-            setClientToken(data.token);
-            if (businessSlug) fetch(`${apiBase}/client/businesses/${businessSlug}`, { method: "POST", headers: { "x-client-token": data.token } }).catch(() => {});
-            setShowLoginGate(false);
-            toast({ title: `ברוכ/ה הבא/ה${data.clientName ? `, ${data.clientName}` : ""}!` });
-          } catch { toast({ title: "שגיאת Google", variant: "destructive" }); }
-          finally { setGateGoogleLoading(false); }
-        },
-      });
-    };
-    if ((window as any).google?.accounts?.id) { init(); }
-    else {
-      const s = document.createElement("script");
-      s.src = "https://accounts.google.com/gsi/client";
-      s.onload = init;
-      document.head.appendChild(s);
-    }
+    // Fire the init once so GIS is ready — the helper's init is idempotent.
+    (async () => {
+      const { initGoogleAuth } = await import("@/lib/googleAuth");
+      const clientId = resolveGoogleClientId();
+      if (clientId) await initGoogleAuth(clientId);
+    })();
   }, [showLoginGate]);
 
   // Facebook login for gate
@@ -1314,9 +1313,42 @@ export default function Book({ slugOverride }: { slugOverride?: string } = {}) {
 
             <div className="space-y-2">
               {/* Google */}
-              {import.meta.env.VITE_GOOGLE_CLIENT_ID && (
+              {resolveGoogleClientId() && (
                 <button
-                  onClick={() => (window as any).google?.accounts?.id?.prompt()}
+                  onClick={async () => {
+                    const clientId = resolveGoogleClientId();
+                    if (!clientId) return;
+                    setGateGoogleLoading(true);
+                    try {
+                      const { signInWithGoogle } = await import("@/lib/googleAuth");
+                      const result = await signInWithGoogle(clientId);
+                      if (!result.ok) {
+                        if (!result.cancelled) {
+                          toast({ title: result.error || "שגיאה בכניסה עם Google", variant: "destructive" });
+                        }
+                        return;
+                      }
+                      const apiBase = (import.meta.env.VITE_API_BASE_URL && import.meta.env.VITE_API_BASE_URL.trim()) || "/api";
+                      const res = await fetch(`${apiBase}/client/google-auth`, {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ credential: result.idToken }),
+                      });
+                      const data = await res.json();
+                      if (!res.ok) throw new Error(data.error);
+                      localStorage.setItem("kavati_client_token", data.token);
+                      setClientToken(data.token);
+                      if (businessSlug) {
+                        fetch(`${apiBase}/client/businesses/${businessSlug}`, { method: "POST", headers: { "x-client-token": data.token } }).catch(() => {});
+                      }
+                      setShowLoginGate(false);
+                      toast({ title: `ברוכ/ה הבא/ה${data.clientName ? `, ${data.clientName}` : ""}!` });
+                    } catch (e: any) {
+                      toast({ title: e?.message ?? "שגיאת Google", variant: "destructive" });
+                    } finally {
+                      setGateGoogleLoading(false);
+                    }
+                  }}
                   disabled={gateGoogleLoading}
                   className="w-full h-11 rounded-lg border flex items-center justify-center gap-2 text-sm font-medium transition-colors hover:bg-gray-50 disabled:opacity-50"
                   style={{ borderColor: "#dadce0", color: "#3c4043" }}
