@@ -8736,12 +8736,11 @@ function SettingsTab({ isStaffMode = false }: { isStaffMode?: boolean }) {
           the moment they log in. Settings stays focused on editable
           business details. */}
 
-      {/* General settings — now rendered as a CollapsibleCard so the tab
-          stays compact. Sub-sections inside also collapse individually. */}
-      <CollapsibleCard title="הגדרות כלליות" description="פרטי עסק, פרטי הפרופיל הציבורי ואפשרויות קבלת תורים">
-          <form onSubmit={handleSave} className="space-y-8">
-            <div className="space-y-4">
-              <h3 className="font-medium text-base border-b pb-2">פרטים כלליים</h3>
+      {/* Settings sections split into individual CollapsibleCards.
+          The form wraps them all so the floating save bar still captures
+          every input across all sections. */}
+      <form onSubmit={handleSave} className="space-y-6">
+          <CollapsibleCard title="פרטים כלליים" description="שם העסק, בעלים, טלפון ואימייל">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label>שם העסק</Label>
@@ -8825,10 +8824,9 @@ function SettingsTab({ isStaffMode = false }: { isStaffMode?: boolean }) {
                     The slug is still set at signup and can be changed
                     by SuperAdmin if truly needed. */}
               </div>
-            </div>
+          </CollapsibleCard>
 
-            <div className="space-y-4">
-              <h3 className="font-medium text-base border-b pb-2">אישור תורים ואבטחה</h3>
+          <CollapsibleCard title="אישור תורים ואבטחה" description="דרישת אימות טלפון ואישור תורים ידני">
               {isPro && (
                 <div className="flex items-center justify-between p-4 border rounded-xl bg-muted/30">
                   <div>
@@ -8867,10 +8865,9 @@ function SettingsTab({ isStaffMode = false }: { isStaffMode?: boolean }) {
                   />
                 </div>
               )}
-            </div>
+          </CollapsibleCard>
 
-            <div className="space-y-4">
-              <h3 className="font-medium text-base border-b pb-2">שליחת SMS</h3>
+          <CollapsibleCard title="שליחת SMS" description="שם השולח שלקוחות יראו בהודעות">
               <div className="space-y-2">
                 <Label>שם השולח ב-SMS</Label>
                 <Input
@@ -8889,10 +8886,9 @@ function SettingsTab({ isStaffMode = false }: { isStaffMode?: boolean }) {
                   <p>• לאישור שם חדש פנה/י לתמיכה של Inforu: <span dir="ltr" className="font-mono">support@inforu.co.il</span></p>
                 </div>
               </div>
-            </div>
+          </CollapsibleCard>
 
-            <div className="space-y-4">
-              <h3 className="font-medium text-base border-b pb-2">פרטי העסק לעמוד הפרופיל</h3>
+          <CollapsibleCard title="פרטי העסק לעמוד הפרופיל" description="תיאור, כתובת, קישורים לרשתות חברתיות">
               <p className="text-xs text-muted-foreground -mt-2">מה שלקוחות רואים בעמוד ההזמנות שלך — קטגוריה, תיאור, דרכי יצירת קשר, קישורים</p>
           {/* Categories */}
           <div className="space-y-2">
@@ -9004,11 +9000,10 @@ function SettingsTab({ isStaffMode = false }: { isStaffMode?: boolean }) {
             <p className="text-xs text-muted-foreground">אם ריק — ניווט יופעל אוטומטית לפי הכתובת שהוזנה</p>
             <Input dir="ltr" value={form.wazeUrl} onChange={e => setForm(p => ({ ...p, wazeUrl: e.target.value }))} placeholder="https://waze.com/ul/..." />
           </div>
-            </div>
+          </CollapsibleCard>
 
-            {/* ── Business Receipt / Invoice Profile ── */}
-            <div className="space-y-4">
-              <h3 className="font-medium text-base border-b pb-2">פרטי עסק לקבלות</h3>
+          {/* ── Business Receipt / Invoice Profile ── */}
+          <CollapsibleCard title="פרטי עסק לקבלות" description="ח.פ., שם חוקי וכתובת לחשבונית">
               <p className="text-xs text-muted-foreground -mt-2">
                 פרטים אלה יודפסו על כל קבלה שתנפיק ללקוחות. חובה למלא ח.פ / ת.ז. ושם משפטי לפני הנפקת הקבלה הראשונה.
               </p>
@@ -9054,9 +9049,7 @@ function SettingsTab({ isStaffMode = false }: { isStaffMode?: boolean }) {
                   <p className="text-xs text-muted-foreground">הכתובת הרשומה במס הכנסה — לא בהכרח כתובת העסק הפיזית.</p>
                 </div>
               </div>
-            </div>
-
-          </form>
+          </CollapsibleCard>
 
           {/* Password-change block removed — login is SMS-only (phone +
               one-time code). There is no password to change anymore,
@@ -9065,7 +9058,7 @@ function SettingsTab({ isStaffMode = false }: { isStaffMode?: boolean }) {
               backend endpoint as a no-op path for now; a future cleanup
               can remove it entirely once we're sure nothing is calling
               it (e.g., the first-login forced-change flow for staff). */}
-      </CollapsibleCard>
+      </form>
 
       {/* Booking restrictions moved to the Services tab. */}
 
