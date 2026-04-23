@@ -152,6 +152,11 @@ function mapBusiness(b: typeof businessesTable.$inferSelect) {
     invoiceAddress:    (b as any).invoiceAddress    ?? null,
     autoSendReceipts:  (b as any).autoSendReceipts  ?? false,
     emailVerified:     (b as any).emailVerified     ?? false,
+    // SMS sender override — returned so the Settings form re-hydrates
+    // with the saved value after the owner edits + saves it. Was
+    // missing from the response before, so the field looked blank on
+    // every reload and owners thought the save had failed.
+    smsSenderName:     (b as any).smsSenderName     ?? null,
     // Advanced design / branding fields — these MUST be returned, otherwise
     // the BrandingTab in the dashboard resets to defaults after every save
     // (the form re-hydrates from the profile response and sees undefined).

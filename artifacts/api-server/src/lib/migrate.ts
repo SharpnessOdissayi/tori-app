@@ -789,6 +789,34 @@ export async function runMigrations() {
       console.warn("[Migrate] pro-plus quota rebalance skipped:", (rebalanceErr as any)?.message ?? rebalanceErr);
     }
 
+    // ─── Pro-plus SMS quota rebalance 300 → 20 (2026-04) ────────────────
+    // Owner recalibrated pricing: עסקי now carries a 20/month bulk-SMS
+    // allotment instead of 300. Same idempotent pattern as the 500→300
+    // rebalance above — a separate flag column ensures we only drop
+    // each existing row's quota once, and only for businesses still on
+    // the OLD 300 allotment (not ones that manually paid for more via
+    // SMS pack purchases).
+    try {
+      await db.execute(sql.raw(`
+        ALTER TABLE businesses
+        ADD COLUMN IF NOT EXISTS pro_plus_quota_rebalanced_20_at TIMESTAMPTZ
+      `));
+      const result = await db.execute(sql.raw(`
+        UPDATE businesses
+        SET sms_monthly_quota = 20,
+            pro_plus_quota_rebalanced_20_at = NOW()
+        WHERE pro_plus_quota_rebalanced_20_at IS NULL
+          AND subscription_plan = 'pro-plus'
+          AND sms_monthly_quota = 300
+      `));
+      const count: number = (result as any)?.rowCount ?? (result as any)?.count ?? 0;
+      if (count > 0) {
+        console.log(`[Migrate] pro-plus SMS quota rebalanced 300 → 20 for ${count} business(es).`);
+      }
+    } catch (rebalanceErr) {
+      console.warn("[Migrate] pro-plus 20 rebalance skipped:", (rebalanceErr as any)?.message ?? rebalanceErr);
+    }
+
     // ─── One-shot seed: import existing businesses + clients ────────────
     // Idempotent via ON CONFLICT DO NOTHING. Safe to run every boot.
     await seedUsersFromExistingData();

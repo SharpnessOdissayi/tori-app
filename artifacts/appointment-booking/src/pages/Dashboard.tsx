@@ -7946,7 +7946,7 @@ function IntegrationsTab({ isStaffMode = false }: { isStaffMode?: boolean }) {
         </div>
       </div>
 
-      {/* Bulk SMS (Inforu) — Pro gets 100/month, עסקי gets 300/month. Extra
+      {/* Bulk SMS (Inforu) — Pro gets 100/month, עסקי gets 20/month. Extra
           packs top up independently. Free tier sees a locked state with an
           upgrade prompt. */}
       <SmsBulkCard />
@@ -10325,7 +10325,7 @@ function SmsBulkCard() {
             <span className="text-xl">📱</span> הודעות SMS תפוצה
           </CardTitle>
           <CardDescription>
-            זמין במסלול פרו (100 הודעות/חודש) ועסקי (300 הודעות/חודש).
+            זמין במסלול פרו (100 הודעות/חודש) ועסקי (20 הודעות/חודש).
             שדרוג כאן ב-הגדרות → מנוי.
           </CardDescription>
         </CardHeader>
