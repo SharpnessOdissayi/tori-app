@@ -53,7 +53,8 @@ import {
   ExternalLink, Info, Upload, Image as ImageIcon, Crown, Zap, X, Copy, Check, Link,
   ChevronLeft, ChevronRight, Eye, EyeOff, Ban, DollarSign,
   MessageSquare, Send, Search, ChevronDown, Instagram, Bell, FileText,
-  XCircle, CheckCircle2, RotateCw, Hourglass, Download, MoreVertical, RefreshCcw
+  XCircle, CheckCircle2, RotateCw, Hourglass, Download, MoreVertical, RefreshCcw,
+  Share2
 } from "lucide-react";
 import { useLocation } from "wouter";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
@@ -466,29 +467,62 @@ function CopyLinkButton({ slug }: { slug: string }) {
       setTimeout(() => setCopied(false), 2000);
     });
   };
+
+  // Native OS share sheet — on mobile this opens Telegram/Messages/Mail/
+  // etc. as a single menu. Desktop browsers without Web Share API get
+  // a graceful fallback: copy the link + toast.
+  const { toast } = useToast();
+  const handleShare = async () => {
+    const shareData = {
+      title: "קבע/י איתי תור",
+      text: "הנה הלינק שלי לקביעת תור — תקבעו בזמן שנוח לכם:",
+      url: fullUrl,
+    };
+    if (typeof navigator !== "undefined" && typeof (navigator as any).share === "function") {
+      try {
+        await (navigator as any).share(shareData);
+        return;
+      } catch (err: any) {
+        // User cancelled the sheet — silent.
+        if (err?.name === "AbortError") return;
+      }
+    }
+    // Fallback: copy + toast.
+    try {
+      await navigator.clipboard.writeText(fullUrl);
+      toast({ title: "הלינק הועתק — הדבק/י ביישום השיתוף" });
+    } catch {
+      toast({ title: "לא הצלחנו לשתף", variant: "destructive" });
+    }
+  };
+
   const whatsappText = `הנה הלינק שלי לקביעת תור אצלי — תקבעו בזמן שנוח לכם:\n${fullUrl}`;
   const whatsappHref = `https://wa.me/?text=${encodeURIComponent(whatsappText)}`;
 
   return (
     <div className="space-y-3">
-      {/* URL row — glassy white pill with the copy button tucked on the
-          start (right-hand side in RTL) so it's the first thing the thumb
-          hits on mobile. Uses a soft gradient border + backdrop blur to
-          sit cleanly on top of the gradient card below. */}
-      <div className="flex items-stretch gap-2 p-1.5 rounded-2xl bg-white/70 backdrop-blur-sm border border-white shadow-inner">
+      {/* Copy + Share row — two equal pills side-by-side. The URL itself
+          is NOT shown (per owner: it adds visual noise and the owner
+          never needs to read it, just copy or share it). Copy turns
+          green for 2s after a successful clipboard write to confirm. */}
+      <div className="grid grid-cols-2 gap-2">
         <button
           type="button"
           onClick={handleCopy}
-          className={`shrink-0 px-4 py-2 rounded-xl text-sm font-semibold flex items-center gap-1.5 transition-all ${copied
-            ? "bg-emerald-600 text-white shadow-sm"
-            : "bg-primary text-primary-foreground hover:bg-primary/90 shadow-sm"
+          className={`flex items-center justify-center gap-1.5 py-3 rounded-xl text-sm font-bold shadow-sm transition-all active:scale-[0.98] ${copied
+            ? "bg-emerald-600 text-white"
+            : "bg-primary text-primary-foreground hover:bg-primary/90"
           }`}
         >
-          {copied ? <><Check className="w-4 h-4" /> הועתק</> : <><Copy className="w-4 h-4" /> העתקה</>}
+          {copied ? <><Check className="w-4 h-4" /> הועתק</> : <><Copy className="w-4 h-4" /> העתקת הלינק</>}
         </button>
-        <div className="flex-1 flex items-center px-3 min-w-0">
-          <span className="text-sm font-mono text-slate-700 select-all truncate" dir="ltr">{fullUrl}</span>
-        </div>
+        <button
+          type="button"
+          onClick={handleShare}
+          className="flex items-center justify-center gap-1.5 py-3 rounded-xl text-sm font-bold bg-white/80 border border-primary/30 text-primary hover:bg-white shadow-sm transition-all active:scale-[0.98]"
+        >
+          <Share2 className="w-4 h-4" /> שיתוף
+        </button>
       </div>
 
       {/* WhatsApp share — green gradient, full width, icon on the right.
@@ -3656,18 +3690,12 @@ function HomeTab({ onJump }: { onJump: (tab: string) => void }) {
     }
   };
 
-  const greeting = (() => {
-    const h = new Date().getHours();
-    return h < 12 ? "בוקר טוב" : h < 17 ? "צהריים טובים" : h < 21 ? "ערב טוב" : "לילה טוב";
-  })();
-
   return (
     <div className="space-y-6">
-      {/* Greeting */}
-      <div>
-        <div className="text-sm text-muted-foreground">{greeting}</div>
-        <h2 className="text-2xl font-bold">{(profile as any)?.ownerName?.split(" ")[0] ?? profile?.name ?? ""}</h2>
-      </div>
+      {/* Greeting removed — the mobile header above already shows
+          "ערב טוב! 🌆 / שלום אופק" for the owner, and duplicating it
+          here inside the HomeTab meant the owner saw their name twice
+          on every load. Desktop still shows the name in the top nav. */}
 
       {/* Share-link banner — primary CTA for new owners. Same unified
           ShareLinkCard used at the top of the Services tab. */}
@@ -9628,9 +9656,31 @@ function PushPrefsCard({ isStaffMode = false }: { isStaffMode?: boolean }) {
 }
 
 function DeleteBusinessAccountCard() {
+  const { data: profile } = useGetBusinessProfile();
   const [confirmOpen, setConfirmOpen] = useState(false);
+  const [blockerOpen, setBlockerOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const { toast } = useToast();
+
+  // Owner must cancel the subscription before deleting the account — we
+  // can't silently cancel a Tranzila subscription server-side from the
+  // delete path (owner needs to see the "cancels at <date>" confirmation
+  // on their saved card), and leaving a deleted-account Tranzila token
+  // charging monthly is a support nightmare. Gate the delete button
+  // behind an active-subscription check and route the owner to the
+  // "מצב המנוי" card right above instead.
+  const hasActiveSubscription =
+    profile != null &&
+    profile.subscriptionPlan !== "free" &&
+    !(profile as any)?.subscriptionCancelledAt;
+
+  const openDeleteFlow = () => {
+    if (hasActiveSubscription) {
+      setBlockerOpen(true);
+    } else {
+      setConfirmOpen(true);
+    }
+  };
 
   const doDelete = async () => {
     setDeleting(true);
@@ -9682,13 +9732,36 @@ function DeleteBusinessAccountCard() {
           <Button
             type="button"
             variant="outline"
-            onClick={() => setConfirmOpen(true)}
+            onClick={openDeleteFlow}
             className="border-destructive/50 text-destructive hover:bg-destructive/10"
           >
             <Trash2 className="w-4 h-4 ms-1" /> מחק את החשבון שלי
           </Button>
         </CardContent>
       </Card>
+
+      {/* Active-subscription blocker — shown when the owner tries to
+          delete while on a paid plan that hasn't been cancelled yet. */}
+      <Dialog open={blockerOpen} onOpenChange={setBlockerOpen}>
+        <DialogContent dir="rtl">
+          <DialogHeader>
+            <DialogTitle className="text-amber-700">יש לך מנוי פעיל — יש לבטל אותו קודם</DialogTitle>
+            <DialogDescription className="pt-2 space-y-2">
+              <span className="block">
+                אנחנו לא יכולים למחוק חשבון עם מנוי פעיל — אחרת Tranzila תמשיך לחייב את הכרטיס שלך גם אחרי המחיקה.
+              </span>
+              <span className="block">
+                גלול/י למעלה לכרטיס <strong>&quot;מצב המנוי&quot;</strong> ולחצ/י על <strong>&quot;בטל מנוי&quot;</strong>. המנוי יישאר פעיל עד סוף תקופת החיוב הנוכחית, ואחריה תוכל/י למחוק את החשבון.
+              </span>
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex gap-2 justify-end pt-2">
+            <Button type="button" variant="outline" onClick={() => setBlockerOpen(false)}>
+              הבנתי
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={confirmOpen} onOpenChange={setConfirmOpen}>
         <DialogContent dir="rtl">

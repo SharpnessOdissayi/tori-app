@@ -1519,18 +1519,39 @@ router.delete("/business/appointments/:id", requireBusinessAuth, async (req, res
   res.json({ success: true, message: "Appointment cancelled" });
 });
 
-// Hard-delete a cancelled appointment (permanent)
+// Hard-delete an appointment (permanent). Allowed for:
+//   - cancelled appointments (any date)
+//   - past-dated appointments that aren't in a pending state
+//
+// Earlier this only allowed status='cancelled', which made the Customers
+// tab → "תורים שהושלמו" drill-down error 400 "ניתן למחוק רק תורים
+// מבוטלים" when the owner tried to purge an old completed row — the UI
+// was already showing them in the list.
 router.delete("/business/appointments/:id/permanent", requireBusinessAuth, async (req, res): Promise<void> => {
   const id = Number(req.params.id);
   if (!id || isNaN(id)) { res.status(400).json({ error: "Invalid id" }); return; }
 
   const [appt] = await db
-    .select({ id: appointmentsTable.id, status: appointmentsTable.status })
+    .select({
+      id: appointmentsTable.id,
+      status: appointmentsTable.status,
+      appointmentDate: appointmentsTable.appointmentDate,
+    })
     .from(appointmentsTable)
     .where(and(eq(appointmentsTable.id, id), eq(appointmentsTable.businessId, req.business!.businessId)));
 
   if (!appt) { res.status(404).json({ error: "Appointment not found" }); return; }
-  if (appt.status !== "cancelled") { res.status(400).json({ error: "ניתן למחוק רק תורים מבוטלים" }); return; }
+
+  const todayStr = new Date().toISOString().split("T")[0];
+  const isCancelled = appt.status === "cancelled";
+  const isPastAndFinalised =
+    appt.appointmentDate < todayStr &&
+    !["pending", "pending_payment"].includes(appt.status);
+
+  if (!isCancelled && !isPastAndFinalised) {
+    res.status(400).json({ error: "ניתן למחוק רק תורים מבוטלים או תורים שעברו" });
+    return;
+  }
 
   await db.delete(appointmentsTable).where(eq(appointmentsTable.id, id));
   res.json({ success: true });
