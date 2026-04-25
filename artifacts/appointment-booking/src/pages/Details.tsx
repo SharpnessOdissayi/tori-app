@@ -57,8 +57,8 @@ const PLANS = [
     name: "עסקי",
     price: "₪150",
     sub: "לחודש • לעסקים עם צוות",
-    icon: <Briefcase className="w-6 h-6 text-purple-600" />,
-    color: "border-purple-400",
+    icon: <Briefcase className="w-6 h-6 text-blue-800" />,
+    color: "border-blue-700",
     badge: "חדש — לצוות שלם",
     items: [
       "כל מה שיש בפרו ועוד:",
@@ -75,7 +75,7 @@ const PLANS = [
     ],
     cta: "הצטרף לעסקי",
     href: "/register",
-    ctaStyle: { background: "linear-gradient(135deg, #8b5cf6 0%, #6d28d9 100%)", color: "white" },
+    ctaStyle: { background: "linear-gradient(135deg, #1e40af 0%, #0c2d6b 100%)", color: "white" },
   },
 ];
 
@@ -196,10 +196,10 @@ export default function Details() {
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5, delay: 0.1 }}>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             {PLANS.map((plan, i) => (
-              <div key={i} className={`rounded-2xl border-2 p-8 space-y-6 relative ${plan.color} ${i === 1 ? "bg-blue-50/50 dark:bg-blue-950/20" : i === 2 ? "bg-purple-50/50 dark:bg-purple-950/20" : ""}`}>
+              <div key={i} className={`rounded-2xl border-2 p-8 space-y-6 relative ${plan.color} ${i === 1 ? "bg-blue-50/50 dark:bg-blue-950/20" : i === 2 ? "bg-blue-100/40 dark:bg-blue-900/30" : ""}`}>
                 {plan.badge && (
                   <div className="absolute -top-3 right-6">
-                    <Badge className={`${i === 2 ? "bg-purple-500" : "bg-blue-500"} text-white px-3 py-1 text-xs`}>{plan.badge}</Badge>
+                    <Badge className={`${i === 2 ? "bg-blue-700" : "bg-blue-500"} text-white px-3 py-1 text-xs`}>{plan.badge}</Badge>
                   </div>
                 )}
                 <div className="flex items-center gap-2">
@@ -247,7 +247,7 @@ export default function Details() {
               <div className="p-3 sm:p-4 bg-slate-50 dark:bg-slate-800/50"></div>
               <div className="p-3 sm:p-4 bg-slate-50 dark:bg-slate-800/50 text-center font-bold text-sm sm:text-base text-slate-700 dark:text-slate-300">חינמי</div>
               <div className="p-3 sm:p-4 bg-blue-50 dark:bg-blue-950/40 text-center font-bold text-sm sm:text-base text-blue-700 dark:text-blue-300">פרו</div>
-              <div className="p-3 sm:p-4 bg-slate-50 dark:bg-slate-800/50 text-center font-bold text-sm sm:text-base text-purple-700 dark:text-purple-300">עסקי</div>
+              <div className="p-3 sm:p-4 bg-slate-50 dark:bg-slate-800/50 text-center font-bold text-sm sm:text-base text-blue-800 dark:text-blue-300">עסקי</div>
             </div>
 
             {PLAN_FEATURES.map((section, sIdx) => (
