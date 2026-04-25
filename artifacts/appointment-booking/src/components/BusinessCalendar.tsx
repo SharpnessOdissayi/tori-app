@@ -5,7 +5,7 @@ import {
 } from "date-fns";
 import { he } from "date-fns/locale";
 import { HebrewCalendar, flags as hebFlags } from "@hebcal/core";
-import { ChevronRight, ChevronLeft, RefreshCw, Search, CalendarClock, ArrowDown, MessageSquare, Calendar, CalendarDays, LayoutGrid, X, Plus, Ban, Maximize2, Minimize2 } from "lucide-react";
+import { ChevronRight, ChevronLeft, RefreshCw, Search, CalendarClock, ArrowDown, MessageSquare, Calendar, CalendarDays, LayoutGrid, X, Plus, Ban } from "lucide-react";
 import { useGetWorkingHours } from "@workspace/api-client-react";
 
 // Shape for a single day-of-week working-hours row. Matches the WorkingHour
@@ -208,7 +208,6 @@ function CalHeader({
   view, setView, cursor, setCursor, label,
   searchOpen, onOpenSearch, onCloseSearch, searchQuery, setSearchQuery,
   onNewAppointment, onNewTimeOff,
-  fullscreen, onToggleFullscreen,
 }: {
   view: View;
   setView: (v: View) => void;
@@ -222,11 +221,6 @@ function CalHeader({
   setSearchQuery: (q: string) => void;
   onNewAppointment?: () => void;
   onNewTimeOff?: () => void;
-  // Mobile-only fullscreen toggle. The icon flips Maximize2 ↔ Minimize2
-  // based on the current state so the same control is also the exit
-  // affordance once the calendar is full-bleed.
-  fullscreen: boolean;
-  onToggleFullscreen: () => void;
 }) {
   const stepBack = () => {
     if (view === "day") setCursor(addDays(cursor, -1));
@@ -340,17 +334,6 @@ function CalHeader({
         </button>
         <button onClick={() => setCursor(new Date())} className="p-2 rounded-lg hover:bg-muted/60 hidden sm:block" aria-label="רענן"><RefreshCw className="w-4 h-4" /></button>
         <button onClick={onOpenSearch} className="p-2 rounded-lg hover:bg-muted/60" aria-label="חיפוש"><Search className="w-4 h-4" /></button>
-        {/* Fullscreen toggle — phone only. On tablets/desktop the calendar
-            already gets enough vertical real estate, so we hide the
-            control to keep the toolbar from wrapping. */}
-        <button
-          onClick={onToggleFullscreen}
-          className="md:hidden p-2 rounded-lg hover:bg-muted/60"
-          aria-label={fullscreen ? "צא ממסך מלא" : "מסך מלא"}
-          title={fullscreen ? "צא ממסך מלא" : "מסך מלא"}
-        >
-          {fullscreen ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
-        </button>
       </div>
     </div>
   );
@@ -1068,6 +1051,7 @@ function TimeOffBlock({
 
 function TimeGrid({
   days, appts, timeOff, workingHours, onApptClick, onReschedule, serviceColors, onPickSlot, onTimeOffClick, onTimeOffReschedule, highlightApptId,
+  stickyTopClass = "top-16",
 }: {
   days: Date[];
   appts: CalAppt[];
@@ -1092,6 +1076,13 @@ function TimeGrid({
   // ring + scroll-into-view (driven by the home-tab "jump to
   // calendar" click). Cleared by the parent after ~3s.
   highlightApptId?: number | null;
+  // Tailwind sticky-offset class for the day-name + holiday header.
+  // Defaults to top-16 (clears the dashboard's 64px Navbar in normal
+  // page-scroll mode). In mobile fullscreen the parent passes "top-0"
+  // because the scroll container is the calendar's own body wrapper —
+  // there's no Navbar to clear and any positive offset would leave a
+  // dead band above the day-name row.
+  stickyTopClass?: string;
 }) {
   const holidays = useHolidaysInRange(days[0], days[days.length - 1]);
   const today = new Date();
@@ -1172,7 +1163,7 @@ function TimeGrid({
         const hasAnyHoliday = days.some(d => (holidays.get(ymd(d)) ?? []).length > 0);
         return (
           <div
-            className="grid border-b border-border text-xs sticky top-16 z-30 bg-background"
+            className={`grid border-b border-border text-xs sticky ${stickyTopClass} z-30 bg-background`}
             style={{
               gridTemplateColumns: `56px repeat(${days.length}, minmax(0, 1fr))`,
               gridTemplateRows: hasAnyHoliday ? "auto auto" : "auto",
@@ -1638,31 +1629,23 @@ export function BusinessCalendar({
   const [view, setView] = useState<View>("week");
   const [cursor, setCursor] = useState<Date>(new Date());
 
-  // Mobile-only "fullscreen" — the calendar fills the viewport above the
-  // bottom-nav so the day/week/month grid has nearly the entire phone
-  // screen. Defaults to ON for any mobile-width session unless the owner
-  // already exited it once (sessionStorage flag) — so the calendar feels
-  // big-and-clear out of the box without trapping returning users back
-  // into fullscreen on every tab switch.
+  // Mobile fullscreen — the calendar always fills the viewport above the
+  // bottom-nav on phones (width ≤ 767px). No exit affordance: the bottom
+  // nav stays visible at the bottom, so owners reach other tabs by
+  // tapping there rather than minimizing the calendar. The state simply
+  // mirrors the breakpoint so a tablet rotation drops back to the card
+  // layout cleanly.
   const [fullscreen, setFullscreen] = useState<boolean>(() => {
     if (typeof window === "undefined") return false;
-    try {
-      if (sessionStorage.getItem("kavati_cal_fs_exited") === "1") return false;
-    } catch {}
     return window.matchMedia?.("(max-width: 767px)").matches ?? false;
   });
-  // Wrap state updates so manually exiting persists for the session and
-  // re-entering clears the flag.
-  const toggleFullscreen = () => {
-    setFullscreen(v => {
-      const next = !v;
-      try {
-        if (next) sessionStorage.removeItem("kavati_cal_fs_exited");
-        else      sessionStorage.setItem("kavati_cal_fs_exited", "1");
-      } catch {}
-      return next;
-    });
-  };
+  useEffect(() => {
+    if (typeof window === "undefined" || !window.matchMedia) return;
+    const mq = window.matchMedia("(max-width: 767px)");
+    const handler = () => setFullscreen(mq.matches);
+    mq.addEventListener?.("change", handler);
+    return () => mq.removeEventListener?.("change", handler);
+  }, []);
   // Lock body scroll while fullscreen so a stray two-finger gesture
   // can't move the page underneath. Restores the previous overflow on
   // exit (other modals on the page may also touch body.style.overflow).
@@ -1672,30 +1655,6 @@ export function BusinessCalendar({
     document.body.style.overflow = "hidden";
     return () => { document.body.style.overflow = original; };
   }, [fullscreen]);
-  // Esc exits fullscreen — common keyboard expectation, also useful for
-  // owners who pair a Bluetooth keyboard with their phone.
-  useEffect(() => {
-    if (!fullscreen) return;
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") {
-        try { sessionStorage.setItem("kavati_cal_fs_exited", "1"); } catch {}
-        setFullscreen(false);
-      }
-    };
-    document.addEventListener("keydown", onKey);
-    return () => document.removeEventListener("keydown", onKey);
-  }, [fullscreen]);
-  // If the user rotates a phone into a wide layout (or resizes the
-  // browser past md:), drop fullscreen — the desktop header doesn't
-  // even render the toggle button, so leaving the state stuck on
-  // would strand them with no way back.
-  useEffect(() => {
-    if (typeof window === "undefined" || !window.matchMedia) return;
-    const mq = window.matchMedia("(min-width: 768px)");
-    const handler = () => { if (mq.matches) setFullscreen(false); };
-    mq.addEventListener?.("change", handler);
-    return () => mq.removeEventListener?.("change", handler);
-  }, []);
 
   // "Highlight an appointment on the calendar" — set by the home tab
   // when the owner taps an upcoming-appointment row. We read the id
@@ -1893,19 +1852,22 @@ export function BusinessCalendar({
   // scroll box, so sticky keeps working.
   //
   // In `fullscreen` mode (phones only) we drop the rounded card chrome
-  // and let the calendar fill the viewport. The header stays sticky at
-  // the top so the view switcher + Minimize2 exit button are always
-  // reachable while the body scrolls.
+  // and let the calendar fill the viewport above the bottom-nav. There's
+  // no exit affordance — owners hop to other tabs via the bottom-nav,
+  // which stays visible at the bottom thanks to the calc-based bottom
+  // offset. TimeGrid is told to stick its day-header at top-0 of the
+  // body wrapper (instead of the default top-16 that clears the page
+  // Navbar) so the weekday/holiday band glues directly to the CalHeader.
   return (
     <div className={fullscreen
       ? "fixed inset-x-0 top-0 z-[55] bg-background flex flex-col"
       : "border rounded-2xl overflow-clip bg-card relative"
     } style={fullscreen
       // Leave the bottom-nav (h-16 = 4rem) + iPhone safe-area visible so
-      // the owner can hop to other tabs without first exiting fullscreen.
-      // z-[55] sits above the page chrome but BELOW the bottom-nav (z-40
-      // → still passes since they don't overlap) and the dialogs (which
-      // render INSIDE this container, in its own stacking context).
+      // owners can switch tabs without exiting the calendar. z-[55] sits
+      // above page chrome but BELOW the bottom-nav (z-40 — they don't
+      // overlap) and the dialogs (which render INSIDE this container,
+      // in its own stacking context).
       ? { bottom: "calc(4rem + env(safe-area-inset-bottom))" }
       : undefined
     }>
@@ -1921,8 +1883,6 @@ export function BusinessCalendar({
         setSearchQuery={setSearchQuery}
         onNewAppointment={onNewAppointment ? () => onNewAppointment() : undefined}
         onNewTimeOff={onNewTimeOff ? () => onNewTimeOff() : undefined}
-        fullscreen={fullscreen}
-        onToggleFullscreen={toggleFullscreen}
       />
       </div>
 
@@ -2039,6 +1999,7 @@ export function BusinessCalendar({
             onReschedule={(a, nd, nt) => setPendingReschedule({ appt: a, newDate: nd, newTime: nt })}
             onPickSlot={onNewAppointment ? (date, time) => onNewAppointment({ date, time }) : undefined}
             highlightApptId={highlightApptId}
+            stickyTopClass={fullscreen ? "top-0" : "top-16"}
           />
         )}
         {view === "day" && (
@@ -2054,6 +2015,7 @@ export function BusinessCalendar({
             onReschedule={(a, nd, nt) => setPendingReschedule({ appt: a, newDate: nd, newTime: nt })}
             onPickSlot={onNewAppointment ? (date, time) => onNewAppointment({ date, time }) : undefined}
             highlightApptId={highlightApptId}
+            stickyTopClass={fullscreen ? "top-0" : "top-16"}
           />
         )}
       </div>
