@@ -5,7 +5,7 @@ import {
 } from "date-fns";
 import { he } from "date-fns/locale";
 import { HebrewCalendar, flags as hebFlags } from "@hebcal/core";
-import { ChevronRight, ChevronLeft, RefreshCw, Search, CalendarClock, ArrowDown, MessageSquare, Calendar, CalendarDays, LayoutGrid, X, Plus, Ban } from "lucide-react";
+import { ChevronRight, ChevronLeft, RefreshCw, Search, CalendarClock, ArrowDown, MessageSquare, Calendar, CalendarDays, LayoutGrid, X, Plus, Ban, Maximize2, Minimize2 } from "lucide-react";
 import { useGetWorkingHours } from "@workspace/api-client-react";
 
 // Shape for a single day-of-week working-hours row. Matches the WorkingHour
@@ -208,6 +208,7 @@ function CalHeader({
   view, setView, cursor, setCursor, label,
   searchOpen, onOpenSearch, onCloseSearch, searchQuery, setSearchQuery,
   onNewAppointment, onNewTimeOff,
+  fullscreen, onToggleFullscreen,
 }: {
   view: View;
   setView: (v: View) => void;
@@ -221,6 +222,11 @@ function CalHeader({
   setSearchQuery: (q: string) => void;
   onNewAppointment?: () => void;
   onNewTimeOff?: () => void;
+  // Mobile-only fullscreen toggle. The icon flips Maximize2 ↔ Minimize2
+  // based on the current state so the same control is also the exit
+  // affordance once the calendar is full-bleed.
+  fullscreen: boolean;
+  onToggleFullscreen: () => void;
 }) {
   const stepBack = () => {
     if (view === "day") setCursor(addDays(cursor, -1));
@@ -334,6 +340,17 @@ function CalHeader({
         </button>
         <button onClick={() => setCursor(new Date())} className="p-2 rounded-lg hover:bg-muted/60 hidden sm:block" aria-label="רענן"><RefreshCw className="w-4 h-4" /></button>
         <button onClick={onOpenSearch} className="p-2 rounded-lg hover:bg-muted/60" aria-label="חיפוש"><Search className="w-4 h-4" /></button>
+        {/* Fullscreen toggle — phone only. On tablets/desktop the calendar
+            already gets enough vertical real estate, so we hide the
+            control to keep the toolbar from wrapping. */}
+        <button
+          onClick={onToggleFullscreen}
+          className="md:hidden p-2 rounded-lg hover:bg-muted/60"
+          aria-label={fullscreen ? "צא ממסך מלא" : "מסך מלא"}
+          title={fullscreen ? "צא ממסך מלא" : "מסך מלא"}
+        >
+          {fullscreen ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
+        </button>
       </div>
     </div>
   );
@@ -1586,6 +1603,41 @@ export function BusinessCalendar({
   const [view, setView] = useState<View>("week");
   const [cursor, setCursor] = useState<Date>(new Date());
 
+  // Mobile-only "fullscreen" — the calendar takes over the viewport so
+  // the day/week/month grid has the entire phone screen to breathe in,
+  // hiding the dashboard's tabs and bottom-nav. Toggled from the header
+  // (Maximize2 / Minimize2 button), Esc key, or by leaving the mobile
+  // breakpoint. Resets on tab unmount via component lifecycle.
+  const [fullscreen, setFullscreen] = useState(false);
+  // Lock body scroll while fullscreen so a stray two-finger gesture
+  // can't move the page underneath. Restores the previous overflow on
+  // exit (other modals on the page may also touch body.style.overflow).
+  useEffect(() => {
+    if (!fullscreen) return;
+    const original = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => { document.body.style.overflow = original; };
+  }, [fullscreen]);
+  // Esc exits fullscreen — common keyboard expectation, also useful for
+  // owners who pair a Bluetooth keyboard with their phone.
+  useEffect(() => {
+    if (!fullscreen) return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") setFullscreen(false); };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [fullscreen]);
+  // If the user rotates a phone into a wide layout (or resizes the
+  // browser past md:), drop fullscreen — the desktop header doesn't
+  // even render the toggle button, so leaving the state stuck on
+  // would strand them with no way back.
+  useEffect(() => {
+    if (typeof window === "undefined" || !window.matchMedia) return;
+    const mq = window.matchMedia("(min-width: 768px)");
+    const handler = () => { if (mq.matches) setFullscreen(false); };
+    mq.addEventListener?.("change", handler);
+    return () => mq.removeEventListener?.("change", handler);
+  }, []);
+
   // "Highlight an appointment on the calendar" — set by the home tab
   // when the owner taps an upcoming-appointment row. We read the id
   // out of sessionStorage on mount (the tab switch would otherwise
@@ -1780,8 +1832,17 @@ export function BusinessCalendar({
   // was breaking the sticky day/date/holidays row inside <TimeGrid>.
   // overflow-clip clips rounded corners the same way without creating a
   // scroll box, so sticky keeps working.
+  //
+  // In `fullscreen` mode (phones only) we drop the rounded card chrome
+  // and let the calendar fill the viewport. The header stays sticky at
+  // the top so the view switcher + Minimize2 exit button are always
+  // reachable while the body scrolls.
   return (
-    <div className="border rounded-2xl overflow-clip bg-card relative">
+    <div className={fullscreen
+      ? "fixed inset-0 z-[60] bg-background flex flex-col"
+      : "border rounded-2xl overflow-clip bg-card relative"
+    }>
+      <div className={fullscreen ? "shrink-0" : ""}>
       <CalHeader
         view={view} setView={setView}
         cursor={cursor} setCursor={setCursor}
@@ -1793,7 +1854,10 @@ export function BusinessCalendar({
         setSearchQuery={setSearchQuery}
         onNewAppointment={onNewAppointment ? () => onNewAppointment() : undefined}
         onNewTimeOff={onNewTimeOff ? () => onNewTimeOff() : undefined}
+        fullscreen={fullscreen}
+        onToggleFullscreen={() => setFullscreen(v => !v)}
       />
+      </div>
 
       {/* Staff filter chip — shown when the OWNER clicked "צפה ביומן" on
           a specific staff member from the Staff tab. Clicking × removes
@@ -1878,10 +1942,14 @@ export function BusinessCalendar({
           independently). Let the TimeGrid expand to its natural
           height and use the page scroll; the day-header row inside
           the grid is sticky, so the weekday labels stay visible as
-          the owner scrolls time slots into view. */}
+          the owner scrolls time slots into view.
+          In fullscreen mode the outer page can't scroll (body is
+          locked), so we promote THIS wrapper to the scroll surface
+          via flex-1 + overflow-y-auto. */}
       <div
         onTouchStart={onSwipeStart}
         onTouchEnd={onSwipeEnd}
+        className={fullscreen ? "flex-1 overflow-y-auto" : ""}
       >
         {view === "month" && (
           <MonthView
