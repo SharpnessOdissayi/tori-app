@@ -75,7 +75,7 @@ type View = "day" | "week" | "month";
 const DAY_START_MINUTES = 8 * 60;   // Week/Day grid starts at 08:00
 const DAY_END_MINUTES   = 22 * 60;  // … ends at 22:00
 const SLOT_MINUTES      = 30;       // 30-min snap grid (matches owner flow)
-const SLOT_PX           = 32;       // 32px per 30-min slot → hour = 64px
+const SLOT_PX           = 40;       // 40px per 30-min slot → hour = 80px (bumped from 32 for thumb-friendly tap targets on phones)
 const SLOTS_PER_HOUR    = 60 / SLOT_MINUTES;
 
 function timeToMinutes(hhmm: string): number {
@@ -1603,12 +1603,31 @@ export function BusinessCalendar({
   const [view, setView] = useState<View>("week");
   const [cursor, setCursor] = useState<Date>(new Date());
 
-  // Mobile-only "fullscreen" — the calendar takes over the viewport so
-  // the day/week/month grid has the entire phone screen to breathe in,
-  // hiding the dashboard's tabs and bottom-nav. Toggled from the header
-  // (Maximize2 / Minimize2 button), Esc key, or by leaving the mobile
-  // breakpoint. Resets on tab unmount via component lifecycle.
-  const [fullscreen, setFullscreen] = useState(false);
+  // Mobile-only "fullscreen" — the calendar fills the viewport above the
+  // bottom-nav so the day/week/month grid has nearly the entire phone
+  // screen. Defaults to ON for any mobile-width session unless the owner
+  // already exited it once (sessionStorage flag) — so the calendar feels
+  // big-and-clear out of the box without trapping returning users back
+  // into fullscreen on every tab switch.
+  const [fullscreen, setFullscreen] = useState<boolean>(() => {
+    if (typeof window === "undefined") return false;
+    try {
+      if (sessionStorage.getItem("kavati_cal_fs_exited") === "1") return false;
+    } catch {}
+    return window.matchMedia?.("(max-width: 767px)").matches ?? false;
+  });
+  // Wrap state updates so manually exiting persists for the session and
+  // re-entering clears the flag.
+  const toggleFullscreen = () => {
+    setFullscreen(v => {
+      const next = !v;
+      try {
+        if (next) sessionStorage.removeItem("kavati_cal_fs_exited");
+        else      sessionStorage.setItem("kavati_cal_fs_exited", "1");
+      } catch {}
+      return next;
+    });
+  };
   // Lock body scroll while fullscreen so a stray two-finger gesture
   // can't move the page underneath. Restores the previous overflow on
   // exit (other modals on the page may also touch body.style.overflow).
@@ -1622,7 +1641,12 @@ export function BusinessCalendar({
   // owners who pair a Bluetooth keyboard with their phone.
   useEffect(() => {
     if (!fullscreen) return;
-    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") setFullscreen(false); };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        try { sessionStorage.setItem("kavati_cal_fs_exited", "1"); } catch {}
+        setFullscreen(false);
+      }
+    };
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
   }, [fullscreen]);
@@ -1839,8 +1863,16 @@ export function BusinessCalendar({
   // reachable while the body scrolls.
   return (
     <div className={fullscreen
-      ? "fixed inset-0 z-[60] bg-background flex flex-col"
+      ? "fixed inset-x-0 top-0 z-[55] bg-background flex flex-col"
       : "border rounded-2xl overflow-clip bg-card relative"
+    } style={fullscreen
+      // Leave the bottom-nav (h-16 = 4rem) + iPhone safe-area visible so
+      // the owner can hop to other tabs without first exiting fullscreen.
+      // z-[55] sits above the page chrome but BELOW the bottom-nav (z-40
+      // → still passes since they don't overlap) and the dialogs (which
+      // render INSIDE this container, in its own stacking context).
+      ? { bottom: "calc(4rem + env(safe-area-inset-bottom))" }
+      : undefined
     }>
       <div className={fullscreen ? "shrink-0" : ""}>
       <CalHeader
@@ -1855,7 +1887,7 @@ export function BusinessCalendar({
         onNewAppointment={onNewAppointment ? () => onNewAppointment() : undefined}
         onNewTimeOff={onNewTimeOff ? () => onNewTimeOff() : undefined}
         fullscreen={fullscreen}
-        onToggleFullscreen={() => setFullscreen(v => !v)}
+        onToggleFullscreen={toggleFullscreen}
       />
       </div>
 
