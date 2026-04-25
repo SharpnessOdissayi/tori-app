@@ -1,168 +1,13 @@
 import { motion } from "framer-motion";
 import { Link } from "wouter";
 import {
-  CalendarCheck, MessageCircle, Bell, Clock, Shield, Zap, Crown,
-  CheckCircle, Users, Settings, Palette, Star, ArrowLeft, Phone,
-  BarChart2, Briefcase, Umbrella, DollarSign, TrendingUp, LayoutDashboard,
-  ExternalLink, Compass, Navigation, Image, UserCheck, Megaphone,
-  ListOrdered, Send,
+  CalendarCheck, Crown, Zap, Briefcase, Star, ArrowLeft, Phone,
+  Check, X, CheckCircle,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import Navbar from "@/components/Navbar";
 import SiteFooter from "@/components/SiteFooter";
-
-const FEATURES = [
-  {
-    icon: <CalendarCheck className="w-7 h-7" style={{ color: "#3c92f0" }} />,
-    title: "קביעת תורים אונליין",
-    desc: "לקוחות קובעים תור בכל שעה, מכל מקום, דרך עמוד הזמנה ייחודי לעסק שלך.",
-  },
-  {
-    icon: <MessageCircle className="w-7 h-7" style={{ color: "#3c92f0" }} />,
-    title: "תזכורות בוואטסאפ",
-    desc: "עד 3 תזכורות מותאמות אישית לכל תור — שעה לפני, יום לפני, ואפילו בוקר יום התור ב-08:00.",
-  },
-  {
-    icon: <Megaphone className="w-7 h-7" style={{ color: "#3c92f0" }} />,
-    title: "הודעת פתיחה לפרופיל",
-    desc: "הגדר הודעה שתוצג ללקוחות בכניסה לעמוד — מבצע, עדכון חשוב, הכרזה. בחר לכמה שעות ההודעה תקפה.",
-  },
-  {
-    icon: <Compass className="w-7 h-7" style={{ color: "#3c92f0" }} />,
-    title: "גלה עסקים בפורטל הלקוח",
-    desc: "ללקוחות יש פורטל אישי לניהול התורים שלהם — ובו ספריית עסקים שמחפשים שירות חדש יכולים למצוא אותך ישירות.",
-  },
-  {
-    icon: <Palette className="w-7 h-7" style={{ color: "#3c92f0" }} />,
-    title: "עיצוב מותאם אישית",
-    desc: "בחר צבע, פונט, רדיוס פינות, תמונת לוגו ובאנר — הדף יראה בדיוק כמו המותג שלך.",
-  },
-  {
-    icon: <Image className="w-7 h-7" style={{ color: "#3c92f0" }} />,
-    title: "גלריה עם תצוגה מוגדלת",
-    desc: "הוסף תמונות לפרופיל העסק שלך — לקוחות יכולים ללחוץ על כל תמונה כדי להגדיל אותה במסך מלא.",
-  },
-  {
-    icon: <Navigation className="w-7 h-7" style={{ color: "#3c92f0" }} />,
-    title: "ניווט אוטומטי לווייז",
-    desc: "לקוחות לוחצים על 'נווט אליי' — ווייז נפתח ישירות לכתובת העסק, בלי צורך להדביק קישור ידנית.",
-  },
-  {
-    icon: <Clock className="w-7 h-7" style={{ color: "#3c92f0" }} />,
-    title: "ניהול שעות וחופשות",
-    desc: "הגדר שעות עבודה, הפסקות, ימי חופש וסגירות — המערכת לא תציג תורים בזמן הזה.",
-  },
-  {
-    icon: <UserCheck className="w-7 h-7" style={{ color: "#3c92f0" }} />,
-    title: "פורטל לקוח אישי",
-    desc: "כל לקוח מתחבר עם הטלפון שלו, רואה את התורים הקרובים שלו, יכול לבטל ולנהל העדפות התראות.",
-  },
-  {
-    icon: <Users className="w-7 h-7" style={{ color: "#3c92f0" }} />,
-    title: "ניהול לקוחות",
-    desc: "ראה את כל הלקוחות שלך, ההיסטוריה שלהם, ורשימת המתנה לתורים שמתמלאים.",
-  },
-  {
-    icon: <Briefcase className="w-7 h-7" style={{ color: "#8b5cf6" }} />,
-    title: "ניהול צוות (עסקי)",
-    desc: "נהל מספר עובדים בעסק אחד — כל עובד עם יומן, שירותים, שעות עבודה ואפילו פרופיל ותמונה משלו. הלקוח בוחר עם מי לקבוע.",
-  },
-  {
-    icon: <BarChart2 className="w-7 h-7" style={{ color: "#8b5cf6" }} />,
-    title: "אנליטיקה מתקדמת (עסקי)",
-    desc: "LTV ללקוח, תחזית הכנסות, ניתוחי נאמנות, סיווג לקוחות בסיכון, ייצוא נתונים ל-CSV — הכל ממקום אחד.",
-  },
-  {
-    icon: <Shield className="w-7 h-7" style={{ color: "#3c92f0" }} />,
-    title: "אימות מספר טלפון",
-    desc: "מנע הזמנות ספאם עם אימות SMS — רק לקוחות אמיתיים עם מספר תקין יוכלו לקבוע תור.",
-  },
-  {
-    icon: <Settings className="w-7 h-7" style={{ color: "#3c92f0" }} />,
-    title: "אישור תורים ידני",
-    desc: "בחר לאשר כל תור ידנית לפני שהוא נכנס ליומן — שליטה מלאה בזמינות שלך.",
-  },
-];
-
-/** Dashboard tabs — explained for potential customers */
-// Dashboard tabs cycle through three shades of the logo's blue family
-// (blue → sky → cyan) for visual variety without leaving the palette.
-const DASHBOARD_TABS = [
-  {
-    icon: <CalendarCheck className="w-6 h-6 text-blue-600" />,
-    color: "bg-blue-50 border-blue-200",
-    title: "תורים",
-    desc: "רשימה מלאה של כל התורים הקרובים — ניתן לאשר, לבטל או לסמן הגעה לכל תור. מוצג לפי תאריך עם שם הלקוח, שירות ושעה.",
-  },
-  {
-    icon: <Briefcase className="w-6 h-6 text-sky-600" />,
-    color: "bg-sky-50 border-sky-200",
-    title: "שירותים",
-    desc: "הוספת שירותים, עריכת מחירים ומשך זמן, הגדרת תיאור — הכל מתעדכן מיידית בעמוד ההזמנה של הלקוחות.",
-  },
-  {
-    icon: <Clock className="w-6 h-6 text-cyan-600" />,
-    color: "bg-cyan-50 border-cyan-200",
-    title: "שעות עבודה",
-    desc: "הגדרת ימים ושעות פעילות לכל יום בנפרד, כולל הפסקות — המערכת תציע רק תורים בזמן שהגדרת.",
-  },
-  {
-    icon: <Umbrella className="w-6 h-6 text-blue-600" />,
-    color: "bg-blue-50 border-blue-200",
-    title: "ימי חופש",
-    desc: "חסימת ימים שלמים או שעות ספציפיות בתאריך מסוים — לחגים, חופשות, ימי מחלה. הלקוחות לא יוכלו לקבוע בזמן זה.",
-  },
-  {
-    icon: <Users className="w-6 h-6 text-sky-600" />,
-    color: "bg-sky-50 border-sky-200",
-    title: "לקוחות",
-    desc: "צפייה בכל הלקוחות שנרשמו, היסטוריית התורים שלהם, ושליחת הודעות ישירות דרך WhatsApp.",
-  },
-  {
-    icon: <ListOrdered className="w-6 h-6 text-cyan-600" />,
-    color: "bg-cyan-50 border-cyan-200",
-    title: "רשימת המתנה",
-    desc: "לקוחות שרוצים תור כשאין זמינות נכנסים לרשימת ההמתנה — תקבל התראה ותוכל לאשר אותם ידנית.",
-  },
-  {
-    icon: <TrendingUp className="w-6 h-6 text-blue-600" />,
-    color: "bg-blue-50 border-blue-200",
-    title: "נתונים",
-    desc: "סטטיסטיקות תורים: כמה תורים קבעו השבוע, השוואה לשבוע שעבר, ומגמת צמיחה — כל מה שצריך לדעת במבט אחד.",
-  },
-  {
-    icon: <DollarSign className="w-6 h-6 text-sky-600" />,
-    color: "bg-sky-50 border-sky-200",
-    title: "כסף",
-    desc: "הכנסה החודש, תחזית לחודש הבא לפי התורים הקבועים, וסה\"כ הכנסות כל הזמנים — מבוסס על מחירי השירותים.",
-  },
-  {
-    icon: <Palette className="w-6 h-6 text-cyan-600" />,
-    color: "bg-cyan-50 border-cyan-200",
-    title: "עיצוב",
-    desc: "צבע ראשי, פונט, לוגו, באנר, גלריה, תיאור, כתובת, אתר, אינסטגרם — כל מה שקשור למראה הפרופיל שלך.",
-  },
-  {
-    icon: <Send className="w-6 h-6 text-blue-600" />,
-    color: "bg-blue-50 border-blue-200",
-    title: "הודעות",
-    desc: "שלח הודעת broadcast לכל הלקוחות שלך בבת אחת — עדכון, מבצע, שינוי שעות. עד 150 הודעות בחודש בתוכנית פרו.",
-  },
-  {
-    icon: <Bell className="w-6 h-6 text-sky-600" />,
-    color: "bg-sky-50 border-sky-200",
-    title: "התראות",
-    desc: "הגדרת תזכורות WhatsApp ללקוחות לפני התור, הודעת אישור תור, הודעת פתיחה לפרופיל — הכל בשליטתך.",
-  },
-  {
-    icon: <Settings className="w-6 h-6 text-cyan-600" />,
-    color: "bg-cyan-50 border-cyan-200",
-    title: "הגדרות",
-    desc: "פרטי חשבון, הגבלות הזמנה, אימות טלפון, אישור ידני, שומר שבת, עמוד מנוי ועוד — ניהול מלא של החשבון.",
-  },
-];
 
 const PLANS = [
   {
@@ -234,87 +79,121 @@ const PLANS = [
   },
 ];
 
+/**
+ * Comparison-table source. Cell value semantics:
+ *   true   → included
+ *   false  → not included
+ *   string → quantitative limit / qualitative tier (e.g. "עד 50 ביום")
+ * Keep in sync with PLANS items above when editing.
+ */
+const PLAN_FEATURES: Array<{
+  section: string;
+  items: Array<{ name: string; desc: string; free: boolean | string; pro: boolean | string; biz: boolean | string }>;
+}> = [
+  {
+    section: "ניהול בסיסי",
+    items: [
+      { name: "עמוד הזמנה אישי",      desc: "כתובת ייחודית עם לוגו, באנר ועיצוב",         free: true,    pro: true,           biz: true },
+      { name: "לוח בקרה מלא",         desc: "ניהול תורים, שירותים ושעות במקום אחד",        free: true,    pro: true,           biz: true },
+      { name: "ניהול שעות וחופשות",   desc: "שעות פעילות, הפסקות וימי חופש",               free: true,    pro: true,           biz: true },
+      { name: "שירותים פעילים",       desc: "מספר השירותים שאפשר להוסיף",                  free: "עד 3",  pro: "ללא הגבלה",   biz: "ללא הגבלה" },
+      { name: "לקוחות בחודש",         desc: "כמות לקוחות שיכולים לקבוע תור",               free: "עד 20", pro: "ללא הגבלה",   biz: "ללא הגבלה" },
+    ],
+  },
+  {
+    section: "אוטומציה ותקשורת",
+    items: [
+      { name: "תזכורות WhatsApp",     desc: "תזכורת אוטומטית לפני התור",                   free: false,   pro: "עד 50 ביום",  biz: "עד 100 ביום" },
+      { name: "הודעות SMS",           desc: "ללקוחות שאין להם וואטסאפ",                    free: false,   pro: "100 בחודש",   biz: "300 בחודש" },
+      { name: "הודעת broadcast",      desc: "שליחה בבת אחת לכל הלקוחות",                   free: false,   pro: true,           biz: true },
+      { name: "אימות מספר טלפון",     desc: "מניעת תורי ספאם עם SMS",                      free: false,   pro: true,           biz: true },
+      { name: "רשימת המתנה",          desc: "לקוחות נכנסים אוטומטית כשמתפנה תור",          free: false,   pro: true,           biz: true },
+      { name: "אישור תורים ידני",     desc: "אתה מאשר/ת כל תור לפני שנכנס ליומן",          free: false,   pro: true,           biz: true },
+    ],
+  },
+  {
+    section: "פרופיל ושיווק",
+    items: [
+      { name: "עיצוב מותאם אישית",        desc: "צבע, פונט, רדיוס פינות, לוגו ובאנר",      free: "בסיסי", pro: "מלא",          biz: "מלא" },
+      { name: "הודעת פתיחה לפרופיל",      desc: "הכרזה זמנית עם תוקף מותאם בשעות",         free: false,   pro: true,           biz: true },
+      { name: "פרסום בספריית 'גלה עסקים'", desc: "לקוחות חדשים מוצאים אותך מהפורטל",        free: false,   pro: true,           biz: true },
+      { name: "גלריה עם תצוגה מוגדלת",    desc: "תמונות איכות במסך מלא",                   free: false,   pro: true,           biz: true },
+      { name: "ניווט אוטומטי לווייז",     desc: "כפתור שפותח ווייז עם הכתובת מוכנה",        free: false,   pro: true,           biz: true },
+    ],
+  },
+  {
+    section: "צוות ואנליטיקה",
+    items: [
+      { name: "ניהול צוות",            desc: "מספר עובדים בעסק אחד",                       free: false,   pro: false,          biz: true },
+      { name: "יומן נפרד לכל עובד",     desc: "כל איש צוות עם יומן ושירותים משלו",          free: false,   pro: false,          biz: true },
+      { name: "אנליטיקה מתקדמת",       desc: "LTV, תחזיות הכנסה, סיווג לקוחות בסיכון",     free: false,   pro: false,          biz: true },
+      { name: "קבלות וחשבוניות",        desc: "הנפקת קבלות חוקיות ללקוחות",                 free: false,   pro: false,          biz: true },
+      { name: "ייצוא ל-CSV",           desc: "לקוחות, תורים והכנסות לקובץ",                free: false,   pro: false,          biz: true },
+      { name: "דומיין מותאם אישית",     desc: "your-domain.com (white-label)",              free: false,   pro: false,          biz: true },
+    ],
+  },
+  {
+    section: "תמיכה",
+    items: [
+      { name: "תמיכה טכנית",           desc: "צוות תמיכה זמין באימייל ובוואטסאפ",          free: "בסיסית", pro: "מועדפת",      biz: "עדיפות גבוהה" },
+    ],
+  },
+];
+
+function PlanCell({ value }: { value: boolean | string }) {
+  if (value === true) {
+    return (
+      <div className="inline-flex w-7 h-7 rounded-full bg-green-500 items-center justify-center shadow-sm">
+        <Check className="w-4 h-4 text-white" strokeWidth={3} />
+      </div>
+    );
+  }
+  if (value === false) {
+    return (
+      <div className="inline-flex w-7 h-7 rounded-full bg-red-400 items-center justify-center shadow-sm">
+        <X className="w-4 h-4 text-white" strokeWidth={3} />
+      </div>
+    );
+  }
+  return (
+    <span className="text-xs sm:text-sm font-medium text-slate-700 dark:text-slate-300 leading-tight text-center px-1">
+      {value}
+    </span>
+  );
+}
+
 export default function Details() {
   return (
     <div className="min-h-[100dvh] flex flex-col bg-background" dir="rtl">
       <Navbar />
 
       {/* Hero */}
-      <section className="py-20 px-6 text-center max-w-3xl mx-auto">
+      <section className="py-16 sm:py-20 px-6 text-center max-w-3xl mx-auto">
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5 }} className="space-y-6">
           <div className="inline-flex items-center gap-2 bg-primary/10 text-primary rounded-full px-4 py-2 text-sm font-medium">
             <Star className="w-4 h-4" fill="currentColor" />
-            מי אנחנו ומה אנחנו עושים
+            המסלולים שלנו
           </div>
           <h1 className="text-4xl sm:text-5xl font-extrabold tracking-tight text-foreground leading-tight">
-            קבעתי — מערכת ניהול תורים <span className="text-primary">חכמה</span> לעסקים ישראליים
+            המסלול שמתאים <span className="text-primary">לעסק שלך</span>
           </h1>
           <p className="text-lg text-muted-foreground leading-relaxed">
-            בנינו פלטפורמה שמאפשרת לכל עסק — מספרה, קליניקה, קוסמטיקאית, מאמן ספורט ועוד —
-            לנהל תורים בצורה מקצועית, חכמה ואוטומטית, בלי להשקיע שעות בניהול ידני.
+            התחל חינם, שדרג כשמתאים לך — בלי התחייבות, בלי הפתעות.
+            ניתן לשדרג ולבטל בכל רגע ישירות מלוח הבקרה.
           </p>
-          <Link href="/register">
+          <a href="#compare">
             <Button size="lg" className="h-13 px-8 text-base rounded-2xl gap-2 mt-2">
               <CalendarCheck className="w-5 h-5" />
-              התחל חינם עכשיו
+              השווה מסלולים
               <ArrowLeft className="w-4 h-4" />
             </Button>
-          </Link>
+          </a>
         </motion.div>
       </section>
 
-      {/* Features */}
-      <section className="py-16 px-6 max-w-5xl mx-auto w-full">
+      {/* Pricing cards */}
+      <section className="px-6 max-w-4xl mx-auto w-full">
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5, delay: 0.1 }}>
-          <h2 className="text-3xl font-bold text-center mb-12">מה כלול במערכת?</h2>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-            {FEATURES.map((f, i) => (
-              <Card key={i} className="border-border hover:shadow-lg transition-shadow">
-                <CardContent className="pt-6 pb-6 space-y-3 text-right">
-                  <div>{f.icon}</div>
-                  <h3 className="font-bold text-lg">{f.title}</h3>
-                  <p className="text-muted-foreground text-sm leading-relaxed">{f.desc}</p>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-        </motion.div>
-      </section>
-
-      {/* Dashboard panel breakdown */}
-      <section className="py-16 px-6 max-w-5xl mx-auto w-full">
-        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5, delay: 0.15 }}>
-          <div className="text-center mb-12 space-y-3">
-            <div className="inline-flex items-center gap-2 bg-primary/10 text-primary rounded-full px-4 py-2 text-sm font-medium">
-              <LayoutDashboard className="w-4 h-4" />
-              פאנל הניהול
-            </div>
-            <h2 className="text-3xl font-bold">מה תמצאו בפאנל הניהול?</h2>
-            <p className="text-muted-foreground max-w-xl mx-auto">
-              לוח הבקרה שלנו מחולק לכרטיסיות ברורות — כל אחת עם מטרה ספציפית
-            </p>
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
-            {DASHBOARD_TABS.map((tab, i) => (
-              <div key={i} className={`rounded-2xl border-2 p-5 space-y-3 ${tab.color}`}>
-                <div className="flex items-center gap-3">
-                  <div className="p-2 rounded-xl bg-white shadow-sm">{tab.icon}</div>
-                  <span className="font-bold text-lg">{tab.title}</span>
-                </div>
-                <p className="text-sm text-muted-foreground leading-relaxed">{tab.desc}</p>
-              </div>
-            ))}
-          </div>
-        </motion.div>
-      </section>
-
-
-      {/* Pricing */}
-      <section id="pricing" className="py-16 px-6 max-w-4xl mx-auto w-full">
-        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5, delay: 0.25 }}>
-          <h2 className="text-3xl font-bold text-center mb-4">תוכניות מחיר</h2>
-          <p className="text-center text-muted-foreground mb-12">ניתן לשדרג בכל עת מלוח הבקרה</p>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             {PLANS.map((plan, i) => (
               <div key={i} className={`rounded-2xl border-2 p-8 space-y-6 relative ${plan.color} ${i === 1 ? "bg-blue-50/50 dark:bg-blue-950/20" : i === 2 ? "bg-purple-50/50 dark:bg-purple-950/20" : ""}`}>
@@ -350,6 +229,63 @@ export default function Details() {
               </div>
             ))}
           </div>
+        </motion.div>
+      </section>
+
+      {/* Comparison table — morning-style. The middle (פרו) column carries
+          a continuous blue tint across header/section/data rows so it reads
+          as a single highlighted track even when section headers visually
+          break the rows. */}
+      <section id="compare" className="py-16 px-6 max-w-5xl mx-auto w-full scroll-mt-20">
+        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5, delay: 0.15 }}>
+          <h2 className="text-3xl font-bold text-center mb-3">השוואת מסלולים</h2>
+          <p className="text-center text-muted-foreground mb-10">כל מה שכלול בכל מסלול — במבט אחד</p>
+
+          <div className="rounded-2xl border-2 border-border overflow-hidden bg-white dark:bg-slate-900 shadow-sm">
+            {/* Header row */}
+            <div className="grid grid-cols-[1.5fr_1fr_1fr_1fr] sm:grid-cols-[2fr_1fr_1fr_1fr] border-b-2 border-border">
+              <div className="p-3 sm:p-4 bg-slate-50 dark:bg-slate-800/50"></div>
+              <div className="p-3 sm:p-4 bg-slate-50 dark:bg-slate-800/50 text-center font-bold text-sm sm:text-base text-slate-700 dark:text-slate-300">חינמי</div>
+              <div className="p-3 sm:p-4 bg-blue-50 dark:bg-blue-950/40 text-center font-bold text-sm sm:text-base text-blue-700 dark:text-blue-300">פרו</div>
+              <div className="p-3 sm:p-4 bg-slate-50 dark:bg-slate-800/50 text-center font-bold text-sm sm:text-base text-purple-700 dark:text-purple-300">עסקי</div>
+            </div>
+
+            {PLAN_FEATURES.map((section, sIdx) => (
+              <div key={sIdx}>
+                {/* Section header — feature label only; track columns keep their column tint */}
+                <div className="grid grid-cols-[1.5fr_1fr_1fr_1fr] sm:grid-cols-[2fr_1fr_1fr_1fr]">
+                  <div className="p-2.5 sm:p-3 bg-slate-100/80 dark:bg-slate-800/40 text-xs sm:text-sm font-semibold text-slate-700 dark:text-slate-300 text-right">
+                    {section.section}
+                  </div>
+                  <div className="bg-slate-100/80 dark:bg-slate-800/40"></div>
+                  <div className="bg-blue-100/50 dark:bg-blue-950/30"></div>
+                  <div className="bg-slate-100/80 dark:bg-slate-800/40"></div>
+                </div>
+
+                {section.items.map((feat, fIdx) => (
+                  <div key={fIdx} className="grid grid-cols-[1.5fr_1fr_1fr_1fr] sm:grid-cols-[2fr_1fr_1fr_1fr] border-t border-border">
+                    <div className="p-3 sm:p-4 text-right">
+                      <div className="font-semibold text-sm sm:text-base">{feat.name}</div>
+                      <div className="text-xs sm:text-sm text-muted-foreground mt-0.5 leading-snug">{feat.desc}</div>
+                    </div>
+                    <div className="p-3 sm:p-4 flex items-center justify-center bg-white dark:bg-slate-900">
+                      <PlanCell value={feat.free} />
+                    </div>
+                    <div className="p-3 sm:p-4 flex items-center justify-center bg-blue-50/50 dark:bg-blue-950/20">
+                      <PlanCell value={feat.pro} />
+                    </div>
+                    <div className="p-3 sm:p-4 flex items-center justify-center bg-white dark:bg-slate-900">
+                      <PlanCell value={feat.biz} />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ))}
+          </div>
+
+          <p className="text-center text-sm text-muted-foreground mt-6">
+            ניתן לשדרג מסלול בכל רגע מלוח הבקרה — השינוי תקף מיידית
+          </p>
         </motion.div>
       </section>
 

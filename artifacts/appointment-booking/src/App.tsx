@@ -57,6 +57,7 @@ function Router() {
   return (
     <Switch>
       <Route path="/" component={HomeOrBook} />
+      <Route path="/plans" component={Details} />
       <Route path="/details" component={Details} />
       <Route path="/contact" component={Contact} />
       <Route path={import.meta.env.VITE_ADMIN_PATH ?? "/superadmin"} component={SuperAdmin} />
