@@ -1159,44 +1159,79 @@ function TimeGrid({
           weekday/date row just below the 64px Navbar so owners don't lose
           track of which day they're looking at when they scroll down the
           hours column. bg-background + z-30 keep it from blending with
-          the appointments rendered below. */}
-      <div
-        className="grid border-b border-border text-xs sticky top-16 z-30 bg-background"
-        style={{ gridTemplateColumns: `56px repeat(${days.length}, minmax(0, 1fr))` }}
-      >
-        <div className="py-1.5 px-1 text-[11px] font-semibold text-muted-foreground text-center border-l border-border">כל היום</div>
-        {days.map(d => {
-          const k = ymd(d);
-          const isToday = isSameDay(d, today);
-          const names = holidays.get(k) ?? [];
-          const weekday = format(d, "EEEEE", { locale: he });
-          return (
-            <div key={k} className="py-1.5 px-1 text-center border-l border-border">
-              <div className={`text-[11px] font-semibold ${isToday ? "text-primary" : "text-muted-foreground"}`}>{weekday}</div>
-              <div className={`text-sm font-bold ${isToday ? "text-primary" : ""}`}>{format(d, "d.M")}</div>
-              {names.length > 0 && (
-                // Removed `truncate` — on mobile the column is ~45px wide,
-                // so "יום הזכרון" rendered as "יום הז..." and owners couldn't
-                // tell which holiday it was. Allowing wrap + tap-to-toast
-                // (handled below) lets them see the full text without
-                // enlarging the header row.
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    alert(names.join(" • "));
-                  }}
-                  className="mt-1 w-full text-[10px] font-bold text-primary bg-primary/10 rounded px-1 py-0.5 leading-tight break-words text-right hover:bg-primary/20 transition-colors"
-                  title={names.join(" • ")}
-                >
-                  {names[0]}
-                  {names.length > 1 && <span className="mr-1 opacity-75">+{names.length - 1}</span>}
-                </button>
-              )}
+          the appointments rendered below.
+          Two-row layout: row 1 = weekday+date (always compact), row 2 =
+          holiday badges (only renders when at least one day has a
+          holiday). Splitting was driven by mobile feedback — when "יום
+          העצמאות" wrapped to 2 lines inside a single cell, all sibling
+          day cells stretched to match and the time-grid below was pushed
+          way down the screen. With a dedicated row, the wrap (now also
+          truncated to one line + tap-for-full) only adds ~26px instead
+          of doubling the entire header. */}
+      {(() => {
+        const hasAnyHoliday = days.some(d => (holidays.get(ymd(d)) ?? []).length > 0);
+        return (
+          <div
+            className="grid border-b border-border text-xs sticky top-16 z-30 bg-background"
+            style={{
+              gridTemplateColumns: `56px repeat(${days.length}, minmax(0, 1fr))`,
+              gridTemplateRows: hasAnyHoliday ? "auto auto" : "auto",
+            }}
+          >
+            {/* Right-most column label — spans both rows when present so
+                "כל היום" sits centered against the holiday band. */}
+            <div
+              className="py-1.5 px-1 text-[11px] font-semibold text-muted-foreground text-center border-l border-border flex items-center justify-center"
+              style={{ gridRow: hasAnyHoliday ? "1 / 3" : "1" }}
+            >
+              כל היום
             </div>
-          );
-        })}
-      </div>
+            {/* Row 1 — weekday + date */}
+            {days.map(d => {
+              const k = ymd(d);
+              const isToday = isSameDay(d, today);
+              const weekday = format(d, "EEEEE", { locale: he });
+              return (
+                <div key={`name-${k}`} className="py-1.5 px-1 text-center border-l border-border" style={{ gridRow: 1 }}>
+                  <div className={`text-[11px] font-semibold ${isToday ? "text-primary" : "text-muted-foreground"}`}>{weekday}</div>
+                  <div className={`text-sm font-bold ${isToday ? "text-primary" : ""}`}>{format(d, "d.M")}</div>
+                </div>
+              );
+            })}
+            {/* Row 2 — holiday badges. Each cell renders the day's first
+                holiday name truncated to one line; tap opens an alert
+                with all holiday names so the truncation never hides
+                information. Empty cells render as a thin spacer so the
+                row stays a single uniform band across the week. */}
+            {hasAnyHoliday && days.map(d => {
+              const k = ymd(d);
+              const names = holidays.get(k) ?? [];
+              return (
+                <div
+                  key={`hol-${k}`}
+                  className="px-1 pb-1 text-center border-l border-border min-h-[22px] flex items-center"
+                  style={{ gridRow: 2 }}
+                >
+                  {names.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        alert(names.join(" • "));
+                      }}
+                      className="w-full text-[10px] font-bold text-primary bg-primary/10 rounded px-1 py-0.5 leading-tight truncate hover:bg-primary/20 transition-colors"
+                      title={names.join(" • ")}
+                    >
+                      {names[0]}
+                      {names.length > 1 && <span className="mr-1 opacity-75">+{names.length - 1}</span>}
+                    </button>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        );
+      })()}
 
       {/* Body — same column order as the header: time ruler on the right,
           then day columns. */}
