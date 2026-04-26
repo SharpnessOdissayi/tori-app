@@ -108,8 +108,12 @@ router.get("/sms/balance", async (req, res): Promise<void> => {
     resetDate:       snapshot.resetDate?.toISOString() ?? null,
     resolvedSender:  resolveSenderName(biz),
     senderSource: (() => {
+      // Mirror resolveSenderName() in lib/inforu.ts — spaces are valid
+      // sender characters (Inforu accepts up to 11 chars including
+      // spaces). All-whitespace values are still treated as empty so
+      // the next priority wins.
       const clean = (s: string | null | undefined) =>
-        (s ?? "").replace(/[^A-Za-z0-9]/g, "").slice(0, 11);
+        (s ?? "").replace(/[^A-Za-z0-9 ]/g, "").slice(0, 11).trim();
       if (clean((biz as any).smsSenderName)) return "sms_sender_name";
       if (clean((biz as any).name))          return "business_name";
       if (clean((biz as any).slug))          return "slug";

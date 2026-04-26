@@ -8735,9 +8735,13 @@ function SettingsTab({ isStaffMode = false }: { isStaffMode?: boolean }) {
         businessLegalType: form.businessLegalType || null,
         businessLegalName: form.businessLegalName || null,
         invoiceAddress: form.invoiceAddress || null,
-        // Inforu SMS sender override (trimmed, alphanumeric-only, ≤11).
-        // Empty → null, server falls back to biz name at send time.
-        smsSenderName: (form.smsSenderName || "").replace(/[^A-Za-z0-9]/g, "").slice(0, 11) || null,
+        // Inforu SMS sender override — letters, digits, and spaces, ≤11
+        // chars total (a space counts as one). Empty / whitespace-only
+        // → null so the server falls back to the sanitised biz name.
+        smsSenderName: (() => {
+          const c = (form.smsSenderName || "").replace(/[^A-Za-z0-9 ]/g, "").slice(0, 11);
+          return c.trim() ? c : null;
+        })(),
         // URL slug — only send if the owner actually changed it
         ...(form.slug && form.slug !== profile?.slug ? { slug: form.slug } : {}),
       } as any
@@ -8924,13 +8928,13 @@ function SettingsTab({ isStaffMode = false }: { isStaffMode?: boolean }) {
                   type="text"
                   dir="ltr"
                   value={form.smsSenderName}
-                  onChange={e => setForm(p => ({ ...p, smsSenderName: e.target.value.replace(/[^A-Za-z0-9]/g, "").slice(0, 11) }))}
+                  onChange={e => setForm(p => ({ ...p, smsSenderName: e.target.value.replace(/[^A-Za-z0-9 ]/g, "").slice(0, 11) }))}
                   placeholder=""
                   maxLength={11}
                   className="text-left"
                 />
                 <div className="text-xs text-muted-foreground space-y-1.5 leading-relaxed">
-                  <p>• עד 11 תווים, אותיות באנגלית ומספרים בלבד (ללא רווחים, עברית, או תווים מיוחדים).</p>
+                  <p>• עד 11 תווים — אותיות באנגלית, מספרים ורווחים (כל רווח נחשב תו). לא ניתן להזין עברית או תווים מיוחדים.</p>
                   <p>• <strong>חשוב:</strong> כדי שהשם שלך יופיע כשולח, Inforu צריכה לאשר אותו בצד שלהם (support@inforu.co.il). בלי אישור הם מחליפים אותו בברירת המחדל של החשבון.</p>
                   <p>• אם תשאיר/י ריק — ההודעות ישלחו עם השם של העסק (אותיות לטיניות בלבד, עד 11 תווים).</p>
                 </div>

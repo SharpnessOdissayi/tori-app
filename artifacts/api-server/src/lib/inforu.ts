@@ -91,16 +91,22 @@ export function isInforuConfigured(): boolean {
  * of the name has a chance of being approved already.
  */
 export function resolveSenderName(biz: { smsSenderName?: string | null; slug?: string | null; name?: string | null } | null | undefined): string {
+  // Inforu allows letters, digits, AND spaces in the sender label, capped
+  // at 11 characters total (a space counts as one of the 11). Earlier we
+  // stripped spaces here defensively, but that turned "Lilash Salon" into
+  // "LilashSalon" — owners who'd registered the spaced form with Inforu
+  // saw their messages substituted to the account default. Keep spaces;
+  // an all-whitespace value is treated as empty so the next priority wins.
   const clean = (s: string | null | undefined) =>
-    (s ?? "").replace(/[^A-Za-z0-9]/g, "").slice(0, 11);
+    (s ?? "").replace(/[^A-Za-z0-9 ]/g, "").slice(0, 11);
   const override = clean(biz?.smsSenderName);
-  if (override) return override;
+  if (override.trim()) return override;
   const fromName = clean(biz?.name);
-  if (fromName) return fromName;
+  if (fromName.trim()) return fromName;
   const fromSlug = clean(biz?.slug);
-  if (fromSlug) return fromSlug;
+  if (fromSlug.trim()) return fromSlug;
   const envDefault = clean(process.env.INFORU_SENDER_NAME);
-  if (envDefault) return envDefault;
+  if (envDefault.trim()) return envDefault;
   return "Kavati";
 }
 
@@ -171,7 +177,8 @@ export interface SendSmsOptions {
   /** SMS body. 160 chars = 1 credit (GSM-7). Longer splits into parts. */
   message: string;
   /** The "from" the customer sees. Must be pre-registered with Inforu.
-   *  Max 11 chars (no spaces) OR a phone number up to 14 digits. */
+   *  Max 11 chars (letters, digits, and spaces — a space counts as one
+   *  of the 11) OR a phone number up to 14 digits. */
   senderName: string;
   /** Optional URL Inforu POSTs delivery reports to. */
   deliveryReportUrl?: string;
@@ -214,9 +221,11 @@ export async function sendSms(opts: SendSmsOptions): Promise<InforuSendResult> {
   }
 
   // Inforu JSON API v2 body shape — header-only auth (no User block).
-  // Sender name is enforced server-side at ≤11 chars (alphanumeric, no
-  // spaces) so we trim defensively before send to avoid an obvious 4xx.
-  const safeSender = opts.senderName.replace(/\s+/g, "").slice(0, 11);
+  // Sender name is enforced server-side at ≤11 chars (letters, digits,
+  // and internal spaces). We strip anything else defensively before send
+  // and cap to 11 to avoid an obvious 4xx; spaces are preserved so a
+  // sender pre-approved as "Lilash Salon" reaches Inforu intact.
+  const safeSender = opts.senderName.replace(/[^A-Za-z0-9 ]/g, "").slice(0, 11);
   const body = {
     Data: {
       Message: opts.message,
