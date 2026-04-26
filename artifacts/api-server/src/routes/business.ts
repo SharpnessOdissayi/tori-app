@@ -4,6 +4,7 @@ import { db, businessesTable, servicesTable, workingHoursTable, breakTimesTable,
 import { eq, and, or, gte, sql, count, isNull } from "drizzle-orm";
 import { computeRotationWeekIndex } from "../lib/availability";
 import { sendClientCancellation, sendClientReschedule, sendClientConfirmation, sendWhatsApp } from "../lib/whatsapp";
+import { normalizePhone } from "../lib/otpStore";
 import { isBusinessPro } from "../lib/plan";
 import { allocateUnsubscribeTokensBulk, signInviteBackToken } from "../lib/unsubscribeToken";
 import {
@@ -1220,7 +1221,14 @@ router.post("/business/appointments", requireBusinessAuth, async (req, res): Pro
       serviceId: svcIdNum,
       serviceName: service.name,
       clientName: String(clientName).trim(),
-      phoneNumber: String(phoneNumber ?? "").trim(),
+      // Canonicalise to "972XXXXXXXXX" so the client portal (which always
+      // normalises the session phone) can find this row by exact match.
+      // Empty input stays empty — the owner sometimes adds appointments
+      // without a phone (walk-ins).
+      phoneNumber: (() => {
+        const raw = String(phoneNumber ?? "").trim();
+        return raw ? normalizePhone(raw) : raw;
+      })(),
       appointmentDate: String(appointmentDate),
       appointmentTime: String(appointmentTime),
       durationMinutes: service.durationMinutes,

@@ -928,8 +928,15 @@ router.post("/public/:businessSlug/appointments", async (req, res): Promise<void
   }
 
   const { businessSlug } = paramsParsed.data;
-  const { serviceId, clientName, phoneNumber, appointmentDate, appointmentTime, notes, phoneVerificationToken } =
+  const { serviceId, clientName, appointmentDate, appointmentTime, notes, phoneVerificationToken } =
     bodyParsed.data;
+  // Canonicalise the phone the moment it lands. Without this the row gets
+  // stored in whatever shape the booking form happened to send ("0522…",
+  // "+972-52…", "972522…"), and the client portal — which always
+  // normalises to "972…" — fails to find it on /client/appointments.
+  // normalizePhone is digit-strip + 0→972 prefix, so all human-typed
+  // shapes converge on the same canonical 12-digit form.
+  const phoneNumber = normalizePhone(bodyParsed.data.phoneNumber);
 
   const [business] = await db
     .select()

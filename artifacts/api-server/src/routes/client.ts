@@ -15,6 +15,19 @@ function israelTimeToUTC(dateStr: string, timeStr: string): Date {
   return new Date(`${dateStr}T${timeStr}:00+0${offset}:00`);
 }
 
+// Match an appointment row to a client session phone, accepting the
+// multiple shapes phone numbers historically ended up in the DB. The
+// session phone is always canonical "972XXXXXXXXX" (validateIsraeliMobile
+// output), but `appointments.phone_number` may have been stored as the
+// legacy local form ("0XXXXXXXXX"), with a "+" prefix, or with
+// separators ("052-206-8100"). Stripping non-digits at compare time and
+// matching against both the canonical and leading-zero local form covers
+// every form a real human typed into the booking page.
+function phoneMatchesCondition(canonical: string) {
+  const local = canonical.startsWith("972") ? "0" + canonical.slice(3) : canonical;
+  return sql`regexp_replace(${appointmentsTable.phoneNumber}, '[^0-9]', '', 'g') IN (${canonical}, ${local})`;
+}
+
 const router = Router();
 
 const SESSION_DAYS = 30;
@@ -601,7 +614,7 @@ router.get("/client/appointments", requireClientAuth, async (req, res): Promise<
     })
     .from(appointmentsTable)
     .innerJoin(businessesTable, eq(appointmentsTable.businessId, businessesTable.id))
-    .where(eq(appointmentsTable.phoneNumber, phone))
+    .where(phoneMatchesCondition(phone))
     .orderBy(appointmentsTable.appointmentDate, appointmentsTable.appointmentTime);
 
   res.json(appointments.map(a => ({ ...a, createdAt: a.createdAt.toISOString() })));
@@ -630,7 +643,7 @@ router.patch("/client/appointments/:id/reschedule", requireClientAuth, async (re
   const [appt] = await db
     .select()
     .from(appointmentsTable)
-    .where(and(eq(appointmentsTable.id, id), eq(appointmentsTable.phoneNumber, phone)));
+    .where(and(eq(appointmentsTable.id, id), phoneMatchesCondition(phone)));
 
   if (!appt) { res.status(404).json({ error: "תור לא נמצא" }); return; }
   if (appt.status === "cancelled") { res.status(400).json({ error: "לא ניתן לעדכן תור שבוטל" }); return; }
@@ -739,7 +752,7 @@ router.patch("/client/appointments/:id/cancel", requireClientAuth, async (req, r
   const [appt] = await db
     .select()
     .from(appointmentsTable)
-    .where(and(eq(appointmentsTable.id, id), eq(appointmentsTable.phoneNumber, phone)));
+    .where(and(eq(appointmentsTable.id, id), phoneMatchesCondition(phone)));
 
   if (!appt) { res.status(404).json({ error: "תור לא נמצא" }); return; }
 
@@ -789,7 +802,7 @@ router.delete("/client/account", requireClientAuth, async (req, res): Promise<vo
   };
 
   try {
-    await safe(() => db.delete(appointmentsTable).where(eq(appointmentsTable.phoneNumber, phone)), "appointments");
+    await safe(() => db.delete(appointmentsTable).where(phoneMatchesCondition(phone)), "appointments");
     await safe(() => db.delete(clientBusinessesTable).where(eq(clientBusinessesTable.phoneNumber, phone)), "client_businesses");
     // Waitlist also keys on phone_number — lazy import so this route
     // file doesn't keep an unused top-level import.
