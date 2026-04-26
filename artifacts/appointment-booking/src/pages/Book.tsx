@@ -468,6 +468,18 @@ export default function Book({ slugOverride }: { slugOverride?: string } = {}) {
   /** JWT from server after OTP — required for booking when API runs on multiple Railway instances */
   const [phoneVerificationToken, setPhoneVerificationToken] = useState<string | null>(null);
   const [otpLoading, setOtpLoading] = useState(false);
+  // In-flight guard for /otp/send. The button's `disabled={otpLoading}` flips
+  // on next render, so a fast double-tap can fire two send requests before
+  // React paints — each one overwrites the OTP code in the server's in-memory
+  // store, so the SMS the user reads first is no longer the valid code, and
+  // verification fails with "invalid_code". The ref is checked synchronously
+  // at the top of handleSendOtp, blocking the second click in the same tick.
+  const otpSendingRef = useRef(false);
+  // Drives a 3-second pulse on the "שלח קוד" button when the booking submit
+  // came back with `phone_not_verified` — owners reported users staring at
+  // the toast without realising they still have to tap the button next to
+  // their phone. The pulse points the eye at it.
+  const [sendCodeBlink, setSendCodeBlink] = useState(false);
 
   // Portal auth
   const [clientToken, setClientToken] = useState<string | null>(
@@ -1386,6 +1398,14 @@ export default function Book({ slugOverride }: { slugOverride?: string } = {}) {
 
   const handleSendOtp = async () => {
     if (!clientData.phone) return;
+    // Race guard: a double-tap on the button used to fire two parallel
+    // /otp/send requests, and because the server's OTP store is keyed by
+    // phone, the second send would overwrite the first code. The user then
+    // typed the code from the FIRST SMS they received and got a generic
+    // "invalid_code" — looked like verification was broken. The ref blocks
+    // the second invocation within the same render tick.
+    if (otpSendingRef.current) return;
+    otpSendingRef.current = true;
     setOtpLoading(true);
     setPhoneVerificationToken(null);
     try {
@@ -1394,13 +1414,24 @@ export default function Book({ slugOverride }: { slugOverride?: string } = {}) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ phone: clientData.phone }),
       });
-      if (!res.ok) throw new Error();
+      if (!res.ok) {
+        // Surface the server's actual error (rate-limit message, invalid
+        // number, etc) instead of a generic "שגיאה בשליחת הקוד" — without
+        // it, a rate-limited user keeps tapping and never understands why.
+        const data = await res.json().catch(() => ({}));
+        toast({
+          title: data?.error ?? "שגיאה בשליחת הקוד",
+          variant: "destructive",
+        });
+        return;
+      }
       setOtpSent(true);
       toast({ title: "קוד נשלח לנייד שלך ב-SMS" });
     } catch {
       toast({ title: "שגיאה בשליחת הקוד", variant: "destructive" });
     } finally {
       setOtpLoading(false);
+      otpSendingRef.current = false;
     }
   };
 
@@ -1493,8 +1524,17 @@ export default function Book({ slugOverride }: { slugOverride?: string } = {}) {
           }
         },
         onError: (err: any) => {
-          const msg = err?.data?.message ?? err?.data?.error ?? "לא ניתן לקבוע את התור, נסה שוב";
+          const errCode = err?.data?.error;
+          const msg = err?.data?.message ?? errCode ?? "לא ניתן לקבוע את התור, נסה שוב";
           toast({ title: "שגיאה בקביעת תור", description: msg, variant: "destructive" });
+          // The "verify phone first" message is easy to miss — the OTP
+          // section is below the phone input and the toast disappears
+          // quickly. Pulse the "שלח קוד" button for 3 seconds so the
+          // user's eye lands on it.
+          if (errCode === "phone_not_verified") {
+            setSendCodeBlink(true);
+            setTimeout(() => setSendCodeBlink(false), 3000);
+          }
         },
       }
     );
@@ -3024,7 +3064,9 @@ export default function Book({ slugOverride }: { slugOverride?: string } = {}) {
                             type="button"
                             onClick={handleSendOtp}
                             disabled={otpLoading || !clientData.phone}
-                            className="h-12 px-4 rounded-lg text-sm font-medium text-white transition-all disabled:opacity-50"
+                            className={`h-12 px-4 rounded-lg text-sm font-medium text-white transition-all disabled:opacity-50 ${
+                              sendCodeBlink ? "animate-pulse ring-4 ring-red-400/70 shadow-lg" : ""
+                            }`}
                             style={{ backgroundColor: primaryColor }}
                           >
                             {otpLoading && !otpSent ? "שולח..." : otpSent ? "שלח שוב" : "שלח קוד"}
